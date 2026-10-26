@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +46,7 @@ import com.zyke.message.presentation.messages.MessagesContract.State
 import com.zyke.message.presentation.messages.MessagesContract.ViewMode
 import com.zyke.message.presentation.messages.components.InboxModeBar
 import com.zyke.message.presentation.messages.components.SendersList
-import com.zyke.message.presentation.messages.components.ThreadScreen
+import com.zyke.message.presentation.messages.components.ThreadSheet
 import java.time.LocalDate
 import java.time.ZoneId
 import com.zyke.message.presentation.common.ErrorState
@@ -79,9 +78,6 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.onIntent(Intent.PermissionResult(granted)) }
-
-    // Back closes an open conversation before leaving the app.
-    BackHandler(enabled = state.thread != null) { viewModel.onIntent(Intent.CloseThread) }
 
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
@@ -148,74 +144,73 @@ fun MessagesScreen(
     val actions = remember(onIntent) { onIntent.toFeedActions() }
 
     Box(modifier.fillMaxSize()) {
-        val thread = state.thread
-        if (thread != null) {
-            ThreadScreen(
-                thread = thread,
-                state = state,
-                actions = actions,
-                onBack = { onIntent(Intent.CloseThread) },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Column(Modifier.fillMaxSize()) {
-                val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
-                if (ready) {
-                    InboxModeBar(
-                        mode = state.viewMode,
-                        onMode = { onIntent(Intent.SetViewMode(it)) }
-                    ) {
-                        when {
-                            state.viewMode == ViewMode.TIMELINE && !state.isSearching -> QuickFilterTabs(
-                                feed = state.feed,
-                                selected = state.filter.smart,
-                                onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
-                            )
-                            // Type tabs don't apply here, so say what is being shown instead.
-                            state.viewMode == ViewMode.SENDERS -> ModeSummary(
-                                DisplayFormatters.count(state.conversations.size, "sender", "senders")
-                            )
-                            else -> ModeSummary(DisplayFormatters.count(state.feed.visibleCount, "result", "results"))
-                        }
-                    }
-                    if (state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
-                        ActiveFilterBar(
-                            summary = state.filter.extrasSummary(),
-                            resultCount = state.feed.visibleCount,
-                            onChange = { onIntent(Intent.OpenFilters) },
-                            onClear = { onIntent(Intent.ResetExtras) }
+        Column(Modifier.fillMaxSize()) {
+            val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
+            if (ready) {
+                InboxModeBar(
+                    mode = state.viewMode,
+                    onMode = { onIntent(Intent.SetViewMode(it)) }
+                ) {
+                    when {
+                        state.viewMode == ViewMode.TIMELINE && !state.isSearching -> QuickFilterTabs(
+                            feed = state.feed,
+                            selected = state.filter.smart,
+                            onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
                         )
+                        // Type tabs don't apply here, so say what is being shown instead.
+                        state.viewMode == ViewMode.SENDERS -> ModeSummary(
+                            DisplayFormatters.count(state.conversations.size, "sender", "senders")
+                        )
+                        else -> ModeSummary(DisplayFormatters.count(state.feed.visibleCount, "result", "results"))
                     }
                 }
+                if (state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
+                    ActiveFilterBar(
+                        summary = state.filter.extrasSummary(),
+                        resultCount = state.feed.visibleCount,
+                        onChange = { onIntent(Intent.OpenFilters) },
+                        onClear = { onIntent(Intent.ResetExtras) }
+                    )
+                }
+            }
 
-                Box(Modifier.fillMaxSize()) {
-                    val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
-                    when {
-                        state.permission == PermissionStatus.DENIED -> PermissionGate(
-                            onGrant = { onIntent(Intent.RequestPermission) }
+            Box(Modifier.fillMaxSize()) {
+                val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
+                when {
+                    state.permission == PermissionStatus.DENIED -> PermissionGate(
+                        onGrant = { onIntent(Intent.RequestPermission) }
+                    )
+                    state.hasError -> ErrorState(
+                        title = stringResource(R.string.messages_error),
+                        hint = stringResource(R.string.error_hint),
+                        onRetry = { onIntent(Intent.Retry) }
+                    )
+                    state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
+                    state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) {
+                        EmptyState(state)
+                    } else {
+                        SendersList(
+                            conversations = state.conversations,
+                            today = today,
+                            onOpen = { onIntent(Intent.OpenSender(it)) },
+                            modifier = Modifier.fillMaxSize()
                         )
-                        state.hasError -> ErrorState(
-                            title = stringResource(R.string.messages_error),
-                            hint = stringResource(R.string.error_hint),
-                            onRetry = { onIntent(Intent.Retry) }
-                        )
-                        state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
-                        state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) {
-                            EmptyState(state)
-                        } else {
-                            SendersList(
-                                conversations = state.conversations,
-                                today = today,
-                                onOpen = { onIntent(Intent.OpenSender(it)) },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        state.feed.visibleCount == 0 -> EmptyState(state)
-                        else -> MessageList(state, actions, Modifier.fillMaxSize())
                     }
+                    state.feed.visibleCount == 0 -> EmptyState(state)
+                    else -> MessageList(state, actions, Modifier.fillMaxSize())
                 }
             }
         }
+
+        state.thread?.let { thread ->
+            ThreadSheet(
+                thread = thread,
+                state = state,
+                actions = actions,
+                onDismiss = { onIntent(Intent.CloseThread) }
+            )
+        }
+
 
         state.detail?.let { detail ->
             MessageDetailSheet(

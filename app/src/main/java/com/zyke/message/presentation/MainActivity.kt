@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
 
 /** Buttons are only offered once the screen underneath has something to filter or search. */
 private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
-    buttonsVisible = permission == MessagesContract.PermissionStatus.GRANTED && !isLoading && !hasError && thread == null,
+    buttonsVisible = permission == MessagesContract.PermissionStatus.GRANTED && !isLoading && !hasError,
     searching = isSearching,
     query = query,
     filterCount = filter.extraCount

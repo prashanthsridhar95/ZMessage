@@ -55,9 +55,10 @@ Change / Clear.
 
 The Messages tab has a **Timeline** (grouped by day) and a **Senders** view (one row per sender,
 latest first, with unread counts). Operator prefixes and traffic-type suffixes are ignored, so
-`AD-HDFCBK` and `VM-HDFCBK-S` are the same sender. Tapping any message, or a sender, opens that
-sender's conversation: every message from them, newest first, in day sections. The message you
-came from is expanded and scrolled into view; tap a card there to expand it, back to return.
+`AD-HDFCBK` and `VM-HDFCBK-S` are the same sender. Tapping a sender opens that
+sender's messages in a bottom sheet: every message from them, newest first, in day sections. Tapping
+any message opens its detail in a second sheet on top; closing it returns to the list. A message opened
+from "More from this sender" is scrolled into view.
 
 ### Dashboard tab
 
