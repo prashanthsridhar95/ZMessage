@@ -4,6 +4,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +22,7 @@ import com.zyke.message.domain.feed.FeedItem
 import com.zyke.message.domain.feed.GroupKind
 import com.zyke.message.domain.feed.SectionId
 import com.zyke.message.presentation.format.DateFormatters
+import com.zyke.message.presentation.messages.MessagesContract.SWIPE_HINT_KEY
 import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,7 +40,19 @@ fun MessageList(
     LazyColumn(modifier) {
         if (feed.attention.isNotEmpty()) {
             item(key = "attention", contentType = "attention") {
-                AttentionStrip(feed.attention, today, actions, Modifier.animateItem())
+                AttentionStrip(
+                    feed.attention, today, actions,
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp).animateItem()
+                )
+            }
+        }
+
+        if (state.showSwipeHint) {
+            item(key = "swipe-hint", contentType = "hint") {
+                SwipeHint(
+                    onDismiss = { actions.onDismissAttention(SWIPE_HINT_KEY) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).animateItem()
+                )
             }
         }
 
@@ -69,6 +86,26 @@ fun MessageList(
                 }
             }
         }
+    }
+}
+
+/** One-time tip that makes the hidden gestures discoverable. */
+@Composable
+private fun SwipeHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            modifier = Modifier.weight(1f),
+            text = "Tip: swipe a message right to archive, left to pin. Tap one to see everything from that sender.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        TextButton(onClick = onDismiss) { Text("Got it") }
     }
 }
 

@@ -39,7 +39,9 @@ import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CategoryRow
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ChartLegend
+import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.DashboardControls
+import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
 import com.zyke.message.presentation.dashboard.components.HeroCard
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
@@ -56,7 +58,7 @@ import java.time.ZoneId
 private const val COLLAPSED_VENDORS = 5
 
 @Composable
-fun DashboardRoute(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
+fun DashboardRoute(viewModel: DashboardViewModel, onRequestPermission: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -81,11 +83,16 @@ fun DashboardRoute(viewModel: DashboardViewModel, modifier: Modifier = Modifier)
         }
     }
 
-    DashboardScreen(state, viewModel::onIntent, modifier)
+    DashboardScreen(state, viewModel::onIntent, onRequestPermission, modifier)
 }
 
 @Composable
-fun DashboardScreen(state: State, onIntent: (Intent) -> Unit, modifier: Modifier = Modifier) {
+fun DashboardScreen(
+    state: State,
+    onIntent: (Intent) -> Unit,
+    onRequestPermission: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     Column(modifier.fillMaxSize()) {
         Column(Modifier.statusBarsPadding()) {
             Text(
@@ -102,11 +109,25 @@ fun DashboardScreen(state: State, onIntent: (Intent) -> Unit, modifier: Modifier
 
         val dashboard = state.dashboard
         when {
-            state.permissionMissing -> Notice(stringResource(R.string.dashboard_permission), stringResource(R.string.dashboard_permission_hint))
+            state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
             state.hasError -> Notice(stringResource(R.string.messages_error), null)
             state.isLoading || dashboard == null -> MessageListSkeleton()
             else -> DashboardContent(state, dashboard, onIntent)
         }
+    }
+
+    val dashboardForSheet = state.dashboard
+    if (state.showFilterSheet && dashboardForSheet != null) {
+        DashboardFilterSheet(
+            period = state.period,
+            category = state.category,
+            dashboard = dashboardForSheet,
+            canReset = state.activeFilterCount > 0,
+            onPeriod = { onIntent(Intent.SelectPeriod(it)) },
+            onCategory = { onIntent(Intent.SetCategory(it)) },
+            onReset = { onIntent(Intent.ResetFilters) },
+            onDismiss = { onIntent(Intent.CloseFilters) }
+        )
     }
 
     state.editingBudget?.let { category ->
@@ -137,9 +158,8 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                 period = state.period,
                 direction = state.direction,
                 category = state.category,
-                onPeriod = { onIntent(Intent.SelectPeriod(it)) },
-                onDirection = { onIntent(Intent.SelectDirection(it)) },
-                onClearCategory = { onIntent(Intent.ClearCategory) }
+                onOpenFilters = { onIntent(Intent.OpenFilters) },
+                onDirection = { onIntent(Intent.SelectDirection(it)) }
             )
         }
 

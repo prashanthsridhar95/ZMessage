@@ -2,6 +2,7 @@ package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +50,9 @@ import com.zyke.message.presentation.format.DateFormatters
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
 import com.zyke.message.presentation.messages.components.Caption
-import com.zyke.message.presentation.messages.components.FilterChip
+import com.zyke.message.presentation.common.FilterSheet
+import com.zyke.message.presentation.common.OptionRow
+import com.zyke.message.presentation.common.SheetSection
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.SegmentedControl
@@ -89,36 +92,77 @@ internal fun SectionCard(
     }
 }
 
-/** Period chips, spent / received switch and the active category filter. */
+/** What is being shown, as one tappable summary (opens the filter sheet), plus the Spent / Received switch. */
 @Composable
 internal fun DashboardControls(
     period: DashboardPeriod,
     direction: FlowDirection,
     category: MessageCategory?,
-    onPeriod: (DashboardPeriod) -> Unit,
+    onOpenFilters: () -> Unit,
     onDirection: (FlowDirection) -> Unit,
-    onClearCategory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LazyRow(
-            contentPadding = PaddingValues(0.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                .clickable(onClickLabel = "Change period and category", onClick = onOpenFilters)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(DashboardPeriod.entries, key = { it.name }) {
-                FilterChip(it.label, it == period) { onPeriod(it) }
+            Column(Modifier.weight(1f)) {
+                Caption("Showing")
+                Text(
+                    "${period.label} · ${category?.displayString ?: "All categories"}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
             }
+            Text("▾", color = MaterialTheme.colorScheme.primary)
         }
         SegmentedControl(
             options = FlowDirection.entries.map { it.label },
             selectedIndex = direction.ordinal,
             onSelect = { onDirection(FlowDirection.entries[it]) }
         )
-        if (category != null) {
-            Row {
-                FilterChip("${category.displayString}  ✕", true, onClearCategory)
-            }
+    }
+}
+
+@Composable
+internal fun DashboardFilterSheet(
+    period: DashboardPeriod,
+    category: MessageCategory?,
+    dashboard: Dashboard,
+    canReset: Boolean,
+    onPeriod: (DashboardPeriod) -> Unit,
+    onCategory: (MessageCategory?) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    FilterSheet(
+        title = "Filter dashboard",
+        doneLabel = "Show ${plural(dashboard.count, "payment", "payments")}",
+        canReset = canReset,
+        onReset = onReset,
+        onDismiss = onDismiss
+    ) {
+        SheetSection("Period")
+        DashboardPeriod.entries.forEach {
+            OptionRow(it.label, selected = it == period, onClick = { onPeriod(it) })
+        }
+
+        SheetSection("Category")
+        OptionRow("All categories", selected = category == null, onClick = { onCategory(null) })
+        dashboard.categories.forEach {
+            OptionRow(
+                label = it.category.displayString,
+                selected = it.category == category,
+                trailing = DisplayFormatters.rupees(it.total),
+                onClick = { onCategory(it.category) }
+            )
         }
     }
 }

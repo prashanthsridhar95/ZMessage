@@ -12,6 +12,8 @@ import java.time.Instant
 
 object MessagesContract {
 
+    const val SWIPE_HINT_KEY = "hint-swipe"
+
     enum class PermissionStatus { UNKNOWN, GRANTED, DENIED }
 
     enum class ViewMode(val label: String) { TIMELINE("Timeline"), SENDERS("Senders") }
@@ -25,7 +27,7 @@ object MessagesContract {
         val messages: List<ClassifiedMessage> = emptyList(),
         val userState: UserMessageState = UserMessageState(),
         val filter: MessageFilter = MessageFilter.All,
-        val showCategoryBar: Boolean = false,
+        val showFilterSheet: Boolean = false,
         val isSearching: Boolean = false,
         val query: String = "",
         val now: Instant = Instant.EPOCH,
@@ -47,11 +49,13 @@ object MessagesContract {
         /** The open conversation, if any. */
         val thread: Thread? = null
     ) {
-        val selectedCategory: MessageCategory?
-            get() = (filter as? MessageFilter.Category)?.category
+        val selectedCategory: MessageCategory? get() = filter.category
 
-        val selectedSmartFilter: SmartFilter?
-            get() = (filter as? MessageFilter.Smart)?.filter
+        val selectedSmartFilter: SmartFilter get() = filter.smart
+
+        /** Gesture hints are shown until the user waves them away. */
+        val showSwipeHint: Boolean
+            get() = SWIPE_HINT_KEY !in userState.dismissedAttention && feed.visibleCount > 0 && !isSearching
 
         fun isUnread(message: ClassifiedMessage) =
             !message.message.isRead && message.id !in userState.readIds
@@ -72,7 +76,9 @@ object MessagesContract {
         data class OpenMessage(val messageId: Long) : Intent
         data class OpenSender(val key: String) : Intent
         data object CloseThread : Intent
-        data object ToggleCategoryBar : Intent
+        data object OpenFilters : Intent
+        data object CloseFilters : Intent
+        data object ResetFilters : Intent
         data object ToggleSearch : Intent
         data class SetQuery(val query: String) : Intent
 

@@ -38,6 +38,17 @@ Dependencies point inwards: `presentation -> domain <- data`.
 `State` (exposed as a `StateFlow`) and emits one-shot `Effect`s (permission request, clipboard).
 `MessagesScreen` is stateless: `(State, (Intent) -> Unit) -> Unit`.
 
+### Three tabs
+
+- **Home**: what needs attention (fresh OTP, bills due, low FASTag), this month versus last month,
+  upcoming bills and auto-debits (`UpcomingBuilder`), budget status, recent payments
+- **Money**: the dashboard (spending by category / vendor / account, card bills, budgets)
+- **Inbox**: timeline and senders, conversations, search
+
+Filtering is a bottom sheet on Inbox and Money: choices apply immediately and the button at the
+bottom says what you will see ("Show 12 messages"). Active filters stay visible as a summary bar
+with Change / Clear, so a filter is never forgotten.
+
 ### Senders and conversations
 
 The Messages tab has a **Timeline** (grouped by day) and a **Senders** view (one row per sender,

@@ -49,12 +49,13 @@ import com.zyke.message.presentation.messages.components.SendersList
 import com.zyke.message.presentation.messages.components.ThreadScreen
 import java.time.LocalDate
 import java.time.ZoneId
-import com.zyke.message.presentation.messages.components.CategoryBar
+import com.zyke.message.presentation.common.PermissionGate
+import com.zyke.message.presentation.messages.components.ActiveFilterBar
+import com.zyke.message.presentation.messages.components.MessagesFilterSheet
 import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import com.zyke.message.presentation.messages.components.MessagesTopBar
-import com.zyke.message.presentation.messages.components.SmartFilterRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -157,8 +158,8 @@ fun MessagesScreen(
                     query = state.query,
                     onQueryChange = { onIntent(Intent.SetQuery(it)) },
                     onToggleSearch = { onIntent(Intent.ToggleSearch) },
-                    categoryBarVisible = state.showCategoryBar,
-                    onToggleCategoryBar = { onIntent(Intent.ToggleCategoryBar) }
+                    activeFilterCount = state.filter.activeCount,
+                    onOpenFilters = { onIntent(Intent.OpenFilters) }
                 )
 
                 val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
@@ -170,24 +171,19 @@ fun MessagesScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
-                    SmartFilterRow(
-                        available = state.feed.availableFilters,
-                        selected = state.selectedSmartFilter,
-                        onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
+                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE && state.filter.isActive) {
+                    ActiveFilterBar(
+                        filter = state.filter,
+                        resultCount = state.feed.visibleCount,
+                        onChange = { onIntent(Intent.OpenFilters) },
+                        onClear = { onIntent(Intent.ResetFilters) }
                     )
-                    if (state.showCategoryBar) {
-                        CategoryBar(
-                            selected = state.selectedCategory,
-                            onSelect = { onIntent(Intent.SelectCategory(it)) }
-                        )
-                    }
                 }
 
                 Box(Modifier.fillMaxSize()) {
                     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
                     when {
-                        state.permission == PermissionStatus.DENIED -> PermissionRequired(
+                        state.permission == PermissionStatus.DENIED -> PermissionGate(
                             onGrant = { onIntent(Intent.RequestPermission) }
                         )
                         state.hasError -> CenteredMessage(stringResource(R.string.messages_error), null)
@@ -207,6 +203,17 @@ fun MessagesScreen(
                     }
                 }
             }
+        }
+
+        if (state.showFilterSheet) {
+            MessagesFilterSheet(
+                filter = state.filter,
+                feed = state.feed,
+                onSelectType = { onIntent(Intent.SelectSmartFilter(it)) },
+                onSelectCategory = { onIntent(Intent.SelectCategory(it)) },
+                onReset = { onIntent(Intent.ResetFilters) },
+                onDismiss = { onIntent(Intent.CloseFilters) }
+            )
         }
 
         SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
@@ -231,31 +238,9 @@ private fun EmptyState(state: State) {
     when {
         state.isSearching && state.query.isNotBlank() ->
             CenteredMessage(stringResource(R.string.search_empty), stringResource(R.string.search_empty_hint))
-        state.viewMode == ViewMode.TIMELINE && state.filter != MessageFilter.All ->
+        state.viewMode == ViewMode.TIMELINE && state.filter.isActive ->
             CenteredMessage(stringResource(R.string.filter_empty), stringResource(R.string.filter_empty_hint))
         else -> CenteredMessage(stringResource(R.string.messages_empty), null)
-    }
-}
-
-@Composable
-private fun PermissionRequired(onGrant: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(R.string.permission_title),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = stringResource(R.string.permission_rationale),
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.secondary
-        )
-        Button(onClick = onGrant) { Text(stringResource(R.string.permission_grant)) }
     }
 }
 

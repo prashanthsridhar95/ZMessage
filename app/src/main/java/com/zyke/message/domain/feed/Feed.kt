@@ -17,12 +17,16 @@ enum class SmartFilter(val label: String) {
     ARCHIVED("Archived")
 }
 
-sealed interface MessageFilter {
-    data class Smart(val filter: SmartFilter) : MessageFilter
-    data class Category(val category: MessageCategory) : MessageFilter
+/** What the Inbox is narrowed to. The two parts combine: e.g. Money in the Food category. */
+data class MessageFilter(
+    val smart: SmartFilter = SmartFilter.ALL,
+    val category: MessageCategory? = null
+) {
+    val activeCount: Int get() = (if (smart != SmartFilter.ALL) 1 else 0) + (if (category != null) 1 else 0)
+    val isActive: Boolean get() = activeCount > 0
 
     companion object {
-        val All: MessageFilter = Smart(SmartFilter.ALL)
+        val All = MessageFilter()
     }
 }
 
@@ -100,8 +104,12 @@ data class Feed(
     val attention: List<AttentionItem> = emptyList(),
     val summary: SpendSummary? = null,
     val sections: List<FeedSection> = emptyList(),
-    /** Chips worth showing; empty buckets are left out to reduce noise. */
+    /** Types worth offering in the filter sheet; empty buckets are left out to reduce noise. */
     val availableFilters: List<SmartFilter> = listOf(SmartFilter.ALL),
+    /** How many messages each type holds. */
+    val counts: Map<SmartFilter, Int> = emptyMap(),
+    /** Categories that actually occur, most frequent first. */
+    val categories: List<Pair<MessageCategory, Int>> = emptyList(),
     val visibleCount: Int = 0
 ) {
     companion object {

@@ -53,7 +53,7 @@ class FeedBuilderTest {
         assertEquals(1, feed.visibleCount)
         assertTrue(SmartFilter.PROMOS in feed.availableFilters)
 
-        val promos = build(listOf(promo, normal), MessageFilter.Smart(SmartFilter.PROMOS))
+        val promos = build(listOf(promo, normal), MessageFilter(SmartFilter.PROMOS))
         assertEquals(1, promos.visibleCount)
     }
 
@@ -83,7 +83,7 @@ class FeedBuilderTest {
         assertEquals(SectionId.Pinned, feed.sections.first().id)
         assertEquals(old.id, feed.sections.first().items.single().newest.id)
         assertEquals(2, feed.visibleCount)
-        assertEquals(1, build(listOf(old, recent, archived), MessageFilter.Smart(SmartFilter.ARCHIVED), user).visibleCount)
+        assertEquals(1, build(listOf(old, recent, archived), MessageFilter(SmartFilter.ARCHIVED), user).visibleCount)
     }
 
     @Test
@@ -103,11 +103,31 @@ class FeedBuilderTest {
         val tag = msg("INR 65 toll paid from HDFC Bank Tag 1234 for vehicle no. KA01AB1234 at Hosur Toll on 12-Jan-25 10:30. Avbl. Bal.: INR435")
         val all = listOf(otp, spend, tag)
 
-        assertEquals(1, build(all, MessageFilter.Smart(SmartFilter.OTP)).visibleCount)
-        assertEquals(1, build(all, MessageFilter.Smart(SmartFilter.MONEY)).visibleCount)
-        assertEquals(1, build(all, MessageFilter.Smart(SmartFilter.TRAVEL)).visibleCount)
-        assertEquals(1, build(all, MessageFilter.Category(MessageCategory.FASTAG)).visibleCount)
+        assertEquals(1, build(all, MessageFilter(SmartFilter.OTP)).visibleCount)
+        assertEquals(1, build(all, MessageFilter(SmartFilter.MONEY)).visibleCount)
+        assertEquals(1, build(all, MessageFilter(SmartFilter.TRAVEL)).visibleCount)
+        assertEquals(1, build(all, MessageFilter(category = MessageCategory.FASTAG)).visibleCount)
         assertFalse(SmartFilter.BILLS in build(all).availableFilters)
+    }
+
+    @Test
+    fun filtersCombine_andSheetGetsCounts() {
+        val swiggyOtp = msg("123456 is your OTP for Swiggy", sender = "AD-SWIGGY")
+        val otherOtp = msg("654321 is your OTP", sender = "AD-XYZ")
+        val spend = msg(hdfcSpend)
+        val all = listOf(swiggyOtp, otherOtp, spend)
+
+        val combined = build(all, MessageFilter(SmartFilter.OTP, MessageCategory.OTP))
+        assertEquals(2, combined.visibleCount)
+        assertEquals(0, build(all, MessageFilter(SmartFilter.MONEY, MessageCategory.OTP)).visibleCount)
+
+        val feed = build(all)
+        assertEquals(3, feed.counts[SmartFilter.ALL])
+        assertEquals(2, feed.counts[SmartFilter.OTP])
+        assertEquals(MessageCategory.OTP, feed.categories.first().first)
+        assertEquals(2, feed.categories.first().second)
+        assertEquals(2, MessageFilter(SmartFilter.OTP, MessageCategory.OTP).activeCount)
+        assertFalse(MessageFilter.All.isActive)
     }
 
     @Test

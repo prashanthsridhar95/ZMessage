@@ -29,6 +29,7 @@ object DashboardContract {
         /** Category whose budget is being edited, if the dialog is open. */
         val editingBudget: MessageCategory? = null,
 
+        val showFilterSheet: Boolean = false,
         val expandedVendor: String? = null,
         val showAllVendors: Boolean = false,
 
@@ -38,6 +39,10 @@ object DashboardContract {
         val expandedCard: String? = null
     ) {
         val query get() = DashboardQuery(period, direction, category)
+
+        /** Period and category are "extra" filters; the direction has its own switch on screen. */
+        val activeFilterCount: Int
+            get() = (if (period != DashboardPeriod.THIS_MONTH) 1 else 0) + (if (category != null) 1 else 0)
     }
 
     sealed interface Intent {
@@ -47,6 +52,10 @@ object DashboardContract {
         /** Tapping the selected category again clears it. */
         data class SelectCategory(val category: MessageCategory) : Intent
         data object ClearCategory : Intent
+        data class SetCategory(val category: MessageCategory?) : Intent
+        data object OpenFilters : Intent
+        data object CloseFilters : Intent
+        data object ResetFilters : Intent
         data class ToggleVendor(val key: String) : Intent
         data object ToggleShowAllVendors : Intent
         data class ToggleCard(val key: String) : Intent

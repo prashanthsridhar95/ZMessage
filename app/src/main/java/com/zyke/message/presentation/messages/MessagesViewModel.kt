@@ -51,18 +51,11 @@ class MessagesViewModel(
             is Intent.OpenSender -> reduceFeed { copy(openThreadKey = intent.key, focusMessageId = null) }
             Intent.CloseThread -> reduceFeed { copy(openThreadKey = null, focusMessageId = null) }
 
-            is Intent.SelectSmartFilter -> reduceFeed { copy(filter = MessageFilter.Smart(intent.filter)) }
-            is Intent.SelectCategory -> reduceFeed {
-                copy(filter = intent.category?.let(MessageFilter::Category) ?: MessageFilter.All)
-            }
-            Intent.ToggleCategoryBar -> reduceFeed {
-                val show = !showCategoryBar
-                // Closing the category bar drops a category filter, since its chip would be gone.
-                copy(
-                    showCategoryBar = show,
-                    filter = if (!show && filter is MessageFilter.Category) MessageFilter.All else filter
-                )
-            }
+            is Intent.SelectSmartFilter -> reduceFeed { copy(filter = filter.copy(smart = intent.filter)) }
+            is Intent.SelectCategory -> reduceFeed { copy(filter = filter.copy(category = intent.category)) }
+            Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
+            Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
+            Intent.ResetFilters -> reduceFeed { copy(filter = MessageFilter.All) }
             Intent.ToggleSearch -> reduceFeed {
                 copy(isSearching = !isSearching, query = "")
             }
@@ -177,7 +170,7 @@ class MessagesViewModel(
     /** The Archived chip vanishes once nothing is archived, so a filter on it resets to All. */
     private fun State.withValidFilter(): State =
         if (selectedSmartFilter == SmartFilter.ARCHIVED && userState.archivedIds.isEmpty()) {
-            copy(filter = MessageFilter.All)
+            copy(filter = filter.copy(smart = SmartFilter.ALL))
         } else {
             this
         }

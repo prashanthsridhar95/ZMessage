@@ -31,10 +31,7 @@ internal fun AttentionStrip(
 ) {
     if (items.isEmpty()) return
 
-    Column(
-        modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.forEach { item ->
             AttentionCard(item, today, actions)
         }

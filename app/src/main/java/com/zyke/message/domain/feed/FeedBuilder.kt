@@ -41,7 +41,8 @@ object FeedBuilder {
         }
 
         val isAll = !searching && filter == MessageFilter.All
-        val showSummary = !searching && (isAll || filter == MessageFilter.Smart(SmartFilter.MONEY))
+        val showSummary = !searching && filter.category == null &&
+            (filter.smart == SmartFilter.ALL || filter.smart == SmartFilter.MONEY)
 
         return Feed(
             attention = if (isAll) {
@@ -52,19 +53,16 @@ object FeedBuilder {
             summary = if (showSummary) SpendSummaryBuilder.build(live, now, zone) else null,
             sections = sections,
             availableFilters = availableFilters(messages, userState),
+            counts = counts(messages, userState),
+            categories = categoryCounts(messages, userState),
             visibleCount = visible.size
         )
     }
 
     private fun passes(message: ClassifiedMessage, filter: MessageFilter, userState: UserMessageState): Boolean {
         val isArchived = message.id in userState.archivedIds
-        return when (filter) {
-            is MessageFilter.Category -> !isArchived && message.category == filter.category
-            is MessageFilter.Smart -> when (filter.filter) {
-                SmartFilter.ARCHIVED -> isArchived
-                else -> !isArchived && bucket(message, filter.filter)
-            }
-        }
+        if (filter.category != null && message.category != filter.category) return false
+        return if (filter.smart == SmartFilter.ARCHIVED) isArchived else !isArchived && bucket(message, filter.smart)
     }
 
     private fun bucket(message: ClassifiedMessage, filter: SmartFilter): Boolean {
@@ -83,15 +81,22 @@ object FeedBuilder {
     }
 
     private fun availableFilters(messages: List<ClassifiedMessage>, userState: UserMessageState): List<SmartFilter> {
+        val counts = counts(messages, userState)
+        return SmartFilter.entries.filter { it == SmartFilter.ALL || (counts[it] ?: 0) > 0 }
+    }
+
+    private fun counts(messages: List<ClassifiedMessage>, userState: UserMessageState): Map<SmartFilter, Int> {
         val live = messages.filter { it.id !in userState.archivedIds }
-        return SmartFilter.entries.filter { filter ->
-            when (filter) {
-                SmartFilter.ALL -> true
-                SmartFilter.ARCHIVED -> messages.any { it.id in userState.archivedIds }
-                else -> live.any { bucket(it, filter) }
-            }
+        return SmartFilter.entries.associateWith { filter ->
+            if (filter == SmartFilter.ARCHIVED) messages.size - live.size else live.count { bucket(it, filter) }
         }
     }
+
+    private fun categoryCounts(messages: List<ClassifiedMessage>, userState: UserMessageState) =
+        messages.filter { it.id !in userState.archivedIds && !it.isPromotional }
+            .groupingBy { it.category }.eachCount()
+            .toList()
+            .sortedByDescending { it.second }
 
     /**
      * Collapses repeats within one day: several OTPs from one sender, or repeated

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
+import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
@@ -41,6 +42,12 @@ class DashboardViewModel(
             is Intent.SelectDirection -> reduceDashboard { copy(direction = intent.direction, expandedVendor = null) }
             is Intent.SelectCategory -> reduceDashboard {
                 copy(category = if (category == intent.category) null else intent.category, expandedVendor = null)
+            }
+            is Intent.SetCategory -> reduceDashboard { copy(category = intent.category, expandedVendor = null) }
+            Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
+            Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
+            Intent.ResetFilters -> reduceDashboard {
+                copy(period = DashboardPeriod.THIS_MONTH, category = null, expandedVendor = null)
             }
             Intent.ClearCategory -> reduceDashboard { copy(category = null, expandedVendor = null) }
 

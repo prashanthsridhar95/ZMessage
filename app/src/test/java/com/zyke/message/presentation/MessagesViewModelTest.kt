@@ -119,20 +119,29 @@ class MessagesViewModelTest {
     }
 
     @Test
-    fun filters_narrowFeed_andClosingCategoryBarClearsCategory() {
+    fun filterSheet_combinesTypeAndCategory_andResets() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.OpenFilters)
+        assertTrue(vm.state.value.showFilterSheet)
 
         vm.onIntent(Intent.SelectSmartFilter(SmartFilter.OTP))
         assertEquals(listOf(2L), vm.visibleIds())
 
-        vm.onIntent(Intent.ToggleCategoryBar)
         vm.onIntent(Intent.SelectCategory(MessageCategory.FOOD))
-        assertEquals(listOf(1L), vm.visibleIds())
+        assertEquals(0, vm.state.value.feed.visibleCount) // OTP + Food: nothing
 
-        vm.onIntent(Intent.ToggleCategoryBar)
+        vm.onIntent(Intent.SelectSmartFilter(SmartFilter.ALL))
+        assertEquals(listOf(1L), vm.visibleIds())          // Food only
+        assertEquals(1, vm.state.value.filter.activeCount)
+
+        vm.onIntent(Intent.ResetFilters)
         assertEquals(MessageFilter.All, vm.state.value.filter)
         assertEquals(2, vm.state.value.feed.visibleCount)
+
+        vm.onIntent(Intent.CloseFilters)
+        assertFalse(vm.state.value.showFilterSheet)
     }
 
     @Test
