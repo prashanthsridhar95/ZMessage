@@ -17,13 +17,39 @@ enum class SmartFilter(val label: String) {
     ARCHIVED("Archived")
 }
 
-/** What the Inbox is narrowed to. The two parts combine: e.g. Money in the Food category. */
+enum class StatusFilter(val label: String) {
+    ANY("All messages"),
+    UNREAD("Unread only"),
+    PINNED("Pinned only")
+}
+
+enum class TimeWindow(val label: String) {
+    ANY("Any time"),
+    TODAY("Today"),
+    WEEK("Last 7 days"),
+    MONTH("Last 30 days")
+}
+
+/**
+ * What the Inbox is narrowed to. [smart] is the quick filter along the top; the rest are the
+ * "extra" filters in the sheet. All of them combine.
+ */
 data class MessageFilter(
     val smart: SmartFilter = SmartFilter.ALL,
-    val category: MessageCategory? = null
+    val category: MessageCategory? = null,
+    val status: StatusFilter = StatusFilter.ANY,
+    val window: TimeWindow = TimeWindow.ANY
 ) {
-    val activeCount: Int get() = (if (smart != SmartFilter.ALL) 1 else 0) + (if (category != null) 1 else 0)
+    /** Filters beyond the quick one; these are what the filter button's badge counts. */
+    val extraCount: Int
+        get() = (if (category != null) 1 else 0) + (if (status != StatusFilter.ANY) 1 else 0) +
+            (if (window != TimeWindow.ANY) 1 else 0)
+
+    val hasExtras: Boolean get() = extraCount > 0
+    val activeCount: Int get() = extraCount + (if (smart != SmartFilter.ALL) 1 else 0)
     val isActive: Boolean get() = activeCount > 0
+
+    fun withoutExtras() = copy(category = null, status = StatusFilter.ANY, window = TimeWindow.ANY)
 
     companion object {
         val All = MessageFilter()

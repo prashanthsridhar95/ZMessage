@@ -25,7 +25,7 @@ object FeedBuilder {
 
         val visible = when {
             searching -> messages.filter { matches(it, query) }
-            else -> messages.filter { passes(it, filter, userState) }
+            else -> messages.filter { passes(it, filter, userState, LocalDate.ofInstant(now, zone), zone) }
         }
 
         val pinned = if (searching) emptyList() else visible.filter { it.id in userState.pinnedIds }
@@ -59,9 +59,34 @@ object FeedBuilder {
         )
     }
 
-    private fun passes(message: ClassifiedMessage, filter: MessageFilter, userState: UserMessageState): Boolean {
+    private fun passes(
+        message: ClassifiedMessage,
+        filter: MessageFilter,
+        userState: UserMessageState,
+        today: LocalDate,
+        zone: ZoneId
+    ): Boolean {
         val isArchived = message.id in userState.archivedIds
         if (filter.category != null && message.category != filter.category) return false
+
+        val statusOk = when (filter.status) {
+            StatusFilter.ANY -> true
+            StatusFilter.UNREAD -> !message.message.isRead && message.id !in userState.readIds
+            StatusFilter.PINNED -> message.id in userState.pinnedIds
+        }
+        if (!statusOk) return false
+
+        if (filter.window != TimeWindow.ANY) {
+            val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
+            val earliest = when (filter.window) {
+                TimeWindow.TODAY -> today
+                TimeWindow.WEEK -> today.minusDays(6)
+                TimeWindow.MONTH -> today.minusDays(29)
+                TimeWindow.ANY -> date
+            }
+            if (date.isBefore(earliest)) return false
+        }
+
         return if (filter.smart == SmartFilter.ARCHIVED) isArchived else !isArchived && bucket(message, filter.smart)
     }
 

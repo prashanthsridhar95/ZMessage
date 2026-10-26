@@ -40,9 +40,8 @@ object DashboardContract {
     ) {
         val query get() = DashboardQuery(period, direction, category)
 
-        /** Period and category are "extra" filters; the direction has its own switch on screen. */
-        val activeFilterCount: Int
-            get() = (if (period != DashboardPeriod.THIS_MONTH) 1 else 0) + (if (category != null) 1 else 0)
+        /** Only the category lives in the filter sheet; period and direction are always on screen. */
+        val activeFilterCount: Int get() = if (category != null) 1 else 0
     }
 
     sealed interface Intent {

@@ -5,6 +5,8 @@ import com.zyke.message.domain.conversation.Thread
 import com.zyke.message.domain.feed.Feed
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
+import com.zyke.message.domain.feed.StatusFilter
+import com.zyke.message.domain.feed.TimeWindow
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.UserMessageState
@@ -79,6 +81,10 @@ object MessagesContract {
         data object OpenFilters : Intent
         data object CloseFilters : Intent
         data object ResetFilters : Intent
+        /** Clears the sheet's filters but keeps the quick filter along the top. */
+        data object ResetExtras : Intent
+        data class SelectStatus(val status: StatusFilter) : Intent
+        data class SelectWindow(val window: TimeWindow) : Intent
         data object ToggleSearch : Intent
         data class SetQuery(val query: String) : Intent
 

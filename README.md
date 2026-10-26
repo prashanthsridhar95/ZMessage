@@ -45,9 +45,12 @@ Dependencies point inwards: `presentation -> domain <- data`.
 - **Money**: the dashboard (spending by category / vendor / account, card bills, budgets)
 - **Inbox**: timeline and senders, conversations, search
 
-Filtering is a bottom sheet on Inbox and Money: choices apply immediately and the button at the
-bottom says what you will see ("Show 12 messages"). Active filters stay visible as a summary bar
-with Change / Clear, so a filter is never forgotten.
+Filtering has two layers. **Quick filters** sit along the top as plain text tabs with counts
+(Inbox: All / Money / OTP / Bills / Travel / ...; Money: This month / Last month / 3 months / All time).
+**More filters** open from the filter button in a bottom sheet of selectable tiles (Inbox: category,
+read status, time window; Money: category). Choices apply immediately, the button at the bottom says
+what you will see ("Show 12 messages"), and active sheet filters stay visible as a summary bar with
+Change / Clear.
 
 ### Senders and conversations
 

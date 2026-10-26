@@ -84,7 +84,7 @@ fun MessagesTopBar(
 }
 
 @Composable
-private fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int, onClick: () -> Unit) {
+internal fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int, onClick: () -> Unit) {
     Box(
         Modifier.size(48.dp).clickable(onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center

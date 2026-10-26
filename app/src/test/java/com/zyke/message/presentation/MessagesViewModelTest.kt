@@ -3,6 +3,8 @@ package com.zyke.message.presentation
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
+import com.zyke.message.domain.feed.StatusFilter
+import com.zyke.message.domain.feed.TimeWindow
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.SmsMessage
 import com.zyke.message.domain.model.UserMessageState
@@ -274,5 +276,37 @@ class MessagesViewModelTest {
         vm.onIntent(Intent.SetViewMode(ViewMode.SENDERS))
 
         assertNull(vm.state.value.thread)
+    }
+
+    @Test
+    fun extraFilters_unreadAndTimeWindow_andResetKeepsTheQuickFilter() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.SelectStatus(StatusFilter.UNREAD))
+        assertEquals(listOf(2L), vm.visibleIds()) // message 2 is unread
+        assertEquals(1, vm.state.value.filter.extraCount)
+
+        vm.onIntent(Intent.SelectWindow(TimeWindow.TODAY))
+        assertEquals(0, vm.state.value.feed.visibleCount) // the unread one is 3 days old
+
+        vm.onIntent(Intent.SelectStatus(StatusFilter.ANY))
+        assertEquals(listOf(1L), vm.visibleIds())
+
+        vm.onIntent(Intent.SelectSmartFilter(SmartFilter.OTP))
+        vm.onIntent(Intent.ResetExtras)
+        assertEquals(SmartFilter.OTP, vm.state.value.filter.smart)
+        assertEquals(0, vm.state.value.filter.extraCount)
+    }
+
+    @Test
+    fun pinnedOnly_showsJustPinned() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        vm.onIntent(Intent.TogglePin(2))
+
+        vm.onIntent(Intent.SelectStatus(StatusFilter.PINNED))
+
+        assertEquals(listOf(2L), vm.visibleIds())
     }
 }

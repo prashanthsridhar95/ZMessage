@@ -56,6 +56,9 @@ class MessagesViewModel(
             Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
             Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
             Intent.ResetFilters -> reduceFeed { copy(filter = MessageFilter.All) }
+            Intent.ResetExtras -> reduceFeed { copy(filter = filter.withoutExtras()) }
+            is Intent.SelectStatus -> reduceFeed { copy(filter = filter.copy(status = intent.status)) }
+            is Intent.SelectWindow -> reduceFeed { copy(filter = filter.copy(window = intent.window)) }
             Intent.ToggleSearch -> reduceFeed {
                 copy(isSearching = !isSearching, query = "")
             }

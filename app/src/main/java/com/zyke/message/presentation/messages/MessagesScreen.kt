@@ -52,6 +52,8 @@ import java.time.ZoneId
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import com.zyke.message.presentation.messages.components.MessagesFilterSheet
+import com.zyke.message.presentation.messages.components.QuickFilterTabs
+import com.zyke.message.presentation.messages.components.extrasSummary
 import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
@@ -158,7 +160,7 @@ fun MessagesScreen(
                     query = state.query,
                     onQueryChange = { onIntent(Intent.SetQuery(it)) },
                     onToggleSearch = { onIntent(Intent.ToggleSearch) },
-                    activeFilterCount = state.filter.activeCount,
+                    activeFilterCount = state.filter.extraCount,
                     onOpenFilters = { onIntent(Intent.OpenFilters) }
                 )
 
@@ -171,13 +173,20 @@ fun MessagesScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE && state.filter.isActive) {
-                    ActiveFilterBar(
-                        filter = state.filter,
-                        resultCount = state.feed.visibleCount,
-                        onChange = { onIntent(Intent.OpenFilters) },
-                        onClear = { onIntent(Intent.ResetFilters) }
+                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
+                    QuickFilterTabs(
+                        feed = state.feed,
+                        selected = state.filter.smart,
+                        onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
                     )
+                    if (state.filter.hasExtras) {
+                        ActiveFilterBar(
+                            summary = state.filter.extrasSummary(),
+                            resultCount = state.feed.visibleCount,
+                            onChange = { onIntent(Intent.OpenFilters) },
+                            onClear = { onIntent(Intent.ResetExtras) }
+                        )
+                    }
                 }
 
                 Box(Modifier.fillMaxSize()) {
@@ -209,9 +218,10 @@ fun MessagesScreen(
             MessagesFilterSheet(
                 filter = state.filter,
                 feed = state.feed,
-                onSelectType = { onIntent(Intent.SelectSmartFilter(it)) },
                 onSelectCategory = { onIntent(Intent.SelectCategory(it)) },
-                onReset = { onIntent(Intent.ResetFilters) },
+                onSelectStatus = { onIntent(Intent.SelectStatus(it)) },
+                onSelectWindow = { onIntent(Intent.SelectWindow(it)) },
+                onReset = { onIntent(Intent.ResetExtras) },
                 onDismiss = { onIntent(Intent.CloseFilters) }
             )
         }

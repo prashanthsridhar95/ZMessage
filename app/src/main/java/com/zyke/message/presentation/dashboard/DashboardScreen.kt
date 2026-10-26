@@ -42,6 +42,11 @@ import com.zyke.message.presentation.dashboard.components.ChartLegend
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
+import com.zyke.message.presentation.dashboard.components.PeriodTabs
+import com.zyke.message.presentation.messages.components.ActiveFilterBar
+import com.zyke.message.presentation.messages.components.BarIcon
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import com.zyke.message.presentation.dashboard.components.HeroCard
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
@@ -95,16 +100,34 @@ fun DashboardScreen(
 ) {
     Column(modifier.fillMaxSize()) {
         Column(Modifier.statusBarsPadding()) {
-            Text(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                text = stringResource(R.string.dashboard_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp).heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = stringResource(R.string.dashboard_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (state.dashboard != null) {
+                    BarIcon(
+                        icon = R.drawable.baseline_filter_alt_24,
+                        description = "Filter by category",
+                        active = state.activeFilterCount > 0,
+                        badge = state.activeFilterCount,
+                        onClick = { onIntent(Intent.OpenFilters) }
+                    )
+                }
+            }
             HorizontalDivider(
                 Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
+        }
+
+        if (state.dashboard != null && !state.permissionMissing && !state.hasError) {
+            PeriodTabs(period = state.period, onSelect = { onIntent(Intent.SelectPeriod(it)) })
         }
 
         val dashboard = state.dashboard
@@ -119,11 +142,9 @@ fun DashboardScreen(
     val dashboardForSheet = state.dashboard
     if (state.showFilterSheet && dashboardForSheet != null) {
         DashboardFilterSheet(
-            period = state.period,
             category = state.category,
             dashboard = dashboardForSheet,
             canReset = state.activeFilterCount > 0,
-            onPeriod = { onIntent(Intent.SelectPeriod(it)) },
             onCategory = { onIntent(Intent.SetCategory(it)) },
             onReset = { onIntent(Intent.ResetFilters) },
             onDismiss = { onIntent(Intent.CloseFilters) }
@@ -154,13 +175,21 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item(key = "controls") {
-            DashboardControls(
-                period = state.period,
-                direction = state.direction,
-                category = state.category,
-                onOpenFilters = { onIntent(Intent.OpenFilters) },
-                onDirection = { onIntent(Intent.SelectDirection(it)) }
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardControls(
+                    direction = state.direction,
+                    onDirection = { onIntent(Intent.SelectDirection(it)) }
+                )
+                state.category?.let { category ->
+                    ActiveFilterBar(
+                        summary = category.displayString,
+                        resultCount = dashboard.count,
+                        onChange = { onIntent(Intent.OpenFilters) },
+                        onClear = { onIntent(Intent.ClearCategory) },
+                        horizontalInset = 0.dp
+                    )
+                }
+            }
         }
 
         if (dashboard.isEmpty) {
