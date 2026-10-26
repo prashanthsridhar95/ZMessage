@@ -19,7 +19,7 @@ class GenericTransactionParser {
         if (PromoDetector.hasPromoHints(message)) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
-        return parseBill(body) ?: parseMovement(body)
+        return parseScheduled(body) ?: parseBill(body) ?: parseMovement(body)
     }
 
     private fun parseMovement(body: String): BankTransaction? {
@@ -33,6 +33,29 @@ class GenericTransactionParser {
             payee = payee(body, received).orEmpty(),
             amount = amount,
             type = if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
+        )
+    }
+
+    /** "INR 650 will be debited on 28/10/2026 ... for Google Play" or "Mandate Set Rs.499 For Google Play". */
+    private fun parseScheduled(body: String): BankTransaction? {
+        val type = when {
+            UPCOMING.containsMatchIn(body) -> BankTransactionType.UPCOMING_DEBIT
+            MANDATE.containsMatchIn(body) -> BankTransactionType.MANDATE_SET
+            else -> return null
+        }
+        val amount = AMOUNT.find(body)?.groupValues?.get(1)?.let(::clean) ?: return null
+
+        return BankTransaction(
+            bankName = bank(body),
+            accountNumber = account(body).orEmpty(),
+            payee = FOR_PAYEE.find(body)?.groupValues?.get(1)?.let(::tidy).orEmpty(),
+            amount = amount,
+            type = type,
+            dueDate = if (type == BankTransactionType.UPCOMING_DEBIT) {
+                ON_DATE.find(body)?.groupValues?.get(1)?.let(::parseDate)
+            } else {
+                null
+            }
         )
     }
 
@@ -120,7 +143,7 @@ class GenericTransactionParser {
     }
 
     companion object {
-        private const val CURRENCY = "(?:INR|Rs\\.?|₹)"
+        private const val CURRENCY = "(?:INR\\.?|Rs\\.?|₹)"
         private const val NUMBER = "(\\d[\\d,]*(?:\\.\\d+)?)"
 
         private val MONEY_HINT = Regex("(?i)\\bINR|\\bRs(?![a-z])|₹")
@@ -162,6 +185,13 @@ class GenericTransactionParser {
             Regex("(?i)\\b(?:received from|from vpa|from)\\s+$NAME$NAME_END"),
             Regex("(?i)\\b(?:credited by|deposited by|by)\\s+$NAME$NAME_END"),
             Regex("(?i)\\binfo[:\\-]\\s*$NAME$NAME_END")
+        )
+
+        private val UPCOMING = Regex("(?i)\\bwill be (?:auto[- ]?)?debited")
+        private val MANDATE = Regex("(?i)\\bmandate\\s+(?:set|created|registered|activated|successful|approved)")
+        private val ON_DATE = Regex("(?i)\\bon\\s+(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
+        private val FOR_PAYEE = Regex(
+            "(?i)\\bfor\\s+([A-Za-z0-9][A-Za-z0-9&.' ]{1,40}?)(?=\\s+-\\s|\\s+ID:|\\.\\.|\\s+Act:|\\s+from\\b|\\.?$)"
         )
 
         private val UPI_MARKERS = setOf("UPI", "P2M", "P2P", "P2A", "IMPS", "NEFT", "RTGS")

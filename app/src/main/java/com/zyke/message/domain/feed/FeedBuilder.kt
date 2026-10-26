@@ -72,7 +72,8 @@ object FeedBuilder {
         return when (filter) {
             SmartFilter.ALL -> !message.isPromotional
             SmartFilter.MONEY -> content is MessageContent.Transaction ||
-                content is MessageContent.CardBill || content is MessageContent.Loyalty
+                content is MessageContent.CardBill || content is MessageContent.Loyalty ||
+                content is MessageContent.ScheduledPayment
             SmartFilter.OTP -> content is MessageContent.Otp
             SmartFilter.BILLS -> content is MessageContent.CardBill
             SmartFilter.TRAVEL -> content is MessageContent.FastTag || content is MessageContent.Courier
@@ -122,6 +123,7 @@ object FeedBuilder {
             is MessageContent.Transaction -> "${content.payee} ${content.amount}"
             is MessageContent.CardBill -> content.amount
             is MessageContent.Loyalty -> content.programme
+            is MessageContent.ScheduledPayment -> "${content.payee} ${content.amount}"
             else -> ""
         }
         return listOf(message.message.body, message.message.sender, message.merchant.name, extra)

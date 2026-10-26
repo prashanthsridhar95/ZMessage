@@ -24,7 +24,7 @@ class BankMessageParser(
     private fun parseKnownFormat(message: String): BankTransaction? = try {
         when {
             message.contains("Credit Alert!") -> parseHdfcCredit(message)
-            message.contains("HDFC Bank A/C") -> parseHdfcAccountDebit(message)
+            message.contains("HDFC Bank A/C", ignoreCase = true) -> parseHdfcAccountDebit(message)
             message.contains("HDFC Bank Card") ||
                 message.contains(HDFC_STATEMENT_HINT) -> parseHdfcCard(message)
             message.contains("Axis Bank Credit Card") -> parseAxis(message)
@@ -147,12 +147,12 @@ class BankMessageParser(
         val HDFC_CREDIT =
             """Credit Alert!\nRs\.([\d\.]+) credited to HDFC Bank A/c (xx\d+) on (\d{2}-\d{2}-\d{2}) from VPA (.+?) \((UPI \d+)\)""".toRegex()
         val HDFC_ACCOUNT_DEBIT =
-            """Sent Rs\.([\d\.]+)[\n\r]+From HDFC Bank A/C x(\d+)[\n\r]+To (.+)[\n\r]+On (\d{2}/\d{2}/\d{2})[\n\r]+Ref (\d+)""".toRegex()
+            """Sent Rs\.([\d\.]+)[\n\r]+From HDFC Bank A/C [x*]*(\d+)[\n\r]+To (.+)[\n\r]+On (\d{2}/\d{2}/\d{2})[\n\r]+Ref (\d+)""".toRegex()
 
         val HDFC_CARD_SPEND_PATTERNS = listOf(
-            """Sent Rs\.([\d\.]+)[\n\r]+From HDFC Bank Card (\d+)[\n\r]+To (.+)[\n\r]+On (\d{2}/\d{2}/\d{2})[\n\r]+Ref (\d+)""",
+            """Sent Rs\.([\d\.]+)[\n\r]+From HDFC Bank Card [x*]*(\d+)[\n\r]+To (.+)[\n\r]+On (\d{2}/\d{2}/\d{2})[\n\r]+Ref (\d+)""",
             """Rs\.(\d+(?:\.\d+)?)\s+spent on HDFC Bank Card\s+x(\d+)\s+at\s+(.+?)\son\s+(\d{4}-\d{2}-\d{2}:\d{2}:\d{2}:\d{2})""",
-            """Txn Rs\.(\d+(?:\.\d+)?)\s+On\s+HDFC Bank Card\s+(\d+)\s+At\s+(.+?)\s+by UPI\s+(\d+)\s+On\s+(\d{2}-\d{2})"""
+            """Txn Rs\.(\d+(?:\.\d+)?)\s+On\s+HDFC Bank Card\s+[x*]*(\d+)\s+At\s+(.+?)\s+by UPI\s+(\d+)\s+On\s+(\d{2}-\d{2})"""
         ).map { it.toRegex() }
         val HDFC_CARD_AMOUNT_DUE = """Amt Due Rs\.(\d+) on HDFC Bank Card X(\d+)""".toRegex()
         val HDFC_CARD_STATEMENT =

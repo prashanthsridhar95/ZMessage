@@ -77,6 +77,6 @@ class MerchantResolver {
     }
 
     private companion object {
-        val UPI_PATTERN = Regex("[a-zA-Z0-9.\\-_]{2,49}@[a-zA-Z._]{2,49}")
+        val UPI_PATTERN = Regex("[*a-zA-Z0-9.\\-_]{2,49}@[a-zA-Z._]{2,49}")
     }
 }

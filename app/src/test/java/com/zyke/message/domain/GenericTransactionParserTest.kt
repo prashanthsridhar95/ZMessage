@@ -4,7 +4,10 @@ import com.zyke.message.domain.classification.GenericTransactionParser
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.BankTransactionType
+import com.zyke.message.domain.model.MerchantLogo
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.model.ScheduledKind
 import com.zyke.message.domain.model.SmsMessage
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -119,5 +122,63 @@ class GenericTransactionParserTest {
 
         val rupee = classifier.classify(SmsMessage(2, "X", "₹75 paid to chai@ybl via UPI", 0, true))
         assertNotNull(rupee.content as? MessageContent.Transaction)
+    }
+}
+
+/** Real HDFC messages, with numbers as received. */
+class HdfcRealMessagesTest {
+    private val classifier = MessageClassifier()
+    private fun classify(body: String) = classifier.classify(SmsMessage(1, "AD-HDFCBK", body, 0, true))
+
+    @Test
+    fun upcomingAutoDebit_isScheduledNotSpent() {
+        val result = classify(
+            "Alert:\nINR.650.00 will be debited on 28/10/2026 from HDFC Bank Card 0421 for Google Play - Conten..\nID:YDJFTx5b52\nAct:https://1.hdfc.bank.in/HDFCBK/a/wLHlKg"
+        )
+        val content = result.content as MessageContent.ScheduledPayment
+        assertEquals(ScheduledKind.UPCOMING_DEBIT, content.kind)
+        assertEquals("650", content.amount)
+        assertEquals("0421", content.accountNumber)
+        assertEquals("Google Play", content.payee)
+        assertEquals(LocalDate.of(2026, 10, 28), content.date)
+        assertEquals(true, content.isCard)
+    }
+
+    @Test
+    fun accountDebitWithStarMask() {
+        val content = classify(
+            "Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 629918461792\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808"
+        ).content as MessageContent.Transaction
+        assertEquals("540", content.amount)
+        assertEquals("5765", content.accountNumber)
+        assertEquals("BURMY FOODS", content.payee)
+        assertEquals(BankName.HDFC, content.bankName)
+        assertEquals(false, content.isReceived)
+    }
+
+    @Test
+    fun cardUpiTxnWithMaskedVpa_isRecognisedAsUpi() {
+        val result = classify(
+            "Txn Rs.564.00\nOn HDFC Bank Card 4253\nAt *iggy@icici \nby UPI 131486185915\nOn 18-10\nNot You?\nCall 18002586161/SMS BLOCK CC 4253 to 7308080808"
+        )
+        val content = result.content as MessageContent.Transaction
+        assertEquals("564", content.amount)
+        assertEquals("4253", content.accountNumber)
+        assertEquals("*iggy@icici", content.payee)
+        assertEquals(true, content.isCard)
+        assertEquals(MessageCategory.UPI_PAYMENT, result.category)
+        assertEquals(MerchantLogo.UPI, result.merchant.logo)
+    }
+
+    @Test
+    fun mandateSet_isScheduled() {
+        val content = classify(
+            "Mandate Set\nRs.499.00\nFor Google Play\nFrom HDFC Bank A/c x5765\nUMN: 5dcd7a373347b450e0634bcee10a46f0@ok\nNot you?\nCall 18002586161"
+        ).content as MessageContent.ScheduledPayment
+        assertEquals(ScheduledKind.MANDATE_SET, content.kind)
+        assertEquals("499", content.amount)
+        assertEquals("Google Play", content.payee)
+        assertEquals("5765", content.accountNumber)
+        assertEquals(false, content.isCard)
     }
 }

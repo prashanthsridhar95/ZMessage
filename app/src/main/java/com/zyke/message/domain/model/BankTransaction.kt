@@ -24,7 +24,8 @@ enum class BankName(val displayString: String, val isCard: Boolean) {
 }
 
 enum class BankTransactionType(val displayString: String) {
-    SENT("Paid"), RECEIVED("Received"), CARD_BILL("Bill Generated")
+    SENT("Paid"), RECEIVED("Received"), CARD_BILL("Bill Generated"),
+    UPCOMING_DEBIT("Auto-debit"), MANDATE_SET("Autopay set up")
 }
 
 /** Raw result of parsing a bank / card / pay-later SMS. */

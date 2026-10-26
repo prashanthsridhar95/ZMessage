@@ -7,6 +7,7 @@ import com.zyke.message.domain.model.CourierStatus
 import com.zyke.message.domain.model.Merchant
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.model.ScheduledKind
 import com.zyke.message.domain.model.NetworkCarrier
 import com.zyke.message.domain.model.SmsMessage
 
@@ -69,6 +70,7 @@ class MessageClassifier(
 
         return when (transaction.type) {
             BankTransactionType.CARD_BILL -> cardBill(message, transaction)
+            BankTransactionType.UPCOMING_DEBIT, BankTransactionType.MANDATE_SET -> scheduled(message, transaction)
             else -> transaction(message, transaction)
         }
     }
@@ -85,6 +87,24 @@ class MessageClassifier(
                 amount = normalizeAmount(tx.amount),
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 isReceived = tx.type == BankTransactionType.RECEIVED,
+                isCard = message.body.contains("Card", ignoreCase = true)
+            )
+        )
+    }
+
+    private fun scheduled(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
+        val merchant = merchants.resolve(tx.payee.ifEmpty { tx.bankName.displayString })
+        return ClassifiedMessage(
+            message = message,
+            category = merchant.category,
+            merchant = merchant,
+            content = MessageContent.ScheduledPayment(
+                kind = if (tx.type == BankTransactionType.UPCOMING_DEBIT) ScheduledKind.UPCOMING_DEBIT else ScheduledKind.MANDATE_SET,
+                bankName = tx.bankName,
+                accountNumber = normalizeAccountNumber(tx.accountNumber),
+                payee = tx.payee,
+                amount = normalizeAmount(tx.amount),
+                date = tx.dueDate,
                 isCard = message.body.contains("Card", ignoreCase = true)
             )
         )

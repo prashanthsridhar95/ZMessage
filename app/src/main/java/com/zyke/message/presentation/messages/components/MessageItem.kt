@@ -72,6 +72,7 @@ internal fun MessageCard(
         is MessageContent.FastTag -> FastTagCard(item, content, time, isUnread, expand, modifier)
         is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier)
         is MessageContent.CardBill -> CardBillCard(item, content, time, isUnread, today, expand, modifier)
+        is MessageContent.ScheduledPayment -> ScheduledPaymentCard(item, content, time, isUnread, today, expand, modifier)
         is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)
         is MessageContent.Courier -> CourierCard(item, content, time, isUnread, expand, modifier)
         is MessageContent.Loyalty -> LoyaltyCard(item, content, time, isUnread, expand, modifier)
