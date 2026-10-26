@@ -33,6 +33,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -44,12 +45,13 @@ import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesContract.State
 import com.zyke.message.presentation.messages.MessagesContract.ViewMode
-import com.zyke.message.presentation.messages.components.SegmentedControl
+import com.zyke.message.presentation.messages.components.InboxModeBar
 import com.zyke.message.presentation.messages.components.SendersList
 import com.zyke.message.presentation.messages.components.ThreadScreen
 import java.time.LocalDate
 import java.time.ZoneId
 import com.zyke.message.presentation.common.ErrorState
+import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import com.zyke.message.presentation.messages.components.MessageDetailSheet
@@ -159,20 +161,24 @@ fun MessagesScreen(
             Column(Modifier.fillMaxSize()) {
                 val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
                 if (ready) {
-                    SegmentedControl(
-                        options = ViewMode.entries.map { it.label },
-                        selectedIndex = state.viewMode.ordinal,
-                        onSelect = { onIntent(Intent.SetViewMode(ViewMode.entries[it])) },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
-                    QuickFilterTabs(
-                        feed = state.feed,
-                        selected = state.filter.smart,
-                        onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
-                    )
-                    if (state.filter.hasExtras) {
+                    InboxModeBar(
+                        mode = state.viewMode,
+                        onMode = { onIntent(Intent.SetViewMode(it)) }
+                    ) {
+                        when {
+                            state.viewMode == ViewMode.TIMELINE && !state.isSearching -> QuickFilterTabs(
+                                feed = state.feed,
+                                selected = state.filter.smart,
+                                onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
+                            )
+                            // Type tabs don't apply here, so say what is being shown instead.
+                            state.viewMode == ViewMode.SENDERS -> ModeSummary(
+                                DisplayFormatters.count(state.conversations.size, "sender", "senders")
+                            )
+                            else -> ModeSummary(DisplayFormatters.count(state.feed.visibleCount, "result", "results"))
+                        }
+                    }
+                    if (state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
                         ActiveFilterBar(
                             summary = state.filter.extrasSummary(),
                             resultCount = state.feed.visibleCount,
@@ -250,6 +256,19 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onToggleSummary = { this(Intent.ToggleSummary) },
     onOpenLink = { this(Intent.OpenLink(it)) }
 )
+
+/** Fills the tab area of the Inbox bar with a short count when there are no type tabs. */
+@Composable
+private fun ModeSummary(text: String) {
+    Text(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1
+    )
+}
 
 @Composable
 private fun EmptyState(state: State) {

@@ -38,7 +38,8 @@ fun QuickFilterTabs(feed: Feed, selected: SmartFilter, onSelect: (SmartFilter) -
         counts = types.map { feed.counts[it] },
         selectedIndex = types.indexOf(selected).coerceAtLeast(0),
         onSelect = { onSelect(types[it]) },
-        modifier = modifier
+        modifier = modifier,
+        showDivider = false
     )
 }
 

@@ -25,7 +25,9 @@ fun UnderlineTabs(
     counts: List<Int?>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Off when the tabs share a row with something else and a full-width line is drawn underneath instead. */
+    showDivider: Boolean = true
 ) {
     if (labels.isEmpty()) return
     ScrollableTabRow(
@@ -33,7 +35,7 @@ fun UnderlineTabs(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
         edgePadding = 8.dp,
-        divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
+        divider = { if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
     ) {
         labels.forEachIndexed { index, label ->
             val selected = index == selectedIndex
