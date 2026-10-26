@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.LinkButton
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -111,7 +115,6 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        Header(state)
         when {
             state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
             state.hasError -> ErrorState(
@@ -122,17 +125,6 @@ fun HomeScreen(
             state.isLoading || !state.hasLoaded -> MessageListSkeleton()
             else -> HomeContent(state, onIntent, onNavigate)
         }
-    }
-}
-
-@Composable
-private fun Header(state: State) {
-    val date = remember(state.now) {
-        DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()).format(state.now.atZone(ZoneId.systemDefault()))
-    }
-    Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 4.dp)) {
-        Caption(date)
-        Text("Overview", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -173,7 +165,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             item(key = "month") {
                 Column {
                     HeroCard(month, DashboardPeriod.THIS_MONTH, onDirection = { onNavigate(AppTab.MONEY) })
-                    TextButton(onClick = { onNavigate(AppTab.MONEY) }) { Text("See where it went  →") }
+                    LinkButton("See where it went", { onNavigate(AppTab.MONEY) })
                 }
             }
         }
@@ -196,7 +188,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                         if (index > 0) HorizontalDivider()
                         BudgetLine(item)
                     }
-                    TextButton(onClick = { onNavigate(AppTab.MONEY) }) { Text("Manage budgets  →") }
+                    LinkButton("Manage budgets", { onNavigate(AppTab.MONEY) })
                 }
             }
         }
@@ -208,7 +200,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                         if (index > 0) HorizontalDivider()
                         RecentRow(message)
                     }
-                    TextButton(onClick = { onNavigate(AppTab.INBOX) }) { Text("Open inbox  →") }
+                    LinkButton("Open inbox", { onNavigate(AppTab.INBOX) })
                 }
             }
         }
@@ -247,9 +239,13 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onPay: (String) ->
                 color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
             )
             if (item.paymentLink != null) {
-                TextButton(onClick = { onPay(item.paymentLink) }, contentPadding = PaddingValues(0.dp)) {
-                    Text("View / pay bill", style = MaterialTheme.typography.bodySmall)
-                }
+                AppButton(
+                    text = "Pay bill",
+                    onClick = { onPay(item.paymentLink) },
+                    style = ButtonStyle.TONAL,
+                    size = ButtonSize.COMPACT,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
             }
         }
         Spacer(Modifier.width(12.dp))

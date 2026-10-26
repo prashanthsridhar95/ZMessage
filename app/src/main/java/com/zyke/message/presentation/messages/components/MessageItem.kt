@@ -14,29 +14,17 @@ import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Picks the right card for a message (or its expanded detail) and wires swipe actions. */
+/** A message as one card, with swipe actions (archive / pin). Tapping it opens its detail sheet. */
 @Composable
 internal fun MessageItem(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier,
-    /** True in the timeline (tap opens the conversation); false inside a conversation (tap expands). */
-    openOnTap: Boolean = true
+    modifier: Modifier = Modifier
 ) {
     val isPinned = item.id in state.userState.pinnedIds
     val isArchived = item.id in state.userState.archivedIds
-    val isExpanded = !openOnTap && item.id in state.expandedMessageIds
-    val animated = modifier.animateContentSize()
-
-    if (isExpanded) {
-        MessageDetail(item, isPinned, isArchived, actions, animated)
-        return
-    }
-
-    val card: @Composable () -> Unit = {
-        MessageCard(item, state, actions, openOnTap = openOnTap)
-    }
+    val card: @Composable () -> Unit = { MessageCard(item, state, actions) }
 
     if (state.isSearching) {
         // No swiping while searching: archived matches are listed too, so the gesture would be ambiguous.
@@ -47,7 +35,7 @@ internal fun MessageItem(
             isPinned = isPinned,
             onArchiveOrRestore = { if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id) },
             onTogglePin = { actions.onTogglePin(item.id) },
-            modifier = animated,
+            modifier = modifier.animateContentSize(),
             content = card
         )
     }
@@ -58,13 +46,12 @@ internal fun MessageCard(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier,
-    openOnTap: Boolean = true
+    modifier: Modifier = Modifier
 ) {
     val time = remember(item.message.date) { DisplayFormatters.time(item.message.date) }
     val today = remember(state.now) { LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val isUnread = state.isUnread(item)
-    val expand = { if (openOnTap) actions.onOpenMessage(item.id) else actions.onToggleExpanded(item.id) }
+    val expand = { actions.onOpenMessage(item.id) }
 
     val spoken = remember(item, isUnread, time, today) { item.spokenSummary(time, isUnread, today) }
 

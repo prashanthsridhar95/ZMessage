@@ -53,7 +53,7 @@ fun FilterSheet(
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
-                TextButton(onClick = onReset, enabled = canReset) { Text("Reset") }
+                AppButton("Reset", onReset, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = canReset)
             }
 
             Column(
@@ -61,10 +61,11 @@ fun FilterSheet(
                 content = content
             )
 
-            Button(
+            AppButton(
+                text = doneLabel,
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp)
-            ) { Text(doneLabel) }
+            )
         }
     }
 }

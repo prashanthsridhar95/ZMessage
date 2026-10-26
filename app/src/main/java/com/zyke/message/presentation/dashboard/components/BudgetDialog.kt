@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -37,12 +40,12 @@ internal fun BudgetDialog(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
         },
-        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Save") } },
+        confirmButton = { AppButton("Save", { onSave(text) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
         dismissButton = {
             if (current != null) {
-                TextButton(onClick = { onSave("") }) { Text("Remove") }
+                AppButton("Remove", { onSave("") }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             } else {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
     )

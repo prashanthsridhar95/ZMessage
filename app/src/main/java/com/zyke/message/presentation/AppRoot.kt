@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
-import com.zyke.message.presentation.common.ZykeToolbar
 
 /** The three places the app lives: the overview, the money picture, and the inbox. */
 enum class AppTab(val label: String, val icon: Int) {
@@ -39,6 +38,7 @@ enum class AppTab(val label: String, val icon: Int) {
 @Composable
 fun AppRoot(
     inboxBadge: Int,
+    toolbar: @Composable (tab: AppTab, settingsOpen: Boolean, openSettings: () -> Unit) -> Unit,
     settings: @Composable (modifier: Modifier, onBack: () -> Unit) -> Unit,
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
@@ -53,7 +53,7 @@ fun AppRoot(
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { ZykeToolbar(onSettings = { showSettings = true }) },
+        topBar = { toolbar(tab, showSettings) { showSettings = true } },
         bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it; showSettings = false }) }
     ) { padding ->
         if (showSettings) {

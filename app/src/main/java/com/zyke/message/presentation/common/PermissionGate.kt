@@ -43,7 +43,7 @@ fun PermissionGate(onGrant: () -> Unit, modifier: Modifier = Modifier) {
             Promise(R.drawable.baseline_lock_24, "Everything stays on your device. Nothing is uploaded, nothing is shared")
             Promise(R.drawable.baseline_dashboard_24, "Sorts them into spending, upcoming bills and a clean inbox")
         }
-        Button(onClick = onGrant, modifier = Modifier.fillMaxWidth()) { Text("Allow SMS access") }
+        AppButton("Allow SMS access", onGrant, Modifier.fillMaxWidth())
         Caption("You can change this any time in Settings", textAlign = TextAlign.Center)
     }
 }

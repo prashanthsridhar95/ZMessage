@@ -40,7 +40,8 @@ object MessagesContract {
         val focusMessageId: Long? = null,
 
         // View state
-        val expandedMessageIds: Set<Long> = emptySet(),
+        /** The message whose detail sheet is open. */
+        val detailMessageId: Long? = null,
         val expandedGroups: Set<String> = emptySet(),
         val summaryExpanded: Boolean = false,
 
@@ -52,6 +53,9 @@ object MessagesContract {
         val thread: Thread? = null
     ) {
         val selectedCategory: MessageCategory? get() = filter.category
+
+        /** The message behind the open detail sheet, or null if none is open (or it has gone). */
+        val detail: ClassifiedMessage? get() = detailMessageId?.let { id -> messages.firstOrNull { it.id == id } }
 
         val selectedSmartFilter: SmartFilter get() = filter.smart
 
@@ -76,8 +80,11 @@ object MessagesContract {
         data class SelectSmartFilter(val filter: SmartFilter) : Intent
         data class SelectCategory(val category: MessageCategory?) : Intent
         data class SetViewMode(val mode: ViewMode) : Intent
-        /** Tap on a message in the timeline: open its sender's conversation focused on it. */
+        /** Tap on a message: show its detail in a bottom sheet. */
         data class OpenMessage(val messageId: Long) : Intent
+        data object CloseDetail : Intent
+        /** "More from this sender" in the detail sheet: open the conversation, scrolled to the message. */
+        data class OpenThreadFor(val messageId: Long) : Intent
         data class OpenSender(val key: String) : Intent
         data object CloseThread : Intent
         data object OpenFilters : Intent
@@ -90,7 +97,6 @@ object MessagesContract {
         data object ToggleSearch : Intent
         data class SetQuery(val query: String) : Intent
 
-        data class ToggleExpanded(val messageId: Long) : Intent
         data class ToggleGroup(val key: String) : Intent
         data object ToggleSummary : Intent
 

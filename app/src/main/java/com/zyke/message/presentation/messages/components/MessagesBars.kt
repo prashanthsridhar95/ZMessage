@@ -28,7 +28,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
@@ -43,49 +45,9 @@ import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.model.MessageCategory
 
 @Composable
-fun MessagesTopBar(
-    isSearching: Boolean,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onToggleSearch: () -> Unit,
-    activeFilterCount: Int,
-    onOpenFilters: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isSearching) {
-                SearchField(query, onQueryChange, Modifier.weight(1f))
-                BarIcon(R.drawable.baseline_close_24, "Close search", false, 0, onToggleSearch)
-            } else {
-                Text(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    text = "Inbox",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Row {
-                    BarIcon(R.drawable.baseline_search_24, "Search", false, 0, onToggleSearch)
-                    BarIcon(R.drawable.baseline_filter_alt_24, "Filter messages", activeFilterCount > 0, activeFilterCount, onOpenFilters)
-                }
-            }
-        }
-
-        HorizontalDivider(
-            Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-        )
-    }
-}
-
-@Composable
 internal fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int, onClick: () -> Unit) {
     Box(
-        Modifier.size(48.dp).clickable(onClickLabel = description, onClick = onClick),
+        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Image(
@@ -112,7 +74,7 @@ internal fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int
 }
 
 @Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 

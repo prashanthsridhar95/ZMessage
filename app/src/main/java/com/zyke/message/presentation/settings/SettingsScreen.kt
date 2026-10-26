@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -137,11 +140,13 @@ fun SettingsScreen(
                             Modifier.padding(top = 8.dp),
                             maxLines = 4
                         )
-                        OutlinedButton(
+                        AppButton(
+                            text = "Copy report",
                             onClick = { onIntent(Intent.CopyDiagnostics) },
+                            style = ButtonStyle.OUTLINE,
                             enabled = diagnostics.unrecognised > 0,
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) { Text("Copy report") }
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
                     }
                 }
             }
@@ -153,9 +158,12 @@ fun SettingsScreen(
                             "Your messages are never touched.",
                         maxLines = 4
                     )
-                    OutlinedButton(onClick = { onIntent(Intent.AskReset) }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text("Reset marks and budgets")
-                    }
+                    AppButton(
+                        text = "Reset marks and budgets",
+                        onClick = { onIntent(Intent.AskReset) },
+                        style = ButtonStyle.OUTLINE,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
                 }
             }
 
@@ -173,8 +181,8 @@ fun SettingsScreen(
             onDismissRequest = { onIntent(Intent.CancelReset) },
             title = { Text("Reset marks and budgets?") },
             text = { Text("This clears read, pinned and archived marks, dismissed tips and all budgets. It can't be undone.") },
-            confirmButton = { TextButton(onClick = { onIntent(Intent.ConfirmReset) }) { Text("Reset") } },
-            dismissButton = { TextButton(onClick = { onIntent(Intent.CancelReset) }) { Text("Cancel") } }
+            confirmButton = { AppButton("Reset", { onIntent(Intent.ConfirmReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            dismissButton = { AppButton("Cancel", { onIntent(Intent.CancelReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
         )
     }
 }

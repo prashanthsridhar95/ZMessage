@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -26,6 +27,8 @@ import com.zyke.message.presentation.messages.MessagesViewModel
 import com.zyke.message.presentation.settings.SettingsRoute
 import com.zyke.message.presentation.settings.SettingsViewModel
 import com.zyke.message.presentation.theme.ZykeMessageTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -71,9 +74,36 @@ class MainActivity : ComponentActivity() {
         setContent {
             ZykeMessageTheme {
                 val home by homeViewModel.state.collectAsStateWithLifecycle()
+                val inbox by messagesViewModel.state
+                    .map { it.toToolbarState() }
+                    .distinctUntilChanged()
+                    .collectAsStateWithLifecycle(InboxToolbarState())
+                val money by dashboardViewModel.state
+                    .map { MoneyToolbarState(it.dashboard != null && !it.permissionMissing && !it.hasError, it.activeFilterCount) }
+                    .distinctUntilChanged()
+                    .collectAsStateWithLifecycle(MoneyToolbarState())
+
+                val toolbarCallbacks = remember {
+                    ToolbarCallbacks(
+                        onToggleSearch = { messagesViewModel.onIntent(MessagesContract.Intent.ToggleSearch) },
+                        onQueryChange = { messagesViewModel.onIntent(MessagesContract.Intent.SetQuery(it)) },
+                        onInboxFilters = { messagesViewModel.onIntent(MessagesContract.Intent.OpenFilters) },
+                        onMoneyFilters = { dashboardViewModel.onIntent(DashboardContract.Intent.OpenFilters) }
+                    )
+                }
 
                 AppRoot(
                     inboxBadge = home.unreadCount,
+                    toolbar = { tab, settingsOpen, openSettings ->
+                        AppToolbar(
+                            tab = tab,
+                            settingsOpen = settingsOpen,
+                            inbox = inbox,
+                            money = money,
+                            callbacks = toolbarCallbacks,
+                            onOpenSettings = openSettings
+                        )
+                    },
                     settings = { modifier, onBack ->
                         SettingsRoute(settingsViewModel, versionName, onBack, modifier)
                     }
@@ -114,3 +144,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Buttons are only offered once the screen underneath has something to filter or search. */
+private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
+    buttonsVisible = permission == MessagesContract.PermissionStatus.GRANTED && !isLoading && !hasError && thread == null,
+    searching = isSearching,
+    query = query,
+    filterCount = filter.extraCount
+)

@@ -24,6 +24,6 @@ fun ErrorState(title: String, hint: String, onRetry: () -> Unit, modifier: Modif
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
         Caption(hint, maxLines = 3, textAlign = TextAlign.Center)
-        Button(onClick = onRetry) { Text("Try again") }
+        AppButton("Try again", onRetry)
     }
 }

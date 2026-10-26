@@ -55,6 +55,8 @@ class MessagesViewModel(
 
             is Intent.SetViewMode -> reduceFeed { copy(viewMode = intent.mode, openThreadKey = null, focusMessageId = null) }
             is Intent.OpenMessage -> openMessage(intent.messageId)
+            Intent.CloseDetail -> reduce { copy(detailMessageId = null) }
+            is Intent.OpenThreadFor -> openThreadFor(intent.messageId)
             is Intent.OpenSender -> reduceFeed { copy(openThreadKey = intent.key, focusMessageId = null) }
             Intent.CloseThread -> reduceFeed { copy(openThreadKey = null, focusMessageId = null) }
 
@@ -71,7 +73,6 @@ class MessagesViewModel(
             }
             is Intent.SetQuery -> reduceFeed { copy(query = intent.query) }
 
-            is Intent.ToggleExpanded -> toggleExpanded(intent.messageId)
             is Intent.ToggleGroup -> reduce {
                 copy(expandedGroups = expandedGroups.toggle(intent.key))
             }
@@ -82,6 +83,7 @@ class MessagesViewModel(
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
             is Intent.Archive -> {
+                if (currentState().detailMessageId == intent.messageId) reduce { copy(detailMessageId = null) }
                 userStateRepository.setArchived(intent.messageId, true)
                 emitEffect(Effect.MessageArchived(intent.messageId))
             }
@@ -96,21 +98,20 @@ class MessagesViewModel(
     }
 
     private fun openMessage(messageId: Long) {
-        val message = currentState().messages.firstOrNull { it.id == messageId } ?: return
+        if (currentState().messages.none { it.id == messageId }) return
         userStateRepository.markRead(messageId)
-        reduceFeed {
-            copy(
-                openThreadKey = SenderKey.of(message.message.sender),
-                focusMessageId = messageId,
-                expandedMessageIds = expandedMessageIds + messageId
-            )
-        }
+        reduce { copy(detailMessageId = messageId) }
     }
 
-    private fun toggleExpanded(messageId: Long) {
-        val willExpand = messageId !in currentState().expandedMessageIds
-        if (willExpand) userStateRepository.markRead(messageId)
-        reduce { copy(expandedMessageIds = expandedMessageIds.toggle(messageId)) }
+    private fun openThreadFor(messageId: Long) {
+        val message = currentState().messages.firstOrNull { it.id == messageId } ?: return
+        reduceFeed {
+            copy(
+                detailMessageId = null,
+                openThreadKey = SenderKey.of(message.message.sender),
+                focusMessageId = messageId
+            )
+        }
     }
 
     private fun onScreenStarted(permissionGranted: Boolean) {

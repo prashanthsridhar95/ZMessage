@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -105,7 +108,7 @@ private fun SwipeHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary
         )
-        TextButton(onClick = onDismiss) { Text("Got it") }
+        AppButton("Got it", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
 

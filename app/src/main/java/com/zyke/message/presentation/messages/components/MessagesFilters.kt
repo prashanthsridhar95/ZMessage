@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,8 +68,8 @@ fun ActiveFilterBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        TextButton(onClick = onChange) { Text("Change") }
-        TextButton(onClick = onClear) { Text("Clear") }
+        AppButton("Change", onChange, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        AppButton("Clear", onClear, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
 

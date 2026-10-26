@@ -52,6 +52,7 @@ import java.time.ZoneId
 import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
+import com.zyke.message.presentation.messages.components.MessageDetailSheet
 import com.zyke.message.presentation.messages.components.MessagesFilterSheet
 import com.zyke.message.presentation.messages.components.QuickFilterTabs
 import com.zyke.message.presentation.messages.components.extrasSummary
@@ -59,7 +60,6 @@ import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
-import com.zyke.message.presentation.messages.components.MessagesTopBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -157,15 +157,6 @@ fun MessagesScreen(
             )
         } else {
             Column(Modifier.fillMaxSize()) {
-                MessagesTopBar(
-                    isSearching = state.isSearching,
-                    query = state.query,
-                    onQueryChange = { onIntent(Intent.SetQuery(it)) },
-                    onToggleSearch = { onIntent(Intent.ToggleSearch) },
-                    activeFilterCount = state.filter.extraCount,
-                    onOpenFilters = { onIntent(Intent.OpenFilters) }
-                )
-
                 val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
                 if (ready) {
                     SegmentedControl(
@@ -220,6 +211,18 @@ fun MessagesScreen(
             }
         }
 
+        state.detail?.let { detail ->
+            MessageDetailSheet(
+                item = detail,
+                isPinned = detail.id in state.userState.pinnedIds,
+                isArchived = detail.id in state.userState.archivedIds,
+                inConversation = state.thread != null,
+                actions = actions,
+                onMoreFromSender = { onIntent(Intent.OpenThreadFor(detail.id)) },
+                onDismiss = { onIntent(Intent.CloseDetail) }
+            )
+        }
+
         if (state.showFilterSheet) {
             MessagesFilterSheet(
                 filter = state.filter,
@@ -238,7 +241,6 @@ fun MessagesScreen(
 
 private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onOpenMessage = { this(Intent.OpenMessage(it)) },
-    onToggleExpanded = { this(Intent.ToggleExpanded(it)) },
     onToggleGroup = { this(Intent.ToggleGroup(it)) },
     onCopyOtp = { id, code -> this(Intent.CopyOtp(id, code)) },
     onArchive = { this(Intent.Archive(it)) },

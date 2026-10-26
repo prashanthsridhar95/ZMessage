@@ -162,18 +162,28 @@ class MessagesViewModelTest {
     }
 
     @Test
-    fun expandingMarksMessageRead() {
+    fun openingAMessage_showsItsDetail_marksItRead_andCanBeClosed() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
         val unread = vm.state.value.messages.first { it.id == 2L }
         assertTrue(vm.state.value.isUnread(unread))
 
-        vm.onIntent(Intent.ToggleExpanded(2))
+        vm.onIntent(Intent.OpenMessage(2))
 
-        assertEquals(setOf(2L), vm.state.value.expandedMessageIds)
+        assertEquals(2L, vm.state.value.detail?.id)
         assertFalse(vm.state.value.isUnread(unread))
-        vm.onIntent(Intent.ToggleExpanded(2))
-        assertTrue(vm.state.value.expandedMessageIds.isEmpty())
+        assertNull(vm.state.value.thread) // no sender conversation is opened
+
+        vm.onIntent(Intent.CloseDetail)
+        assertNull(vm.state.value.detail)
+    }
+
+    @Test
+    fun openingAnUnknownMessage_doesNothing() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        vm.onIntent(Intent.OpenMessage(999))
+        assertNull(vm.state.value.detail)
     }
 
     @Test
@@ -242,17 +252,17 @@ class MessagesViewModelTest {
     }
 
     @Test
-    fun openingAMessage_opensItsSenderFocusedAndExpandedAndRead() {
+    fun moreFromThisSender_opensTheConversationFocusedOnTheMessage_andClosesTheSheet() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
-
         vm.onIntent(Intent.OpenMessage(2))
 
+        vm.onIntent(Intent.OpenThreadFor(2))
+
         val state = vm.state.value
+        assertNull(state.detail)
         assertEquals("BANK", state.openThreadKey)
         assertEquals(2L, state.focusMessageId)
-        assertTrue(2L in state.expandedMessageIds)
-        assertTrue(2L in userState.state.value.readIds)
         assertEquals(1, state.thread!!.conversation.messages.size)
     }
 
@@ -260,7 +270,7 @@ class MessagesViewModelTest {
     fun archivingTheOnlyMessage_closesTheConversation() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
-        vm.onIntent(Intent.OpenMessage(2))
+        vm.onIntent(Intent.OpenThreadFor(2))
 
         vm.onIntent(Intent.Archive(2))
 
@@ -272,7 +282,7 @@ class MessagesViewModelTest {
     fun switchingViewMode_closesAnOpenConversation() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
-        vm.onIntent(Intent.OpenMessage(1))
+        vm.onIntent(Intent.OpenThreadFor(1))
 
         vm.onIntent(Intent.SetViewMode(ViewMode.SENDERS))
 
@@ -322,5 +332,17 @@ class MessagesViewModelTest {
 
         assertFalse(vm.state.value.hasError)
         assertEquals(2, vm.state.value.feed.visibleCount)
+    }
+
+    @Test
+    fun archivingFromTheSheet_closesTheSheet() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        vm.onIntent(Intent.OpenMessage(1))
+
+        vm.onIntent(Intent.Archive(1))
+
+        assertNull(vm.state.value.detail)
+        assertEquals(listOf(2L), vm.visibleIds())
     }
 }

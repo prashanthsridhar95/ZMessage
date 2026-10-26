@@ -35,8 +35,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Every message from one sender, newest first. Tapping a card expands it in place;
- * the message the user came from is expanded and scrolled into view.
+ * Every message from one sender, newest first. Tapping a card opens its detail sheet; the message the
+ * user came from is scrolled into view.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -113,7 +113,6 @@ fun ThreadScreen(
                         item = item.newest,
                         state = state,
                         actions = actions,
-                        openOnTap = false,
                         modifier = Modifier.animateItem()
                     )
                 }

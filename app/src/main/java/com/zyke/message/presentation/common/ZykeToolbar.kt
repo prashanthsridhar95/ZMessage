@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,14 +20,26 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
 import com.zyke.message.presentation.messages.components.BarIcon
+import com.zyke.message.presentation.messages.components.SearchField
+
+/** Turns the toolbar into a search box: the field replaces the logo, a close button replaces the actions. */
+data class ToolbarSearch(
+    val query: String,
+    val onQueryChange: (String) -> Unit,
+    val onClose: () -> Unit
+)
 
 /**
- * The brand bar. It is the same on every tab and every screen, so there is always one fixed
- * place that says where you are; each screen's own title and actions sit just below it.
- * It also owns the status bar inset, so screens underneath don't have to.
+ * The one bar at the top of every screen: the Zyke mark on the left, the current screen's buttons on the
+ * right. Screens below it have no headers of their own, so nothing is said twice. It also owns the status
+ * bar inset.
  */
 @Composable
-fun ZykeToolbar(onSettings: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+fun ZykeToolbar(
+    modifier: Modifier = Modifier,
+    search: ToolbarSearch? = null,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
     Column(
         modifier
             .fillMaxWidth()
@@ -34,18 +47,21 @@ fun ZykeToolbar(onSettings: (() -> Unit)? = null, modifier: Modifier = Modifier)
             .statusBarsPadding()
     ) {
         Row(
-            Modifier.fillMaxWidth().height(52.dp).padding(start = 16.dp, end = 4.dp),
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                modifier = Modifier.height(30.dp),
-                painter = painterResource(R.drawable.zyke_main),
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                contentDescription = "Zyke"
-            )
-            if (onSettings != null) {
+            if (search != null) {
+                SearchField(search.query, search.onQueryChange, Modifier.weight(1f))
+                BarIcon(R.drawable.baseline_close_24, "Close search", false, 0, search.onClose)
+            } else {
+                Image(
+                    modifier = Modifier.height(30.dp),
+                    painter = painterResource(R.drawable.zyke_main),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                    contentDescription = "Zyke"
+                )
                 Spacer(Modifier.weight(1f))
-                BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onSettings)
+                actions()
             }
         }
         HorizontalDivider(

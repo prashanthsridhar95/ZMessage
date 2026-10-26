@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -168,7 +172,12 @@ internal fun DashboardFilterSheet(
     }
 }
 
-/** The headline number, with a comparison against the previous period. */
+/**
+ * The headline number: how much went out (or came in) this period, in one glance.
+ *
+ * One container colour, one "on" colour: every piece of text sits on the card in the colour the theme
+ * guarantees is readable there. Direction of change is said in words, never by hue alone.
+ */
 @Composable
 internal fun HeroCard(
     dashboard: Dashboard,
@@ -177,57 +186,61 @@ internal fun HeroCard(
     modifier: Modifier = Modifier
 ) {
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
-    val verb = dashboard.direction.label.lowercase()
+    val verb = dashboard.direction.label
     val caption = when (period) {
         DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH -> "$verb in ${monthFmt.format(dashboard.range.start)}"
         DashboardPeriod.LAST_3_MONTHS -> "$verb in the last 3 months"
         DashboardPeriod.ALL_TIME -> "$verb in total"
     }
     val comparison = when (period) {
-        DashboardPeriod.THIS_MONTH -> "vs same days last month"
-        DashboardPeriod.LAST_MONTH -> "vs the month before"
-        DashboardPeriod.LAST_3_MONTHS -> "vs the previous 3 months"
+        DashboardPeriod.THIS_MONTH -> "than the same days last month"
+        DashboardPeriod.LAST_MONTH -> "than the month before"
+        DashboardPeriod.LAST_3_MONTHS -> "than the previous 3 months"
         DashboardPeriod.ALL_TIME -> null
     }
-    val onHero = MaterialTheme.colorScheme.onSecondaryContainer
+    val onHero = MaterialTheme.colorScheme.onPrimaryContainer
 
     Column(
         modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer)
             .padding(20.dp)
     ) {
         Text(
+            text = caption.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = onHero.copy(alpha = 0.8f),
+            maxLines = 1
+        )
+        Text(
+            modifier = Modifier.padding(top = 4.dp),
             text = DisplayFormatters.rupees(dashboard.total),
             style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
             color = onHero
         )
-        Caption(
-            "$caption · ${dashboard.direction.countLabel(dashboard.count)}",
-            Modifier.padding(top = 2.dp),
-            color = onHero.copy(alpha = 0.7f),
+
+        val change = dashboard.changePercent
+        val note = if (change != null && comparison != null) {
+            val percent = abs(change).roundToInt()
+            val direction = if (percent == 0) "About the same" else "$percent% ${if (change >= 0) "more" else "less"}"
+            "$direction $comparison"
+        } else {
+            null
+        }
+        Text(
+            modifier = Modifier.padding(top = 4.dp),
+            text = listOfNotNull(note, dashboard.direction.countLabel(dashboard.count).takeIf { note == null }).joinToString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = onHero.copy(alpha = 0.9f),
             maxLines = 2
         )
 
-        val change = dashboard.changePercent
-        if (change != null && comparison != null) {
-            val up = change >= 0
-            // More spending is bad news, more income is good news.
-            val good = (up && dashboard.direction == FlowDirection.RECEIVED) ||
-                (!up && dashboard.direction == FlowDirection.SPENT)
-            Text(
-                modifier = Modifier.padding(top = 8.dp),
-                text = "${if (up) "▲" else "▼"} ${abs(change).roundToInt()}% $comparison",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (good) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            )
-        }
-
-        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = onHero.copy(alpha = 0.15f))
         // Both totals are always visible; tapping one switches the whole screen to it.
-        Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowTotal("Spent", dashboard.spentTotal, dashboard.direction == FlowDirection.SPENT, Modifier.weight(1f)) {
                 onDirection(FlowDirection.SPENT)
             }
@@ -240,19 +253,21 @@ internal fun HeroCard(
 
 @Composable
 private fun FlowTotal(label: String, amount: BigDecimal, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val onHero = MaterialTheme.colorScheme.onSecondaryContainer
+    val onHero = MaterialTheme.colorScheme.onPrimaryContainer
     Column(
         modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClickLabel = "Show $label", onClick = onClick)
-            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            // The chosen one is lifted onto a lighter plate so the choice is visible without colour.
+            .background(if (selected) onHero.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(role = Role.Tab, onClickLabel = "Show $label", onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Caption(label, color = onHero.copy(alpha = if (selected) 1f else 0.6f))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = onHero.copy(alpha = if (selected) 1f else 0.8f))
         Text(
             DisplayFormatters.rupees(amount),
             style = MaterialTheme.typography.titleSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = onHero.copy(alpha = if (selected) 1f else 0.7f),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = onHero,
             maxLines = 1
         )
     }
@@ -404,9 +419,7 @@ internal fun CategoryRow(
         } else {
             ShareBar(item.total.fractionOf(total), color = color)
             if (canSetBudget) {
-                TextButton(onClick = onEditBudget, contentPadding = PaddingValues(0.dp)) {
-                    Text("Set monthly budget", style = MaterialTheme.typography.bodySmall)
-                }
+                AppButton("Set monthly budget", onEditBudget, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
     }
@@ -434,9 +447,7 @@ private fun BudgetMeter(item: CategoryTotal, budget: BigDecimal, onEdit: () -> U
             maxLines = 2
         )
         if (editable) {
-            TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Text("Edit", style = MaterialTheme.typography.bodySmall)
-            }
+            AppButton("Edit", onEdit, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         }
     }
 }
@@ -577,9 +588,13 @@ internal fun CardBillRow(
         }
 
         if (latest.paymentLink != null && !passed) {
-            TextButton(onClick = { onPay(latest.paymentLink) }, contentPadding = PaddingValues(0.dp)) {
-                Text("View / pay bill", style = MaterialTheme.typography.bodySmall)
-            }
+            AppButton(
+                text = "View bill",
+                onClick = { onPay(latest.paymentLink) },
+                style = ButtonStyle.TONAL,
+                size = ButtonSize.COMPACT,
+                modifier = Modifier.padding(top = 6.dp)
+            )
         }
 
         if (expanded) {

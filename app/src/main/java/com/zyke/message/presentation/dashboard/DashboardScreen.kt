@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.common.LinkButton
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -44,7 +45,6 @@ import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
 import com.zyke.message.presentation.dashboard.components.PeriodTabs
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
-import com.zyke.message.presentation.messages.components.BarIcon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import com.zyke.message.presentation.dashboard.components.HeroCard
@@ -100,33 +100,6 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        Column {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp).heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = stringResource(R.string.dashboard_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (state.dashboard != null) {
-                    BarIcon(
-                        icon = R.drawable.baseline_filter_alt_24,
-                        description = "Filter by category",
-                        active = state.activeFilterCount > 0,
-                        badge = state.activeFilterCount,
-                        onClick = { onIntent(Intent.OpenFilters) }
-                    )
-                }
-            }
-            HorizontalDivider(
-                Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
-        }
-
         if (state.dashboard != null && !state.permissionMissing && !state.hasError) {
             PeriodTabs(period = state.period, onSelect = { onIntent(Intent.SelectPeriod(it)) })
             // Always on screen, so switching between money out and money in is one tap from anywhere.
@@ -269,12 +242,11 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                         )
                     }
                     if (dashboard.vendors.size > COLLAPSED_VENDORS) {
-                        TextButton(onClick = { onIntent(Intent.ToggleShowAllVendors) }) {
-                            Text(
-                                if (state.showAllVendors) stringResource(R.string.show_fewer)
-                                else stringResource(R.string.show_all_vendors, dashboard.vendors.size)
-                            )
-                        }
+                        LinkButton(
+                            text = if (state.showAllVendors) stringResource(R.string.show_fewer)
+                            else stringResource(R.string.show_all_vendors, dashboard.vendors.size),
+                            onClick = { onIntent(Intent.ToggleShowAllVendors) }
+                        )
                     }
                 }
             }
