@@ -179,4 +179,22 @@ class DashboardViewModelTest {
         assertFalse(vm.state.value.hasError)
         assertTrue(vm.state.value.dashboard != null)
     }
+
+    @Test
+    fun filterBadge_countsPeriodAndCategory_andResetClearsBoth() {
+        val vm = vm()
+        vm.onIntent(Intent.ScreenStarted(true))
+        assertEquals(0, vm.state.value.activeFilterCount)
+
+        vm.onIntent(Intent.SelectPeriod(DashboardPeriod.ALL_TIME))
+        assertEquals(1, vm.state.value.activeFilterCount)
+
+        vm.onIntent(Intent.SetCategory(MessageCategory.FOOD))
+        assertEquals(2, vm.state.value.activeFilterCount)
+
+        vm.onIntent(Intent.ResetFilters)
+        assertEquals(0, vm.state.value.activeFilterCount)
+        assertEquals(DashboardPeriod.THIS_MONTH, vm.state.value.period)
+        assertNull(vm.state.value.category)
+    }
 }

@@ -62,7 +62,6 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.common.FilterSheet
 import com.zyke.message.presentation.common.TileGrid
 import com.zyke.message.presentation.common.TileOption
-import com.zyke.message.presentation.common.UnderlineTabs
 import com.zyke.message.presentation.common.SheetSection
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.RowTitle
@@ -127,34 +126,27 @@ internal fun DashboardControls(
     )
 }
 
-/** Period as quick tabs along the top of the Money screen. */
-@Composable
-internal fun PeriodTabs(period: DashboardPeriod, onSelect: (DashboardPeriod) -> Unit, modifier: Modifier = Modifier) {
-    UnderlineTabs(
-        labels = DashboardPeriod.entries.map { it.label },
-        counts = emptyList(),
-        selectedIndex = period.ordinal,
-        onSelect = { onSelect(DashboardPeriod.entries[it]) },
-        modifier = modifier
-    )
-}
-
 @Composable
 internal fun DashboardFilterSheet(
+    period: DashboardPeriod,
     category: MessageCategory?,
     dashboard: Dashboard,
     canReset: Boolean,
+    onPeriod: (DashboardPeriod) -> Unit,
     onCategory: (MessageCategory?) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
     FilterSheet(
-        title = "Filter by category",
+        title = "Filter dashboard",
         doneLabel = "Show ${dashboard.direction.countLabel(dashboard.count)}",
         canReset = canReset,
         onReset = onReset,
         onDismiss = onDismiss
     ) {
+        SheetSection("Period")
+        TileGrid(DashboardPeriod.entries.map { TileOption(it.label, it == period, { onPeriod(it) }) })
+
         SheetSection("Category")
         TileGrid(
             buildList {

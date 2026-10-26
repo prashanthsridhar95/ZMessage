@@ -43,7 +43,6 @@ import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
-import com.zyke.message.presentation.dashboard.components.PeriodTabs
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -101,7 +100,6 @@ fun DashboardScreen(
 ) {
     Column(modifier.fillMaxSize()) {
         if (state.dashboard != null && !state.permissionMissing && !state.hasError) {
-            PeriodTabs(period = state.period, onSelect = { onIntent(Intent.SelectPeriod(it)) })
             // Always on screen, so switching between money out and money in is one tap from anywhere.
             DashboardControls(
                 direction = state.direction,
@@ -126,9 +124,11 @@ fun DashboardScreen(
     val dashboardForSheet = state.dashboard
     if (state.showFilterSheet && dashboardForSheet != null) {
         DashboardFilterSheet(
+            period = state.period,
             category = state.category,
             dashboard = dashboardForSheet,
             canReset = state.activeFilterCount > 0,
+            onPeriod = { onIntent(Intent.SelectPeriod(it)) },
             onCategory = { onIntent(Intent.SetCategory(it)) },
             onReset = { onIntent(Intent.ResetFilters) },
             onDismiss = { onIntent(Intent.CloseFilters) }
@@ -159,13 +159,16 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        state.category?.let { category ->
-            item(key = "category-filter") {
+        if (state.activeFilterCount > 0) {
+            item(key = "active-filters") {
                 ActiveFilterBar(
-                    summary = category.displayString,
+                    summary = listOfNotNull(
+                        state.period.label.takeIf { state.period != DashboardPeriod.THIS_MONTH },
+                        state.category?.displayString
+                    ).joinToString(" · "),
                     resultCount = dashboard.count,
                     onChange = { onIntent(Intent.OpenFilters) },
-                    onClear = { onIntent(Intent.ClearCategory) },
+                    onClear = { onIntent(Intent.ResetFilters) },
                     horizontalInset = 0.dp
                 )
             }
