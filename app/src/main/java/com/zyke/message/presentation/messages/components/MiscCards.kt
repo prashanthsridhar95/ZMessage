@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -132,7 +134,13 @@ internal fun DataUsageCard(
 ) {
     val bottomShape = RoundedCornerShape(bottomEnd = 16.dp, bottomStart = 16.dp)
 
-    Column(modifier.padding(vertical = 8.dp).clickable(onClickLabel = "Show message", onClick = onClick)) {
+    val spoken = LocalSpokenSummary.current
+    Column(
+        modifier
+            .padding(vertical = 8.dp)
+            .clickable(onClickLabel = "Show message", onClick = onClick)
+            .semantics(mergeDescendants = true) { if (spoken != null) contentDescription = spoken }
+    ) {
         Row(
             Modifier
                 .padding(horizontal = 16.dp)

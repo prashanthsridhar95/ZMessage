@@ -19,13 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -68,9 +71,18 @@ internal fun MerchantLogo.drawableRes(): Int = when (this) {
     MerchantLogo.VI -> R.drawable.vi_mobile_icon
 }
 
+/**
+ * Quiet text (captions, hints). Contrast against the surface is kept at WCAG AA (4.5:1): the
+ * secondary colour is only faded as far as the theme's brightness allows.
+ */
 @Composable
-internal fun mutedColor(alpha: Float = 0.5f): Color =
-    MaterialTheme.colorScheme.secondary.copy(alpha = alpha)
+internal fun mutedColor(): Color {
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    return MaterialTheme.colorScheme.secondary.copy(alpha = if (isLight) 0.9f else 0.72f)
+}
+
+/** Lets a card hand its one-sentence screen-reader description to the row that draws it. */
+internal val LocalSpokenSummary = compositionLocalOf<String?> { null }
 
 /** Standard tappable list row: 16dp padding, content laid out horizontally. */
 @Composable
@@ -81,14 +93,23 @@ internal fun MessageRow(
     clickModifier: Modifier = Modifier.clickable(onClickLabel = "Show message", onClick = onClick),
     content: @Composable RowScope.() -> Unit
 ) {
+    val spoken = LocalSpokenSummary.current
     Row(
         modifier = modifier
             .fillMaxWidth()
             .then(clickModifier)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = verticalAlignment,
-        content = content
-    )
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .semantics(mergeDescendants = true) { if (spoken != null) contentDescription = spoken }
+    ) {
+        // With a summary, the pieces are hidden from screen readers so it is not read twice.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (spoken != null) Modifier.clearAndSetSemantics { } else Modifier),
+            verticalAlignment = verticalAlignment,
+            content = content
+        )
+    }
 }
 
 @Composable
@@ -205,7 +226,7 @@ internal fun IconCaption(@DrawableRes icon: Int, text: String, modifier: Modifie
             modifier = Modifier.size(18.dp),
             painter = painterResource(icon),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(mutedColor(0.4f))
+            colorFilter = ColorFilter.tint(mutedColor())
         )
         Spacer(Modifier.width(4.dp))
         Text(
@@ -213,7 +234,7 @@ internal fun IconCaption(@DrawableRes icon: Int, text: String, modifier: Modifie
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
-            color = mutedColor(0.4f)
+            color = mutedColor()
         )
     }
 }

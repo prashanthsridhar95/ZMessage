@@ -156,7 +156,7 @@ internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.surface)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
         text = text,
-        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.tertiary,
         fontWeight = FontWeight.Bold
     )
 }

@@ -56,6 +56,7 @@ import com.zyke.message.presentation.messages.components.MessagesFilterSheet
 import com.zyke.message.presentation.messages.components.QuickFilterTabs
 import com.zyke.message.presentation.messages.components.extrasSummary
 import com.zyke.message.presentation.messages.components.FeedActions
+import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import com.zyke.message.presentation.messages.components.MessagesTopBar
@@ -268,7 +269,7 @@ private fun CenteredMessage(title: String, hint: String?) {
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
         if (hint != null) {
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = mutedColor(), textAlign = TextAlign.Center)
         }
     }
 }

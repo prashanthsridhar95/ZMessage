@@ -2,12 +2,14 @@ package com.zyke.message.presentation.messages.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.zyke.message.domain.feed.OtpPolicy
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.format.DisplayFormatters
+import com.zyke.message.presentation.format.spokenSummary
 import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
 import java.time.ZoneId
@@ -64,21 +66,25 @@ internal fun MessageCard(
     val isUnread = state.isUnread(item)
     val expand = { if (openOnTap) actions.onOpenMessage(item.id) else actions.onToggleExpanded(item.id) }
 
-    when (val content = item.content) {
-        is MessageContent.Otp -> OtpCard(
-            item, content, time, isUnread,
-            isExpired = OtpPolicy.isExpired(item, state.now),
-            onExpand = expand,
-            onCopy = { actions.onCopyOtp(item.id, it) },
-            modifier = modifier
-        )
-        is MessageContent.FastTag -> FastTagCard(item, content, time, isUnread, expand, modifier)
-        is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier)
-        is MessageContent.CardBill -> CardBillCard(item, content, time, isUnread, today, expand, modifier)
-        is MessageContent.ScheduledPayment -> ScheduledPaymentCard(item, content, time, isUnread, today, expand, modifier)
-        is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)
-        is MessageContent.Courier -> CourierCard(item, content, time, isUnread, expand, modifier)
-        is MessageContent.Loyalty -> LoyaltyCard(item, content, time, isUnread, expand, modifier)
-        MessageContent.Generic -> GenericCard(item, time, isUnread, expand, modifier)
+    val spoken = remember(item, isUnread, time, today) { item.spokenSummary(time, isUnread, today) }
+
+    CompositionLocalProvider(LocalSpokenSummary provides spoken) {
+        when (val content = item.content) {
+            is MessageContent.Otp -> OtpCard(
+                item, content, time, isUnread,
+                isExpired = OtpPolicy.isExpired(item, state.now),
+                onExpand = expand,
+                onCopy = { actions.onCopyOtp(item.id, it) },
+                modifier = modifier
+            )
+            is MessageContent.FastTag -> FastTagCard(item, content, time, isUnread, expand, modifier)
+            is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier)
+            is MessageContent.CardBill -> CardBillCard(item, content, time, isUnread, today, expand, modifier)
+            is MessageContent.ScheduledPayment -> ScheduledPaymentCard(item, content, time, isUnread, today, expand, modifier)
+            is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)
+            is MessageContent.Courier -> CourierCard(item, content, time, isUnread, expand, modifier)
+            is MessageContent.Loyalty -> LoyaltyCard(item, content, time, isUnread, expand, modifier)
+            MessageContent.Generic -> GenericCard(item, time, isUnread, expand, modifier)
+        }
     }
 }

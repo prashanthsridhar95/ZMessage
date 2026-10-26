@@ -55,7 +55,7 @@ fun UnderlineTabs(
                             Text(
                                 text = count.toString(),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) MaterialTheme.colorScheme.primary else mutedColor(0.4f)
+                                color = if (selected) MaterialTheme.colorScheme.primary else mutedColor()
                             )
                         }
                     }

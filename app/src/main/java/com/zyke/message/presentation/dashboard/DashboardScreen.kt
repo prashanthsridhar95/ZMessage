@@ -55,6 +55,7 @@ import androidx.compose.material3.TextButton
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.presentation.dashboard.components.VendorRow
 import com.zyke.message.presentation.messages.components.Caption
+import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -298,6 +299,6 @@ private fun Notice(title: String, hint: String?) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-        if (hint != null) Caption(hint, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f), maxLines = 3)
+        if (hint != null) Caption(hint, color = mutedColor(), maxLines = 3)
     }
 }
