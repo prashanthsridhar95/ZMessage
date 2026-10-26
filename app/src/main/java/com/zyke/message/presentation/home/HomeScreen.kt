@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
@@ -128,7 +127,7 @@ private fun Header(state: State) {
     val date = remember(state.now) {
         DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()).format(state.now.atZone(ZoneId.systemDefault()))
     }
-    Column(Modifier.statusBarsPadding().padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 4.dp)) {
+    Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 4.dp)) {
         Caption(date)
         Text("Overview", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
     }
@@ -170,7 +169,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
         state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
             item(key = "month") {
                 Column {
-                    HeroCard(month, DashboardPeriod.THIS_MONTH)
+                    HeroCard(month, DashboardPeriod.THIS_MONTH, onDirection = { onNavigate(AppTab.MONEY) })
                     TextButton(onClick = { onNavigate(AppTab.MONEY) }) { Text("See where it went  →") }
                 }
             }

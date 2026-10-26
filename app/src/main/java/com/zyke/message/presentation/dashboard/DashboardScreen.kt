@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -99,7 +98,7 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        Column(Modifier.statusBarsPadding()) {
+        Column {
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp).heightIn(min = 48.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -128,6 +127,12 @@ fun DashboardScreen(
 
         if (state.dashboard != null && !state.permissionMissing && !state.hasError) {
             PeriodTabs(period = state.period, onSelect = { onIntent(Intent.SelectPeriod(it)) })
+            // Always on screen, so switching between money out and money in is one tap from anywhere.
+            DashboardControls(
+                direction = state.direction,
+                onDirection = { onIntent(Intent.SelectDirection(it)) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
 
         val dashboard = state.dashboard
@@ -167,6 +172,7 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
     val ranking = dashboard.categories.map { it.category }
     // Budgets are monthly limits, so they only make sense against this month's spending.
     val budgetsApply = state.period == DashboardPeriod.THIS_MONTH && state.direction == FlowDirection.SPENT
+    val received = state.direction == FlowDirection.RECEIVED
     val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
 
     LazyColumn(
@@ -174,32 +180,30 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item(key = "controls") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardControls(
-                    direction = state.direction,
-                    onDirection = { onIntent(Intent.SelectDirection(it)) }
+        state.category?.let { category ->
+            item(key = "category-filter") {
+                ActiveFilterBar(
+                    summary = category.displayString,
+                    resultCount = dashboard.count,
+                    onChange = { onIntent(Intent.OpenFilters) },
+                    onClear = { onIntent(Intent.ClearCategory) },
+                    horizontalInset = 0.dp
                 )
-                state.category?.let { category ->
-                    ActiveFilterBar(
-                        summary = category.displayString,
-                        resultCount = dashboard.count,
-                        onChange = { onIntent(Intent.OpenFilters) },
-                        onClear = { onIntent(Intent.ClearCategory) },
-                        horizontalInset = 0.dp
-                    )
-                }
             }
         }
 
         if (dashboard.isEmpty) {
             item(key = "empty") {
-                SectionCard(stringResource(R.string.dashboard_empty)) {
+                SectionCard(
+                    stringResource(
+                        if (received) R.string.dashboard_empty_received else R.string.dashboard_empty
+                    )
+                ) {
                     Caption(stringResource(R.string.dashboard_empty_hint), maxLines = 3)
                 }
             }
         } else {
-            item(key = "hero") { HeroCard(dashboard, state.period) }
+            item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
         }
 
         if (state.cardBills.isNotEmpty()) {
@@ -221,7 +225,7 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
 
         if (!dashboard.isEmpty) {
             item(key = "trend") {
-                SectionCard(stringResource(R.string.dashboard_trend)) {
+                SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
                     TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
                     ChartLegend(ranking, Modifier.padding(top = 12.dp))
                 }
@@ -237,6 +241,7 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                             color = ChartColors.forRank(index),
                             selected = item.category == state.category,
                             canSetBudget = budgetsApply,
+                            direction = state.direction,
                             onClick = { onIntent(Intent.SelectCategory(item.category)) },
                             onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
                         )
@@ -246,13 +251,14 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
 
             item(key = "vendors") {
                 val vendors = if (state.showAllVendors) dashboard.vendors else dashboard.vendors.take(COLLAPSED_VENDORS)
-                SectionCard(stringResource(R.string.dashboard_by_vendor)) {
+                SectionCard(stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor)) {
                     vendors.forEachIndexed { index, vendor ->
                         if (index > 0) HorizontalDivider()
                         VendorRow(
                             vendor = vendor,
                             total = dashboard.total,
                             expanded = state.expandedVendor == vendor.key,
+                            direction = state.direction,
                             onClick = { onIntent(Intent.ToggleVendor(vendor.key)) }
                         )
                     }
@@ -268,10 +274,10 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
             }
 
             item(key = "sources") {
-                SectionCard(stringResource(R.string.dashboard_by_source)) {
+                SectionCard(stringResource(if (received) R.string.dashboard_by_source_received else R.string.dashboard_by_source)) {
                     dashboard.sources.forEachIndexed { index, source ->
                         if (index > 0) HorizontalDivider()
-                        SourceRow(source, dashboard.total)
+                        SourceRow(source, dashboard.total, state.direction)
                     }
                 }
             }

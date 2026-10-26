@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,11 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.zyke.message.R
 import com.zyke.message.domain.dashboard.BillEntry
 import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.CategoryTotal
@@ -72,6 +76,10 @@ private fun BigDecimal.fractionOf(total: BigDecimal): Float =
     if (total.signum() <= 0) 0f else (toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
 
 private fun plural(count: Int, one: String, many: String) = if (count == 1) "$count $one" else "$count $many"
+
+/** "3 payments" when looking at money out, "3 credits" when looking at money in. */
+internal fun FlowDirection.countLabel(count: Int) =
+    if (this == FlowDirection.SPENT) plural(count, "payment", "payments") else plural(count, "credit", "credits")
 
 /** A titled, rounded panel. Every section of the dashboard sits in one so they line up. */
 @Composable
@@ -132,7 +140,7 @@ internal fun DashboardFilterSheet(
 ) {
     FilterSheet(
         title = "Filter by category",
-        doneLabel = "Show ${plural(dashboard.count, "payment", "payments")}",
+        doneLabel = "Show ${dashboard.direction.countLabel(dashboard.count)}",
         canReset = canReset,
         onReset = onReset,
         onDismiss = onDismiss
@@ -156,7 +164,12 @@ internal fun DashboardFilterSheet(
 
 /** The headline number, with a comparison against the previous period. */
 @Composable
-internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: Modifier = Modifier) {
+internal fun HeroCard(
+    dashboard: Dashboard,
+    period: DashboardPeriod,
+    onDirection: (FlowDirection) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val verb = dashboard.direction.label.lowercase()
     val caption = when (period) {
@@ -185,7 +198,7 @@ internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: M
             color = onHero
         )
         Caption(
-            "$caption · ${plural(dashboard.count, "payment", "payments")}",
+            "$caption · ${dashboard.direction.countLabel(dashboard.count)}",
             Modifier.padding(top = 2.dp),
             color = onHero.copy(alpha = 0.7f),
             maxLines = 2
@@ -207,16 +220,35 @@ internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: M
         }
 
         HorizontalDivider(Modifier.padding(vertical = 12.dp), color = onHero.copy(alpha = 0.15f))
+        // Both totals are always visible; tapping one switches the whole screen to it.
         Row(Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f)) {
-                Caption("Spent", color = onHero.copy(alpha = 0.7f))
-                Text(DisplayFormatters.rupees(dashboard.spentTotal), style = MaterialTheme.typography.titleSmall, color = onHero, maxLines = 1)
+            FlowTotal("Spent", dashboard.spentTotal, dashboard.direction == FlowDirection.SPENT, Modifier.weight(1f)) {
+                onDirection(FlowDirection.SPENT)
             }
-            Column(Modifier.weight(1f)) {
-                Caption("Received", color = onHero.copy(alpha = 0.7f))
-                Text(DisplayFormatters.rupees(dashboard.receivedTotal), style = MaterialTheme.typography.titleSmall, color = onHero, maxLines = 1)
+            FlowTotal("Received", dashboard.receivedTotal, dashboard.direction == FlowDirection.RECEIVED, Modifier.weight(1f)) {
+                onDirection(FlowDirection.RECEIVED)
             }
         }
+    }
+}
+
+@Composable
+private fun FlowTotal(label: String, amount: BigDecimal, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val onHero = MaterialTheme.colorScheme.onSecondaryContainer
+    Column(
+        modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClickLabel = "Show $label", onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
+        Caption(label, color = onHero.copy(alpha = if (selected) 1f else 0.6f))
+        Text(
+            DisplayFormatters.rupees(amount),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = onHero.copy(alpha = if (selected) 1f else 0.7f),
+            maxLines = 1
+        )
     }
 }
 
@@ -322,6 +354,7 @@ internal fun CategoryRow(
     color: Color,
     selected: Boolean,
     canSetBudget: Boolean,
+    direction: FlowDirection,
     onClick: () -> Unit,
     onEditBudget: () -> Unit,
     modifier: Modifier = Modifier
@@ -337,13 +370,23 @@ internal fun CategoryRow(
             Box(Modifier.size(10.dp).background(color, CircleShape))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                RowTitle(
-                    item.category.displayString + if (selected) "  ✓" else "",
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RowTitle(
+                        item.category.displayString,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                    if (selected) {
+                        Image(
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp),
+                            painter = painterResource(R.drawable.baseline_check_24),
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                            contentDescription = "Filtering by this category"
+                        )
+                    }
+                }
                 Caption(
                     if (item.count == 0) "Nothing yet"
-                    else "${plural(item.count, "payment", "payments")} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
+                    else "${direction.countLabel(item.count)} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -420,6 +463,7 @@ internal fun VendorRow(
     vendor: VendorSummary,
     total: BigDecimal,
     expanded: Boolean,
+    direction: FlowDirection,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -436,7 +480,7 @@ internal fun VendorRow(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(vendor.merchant.displayName)
-                Caption("${vendor.merchant.category.displayString} · ${plural(vendor.count, "payment", "payments")}")
+                Caption("${vendor.merchant.category.displayString} · ${direction.countLabel(vendor.count)}")
                 Caption("Last ${DateFormatters.dayHeader(last).substringBefore(",")}")
             }
             Spacer(Modifier.width(12.dp))
@@ -465,12 +509,12 @@ internal fun VendorRow(
 }
 
 @Composable
-internal fun SourceRow(item: SourceTotal, total: BigDecimal, modifier: Modifier = Modifier) {
+internal fun SourceRow(item: SourceTotal, total: BigDecimal, direction: FlowDirection, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(vertical = 10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 RowTitle(item.label, color = MaterialTheme.colorScheme.secondary)
-                Caption(plural(item.count, "payment", "payments"))
+                Caption(direction.countLabel(item.count))
             }
             Spacer(Modifier.width(12.dp))
             Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)

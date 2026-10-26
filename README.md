@@ -99,6 +99,15 @@ provider itself is never written to.
 2. Add a `MessageContent` subtype and a card composable in `presentation/messages/components`.
 3. Handle it in `MessageItem`. Add unit tests next to the existing ones.
 
+## Font
+
+The UI uses **Plus Jakarta Sans** (SIL OFL, `third_party/fonts/PlusJakartaSans-OFL.txt`), with Regular,
+Medium and Bold in `res/font`. It has a native rupee sign and full Latin / punctuation coverage. The
+app previously bundled *Nexa Demo*, a trial font that replaces `/ % < > | … · → ←`, accented letters and
+more with a "DEMO CASE" placeholder and has no `₹`; it is not licensed for distribution. To use a
+licensed font instead, drop its files into `res/font` and change `AppFontFamily` in `theme/Theme.kt`.
+`AppTypography` keeps Material's size scale and only swaps the family.
+
 ## Tests
 
 ```

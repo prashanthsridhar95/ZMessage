@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -53,7 +52,7 @@ fun MessagesTopBar(
     onOpenFilters: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.statusBarsPadding()) {
+    Column(modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -63,11 +62,11 @@ fun MessagesTopBar(
                 SearchField(query, onQueryChange, Modifier.weight(1f))
                 BarIcon(R.drawable.baseline_close_24, "Close search", false, 0, onToggleSearch)
             } else {
-                Image(
-                    modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
-                    painter = painterResource(R.drawable.zyke_main),
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                    contentDescription = "Zyke"
+                Text(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    text = "Inbox",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Row {
                     BarIcon(R.drawable.baseline_search_24, "Search", false, 0, onToggleSearch)

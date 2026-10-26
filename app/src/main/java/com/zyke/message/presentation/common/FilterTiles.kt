@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -17,10 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zyke.message.R
 import com.zyke.message.presentation.messages.components.Caption
 
 data class TileOption(
@@ -77,7 +82,12 @@ private fun Tile(option: TileOption, modifier: Modifier = Modifier) {
             option.supporting?.let { Caption(it) }
         }
         if (option.selected) {
-            Text("✓", modifier = Modifier.padding(start = 8.dp), color = accent, fontWeight = FontWeight.Bold)
+            Image(
+                modifier = Modifier.padding(start = 8.dp).size(18.dp),
+                painter = painterResource(R.drawable.baseline_check_24),
+                colorFilter = ColorFilter.tint(accent),
+                contentDescription = "Selected"
+            )
         }
     }
 }

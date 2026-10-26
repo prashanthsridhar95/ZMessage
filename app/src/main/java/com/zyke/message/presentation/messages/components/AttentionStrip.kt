@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.zyke.message.R
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.presentation.format.DisplayFormatters
 import java.time.LocalDate
@@ -84,7 +88,12 @@ private fun AttentionCard(item: AttentionItem, today: LocalDate, actions: FeedAc
             Modifier.size(48.dp).clickable(onClickLabel = "Dismiss") { actions.onDismissAttention(item.key) },
             contentAlignment = Alignment.Center
         ) {
-            Text("✕", color = mutedColor())
+            Image(
+                modifier = Modifier.size(18.dp),
+                painter = painterResource(R.drawable.baseline_close_24),
+                colorFilter = ColorFilter.tint(mutedColor()),
+                contentDescription = "Dismiss"
+            )
         }
     }
 }

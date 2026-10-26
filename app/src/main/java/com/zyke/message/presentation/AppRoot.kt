@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import com.zyke.message.presentation.common.ZykeToolbar
 
 /** The three places the app lives: the overview, the money picture, and the inbox. */
 enum class AppTab(val label: String, val icon: Int) {
@@ -46,8 +47,9 @@ fun AppRoot(
     BackHandler(enabled = tab != AppTab.HOME) { tab = AppTab.HOME }
 
     Scaffold(
-        // Each screen handles the status bar itself; the bar below handles the navigation bar.
+        // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = { ZykeToolbar() },
         bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }) }
     ) { padding ->
         stateHolder.SaveableStateProvider(tab.name) {
