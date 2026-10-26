@@ -43,7 +43,7 @@ object MessagesContract {
         /** The message whose detail sheet is open. */
         val detailMessageId: Long? = null,
         val expandedGroups: Set<String> = emptySet(),
-        val summaryExpanded: Boolean = false,
+        val showSummarySheet: Boolean = false,
 
         /** Everything the list renders, derived from the inputs above. */
         val feed: Feed = Feed.EMPTY,
@@ -98,7 +98,8 @@ object MessagesContract {
         data class SetQuery(val query: String) : Intent
 
         data class ToggleGroup(val key: String) : Intent
-        data object ToggleSummary : Intent
+        data object OpenSummary : Intent
+        data object CloseSummary : Intent
 
         data class CopyOtp(val messageId: Long, val code: String) : Intent
         data class Archive(val messageId: Long) : Intent

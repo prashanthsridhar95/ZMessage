@@ -13,7 +13,7 @@ data class FeedActions(
     val onUnarchive: (Long) -> Unit,
     val onTogglePin: (Long) -> Unit,
     val onDismissAttention: (String) -> Unit,
-    val onToggleSummary: () -> Unit,
+    val onOpenSummary: () -> Unit,
     val onOpenLink: (String) -> Unit
 ) {
     companion object {

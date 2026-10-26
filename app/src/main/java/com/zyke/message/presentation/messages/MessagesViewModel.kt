@@ -76,7 +76,8 @@ class MessagesViewModel(
             is Intent.ToggleGroup -> reduce {
                 copy(expandedGroups = expandedGroups.toggle(intent.key))
             }
-            Intent.ToggleSummary -> reduce { copy(summaryExpanded = !summaryExpanded) }
+            Intent.OpenSummary -> reduce { copy(showSummarySheet = true) }
+            Intent.CloseSummary -> reduce { copy(showSummarySheet = false) }
 
             is Intent.CopyOtp -> {
                 userStateRepository.markRead(intent.messageId)

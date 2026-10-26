@@ -46,6 +46,7 @@ import com.zyke.message.presentation.messages.MessagesContract.State
 import com.zyke.message.presentation.messages.MessagesContract.ViewMode
 import com.zyke.message.presentation.messages.components.InboxModeBar
 import com.zyke.message.presentation.messages.components.SendersList
+import com.zyke.message.presentation.messages.components.SpendSummarySheet
 import com.zyke.message.presentation.messages.components.ThreadSheet
 import java.time.LocalDate
 import java.time.ZoneId
@@ -224,6 +225,11 @@ fun MessagesScreen(
             )
         }
 
+        val summary = state.feed.summary
+        if (state.showSummarySheet && summary != null) {
+            SpendSummarySheet(summary, onDismiss = { onIntent(Intent.CloseSummary) })
+        }
+
         if (state.showFilterSheet) {
             MessagesFilterSheet(
                 filter = state.filter,
@@ -248,7 +254,7 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onUnarchive = { this(Intent.Unarchive(it)) },
     onTogglePin = { this(Intent.TogglePin(it)) },
     onDismissAttention = { this(Intent.DismissAttention(it)) },
-    onToggleSummary = { this(Intent.ToggleSummary) },
+    onOpenSummary = { this(Intent.OpenSummary) },
     onOpenLink = { this(Intent.OpenLink(it)) }
 )
 

@@ -61,7 +61,7 @@ fun MessageList(
 
         feed.summary?.let { summary ->
             item(key = "summary", contentType = "summary") {
-                SpendSummaryRow(summary, state.summaryExpanded, actions.onToggleSummary, Modifier.animateItem())
+                SpendSummaryRow(summary, actions.onOpenSummary, Modifier.animateItem())
             }
         }
 

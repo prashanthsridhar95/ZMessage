@@ -345,4 +345,13 @@ class MessagesViewModelTest {
         assertNull(vm.state.value.detail)
         assertEquals(listOf(2L), vm.visibleIds())
     }
+
+    @Test
+    fun summarySheet_opensAndCloses() {
+        val vm = viewModel(MutableSharedFlow())
+        vm.onIntent(Intent.OpenSummary)
+        assertTrue(vm.state.value.showSummarySheet)
+        vm.onIntent(Intent.CloseSummary)
+        assertFalse(vm.state.value.showSummarySheet)
+    }
 }
