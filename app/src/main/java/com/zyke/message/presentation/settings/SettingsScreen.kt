@@ -9,20 +9,19 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -33,9 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -50,7 +47,7 @@ import com.zyke.message.presentation.settings.SettingsContract.Intent
 import com.zyke.message.presentation.settings.SettingsContract.State
 
 @Composable
-fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -73,105 +70,89 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onBack: () 
         }
     }
 
-    SettingsScreen(state, versionName, viewModel::onIntent, onBack, modifier)
+    SettingsSheet(state, versionName, viewModel::onIntent, onDismiss)
 }
 
+/** Settings as a bottom sheet over the current tab; as tall as its content, up to the screen. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+fun SettingsSheet(
     state: State,
     versionName: String,
     onIntent: (Intent) -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    onDismiss: () -> Unit
 ) {
-    Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(48.dp).clickable(onClickLabel = "Back", onClick = onBack),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    modifier = Modifier.size(24.dp),
-                    painter = painterResource(R.drawable.baseline_arrow_back_24),
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                    contentDescription = "Back"
-                )
-            }
-            Text("Settings", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-        }
-
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "privacy") {
-                SectionCard("Privacy") {
-                    Caption(
-                        "Messages are read and sorted on this phone only. The app has no internet permission, " +
-                            "so nothing can be uploaded, and backups of its data are switched off.",
-                        maxLines = 5
-                    )
-                    ToggleRow(
-                        title = "Block screenshots",
-                        description = "Also hides the app's content in the recent-apps view",
-                        checked = state.settings.screenProtection,
-                        onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
+            Text(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                text = "Settings",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            SectionCard("Privacy") {
+                Caption(
+                    "Messages are read and sorted on this phone only. The app has no internet permission, " +
+                        "so nothing can be uploaded, and backups of its data are switched off.",
+                    maxLines = 5
+                )
+                ToggleRow(
+                    title = "Block screenshots",
+                    description = "Also hides the app's content in the recent-apps view",
+                    checked = state.settings.screenProtection,
+                    onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
             }
 
-            item(key = "parsing") {
-                SectionCard("Parsing health") {
-                    val diagnostics = state.diagnostics
-                    if (diagnostics == null) {
-                        Caption("Allow SMS access to see how well your messages are understood.", maxLines = 3)
-                    } else if (diagnostics.moneyMessages == 0) {
-                        Caption("No money messages found yet.")
-                    } else {
-                        val fraction = diagnostics.recognised.toFloat() / diagnostics.moneyMessages
-                        RowTitle("${diagnostics.recognised} of ${diagnostics.moneyMessages} money messages understood")
-                        ShareBar(fraction)
-                        Caption(
-                            if (diagnostics.unrecognised == 0) "Everything was understood."
-                            else "${diagnostics.unrecognised} shown as plain text. Copy a report with numbers, " +
-                                "names and links masked, so they can be taught.",
-                            Modifier.padding(top = 8.dp),
-                            maxLines = 4
-                        )
-                        AppButton(
-                            text = "Copy report",
-                            onClick = { onIntent(Intent.CopyDiagnostics) },
-                            style = ButtonStyle.OUTLINE,
-                            enabled = diagnostics.unrecognised > 0,
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-                    }
-                }
-            }
-
-            item(key = "data") {
-                SectionCard("Your data") {
+            SectionCard("Parsing health") {
+                val diagnostics = state.diagnostics
+                if (diagnostics == null) {
+                    Caption("Allow SMS access to see how well your messages are understood.", maxLines = 3)
+                } else if (diagnostics.moneyMessages == 0) {
+                    Caption("No money messages found yet.")
+                } else {
+                    val fraction = diagnostics.recognised.toFloat() / diagnostics.moneyMessages
+                    RowTitle("${diagnostics.recognised} of ${diagnostics.moneyMessages} money messages understood")
+                    ShareBar(fraction)
                     Caption(
-                        "Clear what the app remembers: read, pinned and archived marks, dismissed tips and budgets. " +
-                            "Your messages are never touched.",
+                        if (diagnostics.unrecognised == 0) "Everything was understood."
+                        else "${diagnostics.unrecognised} shown as plain text. Copy a report with numbers, " +
+                            "names and links masked, so they can be taught.",
+                        Modifier.padding(top = 8.dp),
                         maxLines = 4
                     )
                     AppButton(
-                        text = "Reset marks and budgets",
-                        onClick = { onIntent(Intent.AskReset) },
+                        text = "Copy report",
+                        onClick = { onIntent(Intent.CopyDiagnostics) },
                         style = ButtonStyle.OUTLINE,
+                        enabled = diagnostics.unrecognised > 0,
                         modifier = Modifier.padding(top = 12.dp)
                     )
                 }
             }
 
-            item(key = "about") {
-                SectionCard("About") {
-                    Caption("Version $versionName")
-                    Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
-                }
+            SectionCard("Your data") {
+                Caption(
+                    "Clear what the app remembers: read, pinned and archived marks, dismissed tips and budgets. " +
+                        "Your messages are never touched.",
+                    maxLines = 4
+                )
+                AppButton(
+                    text = "Reset marks and budgets",
+                    onClick = { onIntent(Intent.AskReset) },
+                    style = ButtonStyle.OUTLINE,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            SectionCard("About") {
+                Caption("Version $versionName")
+                Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
             }
         }
     }

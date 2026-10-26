@@ -31,14 +31,12 @@ class ToolbarCallbacks(
 @Composable
 fun AppToolbar(
     tab: AppTab,
-    settingsOpen: Boolean,
     inbox: InboxToolbarState,
     money: MoneyToolbarState,
     callbacks: ToolbarCallbacks,
     onOpenSettings: () -> Unit
 ) {
     when {
-        settingsOpen -> ZykeToolbar()
         tab == AppTab.INBOX && inbox.searching -> ZykeToolbar(
             search = ToolbarSearch(inbox.query, callbacks.onQueryChange, callbacks.onToggleSearch)
         )

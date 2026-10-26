@@ -42,8 +42,9 @@ val StartTab = AppTab.INBOX
 @Composable
 fun AppRoot(
     inboxBadge: Int,
-    toolbar: @Composable (tab: AppTab, settingsOpen: Boolean, openSettings: () -> Unit) -> Unit,
-    settings: @Composable (modifier: Modifier, onBack: () -> Unit) -> Unit,
+    toolbar: @Composable (tab: AppTab, openSettings: () -> Unit) -> Unit,
+    /** Settings is a bottom sheet over whatever tab is showing; it is only composed while open. */
+    settings: @Composable (onDismiss: () -> Unit) -> Unit,
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
@@ -51,22 +52,17 @@ fun AppRoot(
     val stateHolder = rememberSaveableStateHolder()
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
-    // Declared last so it wins: Back closes Settings before anything else.
-    BackHandler(enabled = showSettings) { showSettings = false }
 
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { toolbar(tab, showSettings) { showSettings = true } },
-        bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it; showSettings = false }) }
+        topBar = { toolbar(tab) { showSettings = true } },
+        bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }) }
     ) { padding ->
-        if (showSettings) {
-            settings(Modifier.padding(padding)) { showSettings = false }
-        } else {
-            stateHolder.SaveableStateProvider(tab.name) {
-                content(tab, Modifier.padding(padding)) { tab = it }
-            }
+        stateHolder.SaveableStateProvider(tab.name) {
+            content(tab, Modifier.padding(padding)) { tab = it }
         }
+        if (showSettings) settings { showSettings = false }
     }
 }
 

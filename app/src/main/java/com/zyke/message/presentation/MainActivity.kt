@@ -94,18 +94,17 @@ class MainActivity : ComponentActivity() {
 
                 AppRoot(
                     inboxBadge = home.unreadCount,
-                    toolbar = { tab, settingsOpen, openSettings ->
+                    toolbar = { tab, openSettings ->
                         AppToolbar(
                             tab = tab,
-                            settingsOpen = settingsOpen,
                             inbox = inbox,
                             money = money,
                             callbacks = toolbarCallbacks,
                             onOpenSettings = openSettings
                         )
                     },
-                    settings = { modifier, onBack ->
-                        SettingsRoute(settingsViewModel, versionName, onBack, modifier)
+                    settings = { onDismiss ->
+                        SettingsRoute(settingsViewModel, versionName, onDismiss)
                     }
                 ) { tab, modifier, navigate ->
                     when (tab) {
