@@ -2,6 +2,9 @@ package com.zyke.message.presentation.common
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
@@ -23,6 +26,8 @@ import com.zyke.message.presentation.messages.components.mutedColor
 fun UnderlineTabs(
     labels: List<String>,
     counts: List<Int?>,
+    /** Optional drawable per tab, shown before the label and tinted with the tab's colour. */
+    icons: List<Int?> = emptyList(),
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -46,6 +51,10 @@ fun UnderlineTabs(
                 unselectedContentColor = mutedColor(),
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        icons.getOrNull(index)?.let { icon ->
+                            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
                             text = label,
                             style = MaterialTheme.typography.bodyLarge,

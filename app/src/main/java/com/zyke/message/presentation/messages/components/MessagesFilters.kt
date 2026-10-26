@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.zyke.message.R
 import com.zyke.message.domain.feed.Feed
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
@@ -36,11 +37,22 @@ fun QuickFilterTabs(feed: Feed, selected: SmartFilter, onSelect: (SmartFilter) -
     UnderlineTabs(
         labels = types.map { it.label },
         counts = types.map { feed.counts[it] },
+        icons = types.map { it.icon() },
         selectedIndex = types.indexOf(selected).coerceAtLeast(0),
         onSelect = { onSelect(types[it]) },
         modifier = modifier,
         showDivider = false
     )
+}
+
+private fun SmartFilter.icon(): Int = when (this) {
+    SmartFilter.ALL -> R.drawable.baseline_message_24
+    SmartFilter.MONEY -> R.drawable.baseline_wallet_24
+    SmartFilter.OTP -> R.drawable.baseline_lock_24
+    SmartFilter.BILLS -> R.drawable.baseline_receipt_24
+    SmartFilter.TRAVEL -> R.drawable.baseline_flight_24
+    SmartFilter.PROMOS -> R.drawable.baseline_sell_24
+    SmartFilter.ARCHIVED -> R.drawable.baseline_archive_24
 }
 
 /** Says what the sheet's filters are doing to the list and offers a one-tap way back. */
