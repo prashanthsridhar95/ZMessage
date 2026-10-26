@@ -8,6 +8,9 @@ phone.
 - **No network.** The app declares no `INTERNET` permission, so it cannot send anything off the device.
   `ManifestPolicyTest` fails the build if that changes.
 - **Least privilege.** The only permission is `READ_SMS`. It never writes to, sends or deletes messages.
+- **Nothing leaves unless you send it.** The one exception is the masked parsing report you choose to share.
+  It goes through a private, non-exported `FileProvider` limited to one cache folder, with read access granted
+  to the app you pick for that one file only.
 - **No backups.** `allowBackup` is off and the backup / device-transfer rules exclude all app data.
 - **Small footprint of stored data.** The app stores only message *ids* (read / pinned / archived marks),
   dismissed tips, budgets and two settings, in app-private storage. Message text is never persisted.
@@ -22,5 +25,6 @@ See [docs/PRIVACY.md](docs/PRIVACY.md) for the data inventory.
 Please do not open a public issue. Email the maintainer (see the repository owner's profile) with the details
 and steps to reproduce. You will get an acknowledgement within a few days.
 
-When sharing an SMS that is mis-parsed, use *Settings → Parsing health → Copy report*, which masks digits,
-names, links and handles. Check the result before sending it.
+When sharing an SMS that is mis-parsed, use *Settings → Parsing health → Share report*. It writes a text file
+with digits, names, links and handles masked and opens the system share sheet, so you choose where it goes.
+Check the file before sending it.

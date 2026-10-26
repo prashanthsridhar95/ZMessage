@@ -13,6 +13,10 @@ import com.zyke.message.presentation.mvi.MviViewModel
 import com.zyke.message.presentation.settings.SettingsContract.Effect
 import com.zyke.message.presentation.settings.SettingsContract.Intent
 import com.zyke.message.presentation.settings.SettingsContract.State
+import java.time.Clock
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -21,7 +25,8 @@ class SettingsViewModel(
     private val observeMessages: ObserveMessagesUseCase,
     private val settingsRepository: SettingsRepository,
     private val userStateRepository: UserMessageStateRepository,
-    private val budgetRepository: BudgetRepository
+    private val budgetRepository: BudgetRepository,
+    private val clock: Clock = Clock.systemDefaultZone()
 ) : MviViewModel<State, Intent, Effect>(State(settings = settingsRepository.settings.value)) {
 
     private var observeJob: Job? = null
@@ -44,7 +49,7 @@ class SettingsViewModel(
                 reduce { copy(confirmingReset = false) }
                 emitEffect(Effect.ShowMessage("Marks and budgets cleared"))
             }
-            Intent.CopyDiagnostics -> copyDiagnostics()
+            Intent.ShareDiagnostics -> shareDiagnostics()
         }
     }
 
@@ -57,7 +62,7 @@ class SettingsViewModel(
         }
     }
 
-    private fun copyDiagnostics() {
+    private fun shareDiagnostics() {
         val diagnostics = currentState().diagnostics ?: return
         if (diagnostics.samples.isEmpty()) {
             emitEffect(Effect.ShowMessage("Nothing to report: every money message was understood"))
@@ -73,7 +78,8 @@ class SettingsViewModel(
                 appendLine(sample)
             }
         }
-        emitEffect(Effect.CopyToClipboard("Parsing report", report))
+        val stamp = LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT))
+        emitEffect(Effect.ShareReport("zyke-parsing-report-$stamp.txt", report))
     }
 
     class Factory(

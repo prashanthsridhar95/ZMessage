@@ -21,6 +21,9 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
+/** How far across the row a swipe must go before it takes effect. */
+private const val SWIPE_COMMIT_FRACTION = 0.5f
+
 /**
  * Swipe right to archive (or restore), swipe left to pin. The row always snaps back;
  * the list update then removes or moves it, which keeps this safe in filtered views.
@@ -39,6 +42,8 @@ internal fun SwipeActions(
     val togglePin by rememberUpdatedState(onTogglePin)
 
     val state = rememberSwipeToDismissBoxState(
+        // A swipe only counts once it has been dragged past half the row, so a brush or a slip does nothing.
+        positionalThreshold = { totalDistance -> totalDistance * SWIPE_COMMIT_FRACTION },
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> archiveOrRestore()

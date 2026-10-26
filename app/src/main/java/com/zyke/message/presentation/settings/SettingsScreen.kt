@@ -4,9 +4,6 @@ import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import android.Manifest
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -60,11 +57,8 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is Effect.CopyToClipboard -> {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText(effect.label, effect.text))
-                    Toast.makeText(context, R.string.report_copied, Toast.LENGTH_LONG).show()
-                }
+                is Effect.ShareReport -> runCatching { ReportSharing.share(context, effect.fileName, effect.text) }
+                    .onFailure { Toast.makeText(context, R.string.report_failed, Toast.LENGTH_LONG).show() }
                 is Effect.ShowMessage -> Toast.makeText(context, effect.text, Toast.LENGTH_SHORT).show()
             }
         }
@@ -121,14 +115,14 @@ fun SettingsSheet(
                     ShareBar(fraction)
                     Caption(
                         if (diagnostics.unrecognised == 0) "Everything was understood."
-                        else "${diagnostics.unrecognised} shown as plain text. Copy a report with numbers, " +
+                        else "${diagnostics.unrecognised} shown as plain text. Share a report as a file, with numbers, " +
                             "names and links masked, so they can be taught.",
                         Modifier.padding(top = 8.dp),
                         maxLines = 4
                     )
                     AppButton(
-                        text = "Copy report",
-                        onClick = { onIntent(Intent.CopyDiagnostics) },
+                        text = "Share report",
+                        onClick = { onIntent(Intent.ShareDiagnostics) },
                         style = ButtonStyle.OUTLINE,
                         enabled = diagnostics.unrecognised > 0,
                         modifier = Modifier.padding(top = 12.dp)

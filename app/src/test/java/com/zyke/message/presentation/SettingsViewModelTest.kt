@@ -110,8 +110,9 @@ class SettingsViewModelTest {
         assertEquals(2, diagnostics!!.moneyMessages)
         assertEquals(1, diagnostics.unrecognised)
 
-        vm.onIntent(Intent.CopyDiagnostics)
-        val effect = vm.effects.first() as Effect.CopyToClipboard
+        vm.onIntent(Intent.ShareDiagnostics)
+        val effect = vm.effects.first() as Effect.ShareReport
+        assertTrue(Regex("zyke-parsing-report-\\d{8}-\\d{4}\\.txt").matches(effect.fileName))
         assertTrue("Fee of Rs 99 applies" in effect.text)
         assertTrue(effect.text.substringAfter("--- 1 ---").none { it in "012345678" })
     }
@@ -119,7 +120,7 @@ class SettingsViewModelTest {
     @Test
     fun copyingWithoutPermission_doesNothing() = runTest {
         val vm = vm()
-        vm.onIntent(Intent.CopyDiagnostics)
+        vm.onIntent(Intent.ShareDiagnostics)
         assertEquals(null, vm.state.value.diagnostics)
     }
 }

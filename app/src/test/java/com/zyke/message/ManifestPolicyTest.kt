@@ -46,13 +46,28 @@ class ManifestPolicyTest {
     }
 
     @Test
-    fun onlyTheLauncherActivityIsExported_andNothingElseIsDeclared() {
+    fun onlyTheLauncherActivityIsExported_andNoServicesOrReceiversExist() {
         val activities = manifest.getElementsByTagName("activity")
         assertEquals(1, activities.length)
         assertEquals("true", (activities.item(0) as Element).getAttributeNS(android, "exported"))
-        for (tag in listOf("service", "receiver", "provider")) {
+        for (tag in listOf("service", "receiver")) {
             assertEquals("unexpected <$tag>", 0, manifest.getElementsByTagName(tag).length)
         }
+    }
+
+    @Test
+    fun theOnlyProviderIsAPrivateFileProvider() {
+        val providers = manifest.getElementsByTagName("provider")
+        assertEquals(1, providers.length)
+        val provider = providers.item(0) as Element
+        assertEquals("androidx.core.content.FileProvider", provider.getAttributeNS(android, "name"))
+        assertEquals("false", provider.getAttributeNS(android, "exported"))
+        assertEquals("true", provider.getAttributeNS(android, "grantUriPermissions"))
+
+        // And it can only ever expose the reports folder of the private cache.
+        val paths = File("src/main/res/xml/file_paths.xml").readText()
+        assertTrue("""<cache-path name="reports" path="reports/" />""" in paths)
+        assertFalse("<external" in paths || "<files-path" in paths || "<root-path" in paths)
     }
 
     @Test

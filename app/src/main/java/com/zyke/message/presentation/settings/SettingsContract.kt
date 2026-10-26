@@ -19,11 +19,12 @@ object SettingsContract {
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent
-        data object CopyDiagnostics : Intent
+        data object ShareDiagnostics : Intent
     }
 
     sealed interface Effect {
-        data class CopyToClipboard(val label: String, val text: String) : Effect
+        /** Write [text] to a file named [fileName] and offer it to the apps that can receive it. */
+        data class ShareReport(val fileName: String, val text: String) : Effect
         data class ShowMessage(val text: String) : Effect
     }
 }
