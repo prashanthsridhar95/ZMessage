@@ -1,0 +1,17 @@
+# Gradle / build output
+*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration
+local.properties
+.idea/
+.DS_Store
+
+# Release artefacts (publish these from CI / the Play Console instead)
+app/release/
+*.apk
+*.aab

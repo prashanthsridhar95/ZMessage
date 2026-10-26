@@ -3,6 +3,8 @@ package com.zyke.message.domain.classification
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.BankTransaction
 import com.zyke.message.domain.model.BankTransactionType
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /** Extracts a [BankTransaction] from a bank / card / pay-later SMS body. */
 class BankMessageParser {
@@ -76,14 +78,23 @@ class BankMessageParser {
             )
         }
 
-        val (cardNumber, totalDue) = HDFC_CARD_STATEMENT.find(message)!!.destructured
-        return BankTransaction(BankName.HDFC, cardNumber, "", totalDue, BankTransactionType.CARD_BILL)
+        val (cardNumber, totalDue, minDue, dueDate, link) = HDFC_CARD_STATEMENT.find(message)!!.destructured
+        return BankTransaction(
+            BankName.HDFC, cardNumber, "", totalDue, BankTransactionType.CARD_BILL,
+            dueDate = parseDate(dueDate, "dd-MM-yyyy"), minimumDue = minDue, paymentLink = link
+        )
     }
 
     private fun parseAxis(message: String): BankTransaction {
         val statement = AXIS_STATEMENT.find(message)
         if (statement != null) {
-            return axisBill(statement.groups["cardNumber"]!!.value, statement.groups["totalAmount"]!!.value)
+            return axisBill(
+                statement.groups["cardNumber"]!!.value,
+                statement.groups["totalAmount"]!!.value,
+                dueDate = parseDate(statement.groups["dueDate"]!!.value, "dd-MM-yy"),
+                minimumDue = statement.groups["minAmount"]!!.value,
+                link = statement.groups["link"]?.value
+            )
         }
         val generated = AXIS_GENERATED.find(message)
         return if (generated != null) {
@@ -93,8 +104,19 @@ class BankMessageParser {
         }
     }
 
-    private fun axisBill(cardNumber: String, amount: String) =
-        BankTransaction(BankName.AXIS, cardNumber, "", amount, BankTransactionType.CARD_BILL)
+    private fun axisBill(
+        cardNumber: String,
+        amount: String,
+        dueDate: LocalDate? = null,
+        minimumDue: String? = null,
+        link: String? = null
+    ) = BankTransaction(
+        BankName.AXIS, cardNumber, "", amount, BankTransactionType.CARD_BILL,
+        dueDate = dueDate, minimumDue = minimumDue, paymentLink = link
+    )
+
+    private fun parseDate(raw: String, pattern: String): LocalDate? =
+        runCatching { LocalDate.parse(raw, DateTimeFormatter.ofPattern(pattern)) }.getOrNull()
 
     private fun parseFederal(message: String): BankTransaction {
         val amount = FEDERAL_AMOUNT.find(message)?.groupValues?.get(1) ?: return BankTransaction(

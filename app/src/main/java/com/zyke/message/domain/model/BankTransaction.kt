@@ -1,5 +1,7 @@
 package com.zyke.message.domain.model
 
+import java.time.LocalDate
+
 enum class BankName(val displayString: String, val isCard: Boolean) {
     HDFC("HDFC", true),
     AXIS("Axis", true),
@@ -21,5 +23,8 @@ data class BankTransaction(
     val accountNumber: String,
     val payee: String,
     val amount: String,
-    val type: BankTransactionType
+    val type: BankTransactionType,
+    val dueDate: LocalDate? = null,
+    val minimumDue: String? = null,
+    val paymentLink: String? = null
 )

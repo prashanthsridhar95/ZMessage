@@ -2,7 +2,9 @@ package com.zyke.message.presentation.messages.components
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,30 +27,32 @@ import com.zyke.message.presentation.format.DateFormatters
 import com.zyke.message.presentation.format.toTitleCase
 import java.util.Locale
 
-/** Expanded view of a message: full text, sender and timestamp. */
+/** Expanded view of a message: full text, sender, timestamp and quick actions. */
 @Composable
-internal fun MessageDetail(item: ClassifiedMessage, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MessageDetail(
+    item: ClassifiedMessage,
+    isPinned: Boolean,
+    isArchived: Boolean,
+    actions: FeedActions,
+    modifier: Modifier = Modifier
+) {
     val message = item.message
-    val payee = (item.content as? MessageContent.Transaction)?.payee.orEmpty()
+    val content = item.content
+    val payee = (content as? MessageContent.Transaction)?.payee.orEmpty()
     val dividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
 
     Column(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().clickable(onClickLabel = "Collapse") { actions.onToggleExpanded(item.id) },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = dividerColor)
         Spacer(Modifier.height(16.dp))
 
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = item.merchant.name)
         Spacer(Modifier.height(8.dp))
 
         if (payee.isNotEmpty() && payee != message.sender) {
-            Text(
-                text = payee.toTitleCase(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
+            RowTitle(payee.toTitleCase())
             Text(
                 modifier = Modifier
                     .padding(top = 8.dp)
@@ -60,13 +65,9 @@ internal fun MessageDetail(item: ClassifiedMessage, onClick: () -> Unit, modifie
                 color = mutedColor()
             )
         } else {
-            Text(
-                text = message.sender.uppercase(Locale.ROOT),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
+            RowTitle(message.sender.uppercase(Locale.ROOT))
         }
+        CategoryTag(item.category)
 
         Spacer(Modifier.height(8.dp))
 
@@ -82,7 +83,24 @@ internal fun MessageDetail(item: ClassifiedMessage, onClick: () -> Unit, modifie
             textAlign = TextAlign.End
         )
 
-        Spacer(Modifier.height(24.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            if (content is MessageContent.Otp && content.code.isNotEmpty()) {
+                TextButton(onClick = { actions.onCopyOtp(item.id, content.code) }) { Text("Copy code") }
+            }
+            if (content is MessageContent.CardBill && content.paymentLink != null) {
+                TextButton(onClick = { actions.onOpenLink(content.paymentLink) }) { Text("Pay") }
+            }
+            if (!isArchived) {
+                TextButton(onClick = { actions.onTogglePin(item.id) }) { Text(if (isPinned) "Unpin" else "Pin") }
+            }
+            TextButton(onClick = { if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id) }) {
+                Text(if (isArchived) "Restore" else "Archive")
+            }
+        }
+
         HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = dividerColor)
     }
 }

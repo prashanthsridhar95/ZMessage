@@ -1,11 +1,15 @@
 package com.zyke.message.domain.model
 
+import java.time.LocalDate
+
 /** An [SmsMessage] together with everything the UI needs to render it. */
 data class ClassifiedMessage(
     val message: SmsMessage,
     val category: MessageCategory,
     val merchant: Merchant,
-    val content: MessageContent
+    val content: MessageContent,
+    /** Marketing noise; only ever set on [MessageContent.Generic] messages. */
+    val isPromotional: Boolean = false
 ) {
     val id: Long get() = message.id
 }
@@ -33,7 +37,10 @@ sealed interface MessageContent {
     data class CardBill(
         val bankName: BankName,
         val accountNumber: String,
-        val amount: String
+        val amount: String,
+        val minimumDue: String? = null,
+        val dueDate: LocalDate? = null,
+        val paymentLink: String? = null
     ) : MessageContent
 
     data class DataUsage(val carrier: NetworkCarrier, val percentUsed: Int) : MessageContent

@@ -4,42 +4,89 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.feed.FeedBuilder
+import com.zyke.message.domain.feed.MessageFilter
+import com.zyke.message.domain.feed.SmartFilter
+import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesContract.State
 import com.zyke.message.presentation.mvi.MviViewModel
+import java.time.Clock
+import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class MessagesViewModel(
-    private val observeMessages: ObserveMessagesUseCase
-) : MviViewModel<State, Intent, Effect>(State()) {
+    private val observeMessages: ObserveMessagesUseCase,
+    private val userStateRepository: UserMessageStateRepository,
+    private val clock: Clock = Clock.systemDefaultZone()
+) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
+    private val zone: ZoneId get() = clock.zone
     private var observeJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            userStateRepository.state.collect { userState -> reduceFeed { copy(userState = userState) } }
+        }
+    }
 
     override fun handleIntent(intent: Intent) {
         when (intent) {
             is Intent.ScreenStarted -> onScreenStarted(intent.permissionGranted)
             is Intent.PermissionResult -> onPermissionResult(intent.granted)
             Intent.RequestPermission -> emitEffect(Effect.LaunchPermissionRequest)
-            Intent.ToggleFilters -> toggleFilters()
-            is Intent.SelectFilter -> reduce {
-                copy(selectedFilter = intent.category, sections = messages.toSections(intent.category))
+            Intent.Tick -> reduceFeed { copy(now = clock.instant()) }
+
+            is Intent.SelectSmartFilter -> reduceFeed { copy(filter = MessageFilter.Smart(intent.filter)) }
+            is Intent.SelectCategory -> reduceFeed {
+                copy(filter = intent.category?.let(MessageFilter::Category) ?: MessageFilter.All)
             }
-            is Intent.ToggleExpanded -> reduce {
+            Intent.ToggleCategoryBar -> reduceFeed {
+                val show = !showCategoryBar
+                // Closing the category bar drops a category filter, since its chip would be gone.
                 copy(
-                    expandedIds = if (intent.messageId in expandedIds) {
-                        expandedIds - intent.messageId
-                    } else {
-                        expandedIds + intent.messageId
-                    }
+                    showCategoryBar = show,
+                    filter = if (!show && filter is MessageFilter.Category) MessageFilter.All else filter
                 )
             }
-            is Intent.CopyOtp -> emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
+            Intent.ToggleSearch -> reduceFeed {
+                copy(isSearching = !isSearching, query = "")
+            }
+            is Intent.SetQuery -> reduceFeed { copy(query = intent.query) }
+
+            is Intent.ToggleExpanded -> toggleExpanded(intent.messageId)
+            is Intent.ToggleGroup -> reduce {
+                copy(expandedGroups = expandedGroups.toggle(intent.key))
+            }
+            Intent.ToggleSummary -> reduce { copy(summaryExpanded = !summaryExpanded) }
+
+            is Intent.CopyOtp -> {
+                userStateRepository.markRead(intent.messageId)
+                emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
+            }
+            is Intent.Archive -> {
+                userStateRepository.setArchived(intent.messageId, true)
+                emitEffect(Effect.MessageArchived(intent.messageId))
+            }
+            is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.TogglePin -> userStateRepository.setPinned(
+                intent.messageId,
+                intent.messageId !in currentState().userState.pinnedIds
+            )
+            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
+            is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
         }
+    }
+
+    private fun toggleExpanded(messageId: Long) {
+        val willExpand = messageId !in currentState().expandedMessageIds
+        if (willExpand) userStateRepository.markRead(messageId)
+        reduce { copy(expandedMessageIds = expandedMessageIds.toggle(messageId)) }
     }
 
     private fun onScreenStarted(permissionGranted: Boolean) {
@@ -58,36 +105,57 @@ class MessagesViewModel(
         }
     }
 
-    private fun toggleFilters() = reduce {
-        val show = !showFilters
-        // Hiding the filter bar also clears the active filter.
-        val filter = if (show) selectedFilter else null
-        copy(showFilters = show, selectedFilter = filter, sections = messages.toSections(filter))
-    }
-
     private fun startObserving() {
         if (observeJob?.isActive == true) return
         reduce { copy(isLoading = messages.isEmpty(), hasError = false) }
 
         observeJob = viewModelScope.launch {
             observeMessages()
-                .catch { reduce { copy(isLoading = false, hasError = true) } }
+                .catch { reduceFeed { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
-                    reduce {
+                    reduceFeed {
                         copy(
                             isLoading = false,
                             hasError = false,
                             messages = inbox,
-                            sections = inbox.toSections(selectedFilter)
+                            now = clock.instant()
                         )
                     }
                 }
         }
     }
 
-    class Factory(private val observeMessages: ObserveMessagesUseCase) : ViewModelProvider.Factory {
+    /** Applies [change] and rebuilds the derived [State.feed]. */
+    private fun reduceFeed(change: State.() -> State) = reduce {
+        val updated = change().withValidFilter()
+        updated.copy(
+            feed = FeedBuilder.build(
+                messages = updated.messages,
+                userState = updated.userState,
+                filter = updated.filter,
+                query = if (updated.isSearching) updated.query else "",
+                now = updated.now,
+                zone = zone
+            )
+        )
+    }
+
+    /** The Archived chip vanishes once nothing is archived, so a filter on it resets to All. */
+    private fun State.withValidFilter(): State =
+        if (selectedSmartFilter == SmartFilter.ARCHIVED && userState.archivedIds.isEmpty()) {
+            copy(filter = MessageFilter.All)
+        } else {
+            this
+        }
+
+    private fun <T> Set<T>.toggle(item: T): Set<T> = if (item in this) this - item else this + item
+
+    class Factory(
+        private val observeMessages: ObserveMessagesUseCase,
+        private val userStateRepository: UserMessageStateRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            MessagesViewModel(observeMessages) as T
+            MessagesViewModel(observeMessages, userStateRepository) as T
     }
 }

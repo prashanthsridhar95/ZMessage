@@ -99,7 +99,10 @@ class MessageClassifier(
             content = MessageContent.CardBill(
                 bankName = tx.bankName,
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
-                amount = normalizeAmount(tx.amount)
+                amount = normalizeAmount(tx.amount),
+                minimumDue = tx.minimumDue?.let(::normalizeAmount),
+                dueDate = tx.dueDate,
+                paymentLink = tx.paymentLink
             )
         )
     }
@@ -149,7 +152,13 @@ class MessageClassifier(
 
     private fun generic(message: SmsMessage): ClassifiedMessage {
         val merchant: Merchant = merchants.resolve("${message.sender} ${message.body}")
-        return ClassifiedMessage(message, merchant.category, merchant, MessageContent.Generic)
+        return ClassifiedMessage(
+            message = message,
+            category = merchant.category,
+            merchant = merchant,
+            content = MessageContent.Generic,
+            isPromotional = PromoDetector.isPromotional(message.sender, message.body)
+        )
     }
 
     private fun normalizeAmount(raw: String): String {

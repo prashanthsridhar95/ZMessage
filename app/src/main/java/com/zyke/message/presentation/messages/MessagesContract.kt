@@ -1,52 +1,80 @@
 package com.zyke.message.presentation.messages
 
+import com.zyke.message.domain.feed.Feed
+import com.zyke.message.domain.feed.MessageFilter
+import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
+import com.zyke.message.domain.model.UserMessageState
 import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 
 object MessagesContract {
 
     enum class PermissionStatus { UNKNOWN, GRANTED, DENIED }
 
-    data class DaySection(val date: LocalDate, val messages: List<ClassifiedMessage>)
-
     data class State(
         val permission: PermissionStatus = PermissionStatus.UNKNOWN,
         val isLoading: Boolean = false,
         val hasError: Boolean = false,
+
+        // Inputs
         val messages: List<ClassifiedMessage> = emptyList(),
-        val showFilters: Boolean = false,
-        val selectedFilter: MessageCategory? = null,
-        val expandedIds: Set<Long> = emptySet(),
-        /** [messages] narrowed by [selectedFilter] and grouped by day, newest first. */
-        val sections: List<DaySection> = emptyList()
-    )
+        val userState: UserMessageState = UserMessageState(),
+        val filter: MessageFilter = MessageFilter.All,
+        val showCategoryBar: Boolean = false,
+        val isSearching: Boolean = false,
+        val query: String = "",
+        val now: Instant = Instant.EPOCH,
+
+        // View state
+        val expandedMessageIds: Set<Long> = emptySet(),
+        val expandedGroups: Set<String> = emptySet(),
+        val summaryExpanded: Boolean = false,
+
+        /** Everything the list renders, derived from the inputs above. */
+        val feed: Feed = Feed.EMPTY
+    ) {
+        val selectedCategory: MessageCategory?
+            get() = (filter as? MessageFilter.Category)?.category
+
+        val selectedSmartFilter: SmartFilter?
+            get() = (filter as? MessageFilter.Smart)?.filter
+
+        fun isUnread(message: ClassifiedMessage) =
+            !message.message.isRead && message.id !in userState.readIds
+    }
 
     sealed interface Intent {
         /** Sent once the screen is shown, with the current runtime permission state. */
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class PermissionResult(val granted: Boolean) : Intent
         data object RequestPermission : Intent
-        data object ToggleFilters : Intent
-        data class SelectFilter(val category: MessageCategory?) : Intent
+        /** Periodic nudge so time-based things (OTP expiry, due dates) stay current. */
+        data object Tick : Intent
+
+        data class SelectSmartFilter(val filter: SmartFilter) : Intent
+        data class SelectCategory(val category: MessageCategory?) : Intent
+        data object ToggleCategoryBar : Intent
+        data object ToggleSearch : Intent
+        data class SetQuery(val query: String) : Intent
+
         data class ToggleExpanded(val messageId: Long) : Intent
-        data class CopyOtp(val code: String) : Intent
+        data class ToggleGroup(val key: String) : Intent
+        data object ToggleSummary : Intent
+
+        data class CopyOtp(val messageId: Long, val code: String) : Intent
+        data class Archive(val messageId: Long) : Intent
+        data class Unarchive(val messageId: Long) : Intent
+        data class TogglePin(val messageId: Long) : Intent
+        data class DismissAttention(val key: String) : Intent
+        data class OpenLink(val url: String) : Intent
     }
 
     sealed interface Effect {
         data object LaunchPermissionRequest : Effect
         data class CopyToClipboard(val label: String, val text: String) : Effect
-        data class ShowMessage(val text: String) : Effect
+        /** Offer to take back an archive. */
+        data class MessageArchived(val messageId: Long) : Effect
+        data class OpenLink(val url: String) : Effect
     }
 }
-
-internal fun List<ClassifiedMessage>.toSections(
-    filter: MessageCategory?,
-    zone: ZoneId = ZoneId.systemDefault()
-): List<MessagesContract.DaySection> =
-    asSequence()
-        .filter { filter == null || it.category == filter }
-        .groupBy { Instant.ofEpochMilli(it.message.date).atZone(zone).toLocalDate() }
-        .map { (date, messages) -> MessagesContract.DaySection(date, messages) }

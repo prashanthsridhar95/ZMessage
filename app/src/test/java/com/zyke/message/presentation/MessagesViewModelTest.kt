@@ -1,18 +1,27 @@
 package com.zyke.message.presentation
 
 import com.zyke.message.domain.classification.MessageClassifier
+import com.zyke.message.domain.feed.MessageFilter
+import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.SmsMessage
+import com.zyke.message.domain.model.UserMessageState
 import com.zyke.message.domain.repository.SmsRepository
+import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesViewModel
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -29,14 +38,32 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessagesViewModelTest {
 
-    private class FakeRepository(val inbox: Flow<List<SmsMessage>>) : SmsRepository {
+    private class FakeSmsRepository(val inbox: Flow<List<SmsMessage>>) : SmsRepository {
         override fun observeInbox() = inbox
+    }
+
+    private class FakeUserState : UserMessageStateRepository {
+        private val _state = MutableStateFlow(UserMessageState())
+        override val state: StateFlow<UserMessageState> = _state
+        override fun markRead(messageId: Long) { _state.value = _state.value.copy(readIds = _state.value.readIds + messageId) }
+        override fun setArchived(messageId: Long, archived: Boolean) {
+            val ids = _state.value.archivedIds
+            _state.value = _state.value.copy(archivedIds = if (archived) ids + messageId else ids - messageId)
+        }
+        override fun setPinned(messageId: Long, pinned: Boolean) {
+            val ids = _state.value.pinnedIds
+            _state.value = _state.value.copy(pinnedIds = if (pinned) ids + messageId else ids - messageId)
+        }
+        override fun dismissAttention(key: String) {
+            _state.value = _state.value.copy(dismissedAttention = _state.value.dismissedAttention + key)
+        }
     }
 
     private val day = 24L * 60 * 60 * 1000
     private val now = 1_700_000_000_000L
+    private val clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of("UTC"))
     private val inbox = listOf(
-        SmsMessage(1, "SWIGGY", "Your Swiggy order is on the way", now, true),
+        SmsMessage(1, "SWIGGY", "Your Swiggy order is on the way", now - 60_000, true),
         SmsMessage(2, "AD-BANK", "123456 is your OTP", now - 3 * day, false)
     )
 
@@ -46,9 +73,16 @@ class MessagesViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
+    private val userState = FakeUserState()
+
     private fun viewModel(source: Flow<List<SmsMessage>>) = MessagesViewModel(
-        ObserveMessagesUseCase(FakeRepository(source), MessageClassifier(), Dispatchers.Unconfined)
+        ObserveMessagesUseCase(FakeSmsRepository(source), MessageClassifier(), Dispatchers.Unconfined),
+        userState,
+        clock
     )
+
+    private fun MessagesViewModel.visibleIds() =
+        state.value.feed.sections.flatMap { it.items }.flatMap { listOf(it.newest.id) }
 
     @Test
     fun withoutPermission_requestsItAndLoadsNothing() = runTest {
@@ -69,7 +103,7 @@ class MessagesViewModelTest {
     }
 
     @Test
-    fun grantedPermission_loadsAndGroupsMessages() {
+    fun grantedPermission_loadsAndBuildsFeed() {
         val vm = viewModel(flow { emit(inbox) })
 
         vm.onIntent(Intent.ScreenStarted(permissionGranted = true))
@@ -77,40 +111,93 @@ class MessagesViewModelTest {
         val state = vm.state.value
         assertEquals(PermissionStatus.GRANTED, state.permission)
         assertFalse(state.isLoading)
-        assertEquals(2, state.messages.size)
-        assertEquals(2, state.sections.size)
-        assertEquals(1L, state.sections.first().messages.single().id)
+        assertEquals(2, state.feed.visibleCount)
+        assertEquals(2, state.feed.sections.size)
+        assertEquals(listOf(1L, 2L), vm.visibleIds())
     }
 
     @Test
-    fun filter_narrowsSections_andHidingFiltersClearsIt() {
+    fun filters_narrowFeed_andClosingCategoryBarClearsCategory() {
         val vm = viewModel(flow { emit(inbox) })
         vm.onIntent(Intent.PermissionResult(true))
 
-        vm.onIntent(Intent.ToggleFilters)
-        vm.onIntent(Intent.SelectFilter(MessageCategory.OTP))
-        assertEquals(listOf(2L), vm.state.value.sections.flatMap { it.messages }.map { it.id })
+        vm.onIntent(Intent.SelectSmartFilter(SmartFilter.OTP))
+        assertEquals(listOf(2L), vm.visibleIds())
 
-        vm.onIntent(Intent.ToggleFilters)
-        assertEquals(null, vm.state.value.selectedFilter)
-        assertEquals(2, vm.state.value.sections.sumOf { it.messages.size })
+        vm.onIntent(Intent.ToggleCategoryBar)
+        vm.onIntent(Intent.SelectCategory(MessageCategory.FOOD))
+        assertEquals(listOf(1L), vm.visibleIds())
+
+        vm.onIntent(Intent.ToggleCategoryBar)
+        assertEquals(MessageFilter.All, vm.state.value.filter)
+        assertEquals(2, vm.state.value.feed.visibleCount)
     }
 
     @Test
-    fun toggleExpanded_addsAndRemovesId() {
+    fun search_filtersAndClearsWhenClosed() {
         val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
 
-        vm.onIntent(Intent.ToggleExpanded(2))
-        assertEquals(setOf(2L), vm.state.value.expandedIds)
-        vm.onIntent(Intent.ToggleExpanded(2))
-        assertTrue(vm.state.value.expandedIds.isEmpty())
+        vm.onIntent(Intent.ToggleSearch)
+        vm.onIntent(Intent.SetQuery("swiggy"))
+        assertEquals(listOf(1L), vm.visibleIds())
+
+        vm.onIntent(Intent.ToggleSearch)
+        assertEquals("", vm.state.value.query)
+        assertEquals(2, vm.state.value.feed.visibleCount)
     }
 
     @Test
-    fun copyOtp_emitsClipboardEffect() = runTest {
+    fun expandingMarksMessageRead() {
         val vm = viewModel(flow { emit(inbox) })
-        vm.onIntent(Intent.CopyOtp("123456"))
+        vm.onIntent(Intent.PermissionResult(true))
+        val unread = vm.state.value.messages.first { it.id == 2L }
+        assertTrue(vm.state.value.isUnread(unread))
+
+        vm.onIntent(Intent.ToggleExpanded(2))
+
+        assertEquals(setOf(2L), vm.state.value.expandedMessageIds)
+        assertFalse(vm.state.value.isUnread(unread))
+        vm.onIntent(Intent.ToggleExpanded(2))
+        assertTrue(vm.state.value.expandedMessageIds.isEmpty())
+    }
+
+    @Test
+    fun archive_hidesMessage_offersUndo_andRestoring() = runTest {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.Archive(1))
+        assertEquals(Effect.MessageArchived(1), vm.effects.first())
+        assertEquals(listOf(2L), vm.visibleIds())
+        assertTrue(SmartFilter.ARCHIVED in vm.state.value.feed.availableFilters)
+
+        vm.onIntent(Intent.SelectSmartFilter(SmartFilter.ARCHIVED))
+        assertEquals(listOf(1L), vm.visibleIds())
+
+        vm.onIntent(Intent.Unarchive(1))
+        assertEquals(MessageFilter.All, vm.state.value.filter)
+        assertEquals(listOf(1L, 2L), vm.visibleIds())
+    }
+
+    @Test
+    fun pin_movesMessageToPinnedSection() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.TogglePin(2))
+        assertEquals(2L, vm.state.value.feed.sections.first().items.single().newest.id)
+
+        vm.onIntent(Intent.TogglePin(2))
+        assertEquals(1L, vm.state.value.feed.sections.first().items.single().newest.id)
+    }
+
+    @Test
+    fun copyOtp_emitsClipboardEffectAndMarksRead() = runTest {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.CopyOtp(2, "123456"))
         assertEquals(Effect.CopyToClipboard("One-time Password", "123456"), vm.effects.first())
+        assertTrue(2L in userState.state.value.readIds)
     }
 
     @Test

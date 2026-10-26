@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,12 +77,13 @@ internal fun MessageRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
+    clickModifier: Modifier = Modifier.clickable(onClickLabel = "Show message", onClick = onClick),
     content: @Composable RowScope.() -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(clickModifier)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = verticalAlignment,
         content = content
@@ -87,23 +91,68 @@ internal fun MessageRow(
 }
 
 @Composable
-internal fun MerchantChip(logo: MerchantLogo, modifier: Modifier = Modifier) {
+internal fun MerchantChip(
+    logo: MerchantLogo,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+    isUnread: Boolean = false
+) {
     val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier
-            .size(60.dp)
-            .border(0.5.dp, MaterialTheme.colorScheme.tertiary, shape)
-            .background(MaterialTheme.colorScheme.tertiary, shape)
-            .clip(shape),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(logo.drawableRes()),
-            colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
-            contentScale = ContentScale.Fit,
-            contentDescription = null
-        )
+    Box(modifier.size(60.dp)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .border(0.5.dp, MaterialTheme.colorScheme.tertiary, shape)
+                .background(MaterialTheme.colorScheme.tertiary, shape)
+                .clip(shape),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(logo.drawableRes()),
+                colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
+                contentScale = ContentScale.Fit,
+                contentDescription = description
+            )
+        }
+
+        if (isUnread) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(12.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .padding(2.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .semantics { contentDescription = "Unread" }
+            )
+        }
     }
+}
+
+/** Primary line of a row: who or what. */
+@Composable
+internal fun RowTitle(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
+    Text(
+        modifier = modifier,
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = color
+    )
+}
+
+/** Faint secondary line: account, time, hints. */
+@Composable
+internal fun Caption(text: String, modifier: Modifier = Modifier, color: Color = mutedColor(), maxLines: Int = 1) {
+    Text(
+        modifier = modifier,
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        color = color
+    )
 }
 
 @Composable
@@ -125,10 +174,10 @@ internal fun CategoryTag(category: MessageCategory, modifier: Modifier = Modifie
 @Composable
 internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifier) {
     Text(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         text = text,
         textAlign = TextAlign.End,
-        fontSize = 24.sp,
+        style = MaterialTheme.typography.titleLarge,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         color = color

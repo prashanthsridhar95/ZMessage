@@ -2,6 +2,7 @@ package com.zyke.message.presentation.messages.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,38 +24,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.zyke.message.R
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.CourierStatus
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
 
 @Composable
-internal fun GenericCard(item: ClassifiedMessage, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val hasCategory = item.category != MessageCategory.OTHERS
+internal fun GenericCard(
+    item: ClassifiedMessage,
+    time: String,
+    isUnread: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Messages we couldn't place get room to explain themselves; recognised ones stay terse.
+    val unrecognised = item.category == MessageCategory.OTHERS
 
     MessageRow(onClick, modifier, verticalAlignment = Alignment.Top) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = null, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column {
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                text = item.message.sender,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            if (hasCategory) CategoryTag(item.category)
-
-            Text(
-                modifier = Modifier.padding(top = if (hasCategory) 8.dp else 4.dp).fillMaxWidth(),
+        Column(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                RowTitle(item.message.sender, Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                Caption(time)
+            }
+            Caption(
                 text = item.message.body,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.secondary
+                modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondary,
+                maxLines = if (unrecognised) 3 else 1
             )
         }
     }
@@ -65,26 +66,22 @@ internal fun GenericCard(item: ClassifiedMessage, onClick: () -> Unit, modifier:
 internal fun CourierCard(
     item: ClassifiedMessage,
     content: MessageContent.Courier,
+    time: String,
+    isUnread: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column(Modifier.fillMaxWidth(0.7f)) {
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                text = item.message.sender,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
-            CategoryTag(MessageCategory.COURIER)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            RowTitle(item.message.sender)
+            Caption(time)
         }
 
+        Spacer(Modifier.width(12.dp))
         Text(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             text = when (content.status) {
                 CourierStatus.ARRIVING_TODAY -> "Arriving\nToday"
                 CourierStatus.DELIVERED -> "Delivered"
@@ -93,7 +90,7 @@ internal fun CourierCard(
             maxLines = 2,
             textAlign = TextAlign.End,
             overflow = TextOverflow.Ellipsis,
-            fontSize = 18.sp,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.secondary
         )
@@ -104,42 +101,38 @@ internal fun CourierCard(
 internal fun LoyaltyCard(
     item: ClassifiedMessage,
     content: MessageContent.Loyalty,
+    time: String,
+    isUnread: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column(Modifier.fillMaxWidth(0.6f), verticalArrangement = Arrangement.Center) {
-            Text(
-                text = item.merchant.displayName,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
-            CategoryTag(item.category)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            RowTitle(item.merchant.displayName)
+            Caption("Balance ${DisplayFormatters.rupees(content.balance)} · $time")
         }
 
-        Column(Modifier.fillMaxWidth()) {
-            AmountText(
-                text = "${if (content.isLoaded) "+" else "-"} ₹${content.points}",
-                color = if (content.isLoaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-            )
-            IconCaption(R.drawable.wallet_balance, "₹${content.balance}")
-        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(
+            text = "${if (content.isLoaded) "+" else "-"} ${DisplayFormatters.rupees(content.points)}",
+            color = if (content.isLoaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
 @Composable
 internal fun DataUsageCard(
     content: MessageContent.DataUsage,
+    time: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bottomShape = RoundedCornerShape(bottomEnd = 16.dp, bottomStart = 16.dp)
 
-    Column(modifier.padding(vertical = 8.dp).clickable(onClick = onClick)) {
+    Column(modifier.padding(vertical = 8.dp).clickable(onClickLabel = "Show message", onClick = onClick)) {
         Row(
             Modifier
                 .padding(horizontal = 16.dp)
@@ -153,7 +146,8 @@ internal fun DataUsageCard(
         ) {
             Text(
                 modifier = Modifier.padding(vertical = 4.dp),
-                text = content.carrier.displayName,
+                text = "${content.carrier.displayName} · $time",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.tertiary
             )
         }
@@ -183,7 +177,7 @@ internal fun DataUsageCard(
                 )
                 Text(
                     text = "Data usage alert",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
             }

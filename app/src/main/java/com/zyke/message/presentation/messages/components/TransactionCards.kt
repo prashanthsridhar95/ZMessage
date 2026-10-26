@@ -1,59 +1,48 @@
 package com.zyke.message.presentation.messages.components
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.zyke.message.R
 import com.zyke.message.domain.model.BankTransactionType
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
+import java.time.LocalDate
 
 @Composable
 internal fun TransactionCard(
     item: ClassifiedMessage,
     content: MessageContent.Transaction,
+    time: String,
+    isUnread: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val account = content.accountNumber.takeIf { it.isNotEmpty() }?.let { "•• $it" }
+        ?: content.bankName.displayString.takeIf { it.isNotEmpty() }
+    val sign = if (content.isReceived) "+" else "-"
+
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column(Modifier.fillMaxWidth(0.6f), verticalArrangement = Arrangement.Center) {
-            Text(
-                text = item.merchant.displayName,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
-            CategoryTag(item.category)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            RowTitle(item.merchant.displayName)
+            Caption(listOfNotNull(account, time).joinToString(" · "))
         }
 
-        Column(Modifier.fillMaxWidth()) {
-            val sign = if (content.isReceived) "+" else "-"
-            AmountText(
-                text = "$sign ₹${content.amount}",
-                color = if (content.isReceived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-            )
-
-            when {
-                content.accountNumber.isNotEmpty() -> IconCaption(
-                    icon = if (content.isCard) R.drawable.credit_card else R.drawable.bank,
-                    text = "•• ${content.accountNumber}"
-                )
-                else -> IconCaption(R.drawable.bank, content.bankName.displayString)
-            }
-        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(
+            text = "$sign ${DisplayFormatters.rupees(content.amount)}",
+            color = if (content.isReceived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
@@ -61,32 +50,32 @@ internal fun TransactionCard(
 internal fun CardBillCard(
     item: ClassifiedMessage,
     content: MessageContent.CardBill,
+    time: String,
+    isUnread: Boolean,
+    today: LocalDate,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bank = content.bankName
+    val title = "${bank.displayString} ${if (bank.isCard) "Card " else ""}" +
+        if (content.accountNumber.isNotEmpty()) "•• ${content.accountNumber}" else ""
+    val due = content.dueDate
+    val caption = if (due != null) DisplayFormatters.dueLabel(due, today) else "${BankTransactionType.CARD_BILL.displayString} · $time"
+    val urgent = due != null && DisplayFormatters.isUrgent(due, today)
+
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = bank.displayString, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column(Modifier.fillMaxWidth(0.6f), verticalArrangement = Arrangement.Center) {
-            Text(
-                text = "${bank.displayString} ${if (bank.isCard) "Card •• " else ""}${content.accountNumber}",
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = BankTransactionType.CARD_BILL.displayString,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = mutedColor()
-            )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            RowTitle(title.trim())
+            Caption(caption, color = if (urgent) MaterialTheme.colorScheme.error else mutedColor())
         }
 
-        Column(Modifier.fillMaxWidth()) {
-            AmountText("₹${content.amount}", MaterialTheme.colorScheme.secondary)
-        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(
+            text = DisplayFormatters.rupees(content.amount),
+            color = MaterialTheme.colorScheme.secondary
+        )
     }
 }

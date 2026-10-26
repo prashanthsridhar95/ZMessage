@@ -1,0 +1,45 @@
+package com.zyke.message.presentation.format
+
+import java.math.BigDecimal
+import java.text.NumberFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+
+/** Small string helpers shared by the message cards. */
+object DisplayFormatters {
+
+    /** "2:30 PM" */
+    fun time(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String =
+        DateTimeFormatter.ofPattern("h:mm a", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
+
+    /** "₹12,345" (Indian digit grouping where the platform supports it), fractions only when non-zero. */
+    fun rupees(amount: BigDecimal, locale: Locale = Locale.forLanguageTag("en-IN")): String {
+        val format = NumberFormat.getNumberInstance(locale).apply {
+            maximumFractionDigits = 2
+            minimumFractionDigits = 0
+        }
+        return "₹" + format.format(amount)
+    }
+
+    fun rupees(raw: String): String = raw.toBigDecimalOrNull()?.let { rupees(it) } ?: "₹$raw"
+
+    /** "Due today", "Due tomorrow", "Due in 5 days", "Due 20 Mar". */
+    fun dueLabel(dueDate: LocalDate, today: LocalDate = LocalDate.now(), locale: Locale = Locale.getDefault()): String =
+        when (val days = ChronoUnit.DAYS.between(today, dueDate)) {
+            0L -> "Due today"
+            1L -> "Due tomorrow"
+            in 2L..7L -> "Due in $days days"
+            else -> "Due ${DateTimeFormatter.ofPattern("dd MMM", locale).format(dueDate)}"
+        }
+
+    /** Due dates within three days are worth drawing the eye to. */
+    fun isUrgent(dueDate: LocalDate, today: LocalDate = LocalDate.now()): Boolean =
+        ChronoUnit.DAYS.between(today, dueDate) in 0L..3L
+
+    fun monthName(month: java.time.YearMonth, locale: Locale = Locale.getDefault()): String =
+        DateTimeFormatter.ofPattern("MMMM", locale).format(month)
+}

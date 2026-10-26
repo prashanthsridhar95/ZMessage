@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MessagesViewModel by viewModels {
         val container = (application as ZykeMessagesApplication).container
-        MessagesViewModel.Factory(container.observeMessages)
+        MessagesViewModel.Factory(container.observeMessages, container.userMessageState)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -6,4 +6,11 @@
     <string name="messages_empty">No messages to show</string>
     <string name="messages_error">Couldn\'t read your messages</string>
     <string name="otp_copied">OTP copied to clipboard</string>
+    <string name="archived">Message archived</string>
+    <string name="undo">Undo</string>
+    <string name="link_failed">Couldn\'t open the link</string>
+    <string name="search_empty">No matches</string>
+    <string name="search_empty_hint">Try a merchant name, an amount or part of the message.</string>
+    <string name="filter_empty">Nothing here</string>
+    <string name="filter_empty_hint">Messages in this group will show up as they arrive.</string>
 </resources>

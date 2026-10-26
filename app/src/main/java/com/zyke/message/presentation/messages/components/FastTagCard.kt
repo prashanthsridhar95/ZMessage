@@ -1,79 +1,57 @@
 package com.zyke.message.presentation.messages.components
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.zyke.message.R
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
-import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.presentation.format.DisplayFormatters
 
 @Composable
 internal fun FastTagCard(
     item: ClassifiedMessage,
     content: MessageContent.FastTag,
+    time: String,
+    isUnread: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val event = content.event
+
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo)
+        MerchantChip(item.merchant.logo, description = "FASTag", isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
-        Column(Modifier.fillMaxWidth(0.6f), verticalArrangement = Arrangement.Center) {
-            Box(Modifier.border(0.5.dp, MaterialTheme.colorScheme.secondary)) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    text = event.vehicleNumber,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.primary
-                )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            RowTitle(event.vehicleNumber)
+            val balance = when (event) {
+                is FastTagEvent.TollPaid -> "Balance ${DisplayFormatters.rupees(event.balance)}"
+                is FastTagEvent.ToppedUp -> "Balance ${DisplayFormatters.rupees(event.balance)}"
+                else -> null
             }
-            CategoryTag(MessageCategory.FASTAG)
+            Caption(listOfNotNull(balance, time).joinToString(" · "))
         }
 
-        Column(Modifier.fillMaxWidth()) {
+        Spacer(Modifier.width(12.dp))
+        Column(horizontalAlignment = Alignment.End) {
             when (event) {
-                is FastTagEvent.Activated -> StatusText("ACTIVE", MaterialTheme.colorScheme.primary)
-                is FastTagEvent.RechargeNeeded -> StatusText("RECHARGE NOW", MaterialTheme.colorScheme.error)
-                is FastTagEvent.ToppedUp -> {
-                    AmountText("+ ₹${event.amount}", MaterialTheme.colorScheme.primary)
-                    IconCaption(R.drawable.wallet_balance, "₹${event.balance}")
-                }
-                is FastTagEvent.TollPaid -> {
-                    AmountText("- ₹${event.tollAmount}", MaterialTheme.colorScheme.secondary)
-                    IconCaption(R.drawable.wallet_balance, "₹${event.balance}")
-                }
+                is FastTagEvent.Activated -> AmountText("Active", MaterialTheme.colorScheme.primary)
+                is FastTagEvent.RechargeNeeded -> AmountText("Recharge", MaterialTheme.colorScheme.error)
+                is FastTagEvent.ToppedUp -> AmountText(
+                    "+ ${DisplayFormatters.rupees(event.amount)}", MaterialTheme.colorScheme.primary
+                )
+                is FastTagEvent.TollPaid -> AmountText(
+                    "- ${DisplayFormatters.rupees(event.tollAmount)}", MaterialTheme.colorScheme.secondary
+                )
             }
         }
     }
 }
 
-@Composable
-private fun StatusText(text: String, color: Color) {
-    Text(
-        modifier = Modifier.fillMaxWidth(),
-        text = text,
-        textAlign = TextAlign.End,
-        fontSize = 12.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        color = color
-    )
-}

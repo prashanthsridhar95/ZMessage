@@ -36,6 +36,22 @@ Dependencies point inwards: `presentation -> domain <- data`.
 `State` (exposed as a `StateFlow`) and emits one-shot `Effect`s (permission request, clipboard).
 `MessagesScreen` is stateless: `(State, (Intent) -> Unit) -> Unit`.
 
+### Feed model
+
+`FeedBuilder` (domain, pure) turns the classified inbox + what the user did (read / pinned /
+archived / dismissed) + the active filter or search query into a `Feed`:
+
+- **attention**: up to three things that need action now (a fresh OTP, a card bill that is due,
+  a low FASTag balance) via `AttentionBuilder`
+- **summary**: money spent this month, split by category (`SpendSummaryBuilder`)
+- **sections**: a "Pinned" section, then one section per day; repeated OTPs / data alerts from one
+  sender on one day collapse into a single expandable item
+- **availableFilters**: the smart chips worth showing (empty buckets are left out)
+
+Promotional messages (DLT `-P` sender headers and marketing phrases) and archived messages stay out
+of the default feed. User marks live in `UserMessageStateRepository` (SharedPreferences); the SMS
+provider itself is never written to.
+
 ### Adding support for a new message type
 
 1. Add a branch to `MessageClassifier` (and a parser under `domain/classification` if needed).
@@ -48,4 +64,7 @@ Dependencies point inwards: `presentation -> domain <- data`.
 ./gradlew testDebugUnitTest
 ```
 
-Parsers, classifier, use case, date formatting and the ViewModel are covered by JVM unit tests.
+Parsers, classifier, feed / attention / spend builders, use case, formatters and the ViewModel are
+covered by JVM unit tests. `Previews.kt` has Compose previews of the whole feed (light, dark, loading).
+
+CI (`.github/workflows/ci.yml`) runs the unit tests and builds the debug APK.
