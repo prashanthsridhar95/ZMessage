@@ -146,10 +146,17 @@ internal fun RowTitle(text: String, modifier: Modifier = Modifier, color: Color 
 
 /** Faint secondary line: account, time, hints. */
 @Composable
-internal fun Caption(text: String, modifier: Modifier = Modifier, color: Color = mutedColor(), maxLines: Int = 1) {
+internal fun Caption(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = mutedColor(),
+    maxLines: Int = 1,
+    textAlign: TextAlign? = null
+) {
     Text(
         modifier = modifier,
         text = text,
+        textAlign = textAlign,
         style = MaterialTheme.typography.bodySmall,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,

@@ -5,6 +5,9 @@ import androidx.compose.runtime.Immutable
 /** Everything the list can ask the ViewModel to do, bundled so it can be passed around as one. */
 @Immutable
 data class FeedActions(
+    /** Tap on a card in the timeline: open the sender's conversation at this message. */
+    val onOpenMessage: (Long) -> Unit,
+    /** Tap on a card inside a conversation: expand it in place. */
     val onToggleExpanded: (Long) -> Unit,
     val onToggleGroup: (String) -> Unit,
     val onCopyOtp: (messageId: Long, code: String) -> Unit,
@@ -16,6 +19,6 @@ data class FeedActions(
     val onOpenLink: (String) -> Unit
 ) {
     companion object {
-        val None = FeedActions({}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {})
+        val None = FeedActions({}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {})
     }
 }

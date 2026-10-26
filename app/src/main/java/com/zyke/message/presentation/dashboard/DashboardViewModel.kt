@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -12,6 +13,7 @@ import com.zyke.message.presentation.dashboard.DashboardContract.Intent
 import com.zyke.message.presentation.dashboard.DashboardContract.State
 import com.zyke.message.presentation.mvi.MviViewModel
 import java.time.Clock
+import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -46,6 +48,8 @@ class DashboardViewModel(
                 copy(expandedVendor = if (expandedVendor == intent.key) null else intent.key)
             }
             Intent.ToggleShowAllVendors -> reduce { copy(showAllVendors = !showAllVendors) }
+            is Intent.ToggleCard -> reduce { copy(expandedCard = if (expandedCard == intent.key) null else intent.key) }
+            is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
 
             is Intent.EditBudget -> reduce { copy(editingBudget = intent.category) }
             is Intent.SaveBudget -> {
@@ -76,7 +80,8 @@ class DashboardViewModel(
             updated
         } else {
             updated.copy(
-                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets)
+                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
+                cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone))
             )
         }
     }

@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages
 
+import com.zyke.message.domain.conversation.Conversation
+import com.zyke.message.domain.conversation.Thread
 import com.zyke.message.domain.feed.Feed
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
@@ -11,6 +13,8 @@ import java.time.Instant
 object MessagesContract {
 
     enum class PermissionStatus { UNKNOWN, GRANTED, DENIED }
+
+    enum class ViewMode(val label: String) { TIMELINE("Timeline"), SENDERS("Senders") }
 
     data class State(
         val permission: PermissionStatus = PermissionStatus.UNKNOWN,
@@ -25,6 +29,11 @@ object MessagesContract {
         val isSearching: Boolean = false,
         val query: String = "",
         val now: Instant = Instant.EPOCH,
+        val viewMode: ViewMode = ViewMode.TIMELINE,
+        /** The sender whose conversation is open, if any. */
+        val openThreadKey: String? = null,
+        /** Message to scroll to and expand when a conversation opens. */
+        val focusMessageId: Long? = null,
 
         // View state
         val expandedMessageIds: Set<Long> = emptySet(),
@@ -32,7 +41,11 @@ object MessagesContract {
         val summaryExpanded: Boolean = false,
 
         /** Everything the list renders, derived from the inputs above. */
-        val feed: Feed = Feed.EMPTY
+        val feed: Feed = Feed.EMPTY,
+        /** Senders list, built only while [viewMode] is [ViewMode.SENDERS]. */
+        val conversations: List<Conversation> = emptyList(),
+        /** The open conversation, if any. */
+        val thread: Thread? = null
     ) {
         val selectedCategory: MessageCategory?
             get() = (filter as? MessageFilter.Category)?.category
@@ -54,6 +67,11 @@ object MessagesContract {
 
         data class SelectSmartFilter(val filter: SmartFilter) : Intent
         data class SelectCategory(val category: MessageCategory?) : Intent
+        data class SetViewMode(val mode: ViewMode) : Intent
+        /** Tap on a message in the timeline: open its sender's conversation focused on it. */
+        data class OpenMessage(val messageId: Long) : Intent
+        data class OpenSender(val key: String) : Intent
+        data object CloseThread : Intent
         data object ToggleCategoryBar : Intent
         data object ToggleSearch : Intent
         data class SetQuery(val query: String) : Intent

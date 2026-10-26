@@ -112,7 +112,7 @@ private fun GroupedItem(
 }
 
 @Composable
-private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         modifier = modifier
             .fillMaxWidth()

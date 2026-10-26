@@ -12,6 +12,7 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
+import com.zyke.message.presentation.messages.MessagesContract.ViewMode
 import com.zyke.message.presentation.messages.MessagesViewModel
 import java.time.Clock
 import java.time.Instant
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -206,5 +208,62 @@ class MessagesViewModelTest {
         vm.onIntent(Intent.PermissionResult(true))
         assertTrue(vm.state.value.hasError)
         assertFalse(vm.state.value.isLoading)
+    }
+
+    @Test
+    fun sendersMode_groupsBySender_andOpeningAConversationShowsItsMessages() {
+        val more = inbox + SmsMessage(3, "VM-SWIGGY-S", "Your Swiggy order is delivered", now - 120_000, true)
+        val vm = viewModel(flow { emit(more) })
+        vm.onIntent(Intent.PermissionResult(true))
+        assertTrue(vm.state.value.conversations.isEmpty()) // only built in Senders mode
+
+        vm.onIntent(Intent.SetViewMode(ViewMode.SENDERS))
+        assertEquals(listOf("SWIGGY", "BANK"), vm.state.value.conversations.map { it.key })
+        assertEquals(2, vm.state.value.conversations.first().messages.size)
+
+        vm.onIntent(Intent.OpenSender("SWIGGY"))
+        assertEquals("SWIGGY", vm.state.value.thread!!.conversation.key)
+        assertEquals(listOf(1L, 3L), vm.state.value.thread!!.sections.flatMap { it.items }.map { it.newest.id }.sorted())
+
+        vm.onIntent(Intent.CloseThread)
+        assertNull(vm.state.value.thread)
+    }
+
+    @Test
+    fun openingAMessage_opensItsSenderFocusedAndExpandedAndRead() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.OpenMessage(2))
+
+        val state = vm.state.value
+        assertEquals("BANK", state.openThreadKey)
+        assertEquals(2L, state.focusMessageId)
+        assertTrue(2L in state.expandedMessageIds)
+        assertTrue(2L in userState.state.value.readIds)
+        assertEquals(1, state.thread!!.conversation.messages.size)
+    }
+
+    @Test
+    fun archivingTheOnlyMessage_closesTheConversation() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        vm.onIntent(Intent.OpenMessage(2))
+
+        vm.onIntent(Intent.Archive(2))
+
+        assertNull(vm.state.value.openThreadKey)
+        assertNull(vm.state.value.thread)
+    }
+
+    @Test
+    fun switchingViewMode_closesAnOpenConversation() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        vm.onIntent(Intent.OpenMessage(1))
+
+        vm.onIntent(Intent.SetViewMode(ViewMode.SENDERS))
+
+        assertNull(vm.state.value.thread)
     }
 }

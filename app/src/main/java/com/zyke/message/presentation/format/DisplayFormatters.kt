@@ -16,6 +16,22 @@ object DisplayFormatters {
     fun time(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String =
         DateTimeFormatter.ofPattern("h:mm a", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
 
+    /** Compact stamp for conversation lists: time today, "Yesterday", weekday this week, else "05 Mar". */
+    fun listStamp(
+        epochMillis: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+        today: LocalDate = LocalDate.now(zone),
+        locale: Locale = Locale.getDefault()
+    ): String {
+        val dateTime = Instant.ofEpochMilli(epochMillis).atZone(zone)
+        return when (ChronoUnit.DAYS.between(dateTime.toLocalDate(), today)) {
+            0L -> time(epochMillis, zone, locale)
+            1L -> "Yesterday"
+            in 2L..6L -> DateTimeFormatter.ofPattern("EEE", locale).format(dateTime)
+            else -> DateTimeFormatter.ofPattern("dd MMM", locale).format(dateTime)
+        }
+    }
+
     /** "₹12,345" (Indian digit grouping where the platform supports it), fractions only when non-zero. */
     fun rupees(amount: BigDecimal, locale: Locale = Locale.forLanguageTag("en-IN")): String {
         val format = NumberFormat.getNumberInstance(locale).apply {

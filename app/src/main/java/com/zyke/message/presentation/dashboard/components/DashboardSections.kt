@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,9 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,7 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.zyke.message.domain.dashboard.BillEntry
+import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
@@ -47,29 +52,44 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.FilterChip
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.RowTitle
+import com.zyke.message.presentation.messages.components.SegmentedControl
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val SECTION_PADDING = 16.dp
-
 private fun BigDecimal.fractionOf(total: BigDecimal): Float =
     if (total.signum() <= 0) 0f else (toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
 
+private fun plural(count: Int, one: String, many: String) = if (count == 1) "$count $one" else "$count $many"
+
+/** A titled, rounded panel. Every section of the dashboard sits in one so they line up. */
 @Composable
-internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(
-        modifier = modifier.fillMaxWidth().padding(start = SECTION_PADDING, end = SECTION_PADDING, top = 24.dp, bottom = 8.dp),
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary
-    )
+internal fun SectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
+            .padding(16.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
+        Spacer(Modifier.height(12.dp))
+        content()
+    }
 }
 
-/** Period chips, spent / received toggle and the active category filter. */
+/** Period chips, spent / received switch and the active category filter. */
 @Composable
 internal fun DashboardControls(
     period: DashboardPeriod,
@@ -80,18 +100,24 @@ internal fun DashboardControls(
     onClearCategory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier) {
-        LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(
+            contentPadding = PaddingValues(0.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             items(DashboardPeriod.entries, key = { it.name }) {
                 FilterChip(it.label, it == period) { onPeriod(it) }
             }
         }
-        LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            items(FlowDirection.entries, key = { it.name }) {
-                FilterChip(it.label, it == direction) { onDirection(it) }
-            }
-            if (category != null) {
-                item(key = "category") { FilterChip("${category.displayString}  ✕", true, onClearCategory) }
+        SegmentedControl(
+            options = FlowDirection.entries.map { it.label },
+            selectedIndex = direction.ordinal,
+            onSelect = { onDirection(FlowDirection.entries[it]) }
+        )
+        if (category != null) {
+            Row {
+                FilterChip("${category.displayString}  ✕", true, onClearCategory)
             }
         }
     }
@@ -101,11 +127,11 @@ internal fun DashboardControls(
 @Composable
 internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: Modifier = Modifier) {
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
+    val verb = dashboard.direction.label.lowercase()
     val caption = when (period) {
-        DashboardPeriod.THIS_MONTH -> "${dashboard.direction.label.lowercase()} in ${monthFmt.format(dashboard.range.start)}"
-        DashboardPeriod.LAST_MONTH -> "${dashboard.direction.label.lowercase()} in ${monthFmt.format(dashboard.range.start)}"
-        DashboardPeriod.LAST_3_MONTHS -> "${dashboard.direction.label.lowercase()} in the last 3 months"
-        DashboardPeriod.ALL_TIME -> "${dashboard.direction.label.lowercase()} in total"
+        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH -> "$verb in ${monthFmt.format(dashboard.range.start)}"
+        DashboardPeriod.LAST_3_MONTHS -> "$verb in the last 3 months"
+        DashboardPeriod.ALL_TIME -> "$verb in total"
     }
     val comparison = when (period) {
         DashboardPeriod.THIS_MONTH -> "vs same days last month"
@@ -113,22 +139,25 @@ internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: M
         DashboardPeriod.LAST_3_MONTHS -> "vs the previous 3 months"
         DashboardPeriod.ALL_TIME -> null
     }
+    val onHero = MaterialTheme.colorScheme.onSecondaryContainer
 
     Column(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = SECTION_PADDING, vertical = 12.dp)
             .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(20.dp))
             .padding(20.dp)
     ) {
         Text(
             text = DisplayFormatters.rupees(dashboard.total),
             style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
+            maxLines = 1,
+            color = onHero
         )
         Caption(
-            "$caption · ${dashboard.count} ${if (dashboard.count == 1) "payment" else "payments"}",
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+            "$caption · ${plural(dashboard.count, "payment", "payments")}",
+            Modifier.padding(top = 2.dp),
+            color = onHero.copy(alpha = 0.7f),
+            maxLines = 2
         )
 
         val change = dashboard.changePercent
@@ -146,9 +175,16 @@ internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: M
             )
         }
 
-        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Caption("Spent ${DisplayFormatters.rupees(dashboard.spentTotal)}", color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
-            Caption("Received ${DisplayFormatters.rupees(dashboard.receivedTotal)}", color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = onHero.copy(alpha = 0.15f))
+        Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Caption("Spent", color = onHero.copy(alpha = 0.7f))
+                Text(DisplayFormatters.rupees(dashboard.spentTotal), style = MaterialTheme.typography.titleSmall, color = onHero, maxLines = 1)
+            }
+            Column(Modifier.weight(1f)) {
+                Caption("Received", color = onHero.copy(alpha = 0.7f))
+                Text(DisplayFormatters.rupees(dashboard.receivedTotal), style = MaterialTheme.typography.titleSmall, color = onHero, maxLines = 1)
+            }
         }
     }
 }
@@ -165,14 +201,10 @@ internal fun TrendChart(
     val peak = points.maxBy { it.amount }
     val max = peak.amount
     val fmt = DateTimeFormatter.ofPattern(if (unit == TrendUnit.DAY) "d MMM" else "MMM yy", Locale.getDefault())
+    val summary = if (max.signum() > 0) "Peak ${DisplayFormatters.rupees(max)} on ${fmt.format(peak.start)}" else "No activity"
 
-    val summary = if (max.signum() > 0) {
-        "Peak ${DisplayFormatters.rupees(max)} on ${fmt.format(peak.start)}"
-    } else {
-        "No activity"
-    }
-
-    Column(modifier.fillMaxWidth().padding(horizontal = SECTION_PADDING)) {
+    Column(modifier.fillMaxWidth()) {
+        Caption(summary, Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.secondary)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -187,7 +219,7 @@ internal fun TrendChart(
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .fillMaxHeight(0.02f)
+                                .height(2.dp)
                                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
                         )
                     } else {
@@ -196,10 +228,9 @@ internal fun TrendChart(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption(fmt.format(points.first().start))
-            Caption(summary)
-            Caption(fmt.format(points.last().start))
+            Caption(fmt.format(points.last().start), textAlign = TextAlign.End)
         }
     }
 }
@@ -213,7 +244,6 @@ private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<Message
             .fillMaxHeight(height)
             .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
     ) {
-        // Largest on top; weights are the amounts themselves.
         point.byCategory.forEach { (category, amount) ->
             val weight = amount.toFloat()
             if (weight > 0f) {
@@ -233,8 +263,7 @@ private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<Message
 internal fun ChartLegend(ranking: List<MessageCategory>, modifier: Modifier = Modifier) {
     if (ranking.isEmpty()) return
     LazyRow(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = SECTION_PADDING),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(ranking.take(ChartColors.NAMED), key = { it.name }) { category ->
@@ -271,20 +300,23 @@ internal fun CategoryRow(
         modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Filter by ${item.category.displayString}", onClick = onClick)
-            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
-            .padding(horizontal = SECTION_PADDING, vertical = 10.dp)
+            .padding(vertical = 10.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).background(color, CircleShape))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                RowTitle(item.category.displayString, color = MaterialTheme.colorScheme.secondary)
+                RowTitle(
+                    item.category.displayString + if (selected) "  ✓" else "",
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
                 Caption(
                     if (item.count == 0) "Nothing yet"
-                    else "${item.count} ${if (item.count == 1) "payment" else "payments"} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
+                    else "${plural(item.count, "payment", "payments")} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
                 )
             }
-            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
 
         if (budget != null) {
@@ -292,7 +324,7 @@ internal fun CategoryRow(
         } else {
             ShareBar(item.total.fractionOf(total), color = color)
             if (canSetBudget) {
-                TextButton(onClick = onEditBudget, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                TextButton(onClick = onEditBudget, contentPadding = PaddingValues(0.dp)) {
                     Text("Set monthly budget", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -318,7 +350,8 @@ private fun BudgetMeter(item: CategoryTotal, budget: BigDecimal, onEdit: () -> U
             text = if (over) "${DisplayFormatters.rupees(remaining.negate())} over ${DisplayFormatters.rupees(budget)} budget"
             else "${DisplayFormatters.rupees(remaining)} left of ${DisplayFormatters.rupees(budget)}",
             modifier = Modifier.weight(1f).padding(top = 4.dp),
-            color = if (over) MaterialTheme.colorScheme.error else mutedColor()
+            color = if (over) MaterialTheme.colorScheme.error else mutedColor(),
+            maxLines = 2
         )
         if (editable) {
             TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -359,37 +392,37 @@ internal fun VendorRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val last = Instant.ofEpochMilli(vendor.lastEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
     Column(
         modifier
             .fillMaxWidth()
             .animateContentSize()
             .clickable(onClickLabel = if (expanded) "Hide payments" else "Show payments", onClick = onClick)
-            .padding(horizontal = SECTION_PADDING, vertical = 10.dp)
+            .padding(vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(vendor.merchant.logo, description = vendor.merchant.name, size = 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(vendor.merchant.displayName)
-                Caption(
-                    "${vendor.merchant.category.displayString} · ${vendor.count} ${if (vendor.count == 1) "payment" else "payments"} · " +
-                        "last ${DateFormatters.dayHeader(java.time.Instant.ofEpochMilli(vendor.lastEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()).substringBefore(",")}"
-                )
+                Caption("${vendor.merchant.category.displayString} · ${plural(vendor.count, "payment", "payments")}")
+                Caption("Last ${DateFormatters.dayHeader(last).substringBefore(",")}")
             }
             Spacer(Modifier.width(12.dp))
-            Text(DisplayFormatters.rupees(vendor.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+            Text(DisplayFormatters.rupees(vendor.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         ShareBar(vendor.total.fractionOf(total), Modifier.padding(start = 56.dp))
 
         if (expanded) {
             Column(Modifier.padding(start = 56.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 vendor.recent.forEach { payment ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Caption(DateFormatters.detailTimestamp(payment.epochMillis), color = MaterialTheme.colorScheme.secondary)
                             Caption(payment.source)
                         }
-                        Text(DisplayFormatters.rupees(payment.amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+                        Spacer(Modifier.width(12.dp))
+                        Text(DisplayFormatters.rupees(payment.amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
                     }
                 }
                 if (vendor.count > vendor.recent.size) {
@@ -402,14 +435,93 @@ internal fun VendorRow(
 
 @Composable
 internal fun SourceRow(item: SourceTotal, total: BigDecimal, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(horizontal = SECTION_PADDING, vertical = 10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 RowTitle(item.label, color = MaterialTheme.colorScheme.secondary)
-                Caption("${item.count} ${if (item.count == 1) "payment" else "payments"}", color = mutedColor())
+                Caption(plural(item.count, "payment", "payments"))
             }
-            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         ShareBar(item.total.fractionOf(total))
     }
 }
+
+/** One credit card: its latest statement, with earlier ones on tap. */
+@Composable
+internal fun CardBillRow(
+    bills: CardBills,
+    today: LocalDate,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onPay: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val latest = bills.latest
+    val due = latest.dueDate
+    val passed = due != null && due.isBefore(today)
+    val urgent = due != null && !passed && DisplayFormatters.isUrgent(due, today)
+    val dayFmt = DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault())
+    val status = when {
+        due == null -> "Statement · ${dayFmt.format(statementDate(latest))}"
+        passed -> "Due date passed · ${dayFmt.format(due)}"
+        else -> DisplayFormatters.dueLabel(due, today)
+    }
+
+    Column(
+        modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .clickable(
+                enabled = bills.earlier.isNotEmpty(),
+                onClickLabel = if (expanded) "Hide earlier bills" else "Show earlier bills",
+                onClick = onToggle
+            )
+            .padding(vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                RowTitle(bills.label)
+                Caption(status, color = if (urgent) MaterialTheme.colorScheme.error else mutedColor())
+                latest.minimumDue?.let { Caption("Minimum ${DisplayFormatters.rupees(it)}") }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                DisplayFormatters.rupees(latest.amount),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
+        }
+
+        if (latest.paymentLink != null && !passed) {
+            TextButton(onClick = { onPay(latest.paymentLink) }, contentPadding = PaddingValues(0.dp)) {
+                Text("View / pay bill", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        if (expanded) {
+            Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                bills.earlier.forEach { bill -> EarlierBill(bill, dayFmt) }
+            }
+        } else if (bills.earlier.isNotEmpty()) {
+            Caption("${bills.earlier.size} earlier ${if (bills.earlier.size == 1) "bill" else "bills"}")
+        }
+    }
+}
+
+@Composable
+private fun EarlierBill(bill: BillEntry, dayFmt: DateTimeFormatter) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Caption(
+            "Statement ${dayFmt.format(statementDate(bill))}",
+            Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Text(DisplayFormatters.rupees(bill.amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+    }
+}
+
+private fun statementDate(bill: BillEntry): LocalDate =
+    Instant.ofEpochMilli(bill.epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()

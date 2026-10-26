@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,12 @@ import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesContract.State
+import com.zyke.message.presentation.messages.MessagesContract.ViewMode
+import com.zyke.message.presentation.messages.components.SegmentedControl
+import com.zyke.message.presentation.messages.components.SendersList
+import com.zyke.message.presentation.messages.components.ThreadScreen
+import java.time.LocalDate
+import java.time.ZoneId
 import com.zyke.message.presentation.messages.components.CategoryBar
 import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.MessageList
@@ -65,6 +72,9 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.onIntent(Intent.PermissionResult(granted)) }
+
+    // Back closes an open conversation before leaving the app.
+    BackHandler(enabled = state.thread != null) { viewModel.onIntent(Intent.CloseThread) }
 
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
@@ -131,40 +141,70 @@ fun MessagesScreen(
     val actions = remember(onIntent) { onIntent.toFeedActions() }
 
     Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            MessagesTopBar(
-                isSearching = state.isSearching,
-                query = state.query,
-                onQueryChange = { onIntent(Intent.SetQuery(it)) },
-                onToggleSearch = { onIntent(Intent.ToggleSearch) },
-                categoryBarVisible = state.showCategoryBar,
-                onToggleCategoryBar = { onIntent(Intent.ToggleCategoryBar) }
+        val thread = state.thread
+        if (thread != null) {
+            ThreadScreen(
+                thread = thread,
+                state = state,
+                actions = actions,
+                onBack = { onIntent(Intent.CloseThread) },
+                modifier = Modifier.fillMaxSize()
             )
-
-            val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
-            if (ready && !state.isSearching) {
-                SmartFilterRow(
-                    available = state.feed.availableFilters,
-                    selected = state.selectedSmartFilter,
-                    onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                MessagesTopBar(
+                    isSearching = state.isSearching,
+                    query = state.query,
+                    onQueryChange = { onIntent(Intent.SetQuery(it)) },
+                    onToggleSearch = { onIntent(Intent.ToggleSearch) },
+                    categoryBarVisible = state.showCategoryBar,
+                    onToggleCategoryBar = { onIntent(Intent.ToggleCategoryBar) }
                 )
-                if (state.showCategoryBar) {
-                    CategoryBar(
-                        selected = state.selectedCategory,
-                        onSelect = { onIntent(Intent.SelectCategory(it)) }
+
+                val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
+                if (ready) {
+                    SegmentedControl(
+                        options = ViewMode.entries.map { it.label },
+                        selectedIndex = state.viewMode.ordinal,
+                        onSelect = { onIntent(Intent.SetViewMode(ViewMode.entries[it])) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-            }
-
-            Box(Modifier.fillMaxSize()) {
-                when {
-                    state.permission == PermissionStatus.DENIED -> PermissionRequired(
-                        onGrant = { onIntent(Intent.RequestPermission) }
+                if (ready && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
+                    SmartFilterRow(
+                        available = state.feed.availableFilters,
+                        selected = state.selectedSmartFilter,
+                        onSelect = { onIntent(Intent.SelectSmartFilter(it)) }
                     )
-                    state.hasError -> CenteredMessage(stringResource(R.string.messages_error), null)
-                    state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
-                    state.feed.visibleCount == 0 -> EmptyState(state)
-                    else -> MessageList(state, actions, Modifier.fillMaxSize())
+                    if (state.showCategoryBar) {
+                        CategoryBar(
+                            selected = state.selectedCategory,
+                            onSelect = { onIntent(Intent.SelectCategory(it)) }
+                        )
+                    }
+                }
+
+                Box(Modifier.fillMaxSize()) {
+                    val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
+                    when {
+                        state.permission == PermissionStatus.DENIED -> PermissionRequired(
+                            onGrant = { onIntent(Intent.RequestPermission) }
+                        )
+                        state.hasError -> CenteredMessage(stringResource(R.string.messages_error), null)
+                        state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
+                        state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) {
+                            EmptyState(state)
+                        } else {
+                            SendersList(
+                                conversations = state.conversations,
+                                today = today,
+                                onOpen = { onIntent(Intent.OpenSender(it)) },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        state.feed.visibleCount == 0 -> EmptyState(state)
+                        else -> MessageList(state, actions, Modifier.fillMaxSize())
+                    }
                 }
             }
         }
@@ -174,6 +214,7 @@ fun MessagesScreen(
 }
 
 private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
+    onOpenMessage = { this(Intent.OpenMessage(it)) },
     onToggleExpanded = { this(Intent.ToggleExpanded(it)) },
     onToggleGroup = { this(Intent.ToggleGroup(it)) },
     onCopyOtp = { id, code -> this(Intent.CopyOtp(id, code)) },
@@ -190,7 +231,7 @@ private fun EmptyState(state: State) {
     when {
         state.isSearching && state.query.isNotBlank() ->
             CenteredMessage(stringResource(R.string.search_empty), stringResource(R.string.search_empty_hint))
-        state.filter != MessageFilter.All ->
+        state.viewMode == ViewMode.TIMELINE && state.filter != MessageFilter.All ->
             CenteredMessage(stringResource(R.string.filter_empty), stringResource(R.string.filter_empty_hint))
         else -> CenteredMessage(stringResource(R.string.messages_empty), null)
     }

@@ -18,11 +18,13 @@ internal fun MessageItem(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** True in the timeline (tap opens the conversation); false inside a conversation (tap expands). */
+    openOnTap: Boolean = true
 ) {
     val isPinned = item.id in state.userState.pinnedIds
     val isArchived = item.id in state.userState.archivedIds
-    val isExpanded = item.id in state.expandedMessageIds
+    val isExpanded = !openOnTap && item.id in state.expandedMessageIds
     val animated = modifier.animateContentSize()
 
     if (isExpanded) {
@@ -31,7 +33,7 @@ internal fun MessageItem(
     }
 
     val card: @Composable () -> Unit = {
-        MessageCard(item, state, actions)
+        MessageCard(item, state, actions, openOnTap = openOnTap)
     }
 
     if (state.isSearching) {
@@ -54,12 +56,13 @@ internal fun MessageCard(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    openOnTap: Boolean = true
 ) {
     val time = remember(item.message.date) { DisplayFormatters.time(item.message.date) }
     val today = remember(state.now) { LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val isUnread = state.isUnread(item)
-    val expand = { actions.onToggleExpanded(item.id) }
+    val expand = { if (openOnTap) actions.onOpenMessage(item.id) else actions.onToggleExpanded(item.id) }
 
     when (val content = item.content) {
         is MessageContent.Otp -> OtpCard(

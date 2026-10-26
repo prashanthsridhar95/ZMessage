@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.conversation.ConversationBuilder
+import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.feed.FeedBuilder
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
@@ -13,6 +15,7 @@ import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesContract.State
+import com.zyke.message.presentation.messages.MessagesContract.ViewMode
 import com.zyke.message.presentation.mvi.MviViewModel
 import java.time.Clock
 import java.time.ZoneId
@@ -27,6 +30,7 @@ class MessagesViewModel(
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
+    private val conversationBuilder = ConversationBuilder()
     private var observeJob: Job? = null
 
     init {
@@ -41,6 +45,11 @@ class MessagesViewModel(
             is Intent.PermissionResult -> onPermissionResult(intent.granted)
             Intent.RequestPermission -> emitEffect(Effect.LaunchPermissionRequest)
             Intent.Tick -> reduceFeed { copy(now = clock.instant()) }
+
+            is Intent.SetViewMode -> reduceFeed { copy(viewMode = intent.mode, openThreadKey = null, focusMessageId = null) }
+            is Intent.OpenMessage -> openMessage(intent.messageId)
+            is Intent.OpenSender -> reduceFeed { copy(openThreadKey = intent.key, focusMessageId = null) }
+            Intent.CloseThread -> reduceFeed { copy(openThreadKey = null, focusMessageId = null) }
 
             is Intent.SelectSmartFilter -> reduceFeed { copy(filter = MessageFilter.Smart(intent.filter)) }
             is Intent.SelectCategory -> reduceFeed {
@@ -80,6 +89,18 @@ class MessagesViewModel(
             )
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
+        }
+    }
+
+    private fun openMessage(messageId: Long) {
+        val message = currentState().messages.firstOrNull { it.id == messageId } ?: return
+        userStateRepository.markRead(messageId)
+        reduceFeed {
+            copy(
+                openThreadKey = SenderKey.of(message.message.sender),
+                focusMessageId = messageId,
+                expandedMessageIds = expandedMessageIds + messageId
+            )
         }
     }
 
@@ -128,16 +149,29 @@ class MessagesViewModel(
     /** Applies [change] and rebuilds the derived [State.feed]. */
     private fun reduceFeed(change: State.() -> State) = reduce {
         val updated = change().withValidFilter()
+        val query = if (updated.isSearching) updated.query else ""
+        val thread = updated.openThreadKey?.let {
+            conversationBuilder.thread(updated.messages, it, updated.userState, zone)
+        }
         updated.copy(
             feed = FeedBuilder.build(
                 messages = updated.messages,
                 userState = updated.userState,
                 filter = updated.filter,
-                query = if (updated.isSearching) updated.query else "",
+                query = query,
                 now = updated.now,
                 zone = zone
-            )
-        )
+            ),
+            conversations = if (updated.viewMode == ViewMode.SENDERS) {
+                conversationBuilder.conversations(updated.messages, updated.userState, query)
+            } else {
+                emptyList()
+            },
+            thread = thread
+        ).let { built ->
+            // A conversation that has no messages left (all archived) closes itself.
+            if (built.openThreadKey != null && thread == null) built.copy(openThreadKey = null, focusMessageId = null) else built
+        }
     }
 
     /** The Archived chip vanishes once nothing is archived, so a filter on it resets to All. */

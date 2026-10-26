@@ -38,6 +38,14 @@ Dependencies point inwards: `presentation -> domain <- data`.
 `State` (exposed as a `StateFlow`) and emits one-shot `Effect`s (permission request, clipboard).
 `MessagesScreen` is stateless: `(State, (Intent) -> Unit) -> Unit`.
 
+### Senders and conversations
+
+The Messages tab has a **Timeline** (grouped by day) and a **Senders** view (one row per sender,
+latest first, with unread counts). Operator prefixes and traffic-type suffixes are ignored, so
+`AD-HDFCBK` and `VM-HDFCBK-S` are the same sender. Tapping any message, or a sender, opens that
+sender's conversation: every message from them, newest first, in day sections. The message you
+came from is expanded and scrolled into view; tap a card there to expand it, back to return.
+
 ### Dashboard tab
 
 The second tab answers "where does my money go?". `DashboardBuilder` (domain, pure) aggregates the
@@ -45,6 +53,8 @@ sent / received transactions for a period (this month, last month, 3 months, all
 
 - a headline total with a comparison against the previous period (same number of days for a
   partial month), plus spent and received totals
+- **credit card bills by card**: latest statement (amount, minimum, due date, pay link) with earlier
+  statements on tap; independent of the selected period
 - a daily (or monthly) trend, drawn as bars stacked by category with a colour key
 - totals **by category**: tap one to filter everything below it; set a **monthly budget** per category
   and see what is left (amber from 80%, red once over) for this month's spending

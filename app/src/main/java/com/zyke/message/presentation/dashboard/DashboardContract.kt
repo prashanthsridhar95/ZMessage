@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.DashboardQuery
@@ -31,7 +32,10 @@ object DashboardContract {
         val expandedVendor: String? = null,
         val showAllVendors: Boolean = false,
 
-        val dashboard: Dashboard? = null
+        val dashboard: Dashboard? = null,
+        /** Credit card statements by card; independent of the selected period. */
+        val cardBills: List<CardBills> = emptyList(),
+        val expandedCard: String? = null
     ) {
         val query get() = DashboardQuery(period, direction, category)
     }
@@ -45,10 +49,14 @@ object DashboardContract {
         data object ClearCategory : Intent
         data class ToggleVendor(val key: String) : Intent
         data object ToggleShowAllVendors : Intent
+        data class ToggleCard(val key: String) : Intent
+        data class OpenLink(val url: String) : Intent
         data class EditBudget(val category: MessageCategory?) : Intent
         /** [text] is whatever the user typed; blank removes the budget. */
         data class SaveBudget(val category: MessageCategory, val text: String) : Intent
     }
 
-    sealed interface Effect
+    sealed interface Effect {
+        data class OpenLink(val url: String) : Effect
+    }
 }

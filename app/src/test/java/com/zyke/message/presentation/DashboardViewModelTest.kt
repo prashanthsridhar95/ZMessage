@@ -143,4 +143,26 @@ class DashboardViewModelTest {
         vm.onIntent(Intent.SaveBudget(MessageCategory.FOOD, "  "))
         assertNull(vm.state.value.dashboard!!.categories.first { it.category == MessageCategory.FOOD }.budget)
     }
+
+    @Test
+    fun cardBills_areGroupedByCard_andIgnorePeriodAndFilters() {
+        val bill = SmsMessage(
+            10, "AD-HDFCBK",
+            "HDFC Bank Credit Card XX1234 Statement: Total due amt: Rs.12,345.00 Min due amt: Rs.617.00 Due by:20-03-2025 pay https://hdfcbk.io/x",
+            now.toEpochMilli() - 2 * day, true
+        )
+        val vm = vm(flow { emit(inbox + bill) })
+        vm.onIntent(Intent.ScreenStarted(true))
+        vm.onIntent(Intent.SelectPeriod(DashboardPeriod.LAST_MONTH))
+        vm.onIntent(Intent.SelectDirection(FlowDirection.RECEIVED))
+
+        val card = vm.state.value.cardBills.single()
+        assertEquals("HDFC Card •• 1234", card.label)
+        assertEquals(12345.0, card.latest.amount.toDouble(), 0.001)
+
+        vm.onIntent(Intent.ToggleCard(card.key))
+        assertEquals(card.key, vm.state.value.expandedCard)
+        vm.onIntent(Intent.ToggleCard(card.key))
+        assertNull(vm.state.value.expandedCard)
+    }
 }
