@@ -37,6 +37,8 @@ Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cann
 
 ### Three tabs
 
+The app opens on the **Inbox**; Back from Home or Money returns to it before leaving.
+
 - **Home**: what needs attention (fresh OTP, bills due, low FASTag), this month versus last month,
   upcoming bills and auto-debits (`UpcomingBuilder`), budget status, recent payments
 - **Money**: the dashboard (spending by category / vendor / account, card bills, budgets)

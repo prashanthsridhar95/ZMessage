@@ -31,9 +31,13 @@ enum class AppTab(val label: String, val icon: Int) {
     INBOX("Inbox", R.drawable.baseline_message_24)
 }
 
+/** The tab the app opens on, and the one Back returns to before leaving. */
+val StartTab = AppTab.INBOX
+
 /**
- * Tab shell. Each tab keeps its scroll position while another is showing, and Back from any
- * tab returns to Home before leaving the app, so the way out is always the same.
+ * Tab shell. The app opens on the Inbox. Each tab keeps its scroll position while another is showing,
+ * and Back from any other tab returns to the Inbox before leaving the app, so the way out is always
+ * the same.
  */
 @Composable
 fun AppRoot(
@@ -42,11 +46,11 @@ fun AppRoot(
     settings: @Composable (modifier: Modifier, onBack: () -> Unit) -> Unit,
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
-    var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+    var tab by rememberSaveable { mutableStateOf(StartTab) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val stateHolder = rememberSaveableStateHolder()
 
-    BackHandler(enabled = tab != AppTab.HOME) { tab = AppTab.HOME }
+    BackHandler(enabled = tab != StartTab) { tab = StartTab }
     // Declared last so it wins: Back closes Settings before anything else.
     BackHandler(enabled = showSettings) { showSettings = false }
 
