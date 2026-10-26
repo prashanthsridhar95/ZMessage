@@ -164,7 +164,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
         state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
             item(key = "month") {
                 Column {
-                    HeroCard(month, DashboardPeriod.THIS_MONTH, onDirection = { onNavigate(AppTab.MONEY) })
+                    HeroCard(month, DashboardPeriod.THIS_MONTH, onDirection = { onNavigate(AppTab.MONEY) }, showSelection = false)
                     LinkButton("See where it went", { onNavigate(AppTab.MONEY) })
                 }
             }

@@ -183,7 +183,9 @@ internal fun HeroCard(
     dashboard: Dashboard,
     period: DashboardPeriod,
     onDirection: (FlowDirection) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** True on the Money tab, where the totals are a switch and one is chosen; false where they only link. */
+    showSelection: Boolean = true
 ) {
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val verb = dashboard.direction.label
@@ -241,18 +243,27 @@ internal fun HeroCard(
 
         // Both totals are always visible; tapping one switches the whole screen to it.
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowTotal("Spent", dashboard.spentTotal, dashboard.direction == FlowDirection.SPENT, Modifier.weight(1f)) {
-                onDirection(FlowDirection.SPENT)
-            }
-            FlowTotal("Received", dashboard.receivedTotal, dashboard.direction == FlowDirection.RECEIVED, Modifier.weight(1f)) {
-                onDirection(FlowDirection.RECEIVED)
-            }
+            FlowTotal(
+                "Spent", dashboard.spentTotal, showSelection, showSelection && dashboard.direction == FlowDirection.SPENT,
+                Modifier.weight(1f)
+            ) { onDirection(FlowDirection.SPENT) }
+            FlowTotal(
+                "Received", dashboard.receivedTotal, showSelection, showSelection && dashboard.direction == FlowDirection.RECEIVED,
+                Modifier.weight(1f)
+            ) { onDirection(FlowDirection.RECEIVED) }
         }
     }
 }
 
 @Composable
-private fun FlowTotal(label: String, amount: BigDecimal, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun FlowTotal(
+    label: String,
+    amount: BigDecimal,
+    isSwitch: Boolean,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
     val onHero = MaterialTheme.colorScheme.onPrimaryContainer
     Column(
         modifier
@@ -262,7 +273,8 @@ private fun FlowTotal(label: String, amount: BigDecimal, selected: Boolean, modi
             .clickable(role = Role.Tab, onClickLabel = "Show $label", onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = onHero.copy(alpha = if (selected) 1f else 0.8f))
+        // As a plain link both totals are equal; as a switch the unchosen one steps back.
+        Text(label, style = MaterialTheme.typography.labelMedium, color = onHero.copy(alpha = if (selected || !isSwitch) 1f else 0.8f))
         Text(
             DisplayFormatters.rupees(amount),
             style = MaterialTheme.typography.titleSmall,
