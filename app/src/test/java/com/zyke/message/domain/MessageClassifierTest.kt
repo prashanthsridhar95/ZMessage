@@ -81,15 +81,25 @@ class MessageClassifierTest {
     }
 
     @Test
-    fun unknownMoneyMessage_fallsBackToGeneric() {
+    fun unknownFormatWithDebitWord_isStillATransaction() {
         val result = classifier.classify(sms("You have paid Rs 200 to somebody"))
-        assertEquals(MessageContent.Generic, result.content)
+        val content = result.content as MessageContent.Transaction
+        assertEquals("200", content.amount)
+        assertEquals("somebody", content.payee)
     }
 
     @Test
-    fun unparseableBankMessage_fallsBackToGeneric() {
+    fun partlyGarbledHdfcCredit_isRescuedByTheGenericParser() {
         val result = classifier.classify(sms("Credit Alert! Rs.10 credited to HDFC Bank A/c garbled"))
-        assertEquals(MessageContent.Generic, result.content)
+        val content = result.content as MessageContent.Transaction
+        assertEquals("10", content.amount)
+        assertEquals(true, content.isReceived)
+    }
+
+    @Test
+    fun moneyMentionWithoutMovement_staysGeneric() {
+        assertEquals(MessageContent.Generic, classifier.classify(sms("Your order total is Rs 200")).content)
+        assertEquals(MessageContent.Generic, classifier.classify(sms("Your A/c XX1234 balance is Rs 5,000.00")).content)
     }
 
     @Test

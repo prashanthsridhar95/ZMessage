@@ -26,7 +26,7 @@ class MessageClassifier(
         return when {
             OtpParser.isOtp(body) -> otp(message)
             body.contains("Bank Tag", true) || body.contains("Fastag", true) -> fastTag(message)
-            body.contains("INR") || body.contains("Rs.") || body.contains("Rs ") -> bank(message)
+            GenericTransactionParser.mentionsMoney(body) -> bank(message)
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
             body.contains("Petpooja") -> loyalty(message)

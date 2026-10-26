@@ -7,13 +7,21 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /** Extracts a [BankTransaction] from a bank / card / pay-later SMS body. */
-class BankMessageParser {
+class BankMessageParser(
+    private val generic: GenericTransactionParser = GenericTransactionParser()
+) {
 
     /**
      * Returns null when the message looked like one we handle but could not be parsed.
      * Messages from unknown senders yield a [BankName.OTHERS] transaction with empty fields.
      */
-    fun parse(message: String): BankTransaction? = try {
+    fun parse(message: String): BankTransaction? {
+        val specific = parseKnownFormat(message)
+        // Anything the hand-written parsers don't understand gets a second chance.
+        return if (specific == null || specific.amount.isEmpty()) generic.parse(message) ?: specific else specific
+    }
+
+    private fun parseKnownFormat(message: String): BankTransaction? = try {
         when {
             message.contains("Credit Alert!") -> parseHdfcCredit(message)
             message.contains("HDFC Bank A/C") -> parseHdfcAccountDebit(message)

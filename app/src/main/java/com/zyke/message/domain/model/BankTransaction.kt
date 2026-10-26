@@ -9,6 +9,16 @@ enum class BankName(val displayString: String, val isCard: Boolean) {
     AMERICAN_EXPRESS("American Express", true),
     LAZYPAY("Lazypay", false),
     SIMPL("Simpl", false),
+    SBI("SBI", true),
+    ICICI("ICICI", true),
+    KOTAK("Kotak", true),
+    IDFC_FIRST("IDFC First", true),
+    YES_BANK("Yes Bank", true),
+    PNB("PNB", true),
+    CANARA("Canara", true),
+    BANK_OF_BARODA("Bank of Baroda", true),
+    INDUSIND("IndusInd", true),
+    PAYTM("Paytm", false),
     PETPOOJA("", false),
     OTHERS("", false)
 }
