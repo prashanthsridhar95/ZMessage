@@ -587,10 +587,11 @@ internal fun CardBillRow(
             )
         }
 
-        if (latest.paymentLink != null && !passed) {
+        val billLink = latest.paymentLink
+        if (billLink != null && !passed) {
             AppButton(
                 text = "View bill",
-                onClick = { onPay(latest.paymentLink) },
+                onClick = { onPay(billLink) },
                 style = ButtonStyle.TONAL,
                 size = ButtonSize.COMPACT,
                 modifier = Modifier.padding(top = 6.dp)

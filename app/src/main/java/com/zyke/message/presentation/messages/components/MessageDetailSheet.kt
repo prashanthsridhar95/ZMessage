@@ -116,11 +116,12 @@ internal fun MessageDetailSheet(
             }
 
             // The one action that matters most for this kind of message.
+            val billLink = (content as? MessageContent.CardBill)?.paymentLink
             when {
                 content is MessageContent.Otp && content.code.isNotEmpty() ->
                     AppButton("Copy code", { actions.onCopyOtp(item.id, content.code) }, Modifier.fillMaxWidth())
-                content is MessageContent.CardBill && content.paymentLink != null ->
-                    AppButton("View / pay bill", { actions.onOpenLink(content.paymentLink) }, Modifier.fillMaxWidth())
+                billLink != null ->
+                    AppButton("View / pay bill", { actions.onOpenLink(billLink) }, Modifier.fillMaxWidth())
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

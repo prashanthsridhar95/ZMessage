@@ -76,7 +76,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
     val onContainer = MaterialTheme.colorScheme.onSecondaryContainer
     val urgent = when (item) {
         is AttentionItem.LowFastTag -> true
-        is AttentionItem.BillDue -> item.dueDate != null && DisplayFormatters.isUrgent(item.dueDate, today)
+        is AttentionItem.BillDue -> item.dueDate?.let { DisplayFormatters.isUrgent(it, today) } ?: false
         is AttentionItem.FreshOtp -> false
     }
 
@@ -111,11 +111,12 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
             )
         }
 
+        val payLink = (item as? AttentionItem.BillDue)?.paymentLink
         when {
             item is AttentionItem.FreshOtp ->
                 AppButton("Copy", { actions.onCopyOtp(item.message.id, item.code) }, size = ButtonSize.COMPACT)
-            item is AttentionItem.BillDue && item.paymentLink != null ->
-                AppButton("Pay", { actions.onOpenLink(item.paymentLink) }, size = ButtonSize.COMPACT)
+            payLink != null ->
+                AppButton("Pay", { actions.onOpenLink(payLink) }, size = ButtonSize.COMPACT)
         }
 
         Box(

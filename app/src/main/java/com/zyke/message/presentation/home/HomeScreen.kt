@@ -238,10 +238,11 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onPay: (String) ->
                 (if (item.kind == UpcomingKind.CARD_BILL) "Bill · " else "Auto-debit · ") + DisplayFormatters.dueLabel(item.date, today),
                 color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
             )
-            if (item.paymentLink != null) {
+            val link = item.paymentLink
+            if (link != null) {
                 AppButton(
                     text = "Pay bill",
-                    onClick = { onPay(item.paymentLink) },
+                    onClick = { onPay(link) },
                     style = ButtonStyle.TONAL,
                     size = ButtonSize.COMPACT,
                     modifier = Modifier.padding(top = 6.dp)

@@ -85,8 +85,10 @@ internal fun OtpCard(
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            if (content.paymentAmount != null && content.cardNumber != null) {
-                Caption("For ${DisplayFormatters.rupees(content.paymentAmount)} on card •• ${content.cardNumber}")
+            val paymentAmount = content.paymentAmount
+            val paymentCard = content.cardNumber
+            if (paymentAmount != null && paymentCard != null) {
+                Caption("For ${DisplayFormatters.rupees(paymentAmount)} on card •• $paymentCard")
             }
         }
 
