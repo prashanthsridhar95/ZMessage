@@ -18,7 +18,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private val dashboardViewModel: DashboardViewModel by viewModels {
-        DashboardViewModel.Factory((application as ZykeMessagesApplication).container.observeMessages)
+        val container = (application as ZykeMessagesApplication).container
+        DashboardViewModel.Factory(container.observeMessages, container.budgets)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

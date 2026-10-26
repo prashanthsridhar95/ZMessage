@@ -1,6 +1,7 @@
 package com.zyke.message.domain.dashboard
 
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
 import java.time.Instant
@@ -27,7 +28,8 @@ object DashboardBuilder {
         messages: List<ClassifiedMessage>,
         query: DashboardQuery,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        budgets: Map<MessageCategory, BigDecimal> = emptyMap()
     ): Dashboard {
         val today = LocalDate.ofInstant(now, zone)
         val movements = messages.mapNotNull { toMovement(it, zone) }
@@ -59,7 +61,10 @@ object DashboardBuilder {
             spentTotal = spentTotal,
             receivedTotal = receivedTotal,
             // Categories ignore the category filter so the list can still be used to switch.
-            categories = categories(inRange.filter { it.direction == query.direction }),
+            categories = categories(
+                inRange.filter { it.direction == query.direction },
+                budgets.takeIf { query.period == DashboardPeriod.THIS_MONTH && query.direction == FlowDirection.SPENT }.orEmpty()
+            ),
             vendors = vendors(selected),
             sources = sources(selected),
             trend = trend,
@@ -74,10 +79,14 @@ object DashboardBuilder {
         return Movement(message, tx, amount, date)
     }
 
-    private fun categories(movements: List<Movement>): List<CategoryTotal> =
-        movements.groupBy { it.message.category }
-            .map { (category, items) -> CategoryTotal(category, items.sumOf { it.amount }, items.size) }
-            .sortedByDescending { it.total }
+    private fun categories(movements: List<Movement>, budgets: Map<MessageCategory, BigDecimal>): List<CategoryTotal> {
+        val totals = movements.groupBy { it.message.category }
+            .map { (category, items) -> CategoryTotal(category, items.sumOf { it.amount }, items.size, budgets[category]) }
+        // A category with a budget stays listed even before the first payment of the month.
+        val untouched = budgets.keys.filter { key -> totals.none { it.category == key } }
+            .map { CategoryTotal(it, BigDecimal.ZERO, 0, budgets[it]) }
+        return (totals + untouched).sortedByDescending { it.total }
+    }
 
     private fun vendors(movements: List<Movement>): List<VendorSummary> =
         movements.sortedByDescending { it.message.message.date }
@@ -142,6 +151,13 @@ object DashboardBuilder {
             DashboardPeriod.ALL_TIME -> null
         }
 
+    private fun point(start: LocalDate, movements: List<Movement>): TrendPoint {
+        val byCategory = movements.groupBy { it.message.category }
+            .map { (category, items) -> category to items.sumOf { it.amount } }
+            .sortedByDescending { it.second }
+        return TrendPoint(start, movements.sumOf { it.amount }, byCategory)
+    }
+
     private fun trend(
         movements: List<Movement>,
         period: DashboardPeriod,
@@ -150,20 +166,20 @@ object DashboardBuilder {
     ): Pair<List<TrendPoint>, TrendUnit> {
         val byDay = period == DashboardPeriod.THIS_MONTH || period == DashboardPeriod.LAST_MONTH
         return if (byDay) {
-            val perDay = movements.groupBy { it.date }.mapValues { (_, v) -> v.sumOf { it.amount } }
+            val perDay = movements.groupBy { it.date }
             val days = ChronoUnit.DAYS.between(range.start, range.endInclusive).toInt() + 1
             List(days) { i ->
                 val day = range.start.plusDays(i.toLong())
-                TrendPoint(day, perDay[day] ?: BigDecimal.ZERO)
+                point(day, perDay[day].orEmpty())
             } to TrendUnit.DAY
         } else {
-            val perMonth = movements.groupBy { YearMonth.from(it.date) }.mapValues { (_, v) -> v.sumOf { it.amount } }
+            val perMonth = movements.groupBy { YearMonth.from(it.date) }
             val last = YearMonth.from(minOf(range.endInclusive, today))
             val first = maxOf(YearMonth.from(range.start), last.minusMonths(MAX_MONTH_BARS - 1L))
             val months = ChronoUnit.MONTHS.between(first, last).toInt() + 1
             List(months) { i ->
                 val month = first.plusMonths(i.toLong())
-                TrendPoint(month.atDay(1), perMonth[month] ?: BigDecimal.ZERO)
+                point(month.atDay(1), perMonth[month].orEmpty())
             } to TrendUnit.MONTH
         }
     }

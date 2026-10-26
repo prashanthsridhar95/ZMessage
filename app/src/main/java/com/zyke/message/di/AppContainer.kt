@@ -1,10 +1,12 @@
 package com.zyke.message.di
 
 import android.content.Context
+import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
 import com.zyke.message.data.repository.UserMessageStateRepositoryImpl
 import com.zyke.message.data.sms.SmsDataSource
 import com.zyke.message.domain.classification.MessageClassifier
+import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.SmsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -15,6 +17,7 @@ class AppContainer(context: Context) {
 
     val smsRepository: SmsRepository = SmsRepositoryImpl(smsDataSource)
     val userMessageState: UserMessageStateRepository = UserMessageStateRepositoryImpl(context)
+    val budgets: BudgetRepository = BudgetRepositoryImpl(context)
     val messageClassifier = MessageClassifier()
     val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier)
 }

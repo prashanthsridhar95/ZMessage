@@ -45,8 +45,9 @@ sent / received transactions for a period (this month, last month, 3 months, all
 
 - a headline total with a comparison against the previous period (same number of days for a
   partial month), plus spent and received totals
-- a daily (or monthly) trend
-- totals **by category**: tap one to filter everything below it
+- a daily (or monthly) trend, drawn as bars stacked by category with a colour key
+- totals **by category**: tap one to filter everything below it; set a **monthly budget** per category
+  and see what is left (amber from 80%, red once over) for this month's spending
 - **top vendors** (UPI ids and merchants grouped by name): tap one for its latest payments
 - **paid from**: which account or card the money moved through
 

@@ -12,16 +12,20 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -149,19 +153,18 @@ internal fun HeroCard(dashboard: Dashboard, period: DashboardPeriod, modifier: M
     }
 }
 
-/** One bar per day (or month), tallest = 100%. */
+/** One stacked bar per day (or month), split by category; tallest = 100%. */
 @Composable
 internal fun TrendChart(
     points: List<TrendPoint>,
     unit: TrendUnit,
+    ranking: List<MessageCategory>,
     modifier: Modifier = Modifier
 ) {
     if (points.isEmpty()) return
     val peak = points.maxBy { it.amount }
     val max = peak.amount
-    val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
-    val monthFmt = DateTimeFormatter.ofPattern("MMM yy", Locale.getDefault())
-    val fmt = if (unit == TrendUnit.DAY) dayFmt else monthFmt
+    val fmt = DateTimeFormatter.ofPattern(if (unit == TrendUnit.DAY) "d MMM" else "MMM yy", Locale.getDefault())
 
     val summary = if (max.signum() > 0) {
         "Peak ${DisplayFormatters.rupees(max)} on ${fmt.format(peak.start)}"
@@ -179,18 +182,17 @@ internal fun TrendChart(
             verticalAlignment = Alignment.Bottom
         ) {
             points.forEach { point ->
-                val fraction = point.amount.fractionOf(max)
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(if (point.amount.signum() > 0) fraction.coerceAtLeast(0.04f) else 0.02f)
-                            .background(
-                                if (point.amount.signum() > 0) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)
-                            )
-                    )
+                    if (point.amount.signum() <= 0) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(0.02f)
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                        )
+                    } else {
+                        StackedBar(point, max, ranking)
+                    }
                 }
             }
         }
@@ -203,13 +205,68 @@ internal fun TrendChart(
 }
 
 @Composable
+private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<MessageCategory>) {
+    val height = point.amount.fractionOf(max).coerceAtLeast(0.04f)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(height)
+            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+    ) {
+        // Largest on top; weights are the amounts themselves.
+        point.byCategory.forEach { (category, amount) ->
+            val weight = amount.toFloat()
+            if (weight > 0f) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(weight)
+                        .background(ChartColors.forCategory(category, ranking))
+                )
+            }
+        }
+    }
+}
+
+/** Colour key for the chart: the biggest categories, plus "Other" if there are more. */
+@Composable
+internal fun ChartLegend(ranking: List<MessageCategory>, modifier: Modifier = Modifier) {
+    if (ranking.isEmpty()) return
+    LazyRow(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = SECTION_PADDING),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(ranking.take(ChartColors.NAMED), key = { it.name }) { category ->
+            LegendItem(ChartColors.forCategory(category, ranking), category.displayString)
+        }
+        if (ranking.size > ChartColors.NAMED) {
+            item(key = "other") { LegendItem(ChartColors.other, "Other") }
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Caption(label)
+    }
+}
+
+@Composable
 internal fun CategoryRow(
     item: CategoryTotal,
     total: BigDecimal,
+    color: Color,
     selected: Boolean,
+    canSetBudget: Boolean,
     onClick: () -> Unit,
+    onEditBudget: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val budget = item.budget
     Column(
         modifier
             .fillMaxWidth()
@@ -217,19 +274,66 @@ internal fun CategoryRow(
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
             .padding(horizontal = SECTION_PADDING, vertical = 10.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).background(color, CircleShape))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(item.category.displayString, color = MaterialTheme.colorScheme.secondary)
-                Caption("${item.count} ${if (item.count == 1) "payment" else "payments"} · ${(item.total.fractionOf(total) * 100).roundToInt()}%")
+                Caption(
+                    if (item.count == 0) "Nothing yet"
+                    else "${item.count} ${if (item.count == 1) "payment" else "payments"} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
+                )
             }
             Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
         }
-        ShareBar(item.total.fractionOf(total))
+
+        if (budget != null) {
+            BudgetMeter(item, budget, onEditBudget, canSetBudget)
+        } else {
+            ShareBar(item.total.fractionOf(total), color = color)
+            if (canSetBudget) {
+                TextButton(onClick = onEditBudget, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text("Set monthly budget", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+/** Progress against a monthly limit: amber from 80%, red once over. */
+@Composable
+private fun BudgetMeter(item: CategoryTotal, budget: BigDecimal, onEdit: () -> Unit, editable: Boolean) {
+    val used = item.usedFraction ?: 0.0
+    val over = used > 1.0
+    val color = when {
+        over -> MaterialTheme.colorScheme.error
+        used >= 0.8 -> ChartColors.warning
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val remaining = item.remaining ?: BigDecimal.ZERO
+
+    ShareBar(used.toFloat(), color = color)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Caption(
+            text = if (over) "${DisplayFormatters.rupees(remaining.negate())} over ${DisplayFormatters.rupees(budget)} budget"
+            else "${DisplayFormatters.rupees(remaining)} left of ${DisplayFormatters.rupees(budget)}",
+            modifier = Modifier.weight(1f).padding(top = 4.dp),
+            color = if (over) MaterialTheme.colorScheme.error else mutedColor()
+        )
+        if (editable) {
+            TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Text("Edit", style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 
 @Composable
-internal fun ShareBar(fraction: Float, modifier: Modifier = Modifier) {
+internal fun ShareBar(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
     Box(
         modifier
             .padding(top = 6.dp)
@@ -239,9 +343,9 @@ internal fun ShareBar(fraction: Float, modifier: Modifier = Modifier) {
     ) {
         Box(
             Modifier
-                .fillMaxWidth(fraction.coerceAtLeast(0.01f))
+                .fillMaxWidth(fraction.coerceIn(0.01f, 1f))
                 .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                .background(color, RoundedCornerShape(2.dp))
         )
     }
 }

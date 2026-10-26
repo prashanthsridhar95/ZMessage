@@ -136,4 +136,33 @@ class DashboardBuilderTest {
         assertTrue(d.isEmpty)
         assertNull(d.changePercent)
     }
+
+    @Test
+    fun trendBars_areSplitByCategory() {
+        val d = build(listOf(sent("500.00", "friend@ybl", 1), sent("800.00", "swiggy@ybl", 1)))
+        val bar = d.trend[13] // 14 Mar
+        assertAmount("1300", bar.amount)
+        assertEquals(listOf(MessageCategory.FOOD, MessageCategory.UPI_PAYMENT), bar.byCategory.map { it.first })
+    }
+
+    @Test
+    fun budgets_attachToThisMonthSpendingOnly() {
+        val messages = listOf(sent("800.00", "swiggy@ybl", 1), sent("500.00", "friend@ybl", 2))
+        val budgets = mapOf(
+            MessageCategory.FOOD to java.math.BigDecimal("1000"),
+            MessageCategory.SHOPPING to java.math.BigDecimal("2000") // nothing spent yet
+        )
+
+        val d = DashboardBuilder.build(messages, DashboardQuery(), now, zone, budgets)
+        val food = d.categories.first { it.category == MessageCategory.FOOD }
+        assertAmount("200", food.remaining!!)
+        assertEquals(0.8, food.usedFraction!!, 0.0001)
+        assertEquals(0, d.categories.first { it.category == MessageCategory.SHOPPING }.count)
+        assertNull(d.categories.first { it.category == MessageCategory.UPI_PAYMENT }.budget)
+
+        val lastMonth = DashboardBuilder.build(messages, DashboardQuery(period = DashboardPeriod.LAST_MONTH), now, zone, budgets)
+        assertTrue(lastMonth.categories.all { it.budget == null })
+        val received = DashboardBuilder.build(messages, DashboardQuery(direction = FlowDirection.RECEIVED), now, zone, budgets)
+        assertTrue(received.categories.all { it.budget == null })
+    }
 }

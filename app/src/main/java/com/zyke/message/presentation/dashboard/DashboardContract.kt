@@ -6,6 +6,7 @@ import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
+import java.math.BigDecimal
 import java.time.Instant
 
 object DashboardContract {
@@ -15,11 +16,17 @@ object DashboardContract {
         val permissionMissing: Boolean = false,
         val hasError: Boolean = false,
 
+        /** True once the first inbox snapshot has arrived. */
+        val hasLoaded: Boolean = false,
         val messages: List<ClassifiedMessage> = emptyList(),
         val period: DashboardPeriod = DashboardPeriod.THIS_MONTH,
         val direction: FlowDirection = FlowDirection.SPENT,
         val category: MessageCategory? = null,
         val now: Instant = Instant.EPOCH,
+
+        val budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        /** Category whose budget is being edited, if the dialog is open. */
+        val editingBudget: MessageCategory? = null,
 
         val expandedVendor: String? = null,
         val showAllVendors: Boolean = false,
@@ -38,6 +45,9 @@ object DashboardContract {
         data object ClearCategory : Intent
         data class ToggleVendor(val key: String) : Intent
         data object ToggleShowAllVendors : Intent
+        data class EditBudget(val category: MessageCategory?) : Intent
+        /** [text] is whatever the user typed; blank removes the budget. */
+        data class SaveBudget(val category: MessageCategory, val text: String) : Intent
     }
 
     sealed interface Effect

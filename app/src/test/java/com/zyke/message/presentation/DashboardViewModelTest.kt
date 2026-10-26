@@ -5,16 +5,20 @@ import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.SmsMessage
+import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.SmsRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
 import com.zyke.message.presentation.dashboard.DashboardViewModel
+import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -49,11 +53,19 @@ class DashboardViewModelTest {
         override fun observeInbox() = source
     }
 
+    private class FakeBudgets : BudgetRepository {
+        private val _budgets = MutableStateFlow<Map<MessageCategory, BigDecimal>>(emptyMap())
+        override val budgets: StateFlow<Map<MessageCategory, BigDecimal>> = _budgets
+        override fun setBudget(category: MessageCategory, amount: BigDecimal?) {
+            _budgets.value = if (amount == null) _budgets.value - category else _budgets.value + (category to amount)
+        }
+    }
+
     @Before fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
     @After fun tearDown() = Dispatchers.resetMain()
 
     private fun vm(source: Flow<List<SmsMessage>> = flow { emit(inbox) }) = DashboardViewModel(
-        ObserveMessagesUseCase(FakeRepo(source), MessageClassifier(), Dispatchers.Unconfined), clock
+        ObserveMessagesUseCase(FakeRepo(source), MessageClassifier(), Dispatchers.Unconfined), FakeBudgets(), clock
     )
 
     @Test
@@ -114,5 +126,21 @@ class DashboardViewModelTest {
         val vm = vm(flow { throw SecurityException("denied") })
         vm.onIntent(Intent.ScreenStarted(true))
         assertTrue(vm.state.value.hasError)
+    }
+
+    @Test
+    fun savingBudget_updatesDashboard_andBlankClearsIt() {
+        val vm = vm()
+        vm.onIntent(Intent.ScreenStarted(true))
+        vm.onIntent(Intent.EditBudget(MessageCategory.FOOD))
+        assertEquals(MessageCategory.FOOD, vm.state.value.editingBudget)
+
+        vm.onIntent(Intent.SaveBudget(MessageCategory.FOOD, "1,000"))
+        assertNull(vm.state.value.editingBudget)
+        val food = vm.state.value.dashboard!!.categories.first { it.category == MessageCategory.FOOD }
+        assertEquals(200.0, food.remaining!!.toDouble(), 0.001)
+
+        vm.onIntent(Intent.SaveBudget(MessageCategory.FOOD, "  "))
+        assertNull(vm.state.value.dashboard!!.categories.first { it.category == MessageCategory.FOOD }.budget)
     }
 }

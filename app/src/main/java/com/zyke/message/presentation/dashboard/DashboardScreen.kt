@@ -28,7 +28,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
 import com.zyke.message.presentation.dashboard.DashboardContract.State
+import com.zyke.message.domain.dashboard.DashboardPeriod
+import com.zyke.message.domain.dashboard.FlowDirection
+import com.zyke.message.presentation.dashboard.components.BudgetDialog
 import com.zyke.message.presentation.dashboard.components.CategoryRow
+import com.zyke.message.presentation.dashboard.components.ChartColors
+import com.zyke.message.presentation.dashboard.components.ChartLegend
 import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.HeroCard
 import com.zyke.message.presentation.dashboard.components.SectionTitle
@@ -98,17 +103,24 @@ fun DashboardScreen(state: State, onIntent: (Intent) -> Unit, modifier: Modifier
                 }
 
                 item(key = "hero") { HeroCard(dashboard, state.period) }
-                item(key = "trend") { TrendChart(dashboard.trend, dashboard.trendUnit) }
+                val ranking = dashboard.categories.map { it.category }
+                item(key = "trend") { TrendChart(dashboard.trend, dashboard.trendUnit, ranking) }
+                item(key = "legend") { ChartLegend(ranking, Modifier.padding(top = 8.dp)) }
 
                 item(key = "categories-title") { SectionTitle(stringResource(R.string.dashboard_by_category)) }
+                // Budgets are monthly limits, so they only make sense against this month's spending.
+                val budgetsApply = state.period == DashboardPeriod.THIS_MONTH && state.direction == FlowDirection.SPENT
                 val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
                 items(dashboard.categories.size, key = { "cat-${dashboard.categories[it].category}" }) { index ->
                     val item = dashboard.categories[index]
                     CategoryRow(
                         item = item,
                         total = categoryTotal,
+                        color = ChartColors.forRank(index),
                         selected = item.category == state.category,
-                        onClick = { onIntent(Intent.SelectCategory(item.category)) }
+                        canSetBudget = budgetsApply,
+                        onClick = { onIntent(Intent.SelectCategory(item.category)) },
+                        onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
                     )
                 }
 
@@ -145,6 +157,15 @@ fun DashboardScreen(state: State, onIntent: (Intent) -> Unit, modifier: Modifier
                 item(key = "footer") { Box(Modifier.padding(24.dp)) }
             }
         }
+    }
+
+    state.editingBudget?.let { category ->
+        BudgetDialog(
+            category = category,
+            current = state.budgets[category],
+            onSave = { onIntent(Intent.SaveBudget(category, it)) },
+            onDismiss = { onIntent(Intent.EditBudget(null)) }
+        )
     }
 }
 

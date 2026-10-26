@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.dashboard.DashboardBuilder
+import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
@@ -17,10 +18,17 @@ import kotlinx.coroutines.launch
 
 class DashboardViewModel(
     private val observeMessages: ObserveMessagesUseCase,
+    private val budgetRepository: BudgetRepository,
     private val clock: Clock = Clock.systemDefaultZone()
-) : MviViewModel<State, Intent, Effect>(State(now = clock.instant())) {
+) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), budgets = budgetRepository.budgets.value)) {
 
     private var observeJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
+        }
+    }
 
     override fun handleIntent(intent: Intent) {
         when (intent) {
@@ -38,6 +46,14 @@ class DashboardViewModel(
                 copy(expandedVendor = if (expandedVendor == intent.key) null else intent.key)
             }
             Intent.ToggleShowAllVendors -> reduce { copy(showAllVendors = !showAllVendors) }
+
+            is Intent.EditBudget -> reduce { copy(editingBudget = intent.category) }
+            is Intent.SaveBudget -> {
+                val amount = intent.text.trim().replace(",", "").toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+                // Blank or unusable input clears the budget rather than keeping a stale one.
+                budgetRepository.setBudget(intent.category, amount)
+                reduce { copy(editingBudget = null) }
+            }
         }
     }
 
@@ -49,21 +65,28 @@ class DashboardViewModel(
             observeMessages()
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
-                    reduceDashboard { copy(isLoading = false, hasError = false, messages = inbox, now = clock.instant()) }
+                    reduceDashboard { copy(isLoading = false, hasError = false, hasLoaded = true, messages = inbox, now = clock.instant()) }
                 }
         }
     }
 
     private fun reduceDashboard(change: State.() -> State) = reduce {
         val updated = change()
-        updated.copy(
-            dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone)
-        )
+        if (!updated.hasLoaded) {
+            updated
+        } else {
+            updated.copy(
+                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets)
+            )
+        }
     }
 
-    class Factory(private val observeMessages: ObserveMessagesUseCase) : ViewModelProvider.Factory {
+    class Factory(
+        private val observeMessages: ObserveMessagesUseCase,
+        private val budgetRepository: BudgetRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            DashboardViewModel(observeMessages) as T
+            DashboardViewModel(observeMessages, budgetRepository) as T
     }
 }

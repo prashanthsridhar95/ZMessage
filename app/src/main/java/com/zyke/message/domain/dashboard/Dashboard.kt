@@ -47,13 +47,27 @@ data class VendorSummary(
     val recent: List<Payment>
 )
 
-data class CategoryTotal(val category: MessageCategory, val total: BigDecimal, val count: Int)
+data class CategoryTotal(
+    val category: MessageCategory,
+    val total: BigDecimal,
+    val count: Int,
+    /** Monthly limit; only attached when looking at money spent this month. */
+    val budget: BigDecimal? = null
+) {
+    val remaining: BigDecimal? get() = budget?.subtract(total)
+    val usedFraction: Double? get() = budget?.takeIf { it.signum() > 0 }?.let { total.toDouble() / it.toDouble() }
+}
 
 data class SourceTotal(val label: String, val total: BigDecimal, val count: Int)
 
 enum class TrendUnit { DAY, MONTH }
 
-data class TrendPoint(val start: LocalDate, val amount: BigDecimal)
+data class TrendPoint(
+    val start: LocalDate,
+    val amount: BigDecimal,
+    /** [amount] split by category, largest first. */
+    val byCategory: List<Pair<MessageCategory, BigDecimal>> = emptyList()
+)
 
 data class Dashboard(
     val range: DateRange,
