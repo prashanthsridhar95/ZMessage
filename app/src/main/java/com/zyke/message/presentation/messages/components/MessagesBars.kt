@@ -21,10 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -120,26 +117,6 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
         )
-    }
-}
-
-@Composable
-fun MessagesBottomBar(modifier: Modifier = Modifier) {
-    Column(modifier) {
-        HorizontalDivider(
-            Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-        )
-        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            NavigationBarItem(
-                selected = true,
-                onClick = {},
-                icon = {
-                    Icon(painter = painterResource(R.drawable.baseline_message_24), contentDescription = null)
-                },
-                label = { Text("Messages") }
-            )
-        }
     }
 }
 

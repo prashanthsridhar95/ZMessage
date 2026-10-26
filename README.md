@@ -12,6 +12,8 @@ Clean Architecture with an MVI presentation layer, 100% Jetpack Compose UI, no D
 ```
 com.zyke.message
 ├── domain            pure Kotlin, no Android imports
+│   ├── dashboard       DashboardBuilder: totals, categories, vendors, sources, trend
+│   ├── feed            FeedBuilder, AttentionBuilder, SpendSummaryBuilder
 │   ├── model           SmsMessage, ClassifiedMessage, MessageContent, MessageCategory, ...
 │   ├── classification  MessageClassifier + parsers (bank, FASTag, OTP) + MerchantResolver
 │   ├── repository      SmsRepository (interface)
@@ -35,6 +37,20 @@ Dependencies point inwards: `presentation -> domain <- data`.
 `MessagesRoute` sends `Intent`s to `MessagesViewModel`, which reduces them into an immutable
 `State` (exposed as a `StateFlow`) and emits one-shot `Effect`s (permission request, clipboard).
 `MessagesScreen` is stateless: `(State, (Intent) -> Unit) -> Unit`.
+
+### Dashboard tab
+
+The second tab answers "where does my money go?". `DashboardBuilder` (domain, pure) aggregates the
+sent / received transactions for a period (this month, last month, 3 months, all time) into:
+
+- a headline total with a comparison against the previous period (same number of days for a
+  partial month), plus spent and received totals
+- a daily (or monthly) trend
+- totals **by category**: tap one to filter everything below it
+- **top vendors** (UPI ids and merchants grouped by name): tap one for its latest payments
+- **paid from**: which account or card the money moved through
+
+State and intents live in `DashboardContract` / `DashboardViewModel`, separate from the messages tab.
 
 ### Feed model
 

@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zyke.message.R
@@ -95,10 +96,11 @@ internal fun MerchantChip(
     logo: MerchantLogo,
     modifier: Modifier = Modifier,
     description: String? = null,
-    isUnread: Boolean = false
+    isUnread: Boolean = false,
+    size: Dp = 60.dp
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(modifier.size(60.dp)) {
+    val shape = RoundedCornerShape(size / 4)
+    Box(modifier.size(size)) {
         Box(
             Modifier
                 .matchParentSize()

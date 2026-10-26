@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,7 +46,6 @@ import com.zyke.message.presentation.messages.components.CategoryBar
 import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
-import com.zyke.message.presentation.messages.components.MessagesBottomBar
 import com.zyke.message.presentation.messages.components.MessagesTopBar
 import com.zyke.message.presentation.messages.components.SmartFilterRow
 import kotlinx.coroutines.delay
@@ -57,7 +55,7 @@ private const val TICK_MILLIS = 30_000L
 
 /** Stateful entry point: wires the [MessagesViewModel] to the stateless [MessagesScreen]. */
 @Composable
-fun MessagesRoute(viewModel: MessagesViewModel) {
+fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -115,20 +113,25 @@ fun MessagesRoute(viewModel: MessagesViewModel) {
         }
     }
 
-    MessagesScreen(state = state, onIntent = viewModel::onIntent, snackbarHostState = snackbarHostState)
+    MessagesScreen(
+        state = state,
+        onIntent = viewModel::onIntent,
+        snackbarHostState = snackbarHostState,
+        modifier = modifier
+    )
 }
 
 @Composable
 fun MessagesScreen(
     state: State,
     onIntent: (Intent) -> Unit,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    modifier: Modifier = Modifier
 ) {
     val actions = remember(onIntent) { onIntent.toFeedActions() }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
+    Box(modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
             MessagesTopBar(
                 isSearching = state.isSearching,
                 query = state.query,
@@ -137,11 +140,7 @@ fun MessagesScreen(
                 categoryBarVisible = state.showCategoryBar,
                 onToggleCategoryBar = { onIntent(Intent.ToggleCategoryBar) }
             )
-        },
-        bottomBar = { MessagesBottomBar() },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+
             val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
             if (ready && !state.isSearching) {
                 SmartFilterRow(
@@ -162,15 +161,15 @@ fun MessagesScreen(
                     state.permission == PermissionStatus.DENIED -> PermissionRequired(
                         onGrant = { onIntent(Intent.RequestPermission) }
                     )
-                    state.hasError -> CenteredMessage(
-                        stringResource(R.string.messages_error), null
-                    )
+                    state.hasError -> CenteredMessage(stringResource(R.string.messages_error), null)
                     state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
                     state.feed.visibleCount == 0 -> EmptyState(state)
                     else -> MessageList(state, actions, Modifier.fillMaxSize())
                 }
             }
         }
+
+        SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 

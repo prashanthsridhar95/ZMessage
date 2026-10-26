@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.zyke.message.ZykeMessagesApplication
-import com.zyke.message.presentation.messages.MessagesRoute
+import com.zyke.message.presentation.dashboard.DashboardViewModel
 import com.zyke.message.presentation.messages.MessagesViewModel
 import com.zyke.message.presentation.theme.ZykeMessageTheme
 
@@ -17,13 +17,17 @@ class MainActivity : ComponentActivity() {
         MessagesViewModel.Factory(container.observeMessages, container.userMessageState)
     }
 
+    private val dashboardViewModel: DashboardViewModel by viewModels {
+        DashboardViewModel.Factory((application as ZykeMessagesApplication).container.observeMessages)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
             ZykeMessageTheme {
-                MessagesRoute(viewModel)
+                AppRoot(viewModel, dashboardViewModel)
             }
         }
     }
