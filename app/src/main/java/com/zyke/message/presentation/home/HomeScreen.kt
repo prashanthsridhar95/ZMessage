@@ -41,6 +41,7 @@ import com.zyke.message.domain.home.UpcomingKind
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.AppTab
+import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.HeroCard
@@ -113,9 +114,11 @@ fun HomeScreen(
         Header(state)
         when {
             state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
-            state.hasError -> Column(Modifier.fillMaxWidth().padding(32.dp)) {
-                Text("Couldn't read your messages", color = MaterialTheme.colorScheme.secondary)
-            }
+            state.hasError -> ErrorState(
+                title = "Couldn't read your messages",
+                hint = "Check that SMS access is allowed, then try again.",
+                onRetry = { onIntent(Intent.Retry) }
+            )
             state.isLoading || !state.hasLoaded -> MessageListSkeleton()
             else -> HomeContent(state, onIntent, onNavigate)
         }

@@ -57,6 +57,8 @@ object DashboardContract {
         data object ResetFilters : Intent
         data class ToggleVendor(val key: String) : Intent
         data object ToggleShowAllVendors : Intent
+        /** Try again after the inbox could not be read. */
+        data object Retry : Intent
         data class ToggleCard(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
         data class EditBudget(val category: MessageCategory?) : Intent

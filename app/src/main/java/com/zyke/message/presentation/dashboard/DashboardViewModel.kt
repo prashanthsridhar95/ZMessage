@@ -51,6 +51,10 @@ class DashboardViewModel(
             is Intent.ToggleVendor -> reduce {
                 copy(expandedVendor = if (expandedVendor == intent.key) null else intent.key)
             }
+            Intent.Retry -> {
+                reduce { copy(hasError = false, isLoading = true) }
+                startObserving()
+            }
             Intent.ToggleShowAllVendors -> reduce { copy(showAllVendors = !showAllVendors) }
             is Intent.ToggleCard -> reduce { copy(expandedCard = if (expandedCard == intent.key) null else intent.key) }
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))

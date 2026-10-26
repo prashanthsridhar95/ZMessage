@@ -53,6 +53,10 @@ class HomeViewModel(
             }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
+            Intent.Retry -> {
+                reduce { copy(hasError = false, isLoading = true) }
+                startObserving()
+            }
         }
     }
 

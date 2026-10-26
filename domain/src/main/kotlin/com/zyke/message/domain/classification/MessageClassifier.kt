@@ -5,6 +5,7 @@ import com.zyke.message.domain.model.BankTransactionType
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.CourierStatus
 import com.zyke.message.domain.model.Merchant
+import com.zyke.message.domain.model.MerchantLogo
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.ScheduledKind
@@ -22,7 +23,35 @@ class MessageClassifier(
     private val otpParser: OtpParser = OtpParser()
 ) {
 
+    /**
+     * Never throws: a message the parsers choke on is shown as a plain message rather than
+     * taking the list down, and very long bodies are only parsed up to [MAX_PARSED_LENGTH]
+     * characters so regex work stays bounded.
+     */
     fun classify(message: SmsMessage): ClassifiedMessage {
+        val input = if (message.body.length > MAX_PARSED_LENGTH) {
+            message.copy(body = message.body.take(MAX_PARSED_LENGTH))
+        } else {
+            message
+        }
+
+        val result = try {
+            classifyUnchecked(input)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            plain(input)
+        }
+        // Always hand back the original, untruncated message.
+        return if (input === message) result else result.copy(message = message)
+    }
+
+    private fun plain(message: SmsMessage) = ClassifiedMessage(
+        message = message,
+        category = MessageCategory.OTHERS,
+        merchant = Merchant(message.sender, MerchantLogo.PERSON, MessageCategory.OTHERS),
+        content = MessageContent.Generic
+    )
+
+    private fun classifyUnchecked(message: SmsMessage): ClassifiedMessage {
         val body = message.body
         return when {
             OtpParser.isOtp(body) -> otp(message)
@@ -190,6 +219,8 @@ class MessageClassifier(
         if (raw.startsWith("x")) raw.replace("x", "") else raw
 
     private companion object {
+        const val MAX_PARSED_LENGTH = 4096
+
         val DATA_USAGE =
             """(\d+)% Alert: You have consumed \1% of your daily high Speed Data limit\. Track usage on Airtel Thanks App i\.airtel\.in/Get-Data""".toRegex()
         val LOYALTY =

@@ -38,6 +38,7 @@ import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CategoryRow
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ChartLegend
+import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
@@ -138,7 +139,11 @@ fun DashboardScreen(
         val dashboard = state.dashboard
         when {
             state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
-            state.hasError -> Notice(stringResource(R.string.messages_error), null)
+            state.hasError -> ErrorState(
+                title = stringResource(R.string.messages_error),
+                hint = stringResource(R.string.error_hint),
+                onRetry = { onIntent(Intent.Retry) }
+            )
             state.isLoading || dashboard == null -> MessageListSkeleton()
             else -> DashboardContent(state, dashboard, onIntent)
         }

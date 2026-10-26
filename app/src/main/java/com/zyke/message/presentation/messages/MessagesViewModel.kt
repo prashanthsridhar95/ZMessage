@@ -44,6 +44,13 @@ class MessagesViewModel(
             is Intent.ScreenStarted -> onScreenStarted(intent.permissionGranted)
             is Intent.PermissionResult -> onPermissionResult(intent.granted)
             Intent.RequestPermission -> emitEffect(Effect.LaunchPermissionRequest)
+            Intent.Retry ->
+                if (currentState().permission == PermissionStatus.GRANTED) {
+                    reduce { copy(hasError = false, isLoading = true) }
+                    startObserving()
+                } else {
+                    emitEffect(Effect.LaunchPermissionRequest)
+                }
             Intent.Tick -> reduceFeed { copy(now = clock.instant()) }
 
             is Intent.SetViewMode -> reduceFeed { copy(viewMode = intent.mode, openThreadKey = null, focusMessageId = null) }

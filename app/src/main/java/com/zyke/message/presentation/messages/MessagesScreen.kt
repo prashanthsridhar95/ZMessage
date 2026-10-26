@@ -49,6 +49,7 @@ import com.zyke.message.presentation.messages.components.SendersList
 import com.zyke.message.presentation.messages.components.ThreadScreen
 import java.time.LocalDate
 import java.time.ZoneId
+import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import com.zyke.message.presentation.messages.components.MessagesFilterSheet
@@ -195,7 +196,11 @@ fun MessagesScreen(
                         state.permission == PermissionStatus.DENIED -> PermissionGate(
                             onGrant = { onIntent(Intent.RequestPermission) }
                         )
-                        state.hasError -> CenteredMessage(stringResource(R.string.messages_error), null)
+                        state.hasError -> ErrorState(
+                            title = stringResource(R.string.messages_error),
+                            hint = stringResource(R.string.error_hint),
+                            onRetry = { onIntent(Intent.Retry) }
+                        )
                         state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
                         state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) {
                             EmptyState(state)

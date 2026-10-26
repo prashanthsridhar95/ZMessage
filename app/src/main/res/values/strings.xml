@@ -30,4 +30,6 @@
     <string name="dashboard_by_vendor_received">Top sources</string>
     <string name="dashboard_by_source_received">Received in</string>
     <string name="dashboard_empty_received">No money received in this period</string>
+    <string name="error_hint">Check that SMS access is allowed, then try again.</string>
+    <string name="report_copied">Report copied. Check it, then paste it where it is needed.</string>
 </resources>

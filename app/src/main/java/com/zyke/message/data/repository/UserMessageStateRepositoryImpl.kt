@@ -30,6 +30,11 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
 
     override fun dismissAttention(key: String) = change { copy(dismissedAttention = dismissedAttention + key) }
 
+    override fun clearAll() {
+        _state.value = UserMessageState()
+        prefs.edit().clear().apply()
+    }
+
     private fun change(transform: UserMessageState.() -> UserMessageState) {
         _state.update { it.transform() }
         save(_state.value)

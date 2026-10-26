@@ -10,4 +10,7 @@ interface UserMessageStateRepository {
     fun setArchived(messageId: Long, archived: Boolean)
     fun setPinned(messageId: Long, pinned: Boolean)
     fun dismissAttention(key: String)
+
+    /** Forgets every read / archived / pinned / dismissed mark. */
+    fun clearAll()
 }

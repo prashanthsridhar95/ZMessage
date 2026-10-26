@@ -59,6 +59,7 @@ class DashboardViewModelTest {
         override fun setBudget(category: MessageCategory, amount: BigDecimal?) {
             _budgets.value = if (amount == null) _budgets.value - category else _budgets.value + (category to amount)
         }
+        override fun clearAll() { _budgets.value = emptyMap() }
     }
 
     @Before fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -164,5 +165,18 @@ class DashboardViewModelTest {
         assertEquals(card.key, vm.state.value.expandedCard)
         vm.onIntent(Intent.ToggleCard(card.key))
         assertNull(vm.state.value.expandedCard)
+    }
+
+    @Test
+    fun retry_afterAFailure_loadsAgain() {
+        var attempts = 0
+        val vm = vm(flow { if (attempts++ == 0) throw SecurityException("boom") else emit(inbox) })
+        vm.onIntent(Intent.ScreenStarted(true))
+        assertTrue(vm.state.value.hasError)
+
+        vm.onIntent(Intent.Retry)
+
+        assertFalse(vm.state.value.hasError)
+        assertTrue(vm.state.value.dashboard != null)
     }
 }

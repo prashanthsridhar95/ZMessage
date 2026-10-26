@@ -67,6 +67,7 @@ class HomeViewModelTest {
         override fun markRead(messageId: Long) { _state.value = _state.value.copy(readIds = _state.value.readIds + messageId) }
         override fun setArchived(messageId: Long, archived: Boolean) {}
         override fun setPinned(messageId: Long, pinned: Boolean) {}
+        override fun clearAll() { _state.value = UserMessageState() }
         override fun dismissAttention(key: String) {
             _state.value = _state.value.copy(dismissedAttention = _state.value.dismissedAttention + key)
         }
@@ -76,6 +77,7 @@ class HomeViewModelTest {
         private val _b = MutableStateFlow(initial)
         override val budgets: StateFlow<Map<MessageCategory, BigDecimal>> = _b
         override fun setBudget(category: MessageCategory, amount: BigDecimal?) {}
+        override fun clearAll() {}
     }
 
     @Before fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -128,5 +130,17 @@ class HomeViewModelTest {
         vm.onIntent(Intent.CopyOtp(3, "482913"))
         assertEquals(Effect.CopyToClipboard("One-time Password", "482913"), vm.effects.first())
         assertTrue(3L in userState.state.value.readIds)
+    }
+
+    @Test
+    fun retry_afterAFailure_loadsAgain() {
+        var attempts = 0
+        val vm = vm(flow { if (attempts++ == 0) throw SecurityException("boom") else emit(inbox) })
+        vm.onIntent(Intent.ScreenStarted(true))
+        assertTrue(vm.state.value.hasError)
+
+        vm.onIntent(Intent.Retry)
+
+        assertTrue(!vm.state.value.hasError && vm.state.value.thisMonth != null)
     }
 }

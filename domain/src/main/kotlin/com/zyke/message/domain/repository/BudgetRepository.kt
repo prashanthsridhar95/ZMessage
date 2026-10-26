@@ -10,4 +10,7 @@ interface BudgetRepository {
 
     /** Passing null removes the budget. */
     fun setBudget(category: MessageCategory, amount: BigDecimal?)
+
+    /** Removes every budget. */
+    fun clearAll()
 }

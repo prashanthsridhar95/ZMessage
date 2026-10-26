@@ -44,6 +44,8 @@ object HomeContract {
         data class CopyOtp(val messageId: Long, val code: String) : Intent
         data class DismissAttention(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
+        /** Try again after the inbox could not be read. */
+        data object Retry : Intent
     }
 
     sealed interface Effect {

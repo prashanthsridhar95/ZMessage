@@ -58,6 +58,7 @@ class MessagesViewModelTest {
             val ids = _state.value.pinnedIds
             _state.value = _state.value.copy(pinnedIds = if (pinned) ids + messageId else ids - messageId)
         }
+        override fun clearAll() { _state.value = UserMessageState() }
         override fun dismissAttention(key: String) {
             _state.value = _state.value.copy(dismissedAttention = _state.value.dismissedAttention + key)
         }
@@ -308,5 +309,18 @@ class MessagesViewModelTest {
         vm.onIntent(Intent.SelectStatus(StatusFilter.PINNED))
 
         assertEquals(listOf(2L), vm.visibleIds())
+    }
+
+    @Test
+    fun retry_afterAFailure_loadsAgain() {
+        var attempts = 0
+        val vm = viewModel(flow { if (attempts++ == 0) throw SecurityException("boom") else emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+        assertTrue(vm.state.value.hasError)
+
+        vm.onIntent(Intent.Retry)
+
+        assertFalse(vm.state.value.hasError)
+        assertEquals(2, vm.state.value.feed.visibleCount)
     }
 }

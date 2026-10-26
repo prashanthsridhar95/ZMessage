@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import com.zyke.message.presentation.messages.components.BarIcon
 
 /**
  * The brand bar. It is the same on every tab and every screen, so there is always one fixed
@@ -24,7 +26,7 @@ import com.zyke.message.R
  * It also owns the status bar inset, so screens underneath don't have to.
  */
 @Composable
-fun ZykeToolbar(modifier: Modifier = Modifier) {
+fun ZykeToolbar(onSettings: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     Column(
         modifier
             .fillMaxWidth()
@@ -32,7 +34,7 @@ fun ZykeToolbar(modifier: Modifier = Modifier) {
             .statusBarsPadding()
     ) {
         Row(
-            Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().height(52.dp).padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
@@ -41,6 +43,10 @@ fun ZykeToolbar(modifier: Modifier = Modifier) {
                 colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                 contentDescription = "Zyke"
             )
+            if (onSettings != null) {
+                Spacer(Modifier.weight(1f))
+                BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onSettings)
+            }
         }
         HorizontalDivider(
             Modifier.padding(horizontal = 8.dp),

@@ -22,6 +22,11 @@ class BudgetRepositoryImpl(context: Context) : BudgetRepository {
         _budgets.value = if (amount == null) _budgets.value - category else _budgets.value + (category to amount)
     }
 
+    override fun clearAll() {
+        prefs.edit().clear().apply()
+        _budgets.value = emptyMap()
+    }
+
     private fun load(): Map<MessageCategory, BigDecimal> =
         MessageCategory.entries.mapNotNull { category ->
             prefs.getString(category.name, null)?.toBigDecimalOrNull()?.let { category to it }

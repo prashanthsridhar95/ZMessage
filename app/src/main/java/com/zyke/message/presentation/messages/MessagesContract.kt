@@ -68,6 +68,8 @@ object MessagesContract {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class PermissionResult(val granted: Boolean) : Intent
         data object RequestPermission : Intent
+        /** Try again after the inbox could not be read. */
+        data object Retry : Intent
         /** Periodic nudge so time-based things (OTP expiry, due dates) stay current. */
         data object Tick : Intent
 
