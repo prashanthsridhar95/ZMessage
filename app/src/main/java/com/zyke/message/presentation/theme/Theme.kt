@@ -1,4 +1,4 @@
-package com.zyke.message.ui.theme
+package com.zyke.message.presentation.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

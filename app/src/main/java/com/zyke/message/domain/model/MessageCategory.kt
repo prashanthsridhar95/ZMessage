@@ -1,6 +1,6 @@
-package com.zyke.message.datalayer
+package com.zyke.message.domain.model
 
-enum class ZCategory(val displayString: String) {
+enum class MessageCategory(val displayString: String) {
     ENTERTAINMENT("Entertainment"),
     FOOD("Food"),
     UPI_PAYMENT("UPI Payment"),

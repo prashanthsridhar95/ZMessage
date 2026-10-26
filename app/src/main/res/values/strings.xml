@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Zyke Message</string>
+    <string name="permission_title">Allow access to your messages</string>
+    <string name="permission_rationale">Zyke Message reads the SMS in your inbox on this device to sort them into OTPs, payments, bills and more. Nothing leaves your phone.</string>
+    <string name="permission_grant">Grant access</string>
+    <string name="messages_empty">No messages to show</string>
+    <string name="messages_error">Couldn\'t read your messages</string>
+    <string name="otp_copied">OTP copied to clipboard</string>
 </resources>

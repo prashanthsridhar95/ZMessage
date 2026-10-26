@@ -1,12 +1,4 @@
-package com.zyke.message.model
-
-data class ZBankMessage(
-    val bankName: BankName,
-    val accountNumber: String,
-    val payee: String,
-    val amount: String,
-    val transactionType: BankTransactionType
-)
+package com.zyke.message.domain.model
 
 enum class BankName(val displayString: String, val isCard: Boolean) {
     HDFC("HDFC", true),
@@ -20,9 +12,14 @@ enum class BankName(val displayString: String, val isCard: Boolean) {
 }
 
 enum class BankTransactionType(val displayString: String) {
-    SENT("Paid"), RECEIVED("Received"), CARD_BILL("Bill Generated");
-
-    companion object {
-        fun BankTransactionType.isReceived() = this == RECEIVED
-    }
+    SENT("Paid"), RECEIVED("Received"), CARD_BILL("Bill Generated")
 }
+
+/** Raw result of parsing a bank / card / pay-later SMS. */
+data class BankTransaction(
+    val bankName: BankName,
+    val accountNumber: String,
+    val payee: String,
+    val amount: String,
+    val type: BankTransactionType
+)
