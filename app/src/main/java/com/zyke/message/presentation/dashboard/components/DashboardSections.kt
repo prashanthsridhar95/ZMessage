@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,11 @@ import kotlin.math.roundToInt
 
 private fun BigDecimal.fractionOf(total: BigDecimal): Float =
     if (total.signum() <= 0) 0f else (toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
+
+@Composable
+private fun MoneyText(amount: BigDecimal, style: TextStyle, color: Color) {
+    Text(DisplayFormatters.rupees(amount), style = style, color = color, maxLines = 1)
+}
 
 private fun plural(count: Int, one: String, many: String) = if (count == 1) "$count $one" else "$count $many"
 
@@ -390,7 +396,7 @@ internal fun CategoryRow(
                 )
             }
             Spacer(Modifier.width(12.dp))
-            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            MoneyText(item.total, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.primary)
         }
 
         if (budget != null) {
@@ -484,7 +490,7 @@ internal fun VendorRow(
                 Caption("Last ${DateFormatters.dayHeader(last).substringBefore(",")}")
             }
             Spacer(Modifier.width(12.dp))
-            Text(DisplayFormatters.rupees(vendor.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            MoneyText(vendor.total, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.primary)
         }
         ShareBar(vendor.total.fractionOf(total), Modifier.padding(start = 56.dp))
 
@@ -497,7 +503,7 @@ internal fun VendorRow(
                             Caption(payment.source)
                         }
                         Spacer(Modifier.width(12.dp))
-                        Text(DisplayFormatters.rupees(payment.amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+                        MoneyText(payment.amount, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.secondary)
                     }
                 }
                 if (vendor.count > vendor.recent.size) {
@@ -517,7 +523,7 @@ internal fun SourceRow(item: SourceTotal, total: BigDecimal, direction: FlowDire
                 Caption(direction.countLabel(item.count))
             }
             Spacer(Modifier.width(12.dp))
-            Text(DisplayFormatters.rupees(item.total), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            MoneyText(item.total, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.primary)
         }
         ShareBar(item.total.fractionOf(total))
     }
@@ -594,7 +600,7 @@ private fun EarlierBill(bill: BillEntry, dayFmt: DateTimeFormatter) {
             Modifier.weight(1f),
             color = MaterialTheme.colorScheme.secondary
         )
-        Text(DisplayFormatters.rupees(bill.amount), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+        MoneyText(bill.amount, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.secondary)
     }
 }
 

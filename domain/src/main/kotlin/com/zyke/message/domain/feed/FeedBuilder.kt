@@ -80,8 +80,8 @@ object FeedBuilder {
             val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
             val earliest = when (filter.window) {
                 TimeWindow.TODAY -> today
-                TimeWindow.WEEK -> today.minusDays(6)
-                TimeWindow.MONTH -> today.minusDays(29)
+                TimeWindow.WEEK -> today.minusDays(TimeWindow.WEEK.days - 1)
+                TimeWindow.MONTH -> today.minusDays(TimeWindow.MONTH.days - 1)
                 TimeWindow.ANY -> date
             }
             if (date.isBefore(earliest)) return false

@@ -93,7 +93,7 @@ class GenericTransactionParser {
         // Last resort: the first amount that is not a balance / limit.
         return AMOUNT.findAll(body)
             .firstOrNull { match ->
-                val lead = body.substring((match.range.first - 25).coerceAtLeast(0), match.range.first)
+                val lead = body.substring((match.range.first - BALANCE_LOOKBEHIND).coerceAtLeast(0), match.range.first)
                 !NOT_THE_AMOUNT.containsMatchIn(lead)
             }?.groupValues?.get(1)?.let(::clean)
     }
@@ -143,6 +143,8 @@ class GenericTransactionParser {
     }
 
     companion object {
+        /** How far back to look for words like "balance" or "limit" before an amount. */
+        private const val BALANCE_LOOKBEHIND = 25
         private const val CURRENCY = "(?:INR\\.?|Rs\\.?|₹)"
         private const val NUMBER = "(\\d[\\d,]*(?:\\.\\d+)?)"
 

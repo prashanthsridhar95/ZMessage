@@ -11,8 +11,10 @@ import java.time.ZoneId
 /** Picks the few messages that need action right now. */
 object AttentionBuilder {
     private const val MAX_ITEMS = 3
-    private val BILL_WITHOUT_DUE_DATE_WINDOW: Duration = Duration.ofDays(30)
-    private val BILL_MAX_AGE: Duration = Duration.ofDays(60)
+    private const val BILL_WITHOUT_DUE_DATE_DAYS = 30L
+    private const val BILL_MAX_AGE_DAYS = 60L
+    private val BILL_WITHOUT_DUE_DATE_WINDOW: Duration = Duration.ofDays(BILL_WITHOUT_DUE_DATE_DAYS)
+    private val BILL_MAX_AGE: Duration = Duration.ofDays(BILL_MAX_AGE_DAYS)
 
     /** @param messages newest first */
     fun build(

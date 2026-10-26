@@ -18,8 +18,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing comes from the environment (CI secrets); without it the build is unsigned.
+    signingConfigs {
+        System.getenv("RELEASE_KEYSTORE_PATH")?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -37,6 +50,13 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    lint {
+        // Reports are uploaded by CI. Flip abortOnError once the first run is clean.
+        abortOnError = false
+        checkDependencies = true
+        htmlReport = true
+        sarifReport = true
     }
 }
 

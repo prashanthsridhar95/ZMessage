@@ -23,11 +23,11 @@ enum class StatusFilter(val label: String) {
     PINNED("Pinned only")
 }
 
-enum class TimeWindow(val label: String) {
-    ANY("Any time"),
-    TODAY("Today"),
-    WEEK("Last 7 days"),
-    MONTH("Last 30 days")
+enum class TimeWindow(val label: String, val days: Long) {
+    ANY("Any time", 0),
+    TODAY("Today", 1),
+    WEEK("Last 7 days", 7),
+    MONTH("Last 30 days", 30)
 }
 
 /**

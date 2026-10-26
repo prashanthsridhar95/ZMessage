@@ -6,8 +6,40 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  domain:
+    name: Domain tests and static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Domain tests
+        run: ./gradlew :domain:test
+      - name: Static analysis (detekt)
+        run: ./gradlew detekt
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-reports
+          path: |
+            domain/build/reports/
+            app/build/reports/detekt/
+          if-no-files-found: ignore
+
+  android:
+    name: Android tests, lint and debug APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,18 +49,23 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest
+      - name: Lint
+        run: ./gradlew :app:lintDebug
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew :app:assembleDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: zyke-message-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-      - name: Upload test reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unit-test-reports
-          path: app/build/reports/tests/
+          name: android-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore

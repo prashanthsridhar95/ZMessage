@@ -132,7 +132,8 @@ fun SettingsScreen(
                         ShareBar(fraction)
                         Caption(
                             if (diagnostics.unrecognised == 0) "Everything was understood."
-                            else "${diagnostics.unrecognised} shown as plain text. Copy a report with numbers, names and links masked, so they can be taught.",
+                            else "${diagnostics.unrecognised} shown as plain text. Copy a report with numbers, " +
+                                "names and links masked, so they can be taught.",
                             Modifier.padding(top = 8.dp),
                             maxLines = 4
                         )

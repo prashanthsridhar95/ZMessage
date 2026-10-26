@@ -32,6 +32,9 @@ object DisplayFormatters {
         }
     }
 
+    /** "1 message", "3 messages". */
+    fun count(count: Int, one: String, many: String): String = if (count == 1) "$count $one" else "$count $many"
+
     /** "₹12,345" (Indian digit grouping where the platform supports it), fractions only when non-zero. */
     fun rupees(amount: BigDecimal, locale: Locale = Locale.forLanguageTag("en-IN")): String {
         val format = NumberFormat.getNumberInstance(locale).apply {

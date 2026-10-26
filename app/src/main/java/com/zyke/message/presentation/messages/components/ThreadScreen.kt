@@ -29,6 +29,7 @@ import com.zyke.message.R
 import com.zyke.message.domain.conversation.Thread
 import com.zyke.message.domain.feed.SectionId
 import com.zyke.message.presentation.format.DateFormatters
+import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
 import java.time.ZoneId
@@ -88,7 +89,7 @@ fun ThreadScreen(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f).padding(end = 16.dp)) {
                     RowTitle(conversation.title())
-                    Caption("${conversation.messages.size} ${if (conversation.messages.size == 1) "message" else "messages"} · ${conversation.address}")
+                    Caption("${DisplayFormatters.count(conversation.messages.size, "message", "messages")} · ${conversation.address}")
                 }
             }
             HorizontalDivider(

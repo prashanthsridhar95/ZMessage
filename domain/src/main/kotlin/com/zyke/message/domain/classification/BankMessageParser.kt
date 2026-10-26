@@ -36,7 +36,8 @@ class BankMessageParser(
             message.contains("Petpooja", true) -> parsePetpooja(message)
             else -> BankTransaction(BankName.OTHERS, "", "", "", BankTransactionType.SENT)
         }
-    } catch (e: Exception) {
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        // Untrusted text: an unparseable message is simply not a bank message.
         null
     }
 

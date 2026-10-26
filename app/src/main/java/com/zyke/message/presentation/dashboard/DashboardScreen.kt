@@ -290,15 +290,3 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         }
     }
 }
-
-@Composable
-private fun Notice(title: String, hint: String?) {
-    Column(
-        Modifier.fillMaxWidth().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-        if (hint != null) Caption(hint, color = mutedColor(), maxLines = 3)
-    }
-}

@@ -6,37 +6,34 @@ Everything is processed on-device; the only permission is `READ_SMS`.
 
 ## Architecture
 
-Clean Architecture with an MVI presentation layer, 100% Jetpack Compose UI, no DI framework
-(a small manual `AppContainer`).
+Two Gradle modules: **`:domain`** (pure Kotlin) and **`:app`** (Android). Clean Architecture with an MVI
+presentation layer, 100% Jetpack Compose UI, and no DI framework (a small manual `AppContainer`).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams.
 
 ```
-com.zyke.message
-├── domain            pure Kotlin, no Android imports
-│   ├── dashboard       DashboardBuilder: totals, categories, vendors, sources, trend
-│   ├── feed            FeedBuilder, AttentionBuilder, SpendSummaryBuilder
-│   ├── model           SmsMessage, ClassifiedMessage, MessageContent, MessageCategory, ...
-│   ├── classification  MessageClassifier + parsers (bank, FASTag, OTP) + MerchantResolver
-│   ├── repository      SmsRepository (interface)
-│   └── usecase         ObserveMessagesUseCase: sort, de-duplicate, classify
-├── data              Android implementation of the domain contracts
-│   ├── sms             SmsDataSource (ContentResolver + ContentObserver)
-│   └── repository      SmsRepositoryImpl
-├── presentation
-│   ├── mvi             MviViewModel<State, Intent, Effect>
-│   ├── messages        MessagesContract, MessagesViewModel, MessagesScreen / MessagesRoute
-│   │   └── components  one composable per card type, bars, list, detail
-│   ├── format          date and text formatting
-│   └── theme
-└── di                AppContainer (wired in ZykeMessagesApplication)
+domain/  (kotlin-jvm, no Android)
+  model, classification (parsers + classifier), feed / dashboard / home / conversation builders,
+  diagnostics, repository contracts, ObserveMessagesUseCase
+app/
+  data/          SMS provider + SharedPreferences implementations of the contracts
+  presentation/  MVI view models, Compose screens and components, formatters, theme
+  di/            AppContainer
 ```
 
-Dependencies point inwards: `presentation -> domain <- data`.
+Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cannot see Android.
 
-### MVI flow
+## Quality, security and privacy
 
-`MessagesRoute` sends `Intent`s to `MessagesViewModel`, which reduces them into an immutable
-`State` (exposed as a `StateFlow`) and emits one-shot `Effect`s (permission request, clipboard).
-`MessagesScreen` is stateless: `(State, (Intent) -> Unit) -> Unit`.
+- **Tests:** `./gradlew :domain:test :app:testDebugUnitTest`. Parsers, builders, view models, formatters, a
+  fuzz / hostile-input suite for the classifier, and a manifest policy test.
+- **Static analysis:** `./gradlew detekt` must report zero issues (`config/detekt/detekt.yml`).
+- **Lint and CI:** GitHub Actions runs tests, detekt, Android lint and builds the debug APK on every PR;
+  `release.yml` builds a signed release (R8 minified) from repository secrets. Dependabot keeps
+  dependencies and actions current.
+- **Privacy by construction:** no `INTERNET` permission, backups off, one exported activity, enforced by
+  `ManifestPolicyTest`. See [SECURITY.md](SECURITY.md) and [docs/PRIVACY.md](docs/PRIVACY.md).
+- **Accessibility:** WCAG AA text contrast, one-sentence TalkBack descriptions for every message, 48dp targets.
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Three tabs
 

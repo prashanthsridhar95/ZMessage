@@ -72,7 +72,7 @@ private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () 
                     UnreadCount(unread)
                 }
             }
-            Caption("${conversation.messages.size} ${if (conversation.messages.size == 1) "message" else "messages"}", Modifier.padding(top = 2.dp))
+            Caption(DisplayFormatters.count(conversation.messages.size, "message", "messages"), Modifier.padding(top = 2.dp))
         }
     }
 }

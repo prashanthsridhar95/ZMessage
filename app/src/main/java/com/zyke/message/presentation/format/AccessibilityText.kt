@@ -18,7 +18,8 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             else "One-time password from ${c.senderName}: ${c.code.toList().joinToString(" ")}. Tap to copy"
         is MessageContent.Transaction -> {
             val who = merchant.displayName.ifEmpty { c.bankName.displayString }
-            val verb = if (c.isReceived) "Received ${DisplayFormatters.rupees(c.amount)} from $who" else "Paid ${DisplayFormatters.rupees(c.amount)} to $who"
+            val amount = DisplayFormatters.rupees(c.amount)
+            val verb = if (c.isReceived) "Received $amount from $who" else "Paid $amount to $who"
             verb + account(c.accountNumber, c.isCard)
         }
         is MessageContent.CardBill -> {
