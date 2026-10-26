@@ -59,7 +59,9 @@ internal fun MessageDetailSheet(
     val facts = item.detailFacts()
     val title = if (item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
+    // skipPartiallyExpanded: the sheet is exactly as tall as its content (up to the screen), instead of
+    // opening at a preset half height that hides the rest behind a drag.
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
