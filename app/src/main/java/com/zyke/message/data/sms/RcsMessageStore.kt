@@ -31,6 +31,16 @@ class RcsMessageStore(private val context: Context) {
         _changes.tryEmit(Unit)
     }
 
+    /** Every stored RCS message, for listing the months and ids of the whole inbox. */
+    fun all(): List<SmsMessage> = load()
+
+    /** Like [mergeWith], for the one month [fromMillis] to [untilMillis] of the inbox. */
+    fun mergeWindow(sms: List<SmsMessage>, fromMillis: Long, untilMillis: Long): List<SmsMessage> {
+        val inWindow = load().filter { it.date in fromMillis until untilMillis }
+        val extra = inWindow.filter { r -> sms.none { it.body == r.body && abs(it.date - r.date) <= SMS_DEDUPE_WINDOW_MS } }
+        return if (extra.isEmpty()) sms else (sms + extra).sortedByDescending { it.date }
+    }
+
     /** Adds the stored RCS messages to [sms], skipping ones that already arrived as SMS. */
     fun mergeWith(sms: List<SmsMessage>): List<SmsMessage> {
         val rcs = load().filter { r ->

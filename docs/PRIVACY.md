@@ -13,6 +13,7 @@
 | Budgets | User input | Category and amount, private SharedPreferences | No |
 | Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage | No |
 | New texts as they arrive (live alerts, off until chosen) | The phone's `SMS_RECEIVED` broadcast, `RECEIVE_SMS` | No: read in memory to spot a code or card bill, then dropped | No |
+| Reading a very large inbox (20,000+ messages) month by month, newest first | `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`: a visible notification while it runs, stopped by itself when every month is read | No: it reads the same messages the screens do, into the same encrypted on-phone cache | No |
 | Money plan (rough salary and its day, regular outflows such as parents or charity, investments, savings goal) | User input in Settings | Names and amounts in private SharedPreferences | No |
 | Wishlist (things to buy, their price and category) | User input in Settings | Names and amounts in private SharedPreferences | No |
 | Split payments (friends' names, their shares, which are paid) | User input in the message sheet | Names and amounts in private SharedPreferences; nobody is contacted or asked for money | No |

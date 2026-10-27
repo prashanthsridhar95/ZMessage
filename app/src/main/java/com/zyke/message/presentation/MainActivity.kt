@@ -1,5 +1,8 @@
 package com.zyke.message.presentation
 
+import com.zyke.message.presentation.common.ReadingNote
+import kotlinx.coroutines.flow.first
+import com.zyke.message.notifications.BackfillService
 import android.Manifest
 import android.app.KeyguardManager
 import android.os.Bundle
@@ -140,8 +143,10 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                val reading by container.observeMessages.progress.collectAsStateWithLifecycle()
                 AppRoot(
                     inboxBadge = home.unreadCount,
+                    topNote = { ReadingNote(reading) },
                     toolbar = { tab, openSettings ->
                         AppToolbar(
                             tab = tab,
@@ -226,10 +231,24 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         lockIfAway()
-        // Whatever was deleted or read in the messaging app while this app was away shows up now.
-        container.smsRepository.refresh()
+        // Whatever was deleted or read in the messaging app while this app was away shows up now. A fresh start already
+        // reads everything, and a very large inbox is not read again for a quick switch between apps.
+        if (leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > REFRESH_AFTER_MS) container.smsRepository.refresh()
+        keepReadingInBackground()
         container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
         DaysAheadWidget.refresh(this)
+    }
+
+    /** A very large inbox takes a while to read; a notification keeps the work alive if the app is left meanwhile. */
+    private fun keepReadingInBackground() {
+        lifecycleScope.launch {
+            val progress = container.observeMessages.progress
+            // Wait for the first look at the inbox, then see whether there is a lot still to read.
+            val seen = progress.first { it.monthsTotal > 0 || !it.isDone }
+            if (seen.isWorking && seen.messagesTotal >= BackfillService.BIG_INBOX) {
+                runCatching { BackfillService.start(this@MainActivity) }
+            }
+        }
     }
 
     override fun onStop() {
@@ -254,6 +273,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Away this long, coming back reads the messaging app's inbox again (deletions, read marks). */
+private const val REFRESH_AFTER_MS = 15_000L
 
 /** How long away from the app before it asks to be unlocked again. */
 private const val LOCK_AFTER_MS = 30_000L

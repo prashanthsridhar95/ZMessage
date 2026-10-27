@@ -30,14 +30,37 @@ import javax.crypto.spec.GCMParameterSpec
 class EncryptedClassificationCache(context: Context, private val versionTag: String) : ClassificationCache {
 
     private val helper = Helper(context.applicationContext)
-    private var memory: HashMap<Long, ClassifiedMessage>? = null
+
+    /** Everything remembered. Only for small caches and tests: a huge inbox is read a month at a time through [load] with ids. */
+    @Synchronized
+    override fun load(): Map<Long, ClassifiedMessage> = readAll()
 
     @Synchronized
-    override fun load(): Map<Long, ClassifiedMessage> = memory ?: readAll().also { memory = it }
+    override fun load(ids: Collection<Long>): Map<Long, ClassifiedMessage> {
+        if (ids.isEmpty()) return emptyMap()
+        val result = HashMap<Long, ClassifiedMessage>(ids.size)
+        val damaged = ArrayList<Long>()
+        val db = helper.readableDatabase
+        // SQLite caps the number of placeholders in one query, so the ids go in groups.
+        ids.chunked(QUERY_CHUNK).forEach { group ->
+            val marks = group.joinToString(",") { "?" }
+            db.rawQuery("SELECT $ID, $PAYLOAD FROM $TABLE WHERE $ID IN ($marks)", Array(group.size) { group[it].toString() }).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(0)
+                    val message = runCatching { deserialize(decrypt(cursor.getBlob(1))) }.getOrNull()
+                    if (message != null) result[id] = message else damaged += id
+                }
+            }
+        }
+        if (damaged.isNotEmpty()) {
+            val writable = helper.writableDatabase
+            damaged.forEach { writable.delete(TABLE, "$ID = ?", arrayOf(it.toString())) }
+        }
+        return result
+    }
 
     @Synchronized
     override fun save(messages: List<ClassifiedMessage>) {
-        val loaded = memory ?: readAll().also { memory = it }
         val db = helper.writableDatabase
         db.beginTransaction()
         try {
@@ -51,7 +74,6 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
                     },
                     SQLiteDatabase.CONFLICT_REPLACE
                 )
-                loaded[message.id] = message
             }
             db.setTransactionSuccessful()
         } finally {
@@ -61,8 +83,10 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
 
     @Synchronized
     override fun retainOnly(ids: Set<Long>) {
-        val loaded = memory ?: readAll().also { memory = it }
-        val gone = loaded.keys.filter { it !in ids }
+        // Only the ids are read, not the payloads, so this is cheap even when a million messages were remembered.
+        val stored = ArrayList<Long>()
+        helper.readableDatabase.rawQuery("SELECT $ID FROM $TABLE", null).use { while (it.moveToNext()) stored += it.getLong(0) }
+        val gone = stored.filter { it !in ids }
         if (gone.isEmpty()) return
         val db = helper.writableDatabase
         db.beginTransaction()
@@ -72,13 +96,11 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
         } finally {
             db.endTransaction()
         }
-        gone.forEach(loaded::remove)
     }
 
     @Synchronized
     override fun clear() {
         helper.writableDatabase.delete(TABLE, null, null)
-        memory = HashMap()
     }
 
     private fun readAll(): HashMap<Long, ClassifiedMessage> {
@@ -174,6 +196,7 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
 
     private companion object {
         const val SCHEMA_VERSION = 1
+        const val QUERY_CHUNK = 500
         const val TABLE = "classified"
         const val META = "meta"
         const val ID = "id"

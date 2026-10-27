@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Only for the optional live alerts (off by default): hearing about a new code or bill the moment it arrives. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Only while a very large inbox is still being read month by month: keeps that work going if the app is left. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
 
     <application
@@ -50,6 +53,12 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Runs only while a large inbox is being read; stops by itself when every month has been read. -->
+        <service
+            android:name=".notifications.BackfillService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Receivers: none is exported. The system delivers the widget, boot and alarm broadcasts to them. -->
         <receiver

@@ -1,6 +1,9 @@
 package com.zyke.message.di
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import com.zyke.message.data.cache.EncryptedClassificationCache
 import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
@@ -56,10 +59,13 @@ class AppContainer(context: Context) {
      */
     val classificationCache: ClassificationCache = EncryptedClassificationCache(context, cacheTag(context))
 
+    /** Outlives every screen, so the inbox is read once and shared, and keeps being read when a screen goes. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
         categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames,
-        classificationCache = classificationCache, userState = userMessageState
+        classificationCache = classificationCache, userState = userMessageState, scope = appScope
     )
 
     private fun cacheTag(context: Context): String {

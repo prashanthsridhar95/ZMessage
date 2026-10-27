@@ -34,7 +34,9 @@ class ManifestPolicyTest {
                 "android.permission.INTERNET", // brand logos
                 "android.permission.POST_NOTIFICATIONS", // morning digest
                 "android.permission.RECEIVE_BOOT_COMPLETED", // putting the digest alarm back after a restart
-                "android.permission.RECEIVE_SMS" // live code and bill buttons, off until switched on
+                "android.permission.RECEIVE_SMS", // live code and bill buttons, off until switched on
+                "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, with a visible notification
+                "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
             ),
             permissions
         )
@@ -91,9 +93,14 @@ class ManifestPolicyTest {
         assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
-        assertEquals(1, services.length)
-        val service = services.item(0) as Element
-        assertEquals(".data.sms.RcsNotificationListener", service.getAttributeNS(android, "name"))
+        assertEquals(2, services.length)
+        // Neither is exported: the second only runs while a large inbox is read, and stops by itself.
+        val backfill = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.BackfillService" }
+        assertEquals("false", backfill.getAttributeNS(android, "exported"))
+        assertEquals("dataSync", backfill.getAttributeNS(android, "foregroundServiceType"))
+        val service = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".data.sms.RcsNotificationListener" }
         assertEquals("false", service.getAttributeNS(android, "exported"))
         // Only the system can bind it, and only once the user has granted notification access.
         assertEquals("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", service.getAttributeNS(android, "permission"))

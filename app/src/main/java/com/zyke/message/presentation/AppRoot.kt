@@ -1,5 +1,6 @@
 package com.zyke.message.presentation
 
+import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExitTransition
@@ -61,6 +62,8 @@ fun AppRoot(
     toolbar: @Composable (tab: AppTab, openSettings: () -> Unit) -> Unit,
     /** Settings is a bottom sheet over whatever tab is showing; it is only composed while open. */
     settings: @Composable (onDismiss: () -> Unit) -> Unit,
+    /** A line shown under the toolbar on every tab, e.g. while older messages are still being read. */
+    topNote: @Composable () -> Unit = {},
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
@@ -77,6 +80,9 @@ fun AppRoot(
         topBar = { toolbar(tab) { showSettings = true } },
         bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }) }
     ) { padding ->
+        Column(Modifier.padding(padding)) {
+        topNote()
+        Box(Modifier.weight(1f)) {
         // Tabs slide the way you moved along the bar, so where you are in the app is felt, not just read.
         AnimatedContent(
             targetState = tab,
@@ -89,8 +95,10 @@ fun AppRoot(
             label = "tab"
         ) { shown ->
             stateHolder.SaveableStateProvider(shown.name) {
-                content(shown, Modifier.padding(padding)) { tab = it }
+                content(shown, Modifier) { tab = it }
             }
+        }
+        }
         }
         if (showSettings) settings { showSettings = false }
     }
