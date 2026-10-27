@@ -9,6 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
@@ -75,13 +78,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val appSettings by container.settings.settings.collectAsStateWithLifecycle()
-            ZykeMessageTheme(
-                darkTheme = when (appSettings.themeMode) {
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.DARK -> true
+            val darkTheme = when (appSettings.themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            // The bar icons follow the app's theme, not the phone's: a Day theme on a dark phone needs dark icons.
+            val view = LocalView.current
+            SideEffect {
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
                 }
-            ) {
+            }
+            ZykeMessageTheme(darkTheme = darkTheme) {
                 val home by homeViewModel.state.collectAsStateWithLifecycle()
                 val inbox by messagesViewModel.state
                     .map { it.toToolbarState() }
