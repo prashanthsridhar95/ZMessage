@@ -57,6 +57,8 @@ object DashboardContract {
         /** Credit card statements by card; independent of the selected period. */
         val cardBills: List<CardBills> = emptyList(),
         val expandedCard: String? = null,
+        /** The card or account whose cycles are open in a sheet. */
+        val expandedCardCycle: String? = null,
         /** The cards the person added in Settings, and their billing cycles. */
         val cards: List<UserCard> = emptyList(),
         val cardCycles: List<CardCycles> = emptyList(),
@@ -101,6 +103,7 @@ object DashboardContract {
         /** Try again after the inbox could not be read. */
         data object Retry : Intent
         data class ToggleCard(val key: String) : Intent
+        data class ToggleCardCycle(val id: String) : Intent
         data class DismissTip(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
         data class EditBudget(val category: MessageCategory?) : Intent

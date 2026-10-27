@@ -789,10 +789,21 @@ internal fun CardBillSheet(
 
 @Composable
 private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter, modifier: Modifier = Modifier) {
-    val max = statements.maxOf { it.amount }.coerceAtLeast(BigDecimal.ONE)
-    val values = statements.map { it.amount.fractionOf(max) }
-    val summary = statements.joinToString(", ") { "${dayFmt.format(statementDate(it))} ${DisplayFormatters.rupees(it.amount)}" }
-    // The line rises from the baseline when the sheet opens.
+    LineTrend(
+        amounts = statements.map { it.amount },
+        firstLabel = dayFmt.format(statementDate(statements.first())),
+        lastLabel = dayFmt.format(statementDate(statements.last())),
+        description = "Line chart of statement amounts. " +
+            statements.joinToString(", ") { "${dayFmt.format(statementDate(it))} ${DisplayFormatters.rupees(it.amount)}" },
+        modifier = modifier
+    )
+}
+
+/** A line over [amounts] (oldest first) that rises from the baseline when it appears, with its first and last labels beneath. */
+@Composable
+internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel: String, description: String, modifier: Modifier = Modifier) {
+    val max = amounts.maxOf { it }.coerceAtLeast(BigDecimal.ONE)
+    val values = amounts.map { it.fractionOf(max) }
     val rise = rememberGrowingFraction(1f)
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -802,7 +813,7 @@ private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter
             Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .semantics { contentDescription = "Line chart of statement amounts. $summary" }
+                .semantics { contentDescription = description }
         ) {
             val pad = 6.dp.toPx()
             val usableHeight = size.height - 2 * pad
@@ -829,8 +840,8 @@ private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Caption(dayFmt.format(statementDate(statements.first())))
-            Caption(dayFmt.format(statementDate(statements.last())), textAlign = TextAlign.End)
+            Caption(firstLabel)
+            Caption(lastLabel, textAlign = TextAlign.End)
         }
     }
 }
@@ -850,26 +861,114 @@ private fun EarlierBill(bill: BillEntry, dayFmt: DateTimeFormatter) {
 private fun statementDate(bill: BillEntry): LocalDate =
     Instant.ofEpochMilli(bill.epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
 
-/** Spends and payments for each card by billing cycle, newest first. */
+/** Each card or account as a row with this cycle's spending; tapping one opens its trend, as the card bills do. */
 @Composable
-internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Modifier) {
-    val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+internal fun CardCyclesSection(cards: List<CardCycles>, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
     SectionCard(
         title = "Cards & accounts",
         modifier = modifier,
-        subtitle = "Spent and received by billing cycle or month"
+        subtitle = "Spent and received by billing cycle or month",
+        summary = DisplayFormatters.count(cards.size, "card or account", "cards and accounts")
     ) {
         cards.forEachIndexed { index, entry ->
-            if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            val max = entry.cycles.maxOf { it.spent }.coerceAtLeast(BigDecimal.ONE)
+            if (index > 0) HorizontalDivider()
+            CardCycleRow(entry) { onOpen(entry.card.id) }
+        }
+    }
+}
+
+@Composable
+private fun CardCycleRow(entry: CardCycles, onOpen: () -> Unit) {
+    val current = entry.cycles.firstOrNull { it.isCurrent } ?: entry.cycles.firstOrNull()
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open ${entry.card.label}", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(Modifier.weight(1f)) {
             RowTitle(entry.card.label)
-            Caption(entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
-            val inWord = if (entry.card.type == CardType.ACCOUNT) "received" else "paid"
-            entry.cycles.forEach { cycle ->
-                Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            Caption(
+                current?.let { "This cycle · ${plural(it.spendCount, "payment", "payments")}" }
+                    ?: (entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            DisplayFormatters.rupees(current?.spent ?: BigDecimal.ZERO),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1
+        )
+        Image(
+            modifier = Modifier.size(24.dp),
+            painter = painterResource(R.drawable.baseline_chevron_right_24),
+            colorFilter = ColorFilter.tint(mutedColor()),
+            contentDescription = null
+        )
+    }
+}
+
+/** One card or account: what this cycle has cost against the one before, the trend over the cycles, and each cycle. */
+@Composable
+internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
+    val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val inWord = if (entry.card.type == CardType.ACCOUNT) "received" else "paid"
+    val oldestFirst = entry.cycles.sortedBy { it.start }
+    val current = entry.cycles.firstOrNull { it.isCurrent } ?: entry.cycles.firstOrNull()
+    val previous = entry.cycles.firstOrNull { it !== current }
+
+    AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column {
+                Text(entry.card.label, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Caption(entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
+            }
+
+            if (current != null) {
+                Column {
+                    Text(
+                        DisplayFormatters.rupees(current.spent),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Caption("Spent ${dayFmt.format(current.start)} – ${dayFmt.format(current.end)}${if (current.isCurrent) " · now" else ""}")
+                    if (current.paid.signum() > 0) Caption("${inWord.replaceFirstChar { it.uppercase() }} ${DisplayFormatters.rupees(current.paid)}")
+                    if (previous != null) {
+                        val change = current.spent.subtract(previous.spent)
+                        val direction = when {
+                            change.signum() > 0 -> "Up ${DisplayFormatters.rupees(change)}"
+                            change.signum() < 0 -> "Down ${DisplayFormatters.rupees(change.negate())}"
+                            else -> "Same"
+                        }
+                        Caption("$direction from the previous cycle")
+                    }
+                }
+            }
+
+            if (oldestFirst.size > 1) {
+                Column {
+                    RowTitle("Usage trend")
+                    LineTrend(
+                        amounts = oldestFirst.map { it.spent },
+                        firstLabel = dayFmt.format(oldestFirst.first().start),
+                        lastLabel = dayFmt.format(oldestFirst.last().start),
+                        description = "Line chart of spending by cycle. " +
+                            oldestFirst.joinToString(", ") { "${dayFmt.format(it.start)} ${DisplayFormatters.rupees(it.spent)}" },
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            } else {
+                Caption("The trend appears once there are two or more cycles.")
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                RowTitle("Cycles")
+                entry.cycles.forEach { cycle ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            RowTitle(
+                            Caption(
                                 "${dayFmt.format(cycle.start)} – ${dayFmt.format(cycle.end)}" + if (cycle.isCurrent) " · now" else "",
                                 color = MaterialTheme.colorScheme.secondary
                             )
@@ -880,10 +979,8 @@ internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Mod
                                 }
                             )
                         }
-                        Spacer(Modifier.width(12.dp))
-                        MoneyText(cycle.spent, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.primary)
+                        MoneyText(cycle.spent, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.secondary)
                     }
-                    ShareBar(cycle.spent.fractionOf(max))
                 }
             }
         }

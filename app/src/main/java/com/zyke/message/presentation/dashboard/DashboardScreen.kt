@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.dashboard.components.CardCycleSheet
 import com.zyke.message.presentation.dashboard.components.rangeLabel
 import com.zyke.message.presentation.dashboard.components.countLabel
 import androidx.compose.ui.text.font.FontWeight
@@ -192,6 +193,10 @@ fun DashboardScreen(
         ReportCardSheet(reportCardForSheet, onDismiss = { onIntent(Intent.CloseReportCard) })
     }
 
+    state.cardCycles.firstOrNull { it.card.id == state.expandedCardCycle }?.let { entry ->
+        CardCycleSheet(entry = entry, onDismiss = { onIntent(Intent.ToggleCardCycle(entry.card.id)) })
+    }
+
     state.cardBills.firstOrNull { it.key == state.expandedCard }?.let { bills ->
         CardBillSheet(
             bills = bills,
@@ -337,7 +342,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         if (state.cardCycles.isNotEmpty()) {
-            item(key = "card-cycles") { CardCyclesSection(state.cardCycles) }
+            item(key = "card-cycles") { CardCyclesSection(state.cardCycles, onOpen = { onIntent(Intent.ToggleCardCycle(it)) }) }
         }
 
         }

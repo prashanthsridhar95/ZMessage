@@ -95,6 +95,7 @@ class DashboardViewModel(
                 startObserving()
             }
             Intent.ToggleShowAllVendors -> reduce { copy(showAllVendors = !showAllVendors) }
+            is Intent.ToggleCardCycle -> reduce { copy(expandedCardCycle = if (expandedCardCycle == intent.id) null else intent.id) }
             is Intent.ToggleCard -> reduce { copy(expandedCard = if (expandedCard == intent.key) null else intent.key) }
             is Intent.DismissTip -> userStateRepository?.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
