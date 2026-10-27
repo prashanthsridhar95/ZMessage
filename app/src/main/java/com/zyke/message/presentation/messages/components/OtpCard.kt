@@ -65,7 +65,7 @@ internal fun OtpCard(
             onLongClick = onExpand
         )
     ) {
-        MerchantChip(item.merchant.logo, description = content.senderName, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = content.senderName, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

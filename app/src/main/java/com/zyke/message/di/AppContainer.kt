@@ -1,6 +1,7 @@
 package com.zyke.message.di
 
 import android.content.Context
+import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.CardRepositoryImpl
 import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
@@ -29,6 +30,7 @@ class AppContainer(context: Context) {
     val categoryOverrides: CategoryOverrideRepository = CategoryOverrideRepositoryImpl(context)
     val cards: CardRepository = CardRepositoryImpl(context)
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
+    val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
-    val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier, categoryOverrides = categoryOverrides, cardRepository = cards)
+    val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier, categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore)
 }

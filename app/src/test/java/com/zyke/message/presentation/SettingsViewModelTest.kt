@@ -44,6 +44,7 @@ class SettingsViewModelTest {
         override val settings: StateFlow<AppSettings> = _s
         override fun setScreenProtection(enabled: Boolean) { _s.value = _s.value.copy(screenProtection = enabled) }
         override fun setThemeMode(mode: com.zyke.message.domain.model.ThemeMode) { _s.value = _s.value.copy(themeMode = mode) }
+        override fun setFetchLogos(enabled: Boolean) { _s.value = _s.value.copy(fetchLogos = enabled) }
     }
 
     private class FakeUser : UserMessageStateRepository {

@@ -45,7 +45,7 @@ internal fun GenericCard(
     val unrecognised = item.category == MessageCategory.OTHERS
 
     MessageRow(onClick, modifier, verticalAlignment = Alignment.Top) {
-        MerchantChip(item.merchant.logo, description = null, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = null, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f)) {
@@ -74,7 +74,7 @@ internal fun CourierCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -109,7 +109,7 @@ internal fun LoyaltyCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

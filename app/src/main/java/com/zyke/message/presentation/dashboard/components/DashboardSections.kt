@@ -542,7 +542,7 @@ internal fun VendorRow(
             .padding(vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MerchantChip(vendor.merchant.logo, description = vendor.merchant.name, size = 44.dp)
+            MerchantChip(vendor.merchant.logo, imageKey = vendor.merchant.imageKey, name = vendor.merchant.name, description = vendor.merchant.name, size = 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(vendor.merchant.displayName)

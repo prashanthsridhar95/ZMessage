@@ -113,14 +113,30 @@ fun SettingsSheet(
                 }
             }
 
+            SectionCard("Pictures") {
+                Caption(
+                    "Choose a picture for any sender or receiver from its message sheet. Pictures stay on this phone.",
+                    maxLines = 3
+                )
+                ToggleRow(
+                    title = "Fetch brand logos from the internet",
+                    description = "Off by default. When on, the app asks a public icon service for the logo of well-known " +
+                        "names such as Swiggy or HDFC, once each, and keeps it. Only the brand's website name is sent, never " +
+                        "your messages. Turning it off deletes the downloaded logos.",
+                    checked = state.settings.fetchLogos,
+                    onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
             CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
             RcsSection()
 
             SectionCard("Privacy") {
                 Caption(
-                    "Messages are read and sorted on this phone only. The app has no internet permission, " +
-                        "so nothing can be uploaded, and backups of its data are switched off.",
+                    "Messages are read and sorted on this phone only and are never uploaded. The only internet use is the " +
+                        "optional logo download below, and backups of the app's data are switched off.",
                     maxLines = 5
                 )
                 ToggleRow(
@@ -285,7 +301,7 @@ private fun ToggleRow(
     ) {
         Column(Modifier.weight(1f)) {
             RowTitle(title)
-            Caption(description, maxLines = 2)
+            Caption(description, maxLines = 6)
         }
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
     }

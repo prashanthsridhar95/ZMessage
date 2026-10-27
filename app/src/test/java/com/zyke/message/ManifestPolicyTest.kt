@@ -26,16 +26,27 @@ class ManifestPolicyTest {
         (0 until length).map { (item(it) as Element).getAttributeNS(android, attribute) }
 
     @Test
-    fun onlyReadSmsIsRequested() {
+    fun onlyReadSmsAndTheLogoInternetPermissionAreRequested() {
         val permissions = manifest.getElementsByTagName("uses-permission").names("name")
-        assertEquals(listOf("android.permission.READ_SMS"), permissions)
+        assertEquals(listOf("android.permission.READ_SMS", "android.permission.INTERNET"), permissions)
+        assertFalse("ACCESS_NETWORK_STATE" in File("src/main/AndroidManifest.xml").readText())
     }
 
+    /**
+     * INTERNET exists for one optional, off-by-default feature. The promise "your messages never leave the phone"
+     * is kept by making sure the network is reachable from exactly one file, which sends only a brand's website name.
+     */
     @Test
-    fun hasNoInternetPermission() {
-        val raw = File("src/main/AndroidManifest.xml").readText()
-        assertFalse("INTERNET" in raw)
-        assertFalse("ACCESS_NETWORK_STATE" in raw)
+    fun networkCodeLivesInOneFile_andOnlyAsksPublicIconServices() {
+        val network = Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp|HttpClient|Socket\\(")
+        val offenders = File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
+            .map { it.name }.toList()
+        assertEquals(listOf("LogoFetcher.kt"), offenders)
+
+        val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
+        val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("www.google.com", "icons.duckduckgo.com"), hosts)
     }
 
     @Test

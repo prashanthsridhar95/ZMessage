@@ -34,5 +34,7 @@ enum class MerchantLogo(val isTinted: Boolean = false) {
 data class Merchant(
     val name: String,
     val logo: MerchantLogo,
-    val category: MessageCategory
+    val category: MessageCategory,
+    /** Set when the person has chosen a picture for this sender / receiver; see the image store. */
+    val imageKey: String? = null
 )

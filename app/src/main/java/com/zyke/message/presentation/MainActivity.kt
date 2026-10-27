@@ -12,6 +12,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.runtime.CompositionLocalProvider
+import com.zyke.message.presentation.common.LocalImageStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
@@ -54,7 +56,8 @@ class MainActivity : ComponentActivity() {
 
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModel.Factory(
-            container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards
+            container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards,
+            onLogosTurnedOff = container.imageStore::clearLogos
         )
     }
 
@@ -91,6 +94,7 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !darkTheme
                 }
             }
+            CompositionLocalProvider(LocalImageStore provides container.imageStore) {
             ZykeMessageTheme(darkTheme = darkTheme) {
                 val home by homeViewModel.state.collectAsStateWithLifecycle()
                 val inbox by messagesViewModel.state
@@ -141,6 +145,7 @@ class MainActivity : ComponentActivity() {
                         AppTab.INBOX -> MessagesRoute(messagesViewModel, modifier)
                     }
                 }
+            }
             }
         }
     }

@@ -29,7 +29,9 @@ class SettingsViewModel(
     private val userStateRepository: UserMessageStateRepository,
     private val budgetRepository: BudgetRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
-    private val cardRepository: CardRepository = NoCards
+    private val cardRepository: CardRepository = NoCards,
+    /** Called when downloaded logos should be forgotten (the person turned the feature off). */
+    private val onLogosTurnedOff: () -> Unit = {}
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value)
 ) {
@@ -50,6 +52,10 @@ class SettingsViewModel(
             is Intent.ScreenStarted -> if (intent.permissionGranted) startObserving()
             is Intent.SetScreenProtection -> settingsRepository.setScreenProtection(intent.enabled)
             is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
+            is Intent.SetFetchLogos -> {
+                settingsRepository.setFetchLogos(intent.enabled)
+                if (!intent.enabled) onLogosTurnedOff()
+            }
             is Intent.SaveCard -> {
                 val card = intent.card
                 if (card.last4.length == LAST_DIGITS && card.last4.all { it.isDigit() }) {
@@ -111,12 +117,14 @@ class SettingsViewModel(
         private val settingsRepository: SettingsRepository,
         private val userStateRepository: UserMessageStateRepository,
         private val budgetRepository: BudgetRepository,
-        private val cardRepository: CardRepository = NoCards
+        private val cardRepository: CardRepository = NoCards,
+        private val onLogosTurnedOff: () -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
-                observeMessages, settingsRepository, userStateRepository, budgetRepository, cardRepository = cardRepository
+                observeMessages, settingsRepository, userStateRepository, budgetRepository,
+                cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff
             ) as T
     }
 }

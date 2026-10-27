@@ -6,6 +6,8 @@
         android:name="android.hardware.telephony"
         android:required="false" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Only for the optional "Fetch brand logos" setting (off by default); see LogoFetcher and ManifestPolicyTest. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
 
     <application

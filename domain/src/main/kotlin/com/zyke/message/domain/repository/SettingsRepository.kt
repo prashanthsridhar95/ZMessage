@@ -10,4 +10,6 @@ interface SettingsRepository {
     fun setScreenProtection(enabled: Boolean)
 
     fun setThemeMode(mode: ThemeMode)
+
+    fun setFetchLogos(enabled: Boolean)
 }

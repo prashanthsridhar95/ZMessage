@@ -28,6 +28,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import com.zyke.message.presentation.common.LocalImageStore
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.zyke.message.presentation.common.scaledLines
 import androidx.compose.ui.semantics.contentDescription
@@ -119,9 +125,14 @@ internal fun MerchantChip(
     modifier: Modifier = Modifier,
     description: String? = null,
     isUnread: Boolean = false,
-    size: Dp = 60.dp
+    size: Dp = 60.dp,
+    /** The person's own picture for this sender / receiver, if they chose one. */
+    imageKey: String? = null,
+    /** Used to look up a brand logo, for names the app has no built-in icon for. */
+    name: String? = null
 ) {
     val shape = RoundedCornerShape(size / 4)
+    val picture = rememberSenderPicture(imageKey, name, wantsLogo = logo.isTinted)
     Box(modifier.size(size)) {
         Box(
             Modifier
@@ -131,12 +142,21 @@ internal fun MerchantChip(
                 .clip(shape),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(logo.drawableRes()),
-                colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
-                contentScale = ContentScale.Fit,
-                contentDescription = description
-            )
+            if (picture != null) {
+                Image(
+                    bitmap = picture,
+                    contentScale = if (imageKey != null) ContentScale.Crop else ContentScale.Fit,
+                    modifier = if (imageKey != null) Modifier.matchParentSize() else Modifier.padding(size / 6),
+                    contentDescription = description
+                )
+            } else {
+                Image(
+                    painter = painterResource(logo.drawableRes()),
+                    colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
+                    contentScale = ContentScale.Fit,
+                    contentDescription = description
+                )
+            }
         }
 
         if (isUnread) {
@@ -238,4 +258,20 @@ internal fun IconCaption(@DrawableRes icon: Int, text: String, modifier: Modifie
             color = mutedColor()
         )
     }
+}
+
+
+/** The person's chosen picture, else a cached brand logo for a well-known name, else null (the built-in icon). */
+@Composable
+private fun rememberSenderPicture(imageKey: String?, name: String?, wantsLogo: Boolean): ImageBitmap? {
+    val store = LocalImageStore.current ?: return null
+    val version by store.version.collectAsState()
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, imageKey, name, wantsLogo, version) {
+        value = when {
+            imageKey != null -> store.loadChosen(imageKey)?.asImageBitmap()
+            wantsLogo && !name.isNullOrBlank() -> store.loadLogo(name)?.asImageBitmap()
+            else -> null
+        }
+    }
+    return bitmap
 }

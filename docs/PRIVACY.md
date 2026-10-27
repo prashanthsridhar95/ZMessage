@@ -6,6 +6,8 @@
 |---|---|---|---|
 | SMS text, sender, time | Android SMS provider (`READ_SMS`) | No: read into memory, re-read on change | No |
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
+| Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
+| Brand logos (optional, off by default) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
@@ -15,13 +17,13 @@
 
 Suggestions, spam scoring, search phrases, alerts and summaries are computed on the phone from messages already in memory; nothing is downloaded or sent. An on-device language model (Gemini Nano) is supported through a small interface but is only used when the phone provides one, and every answer it gives is checked against the message text.
 
-There is no account, no analytics and no crash reporter, and no network permission.
+There is no account, no analytics and no crash reporter. The only network use is the optional, off-by-default logo setting.
 
 ## Threats considered
 
 | Threat | Mitigation |
 |---|---|
-| App exfiltrates messages | No `INTERNET` permission, enforced by a unit test |
+| App exfiltrates messages | `INTERNET` is used by one file (`LogoFetcher`) for the optional logo setting, which sends only a brand's website name; a unit test enforces that no other file touches the network |
 | Messages end up in a cloud backup | `allowBackup=false` plus exclude-all backup and transfer rules |
 | Someone looks over the shoulder / screen capture / recent-apps preview | Optional `FLAG_SECURE` ("Block screenshots") |
 | Malicious or malformed SMS crashes or stalls the app | Classifier never throws, parses at most 4096 characters, fuzz and hostile-input tests |

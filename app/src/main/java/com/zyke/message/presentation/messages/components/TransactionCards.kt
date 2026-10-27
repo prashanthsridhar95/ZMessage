@@ -30,7 +30,7 @@ internal fun TransactionCard(
     val sign = if (content.isReceived) "+" else "-"
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -64,7 +64,7 @@ internal fun CardBillCard(
     val urgent = due != null && DisplayFormatters.isUrgent(due, today)
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, description = bank.displayString, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = bank.displayString, isUnread = isUnread)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

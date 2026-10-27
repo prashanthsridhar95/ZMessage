@@ -65,7 +65,7 @@ fun ThreadSheet(
 
     AppBottomSheet(onDismiss) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            MerchantChip(conversation.merchant.logo, description = null, size = 44.dp)
+            MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = null, size = 44.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(conversation.title())

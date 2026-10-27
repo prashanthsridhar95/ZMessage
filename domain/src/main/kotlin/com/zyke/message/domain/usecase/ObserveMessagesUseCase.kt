@@ -13,6 +13,8 @@ import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.NoCategoryOverrides
+import com.zyke.message.domain.repository.NoSenderImages
+import com.zyke.message.domain.repository.SenderImageRepository
 import com.zyke.message.domain.repository.SmsRepository
 import java.time.Instant
 import java.time.ZoneId
@@ -30,7 +32,8 @@ class ObserveMessagesUseCase(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
     private val cardRepository: CardRepository = NoCards,
-    private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel)
+    private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
+    private val senderImages: SenderImageRepository = NoSenderImages
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
@@ -46,6 +49,12 @@ class ObserveMessagesUseCase(
             }
             .combine(cardRepository.cards) { classified, cards ->
                 if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }
+            }
+            .combine(senderImages.keysWithImage) { classified, keys ->
+                if (keys.isEmpty()) classified else classified.map { message ->
+                    val key = CategoryKey.of(message)
+                    if (key != null && key in keys) message.copy(merchant = message.merchant.copy(imageKey = key)) else message
+                }
             }
             .map(CategorySuggester::annotate)
             .flowOn(dispatcher)

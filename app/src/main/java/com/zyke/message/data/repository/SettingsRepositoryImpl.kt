@@ -15,7 +15,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val _settings = MutableStateFlow(
         AppSettings(
             screenProtection = prefs.getBoolean(SCREEN_PROTECTION, false),
-            themeMode = ThemeMode.entries.firstOrNull { it.name == prefs.getString(THEME_MODE, null) } ?: ThemeMode.SYSTEM
+            themeMode = ThemeMode.entries.firstOrNull { it.name == prefs.getString(THEME_MODE, null) } ?: ThemeMode.SYSTEM,
+            fetchLogos = prefs.getBoolean(FETCH_LOGOS, false)
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -30,7 +31,13 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(themeMode = mode)
     }
 
+    override fun setFetchLogos(enabled: Boolean) {
+        prefs.edit().putBoolean(FETCH_LOGOS, enabled).apply()
+        _settings.value = _settings.value.copy(fetchLogos = enabled)
+    }
+
     private companion object {
+        const val FETCH_LOGOS = "fetch_logos"
         const val SCREEN_PROTECTION = "screen_protection"
         const val THEME_MODE = "theme_mode"
     }

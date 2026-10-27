@@ -369,7 +369,7 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit
         Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        MerchantChip(item.message.merchant.logo, description = item.title, size = 44.dp)
+        MerchantChip(item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, description = item.title, size = 44.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             RowTitle(item.title)
@@ -431,7 +431,7 @@ private fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        MerchantChip(message.merchant.logo, description = message.merchant.name, size = 44.dp)
+        MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = message.merchant.name, size = 44.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             RowTitle(message.merchant.displayName)

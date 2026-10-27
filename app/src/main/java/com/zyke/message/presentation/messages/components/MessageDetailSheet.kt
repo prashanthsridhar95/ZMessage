@@ -1,6 +1,14 @@
 package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.common.heading
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.zyke.message.presentation.common.LocalImageStore
+import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -70,7 +78,7 @@ internal fun MessageDetailSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MerchantChip(item.merchant.logo, description = title, size = 52.dp)
+                MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -122,6 +130,8 @@ internal fun MessageDetailSheet(
             }
 
             CategoryPicker(item, actions)
+
+            PicturePicker(item)
 
             if (item.isModelParsed) {
                 Caption("The amount and name were read by on-device AI and checked against the message. Worth a glance.", maxLines = 3)
@@ -208,5 +218,37 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
             },
             maxLines = 2
         )
+    }
+}
+
+/** Choose a picture for this sender / receiver from the person's own photos; no permission is needed. */
+@Composable
+private fun PicturePicker(item: ClassifiedMessage) {
+    val store = LocalImageStore.current ?: return
+    val key = CategoryKey.of(item) ?: return
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                if (!store.saveChosen(key, uri)) Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Caption("PICTURE FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppButton(
+                text = if (item.merchant.imageKey != null) "Change picture" else "Choose picture",
+                onClick = { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                style = ButtonStyle.OUTLINE,
+                size = ButtonSize.COMPACT
+            )
+            if (item.merchant.imageKey != null) {
+                AppButton("Remove", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
+        }
+        Caption("Shown wherever this name appears. Kept on this phone only.", maxLines = 2)
     }
 }

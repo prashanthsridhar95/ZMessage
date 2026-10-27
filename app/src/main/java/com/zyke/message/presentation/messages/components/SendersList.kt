@@ -52,7 +52,7 @@ private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () 
     val unread = conversation.unreadCount
 
     MessageRow(onClick = onClick) {
-        MerchantChip(conversation.merchant.logo, description = conversation.title(), isUnread = false)
+        MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = conversation.title(), isUnread = false)
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f)) {
