@@ -14,4 +14,4 @@ fun String.toTitleCase(): String =
 
 /** UPI ids are shown verbatim, everything else is title-cased. */
 val Merchant.displayName: String
-    get() = if (category == MessageCategory.UPI_PAYMENT) name else name.toTitleCase()
+    get() = if (renamed || category == MessageCategory.UPI_PAYMENT) name else name.toTitleCase()

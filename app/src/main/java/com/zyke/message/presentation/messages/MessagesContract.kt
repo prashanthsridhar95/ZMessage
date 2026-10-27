@@ -111,6 +111,7 @@ object MessagesContract {
         data class ArchiveMany(val ids: List<Long>) : Intent
         data class UnarchiveMany(val ids: List<Long>) : Intent
         /** File every message with this message's sender / receiver under [category]; null goes back to automatic. */
+        data class Rename(val messageId: Long, val name: String) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?, val announce: Boolean = true) : Intent
         data class DismissAttention(val key: String) : Intent
         data class OpenLink(val url: String) : Intent

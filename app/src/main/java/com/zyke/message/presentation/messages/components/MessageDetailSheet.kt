@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
@@ -76,7 +79,7 @@ internal fun MessageDetailSheet(
     val message = item.message
     val content = item.content
     val facts = item.detailFacts()
-    val title = if (item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
+    val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
 
     // skipPartiallyExpanded: the sheet is exactly as tall as its content (up to the screen), instead of
     // opening at a preset half height that hides the rest behind a drag.
@@ -199,6 +202,10 @@ internal fun MessageDetailSheet(
                     style = ButtonStyle.OUTLINE,
                     size = ButtonSize.COMPACT
                 )
+            }
+
+            if (content !is MessageContent.Otp && CategoryKey.of(item) != null) {
+                RenameSender(item, title, actions)
             }
 
             if (content !is MessageContent.Otp) {
@@ -328,4 +335,44 @@ private fun RemovePicture(item: ClassifiedMessage) {
     val key = CategoryKey.of(item) ?: return
     if (item.merchant.imageKey == null) return
     AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+}
+
+/** A nickname for this sender / receiver, shown everywhere their name appears. */
+@Composable
+private fun RenameSender(item: ClassifiedMessage, shownName: String, actions: FeedActions) {
+    var renaming by remember { mutableStateOf(false) }
+    AppButton(
+        text = if (item.merchant.renamed) "Change nickname" else "Give a nickname",
+        onClick = { renaming = true },
+        modifier = Modifier.fillMaxWidth(),
+        style = ButtonStyle.TEXT,
+        size = ButtonSize.COMPACT
+    )
+    if (renaming) {
+        var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
+        AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text("Nickname for ${CategoryKey.label(item)}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nickname") })
+                    Caption("Shown wherever this name appears. Kept on this phone only.", maxLines = 2)
+                }
+            },
+            confirmButton = {
+                AppButton(
+                    "Save",
+                    { actions.onRename(item.id, name); renaming = false },
+                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank()
+                )
+            },
+            dismissButton = {
+                if (item.merchant.renamed) {
+                    AppButton("Use original", { actions.onRename(item.id, ""); renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                } else {
+                    AppButton("Cancel", { renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                }
+            }
+        )
+    }
 }

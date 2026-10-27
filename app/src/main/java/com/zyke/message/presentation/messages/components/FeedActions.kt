@@ -19,6 +19,8 @@ data class FeedActions(
     val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit,
     /** Mute or unmute the sender of this message. */
     val onToggleMute: (messageId: Long) -> Unit = {},
+    /** Give this message's sender / receiver a nickname; blank removes it. */
+    val onRename: (messageId: Long, name: String) -> Unit = { _, _ -> },
     /** Start splitting a payment with friends; null where splitting is not offered. */
     val onSplit: ((messageId: Long) -> Unit)? = null
 ) {

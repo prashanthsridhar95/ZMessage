@@ -301,7 +301,8 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onOpenSummary = { this(Intent.OpenSummary) },
     onOpenLink = { this(Intent.OpenLink(it)) },
     onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) },
-    onToggleMute = { this(Intent.ToggleMute(it)) }
+    onToggleMute = { this(Intent.ToggleMute(it)) },
+    onRename = { id, name -> this(Intent.Rename(id, name)) }
 )
 
 /** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */

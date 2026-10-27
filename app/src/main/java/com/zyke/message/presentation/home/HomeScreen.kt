@@ -184,6 +184,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             onUnarchive = { onIntent(Intent.Unarchive(it)) },
             onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) },
             onToggleMute = { onIntent(Intent.ToggleMute(it)) },
+            onRename = { id, name -> onIntent(Intent.Rename(id, name)) },
             onSplit = { onIntent(Intent.StartSplit(it)) }
         )
     }

@@ -20,6 +20,8 @@ import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.NoClassificationCache
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.repository.NoMutedSenders
+import com.zyke.message.domain.repository.NicknameRepository
+import com.zyke.message.domain.repository.NoNicknames
 import com.zyke.message.domain.repository.NoSenderImages
 import com.zyke.message.domain.repository.SenderImageRepository
 import com.zyke.message.domain.repository.SmsRepository
@@ -42,6 +44,7 @@ class ObserveMessagesUseCase(
     private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
     private val senderImages: SenderImageRepository = NoSenderImages,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
+    private val nicknameRepository: NicknameRepository = NoNicknames,
     private val classificationCache: ClassificationCache = NoClassificationCache,
     /** When given, marks for messages that have left the inbox are dropped each time the inbox is read. */
     private val userState: UserMessageStateRepository? = null
@@ -83,6 +86,12 @@ class ObserveMessagesUseCase(
             .combine(mutedSenders.muted) { classified, muted ->
                 if (muted.isEmpty()) classified else classified.map { message ->
                     if (SenderKey.of(message.message.sender) in muted) message.copy(isPromotional = true, isMuted = true) else message
+                }
+            }
+            .combine(nicknameRepository.nicknames) { classified, nicknames ->
+                if (nicknames.isEmpty()) classified else classified.map { message ->
+                    val nickname = CategoryKey.of(message)?.let(nicknames::get)
+                    if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true)) else message
                 }
             }
             .map(CategorySuggester::annotate)

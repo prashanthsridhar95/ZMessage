@@ -84,6 +84,7 @@ object HomeContract {
         data class TogglePin(val messageId: Long) : Intent
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
+        data class Rename(val messageId: Long, val name: String) : Intent
         data class StartSplit(val messageId: Long) : Intent
         data object CancelSplit : Intent
         data class SaveSplit(val split: Split) : Intent

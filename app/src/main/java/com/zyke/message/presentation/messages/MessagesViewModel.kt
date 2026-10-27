@@ -12,6 +12,8 @@ import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.NoMutedSenders
+import com.zyke.message.domain.repository.NicknameRepository
+import com.zyke.message.domain.repository.NoNicknames
 import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.categories.CategoryKey
@@ -33,7 +35,8 @@ class MessagesViewModel(
     private val userStateRepository: UserMessageStateRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
-    private val mutedSenders: MutedSenderRepository = NoMutedSenders
+    private val mutedSenders: MutedSenderRepository = NoMutedSenders,
+    private val nicknames: NicknameRepository = NoNicknames
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
@@ -108,6 +111,8 @@ class MessagesViewModel(
                 intent.messageId,
                 intent.messageId !in currentState().userState.pinnedIds
             )
+            is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let(CategoryKey::of)
+                ?.let { nicknames.set(it, intent.name) }
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 val key = CategoryKey.of(message) ?: return@let
                 val previous = message.category.takeIf { message.categoryOverridden }
@@ -216,12 +221,13 @@ class MessagesViewModel(
         private val observeMessages: ObserveMessagesUseCase,
         private val userStateRepository: UserMessageStateRepository,
         private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
-        private val mutedSenders: MutedSenderRepository = NoMutedSenders
+        private val mutedSenders: MutedSenderRepository = NoMutedSenders,
+        private val nicknames: NicknameRepository = NoNicknames
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             MessagesViewModel(
-                observeMessages, userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders
+                observeMessages, userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, nicknames = nicknames
             ) as T
     }
 }

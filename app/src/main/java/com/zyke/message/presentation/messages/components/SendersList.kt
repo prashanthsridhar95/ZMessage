@@ -42,7 +42,7 @@ fun SendersList(
 }
 
 internal fun Conversation.title(): String =
-    if (merchant.logo != MerchantLogo.PERSON) merchant.displayName else address
+    if (merchant.renamed || merchant.logo != MerchantLogo.PERSON) merchant.displayName else address
 
 @Composable
 private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () -> Unit) {

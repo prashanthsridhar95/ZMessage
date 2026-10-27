@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
 
     private val messagesViewModel: MessagesViewModel by viewModels {
         MessagesViewModel.Factory(
-            container.observeMessages, container.userMessageState, container.categoryOverrides, container.mutedSenders
+            container.observeMessages, container.userMessageState, container.categoryOverrides, container.mutedSenders, container.nicknames
         )
     }
 
@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModel.Factory(
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
-            container.wishlist, container.splits
+            container.wishlist, container.splits, container.nicknames
         )
     }
 

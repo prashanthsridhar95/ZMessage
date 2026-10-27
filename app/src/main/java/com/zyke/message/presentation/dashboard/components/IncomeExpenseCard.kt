@@ -34,6 +34,7 @@ import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.dashboard.TrendPoint
+import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import java.math.BigDecimal

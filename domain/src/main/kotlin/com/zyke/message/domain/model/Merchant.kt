@@ -36,5 +36,7 @@ data class Merchant(
     val logo: MerchantLogo,
     val category: MessageCategory,
     /** Set when the person has chosen a picture for this sender / receiver; see the image store. */
-    val imageKey: String? = null
+    val imageKey: String? = null,
+    /** True when [name] is a nickname the person gave, to be shown exactly as typed. */
+    val renamed: Boolean = false
 ) : java.io.Serializable

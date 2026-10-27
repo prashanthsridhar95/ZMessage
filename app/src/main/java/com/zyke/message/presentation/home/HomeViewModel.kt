@@ -16,6 +16,8 @@ import com.zyke.message.domain.insights.RefundTracker
 import com.zyke.message.domain.insights.SpendAlerts
 import com.zyke.message.domain.insights.Subscriptions
 import com.zyke.message.domain.repository.NoSplits
+import com.zyke.message.domain.repository.NicknameRepository
+import com.zyke.message.domain.repository.NoNicknames
 import com.zyke.message.domain.repository.NoWishlist
 import com.zyke.message.domain.repository.SplitRepository
 import com.zyke.message.domain.repository.WishlistRepository
@@ -50,7 +52,8 @@ class HomeViewModel(
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
     private val wishlist: WishlistRepository = NoWishlist,
-    private val splitRepository: SplitRepository = NoSplits
+    private val splitRepository: SplitRepository = NoSplits,
+    private val nicknames: NicknameRepository = NoNicknames
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value)
@@ -104,6 +107,8 @@ class HomeViewModel(
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
                 ?.let(CategoryKey::of)
                 ?.let { categoryOverrides.set(it, intent.category) }
+            is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let(CategoryKey::of)
+                ?.let { nicknames.set(it, intent.name) }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
             Intent.CancelSplit -> reduce { copy(splittingMessageId = null) }
             is Intent.SaveSplit -> {
@@ -180,13 +185,14 @@ class HomeViewModel(
         private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
         private val mutedSenders: MutedSenderRepository = NoMutedSenders,
         private val wishlist: WishlistRepository = NoWishlist,
-        private val splits: SplitRepository = NoSplits
+        private val splits: SplitRepository = NoSplits,
+        private val nicknames: NicknameRepository = NoNicknames
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
-                categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits
+                categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames
             ) as T
     }
 
