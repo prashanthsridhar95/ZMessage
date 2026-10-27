@@ -49,6 +49,7 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
         }
         is MessageContent.Loyalty ->
             "${merchant.displayName}: ${if (c.isLoaded) "earned" else "used"} ${c.points} points, balance ${c.balance}"
+        is MessageContent.Notice -> "${c.kind.label}${c.amount?.let { ": ${DisplayFormatters.rupees(it)}" }.orEmpty()}"
         MessageContent.Generic -> "Message from ${message.sender}: ${message.body.replace(Regex("\\s+"), " ").take(160)}"
     }
     return listOfNotNull(if (isUnread) "Unread" else null, body, time).joinToString(". ")

@@ -8,6 +8,7 @@ import com.zyke.message.domain.model.Merchant
 import com.zyke.message.domain.model.MerchantLogo
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.model.NoticeKind
 import com.zyke.message.domain.model.ScheduledKind
 import com.zyke.message.domain.model.NetworkCarrier
 import com.zyke.message.domain.model.SmsMessage
@@ -84,7 +85,7 @@ class MessageClassifier(
     }
 
     private fun fastTag(message: SmsMessage): ClassifiedMessage {
-        val event = fastTagParser.parse(message.body) ?: return generic(message)
+        val event = fastTagParser.parse(message.body) ?: return notice(message) ?: generic(message)
         return ClassifiedMessage(
             message = message,
             category = MessageCategory.FASTAG,
@@ -95,7 +96,7 @@ class MessageClassifier(
 
     private fun bank(message: SmsMessage): ClassifiedMessage {
         val transaction = bankParser.parse(message.body)
-        if (transaction == null || transaction.amount.isEmpty()) return generic(message)
+        if (transaction == null || transaction.amount.isEmpty()) return notice(message) ?: generic(message)
 
         return when (transaction.type) {
             BankTransactionType.CARD_BILL -> cardBill(message, transaction)
@@ -161,6 +162,17 @@ class MessageClassifier(
                 dueDate = tx.dueDate,
                 paymentLink = tx.paymentLink
             )
+        )
+    }
+
+    private fun notice(message: SmsMessage): ClassifiedMessage? {
+        val (kind, amount) = NoticeParser.detect(message.body) ?: return null
+        val merchant = merchants.resolve("${message.sender} ${message.body}")
+        return ClassifiedMessage(
+            message = message,
+            category = merchant.category,
+            merchant = merchant,
+            content = MessageContent.Notice(kind, amount)
         )
     }
 

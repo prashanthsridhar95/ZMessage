@@ -3,6 +3,7 @@ package com.zyke.message.domain
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.model.NoticeKind
 import com.zyke.message.domain.model.ScheduledKind
 import com.zyke.message.domain.model.SmsMessage
 import java.time.LocalDate
@@ -187,5 +188,26 @@ class ParsingReportRegressionTest {
     fun fastagRecharge_isTopUp() {
         val event = (classify("Hi, Recharge successful: IDFC FIRST Bank FASTag on TN01AB1234 credited with Rs.500.0 on 10/10/2026 10:00. Ref:123456789012345678 Avbl Bal: Rs.620.5") as MessageContent.FastTag).event
         assertEquals("TN01AB1234", event.vehicleNumber)
+    }
+
+    private fun notice(body: String): MessageContent.Notice =
+        classify(body) as? MessageContent.Notice ?: error("not a notice")
+
+    @Test
+    fun informationalMessages_areNoticesNotUnparsed() {
+        assertEquals(NoticeKind.AUTOPAY_FAILED, notice("Autopay Failed:\nINR.649.00 on 10/10/2026 via HDFC Bank Card 1234 for Netflix\nID:XSiUpjrhk9\nManage:https://x.in").kind)
+        assertEquals(NoticeKind.REWARD_REDEMPTION, notice("Redeem your Axis Bank EDGE Miles to pay for your recent transaction of INR 999.00 on card no. XX1234. Click https://x.in within 48 hours to redeem. TnC.").kind)
+        assertEquals(NoticeKind.IPO_ALLOTMENT, notice("Dear ABCDE1234F IPO Jio Platforms Limited: 10 shares allotted at Rs 100.00 for Jane no SDF123. Refer registered email id for details- NSEIL").kind)
+        assertEquals(NoticeKind.TAX_DEDUCTED, notice("Total TDS by Acme of PAN ABCDE1234F for Jane ending Jun 26 is Rs 12,345 and cumulative TDS for FY 26-27 is Rs 23,456. View Form 26AS/ATS for details. ITD Team.").kind)
+        assertEquals(NoticeKind.BROKER_BALANCE, notice("ZERODHABROKINGLIMITED on 10-10-2026 reported your Fund bal Rs.-100.5 & Securities bal 9.5. This excludes your Bank, DP & PMS bal with the broker-NSE").kind)
+        assertEquals("50000.00", notice("Dear Jane, a total of Rs. 50000.00/- is approved against case ID 123456. Kindly contact hospital for further details. Wish you a speedy recovery.Regards FHPL").amount)
+        assertEquals(NoticeKind.PAYMENT_REQUEST, notice("To pay INR 1500.00 for your Order with Tracking # EZ123456789012345678 please click https://x.in - Razorpay POS").kind)
+        assertEquals(NoticeKind.FASTAG_PASS, notice("Hi, annual pass issued on FASTag against TN01AB1234. Validity: 01/10/2026 to 30/09/2027 or 200 tolls/year. Amt. paid: Rs.3075. - IDFC FIRST Bank").kind)
+    }
+
+    @Test
+    fun scamStyleMessages_areFlaggedAsPromotional() {
+        assertTrue(classifier.classify(SmsMessage(1, "AX-XYZ", "Cust ID: Dear Sir/Mam Inv No.: Salary Rs99999, You can work from home Total Due amount: api.whatsapp.com/send?phone=919999999999 Pay Link Galaxy", 0L, true)).isPromotional)
+        assertTrue(classifier.classify(SmsMessage(1, "AX-XYZ", "Dear Customer Your order for Jane on Rs99999 is confirmed. Service List: Simple Working Thanks Details api.whatsapp.com/send?phone=919999999999 VTPL", 0L, true)).isPromotional)
     }
 }

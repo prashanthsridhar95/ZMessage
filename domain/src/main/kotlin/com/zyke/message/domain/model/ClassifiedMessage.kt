@@ -65,7 +65,22 @@ sealed interface MessageContent {
         val isLoaded: Boolean
     ) : MessageContent
 
+    /** An informational message that mentions money without being a payment (failed autopay, IPO allotment, ...). */
+    data class Notice(val kind: NoticeKind, val amount: String?) : MessageContent
+
     data object Generic : MessageContent
+}
+
+enum class NoticeKind(val label: String) {
+    AUTOPAY_FAILED("Autopay failed"),
+    REWARD_REDEMPTION("Rewards to redeem"),
+    IPO_ALLOTMENT("IPO allotment"),
+    TAX_DEDUCTED("Tax deducted"),
+    BROKER_BALANCE("Broker balance"),
+    INSURANCE_CLAIM("Claim approved"),
+    PAYMENT_REQUEST("Payment request"),
+    FASTAG_PASS("FASTag annual pass"),
+    ADVISORY("Advisory")
 }
 
 enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET, MANDATE_CANCELLED, MANDATE_REQUEST }
