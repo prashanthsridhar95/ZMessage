@@ -44,6 +44,15 @@ object DisplayFormatters {
         return "₹" + format.format(amount)
     }
 
+    /** Like [rupees] but always with exactly [fractionDigits] decimals, so a counting number keeps one width and precision. */
+    fun rupeesFixed(amount: BigDecimal, fractionDigits: Int, locale: Locale = Locale.forLanguageTag("en-IN")): String {
+        val format = NumberFormat.getNumberInstance(locale).apply {
+            maximumFractionDigits = fractionDigits
+            minimumFractionDigits = fractionDigits
+        }
+        return "₹" + format.format(amount)
+    }
+
     fun rupees(raw: String): String = raw.toBigDecimalOrNull()?.let { rupees(it) } ?: "₹$raw"
 
     /** "Due today", "Due tomorrow", "Due in 5 days", "Due 20 Mar". */

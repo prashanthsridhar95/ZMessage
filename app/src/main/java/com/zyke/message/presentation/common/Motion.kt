@@ -48,16 +48,22 @@ object Motion {
 
 /**
  * The rupee text for [target], counting from the value on screen to the new one when it changes.
- * The first time it shows it simply appears, so scrolling a list never replays it.
+ * The first time it shows it simply appears (no animation is started at all), so scrolling a list or
+ * redrawing an item never replays it. While counting it keeps the target's decimal places, so the
+ * precision does not jump when the count ends.
  */
 @Composable
 fun rememberAnimatedRupees(target: BigDecimal): String {
-    val progress = remember { Animatable(target.toFloat()) }
-    LaunchedEffect(target) {
-        progress.animateTo(target.toFloat(), tween(Motion.COUNT_MS, easing = FastOutSlowInEasing))
+    val goal = target.toFloat()
+    val progress = remember { Animatable(goal) }
+    LaunchedEffect(goal) {
+        if (progress.targetValue != goal) {
+            progress.animateTo(goal, tween(Motion.COUNT_MS, easing = FastOutSlowInEasing))
+        }
     }
     return if (progress.isRunning) {
-        DisplayFormatters.rupees(BigDecimal(progress.value.toDouble()).setScale(0, RoundingMode.HALF_UP))
+        val digits = if (target.stripTrailingZeros().scale() > 0) 2 else 0
+        DisplayFormatters.rupeesFixed(BigDecimal(progress.value.toDouble()).setScale(digits, RoundingMode.HALF_UP), digits)
     } else {
         DisplayFormatters.rupees(target)
     }
