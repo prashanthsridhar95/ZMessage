@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Zyke Message"
 include(":app")
+include(":domain")

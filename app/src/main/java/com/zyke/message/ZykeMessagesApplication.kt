@@ -1,22 +1,14 @@
 package com.zyke.message
 
 import android.app.Application
+import com.zyke.message.di.AppContainer
 
-class ZykeMessagesApplication: Application() {
+class ZykeMessagesApplication : Application() {
+    lateinit var container: AppContainer
+        private set
+
     override fun onCreate() {
         super.onCreate()
-    }
-
-    companion object
-    {
-        lateinit var INSTANCE: ZykeMessagesApplication
-        fun getInstance(): ZykeMessagesApplication
-        {
-            if(::INSTANCE.isInitialized.not())
-            {
-                INSTANCE = ZykeMessagesApplication()
-            }
-            return INSTANCE
-        }
+        container = AppContainer(this)
     }
 }

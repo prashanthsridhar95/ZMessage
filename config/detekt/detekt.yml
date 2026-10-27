@@ -1,0 +1,66 @@
+# Static-analysis rules. detekt's defaults apply (`buildUponDefaultConfig`); only deviations are listed,
+# each with the reason. New code must pass with zero issues; accepted legacy findings live in baseline.xml.
+build:
+  maxIssues: 0
+
+naming:
+  FunctionNaming:
+    # Composable functions are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+  MatchingDeclarationName:
+    # Contract files group State / Intent / Effect under one object, named after the feature.
+    active: false
+
+complexity:
+  LongMethod:
+    threshold: 80
+    # UI code reads top-to-bottom as one layout tree; splitting it by line count hurts more than it helps.
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true
+    ignoreAnnotated: ['Composable']
+  CyclomaticComplexMethod:
+    threshold: 20
+    ignoreSimpleWhenEntries: true
+  TooManyFunctions:
+    thresholdInFiles: 25
+    thresholdInObjects: 20
+    thresholdInClasses: 20
+    ignoreAnnotated: ['Composable']
+
+style:
+  MaxLineLength:
+    maxLineLength: 140
+    excludeCommentStatements: true
+    excludeRawStrings: true
+    # Regular-expression tables are long by nature and unreadable when wrapped.
+    excludes: ['**/domain/classification/**', '**/domain/diagnostics/**', '**/test/**', '**/Previews.kt']
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']
+  MagicNumber:
+    # dp / sp / alpha values are the design system itself, not magic.
+    excludes: ['**/presentation/**', '**/test/**', '**/androidTest/**']
+    ignoreNumbers: ['-1', '0', '1', '2', '3', '4', '10', '100', '1000']
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreConstantDeclaration: true
+    ignoreNamedArgument: true
+    ignoreEnums: true
+  ReturnCount:
+    max: 4
+    excludeGuardClauses: true
+  DestructuringDeclarationWithTooManyEntries:
+    maxDestructuringEntries: 5
+
+empty-blocks:
+  EmptyFunctionBlock:
+    # Test fakes override interface methods they do not need.
+    ignoreOverridden: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    # Parsers run on untrusted SMS text and must never take the app down.
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+  SwallowedException:
+    active: false

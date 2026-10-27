@@ -1,3 +1,35 @@
 <resources>
     <string name="app_name">Zyke Message</string>
+    <string name="permission_title">Allow access to your messages</string>
+    <string name="permission_rationale">Zyke Message reads the SMS in your inbox on this device to sort them into OTPs, payments, bills and more. Nothing leaves your phone.</string>
+    <string name="permission_grant">Grant access</string>
+    <string name="messages_empty">No messages to show</string>
+    <string name="messages_error">Couldn\'t read your messages</string>
+    <string name="otp_copied">OTP copied to clipboard</string>
+    <string name="archived">Message archived</string>
+    <string name="undo">Undo</string>
+    <string name="link_failed">Couldn\'t open the link</string>
+    <string name="search_empty">No matches</string>
+    <string name="search_empty_hint">Try a merchant name, an amount or part of the message.</string>
+    <string name="filter_empty">Nothing here</string>
+    <string name="filter_empty_hint">Messages in this group will show up as they arrive.</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_permission">SMS access needed</string>
+    <string name="dashboard_permission_hint">Allow access from the Messages tab to see where your money goes.</string>
+    <string name="dashboard_empty">No payments in this period</string>
+    <string name="dashboard_empty_hint">Try another period, or switch between Spent and Received.</string>
+    <string name="dashboard_by_category">By category</string>
+    <string name="dashboard_by_vendor">Top vendors</string>
+    <string name="dashboard_by_source">Paid from</string>
+    <string name="show_fewer">Show fewer</string>
+    <string name="show_all_vendors">Show all %1$d vendors</string>
+    <string name="dashboard_card_bills">Credit card bills</string>
+    <string name="dashboard_card_bills_hint">Latest statement for each card</string>
+    <string name="dashboard_trend">Spending over time</string>
+    <string name="dashboard_trend_received">Income over time</string>
+    <string name="dashboard_by_vendor_received">Top sources</string>
+    <string name="dashboard_by_source_received">Received in</string>
+    <string name="dashboard_empty_received">No money received in this period</string>
+    <string name="error_hint">Check that SMS access is allowed, then try again.</string>
+    <string name="report_failed">Couldn\'t prepare the report</string>
 </resources>
