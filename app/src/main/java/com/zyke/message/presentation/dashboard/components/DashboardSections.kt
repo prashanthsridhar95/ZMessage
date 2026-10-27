@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -8,6 +9,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -576,14 +579,12 @@ internal fun SourceRow(item: SourceTotal, total: BigDecimal, direction: FlowDire
     }
 }
 
-/** One credit card: its latest statement, with earlier ones on tap. */
+/** One credit card: its latest statement. Tapping it opens the card's sheet with the usage trend. */
 @Composable
 internal fun CardBillRow(
     bills: CardBills,
     today: LocalDate,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onPay: (String) -> Unit,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latest = bills.latest
@@ -597,49 +598,135 @@ internal fun CardBillRow(
         else -> DisplayFormatters.dueLabel(due, today)
     }
 
-    Column(
+    Row(
         modifier
             .fillMaxWidth()
-            .animateContentSize()
-            .clickable(
-                enabled = bills.earlier.isNotEmpty(),
-                onClickLabel = if (expanded) "Hide earlier bills" else "Show earlier bills",
-                onClick = onToggle
-            )
-            .padding(vertical = 10.dp)
+            .clickable(onClickLabel = "Open ${bills.label}", onClick = onOpen)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                RowTitle(bills.label)
-                Caption(status, color = if (urgent) MaterialTheme.colorScheme.error else mutedColor())
+        Column(Modifier.weight(1f)) {
+            RowTitle(bills.label)
+            Caption(status, color = if (urgent) MaterialTheme.colorScheme.error else mutedColor())
+            latest.minimumDue?.let { Caption("Minimum ${DisplayFormatters.rupees(it)}") }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            DisplayFormatters.rupees(latest.amount),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1
+        )
+    }
+}
+
+/** How a card has been used: a bar per statement, oldest to newest, the bill to pay, and every statement listed. */
+@Composable
+internal fun CardBillSheet(
+    bills: CardBills,
+    today: LocalDate,
+    onPay: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dayFmt = DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault())
+    val all = listOf(bills.latest) + bills.earlier
+    val oldestFirst = all.sortedBy { it.epochMillis }
+    val latest = bills.latest
+    val previous = bills.earlier.firstOrNull()
+    val due = latest.dueDate
+
+    AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column {
+                Text(bills.label, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Caption(
+                    if (due != null) DisplayFormatters.dueLabel(due, today) else "Statement · ${dayFmt.format(statementDate(latest))}",
+                    color = if (due != null && !due.isBefore(today) && DisplayFormatters.isUrgent(due, today)) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        mutedColor()
+                    }
+                )
+            }
+
+            Column {
+                Text(
+                    DisplayFormatters.rupees(latest.amount),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 latest.minimumDue?.let { Caption("Minimum ${DisplayFormatters.rupees(it)}") }
+                if (previous != null) {
+                    val change = latest.amount.subtract(previous.amount)
+                    val direction = when {
+                        change.signum() > 0 -> "Up ${DisplayFormatters.rupees(change)}"
+                        change.signum() < 0 -> "Down ${DisplayFormatters.rupees(change.negate())}"
+                        else -> "Same"
+                    }
+                    Caption("$direction from the previous statement")
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                DisplayFormatters.rupees(latest.amount),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1
-            )
-        }
 
-        val billLink = latest.paymentLink
-        if (billLink != null && !passed) {
-            AppButton(
-                text = "View bill",
-                onClick = { onPay(billLink) },
-                style = ButtonStyle.TONAL,
-                size = ButtonSize.COMPACT,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
-
-        if (expanded) {
-            Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                bills.earlier.forEach { bill -> EarlierBill(bill, dayFmt) }
+            val payLink = latest.paymentLink
+            if (payLink != null) {
+                AppButton("Pay bill", { onPay(payLink) }, Modifier.fillMaxWidth())
             }
-        } else if (bills.earlier.isNotEmpty()) {
-            Caption("${bills.earlier.size} earlier ${if (bills.earlier.size == 1) "bill" else "bills"}")
+
+            if (oldestFirst.size > 1) {
+                Column {
+                    RowTitle("Usage trend")
+                    CardBillTrend(oldestFirst, dayFmt, Modifier.padding(top = 8.dp))
+                }
+            } else {
+                Caption("The trend appears once there are two or more statements.")
+            }
+
+            if (bills.earlier.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RowTitle("Earlier statements")
+                    bills.earlier.forEach { bill -> EarlierBill(bill, dayFmt) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter, modifier: Modifier = Modifier) {
+    val max = statements.maxOf { it.amount }.coerceAtLeast(BigDecimal.ONE)
+    val summary = statements.joinToString(", ") { "${dayFmt.format(statementDate(it))} ${DisplayFormatters.rupees(it.amount)}" }
+    Column(modifier) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(96.dp)
+                .semantics { contentDescription = "Statement amounts. $summary" },
+            horizontalArrangement = Arrangement.spacedBy(if (statements.size > 12) 2.dp else 6.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            statements.forEachIndexed { index, bill ->
+                val height = rememberGrowingFraction(bill.amount.fractionOf(max).coerceAtLeast(0.04f)).coerceAtLeast(0.01f)
+                val isLatest = index == statements.lastIndex
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(height)
+                            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                            .background(
+                                if (isLatest) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            )
+                    )
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Caption(dayFmt.format(statementDate(statements.first())))
+            Caption(dayFmt.format(statementDate(statements.last())), textAlign = TextAlign.End)
         }
     }
 }

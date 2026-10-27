@@ -24,7 +24,7 @@
     <string name="show_fewer">Show fewer</string>
     <string name="show_all_vendors">Show all %1$d vendors</string>
     <string name="dashboard_card_bills">Credit card bills</string>
-    <string name="dashboard_card_bills_hint">Latest statement for each card</string>
+    <string name="dashboard_card_bills_hint">Tap a card to see how it has been used</string>
     <string name="dashboard_trend">Spending over time</string>
     <string name="dashboard_trend_received">Income over time</string>
     <string name="dashboard_by_vendor_received">Top sources</string>

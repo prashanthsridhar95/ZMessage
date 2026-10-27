@@ -50,6 +50,7 @@ import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.presentation.dashboard.components.BudgetDialog
 import com.zyke.message.presentation.dashboard.components.CardBillRow
+import com.zyke.message.presentation.dashboard.components.CardBillSheet
 import com.zyke.message.presentation.dashboard.components.CategoryRow
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ChartLegend
@@ -158,6 +159,15 @@ fun DashboardScreen(
         ReportCardSheet(reportCardForSheet, onDismiss = { onIntent(Intent.CloseReportCard) })
     }
 
+    state.cardBills.firstOrNull { it.key == state.expandedCard }?.let { bills ->
+        CardBillSheet(
+            bills = bills,
+            today = LocalDate.ofInstant(state.now, ZoneId.systemDefault()),
+            onPay = { onIntent(Intent.OpenLink(it)) },
+            onDismiss = { onIntent(Intent.ToggleCard(bills.key)) }
+        )
+    }
+
     state.editingBudget?.let { category ->
         BudgetDialog(
             category = category,
@@ -256,9 +266,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                         CardBillRow(
                             bills = bills,
                             today = today,
-                            expanded = state.expandedCard == bills.key,
-                            onToggle = { onIntent(Intent.ToggleCard(bills.key)) },
-                            onPay = { onIntent(Intent.OpenLink(it)) }
+                            onOpen = { onIntent(Intent.ToggleCard(bills.key)) }
                         )
                     }
                 }
