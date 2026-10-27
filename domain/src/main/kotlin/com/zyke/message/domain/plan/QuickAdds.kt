@@ -30,6 +30,19 @@ sealed interface QuickAdd {
         override val detail = "${item.kind.label} · about ₹${item.amount}" + (item.dayOfMonth?.let { " around day $it" } ?: "")
     }
 
+    /** What to put aside each month, from what was actually kept in the last few months. */
+    data class SavingsGoal(val amount: BigDecimal, override val detail: String) : QuickAdd {
+        override val key = "quickadd-savings-goal"
+        override val title = "Savings goal ₹$amount a month"
+    }
+
+    /** A monthly limit for a category, from what was spent in it in the last few months. */
+    data class Limit(val category: MessageCategory, val monthly: BigDecimal) : QuickAdd {
+        override val key = "quickadd-limit-${category.name.lowercase()}"
+        override val title = "${category.displayString} limit ₹$monthly a month"
+        override val detail = "About what you spent there in the last few months"
+    }
+
     data class Account(val card: UserCard) : QuickAdd {
         override val key = "quickadd-card-${card.type.name.lowercase()}-${card.last4}"
         override val title = card.label
@@ -53,7 +66,8 @@ object QuickAdds {
         cards: List<UserCard>,
         dismissed: Set<String>,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        budgets: Map<MessageCategory, BigDecimal> = emptyMap()
     ): List<QuickAdd> {
         val found = ArrayList<QuickAdd>()
 
@@ -83,8 +97,72 @@ object QuickAdds {
         }
 
         found += accounts(messages, cards)
+        savingsGoal(messages, plan, now, zone)?.let { found += it }
+        found += limits(messages, budgets, now, zone)
 
         return found.filter { it.key !in dismissed }
+    }
+
+    private val COMMITTED = setOf(
+        MessageCategory.INVESTMENTS, MessageCategory.SAVINGS, MessageCategory.INSURANCE,
+        MessageCategory.CHARITY, MessageCategory.CREDIT_CARDS, MessageCategory.OTHERS, MessageCategory.OTP
+    )
+    private const val MONTHS_LOOKED_AT = 3L
+    private const val MIN_MONTHS = 2
+    private const val MAX_LIMIT_SUGGESTIONS = 3
+    private val ROUND_SAVINGS = BigDecimal(500)
+    private val ROUND_LIMIT = BigDecimal(100)
+    private val MIN_LIMIT = BigDecimal(500)
+    private val FALLBACK_SHARE = BigDecimal("0.10")
+
+    private fun completeMonths(now: Instant, zone: ZoneId): List<java.time.YearMonth> {
+        val thisMonth = java.time.YearMonth.from(java.time.LocalDate.ofInstant(now, zone))
+        return (1..MONTHS_LOOKED_AT).map { thisMonth.minusMonths(it) }
+    }
+
+    private fun month(message: ClassifiedMessage, zone: ZoneId) =
+        java.time.YearMonth.from(Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate())
+
+    /** The savings goal: what was kept on average in the last months, or a tenth of the salary when nothing was. */
+    private fun savingsGoal(messages: List<ClassifiedMessage>, plan: MoneyPlan, now: Instant, zone: ZoneId): QuickAdd? {
+        if (plan.savingsGoal != null) return null
+        val months = completeMonths(now, zone)
+        val kept = months.mapNotNull { m ->
+            val moves = messages.filter { month(it, zone) == m }.mapNotNull { message ->
+                val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
+                tx.amount.toBigDecimalOrNull()?.let { if (tx.isReceived) it else it.negate() }
+            }
+            if (moves.isEmpty()) null else moves.fold(BigDecimal.ZERO, BigDecimal::add)
+        }
+        if (kept.size >= MIN_MONTHS) {
+            val average = kept.fold(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal(kept.size), 0, java.math.RoundingMode.FLOOR)
+            val rounded = average.divide(ROUND_SAVINGS, 0, java.math.RoundingMode.FLOOR).multiply(ROUND_SAVINGS)
+            if (rounded.signum() > 0) return QuickAdd.SavingsGoal(rounded, "You kept about ₹$average a month over the last ${kept.size} months")
+        }
+        val salary = plan.salary ?: SalaryDetector.detect(messages, now, zone)?.typical ?: return null
+        val tenth = salary.multiply(FALLBACK_SHARE).divide(ROUND_SAVINGS, 0, java.math.RoundingMode.FLOOR).multiply(ROUND_SAVINGS)
+        return tenth.takeIf { it.signum() > 0 }?.let { QuickAdd.SavingsGoal(it, "A tenth of your salary") }
+    }
+
+    /** Monthly limits for the categories that take the most, from what they took in the last months. */
+    private fun limits(messages: List<ClassifiedMessage>, budgets: Map<MessageCategory, BigDecimal>, now: Instant, zone: ZoneId): List<QuickAdd> {
+        val months = completeMonths(now, zone).toSet()
+        val spend = HashMap<MessageCategory, HashMap<java.time.YearMonth, BigDecimal>>()
+        messages.forEach { message ->
+            val tx = message.content as? MessageContent.Transaction ?: return@forEach
+            if (tx.isReceived || message.category in COMMITTED || message.category in budgets) return@forEach
+            val m = month(message, zone)
+            if (m !in months) return@forEach
+            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
+            val byMonth = spend.getOrPut(message.category) { HashMap() }
+            byMonth[m] = (byMonth[m] ?: BigDecimal.ZERO) + amount
+        }
+        return spend.mapNotNull { (category, byMonth) ->
+            if (byMonth.size < MIN_MONTHS) return@mapNotNull null
+            val average = byMonth.values.fold(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal(byMonth.size), 0, java.math.RoundingMode.CEILING)
+            val limit = average.divide(ROUND_LIMIT, 0, java.math.RoundingMode.CEILING).multiply(ROUND_LIMIT)
+            if (limit < MIN_LIMIT) null else category to limit
+        }.sortedByDescending { it.second }.take(MAX_LIMIT_SUGGESTIONS).map { QuickAdd.Limit(it.first, it.second) }
     }
 
     private fun accounts(messages: List<ClassifiedMessage>, cards: List<UserCard>): List<QuickAdd> {

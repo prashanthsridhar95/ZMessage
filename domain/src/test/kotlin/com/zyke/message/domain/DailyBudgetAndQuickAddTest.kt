@@ -97,4 +97,29 @@ class DailyBudgetAndQuickAddTest {
         val none = QuickAdds.find(messages, MoneyPlan(), emptyList(), keys, now, zone)
         assertTrue(none.toString(), none.isEmpty())
     }
+
+    @Test
+    fun quickAdds_suggestALimitFromSpendingAndASavingsGoalFromWhatWasKept() {
+        val messages = (1..3).flatMap { back ->
+            val day = today.minusMonths(back.toLong()).withDayOfMonth(10)
+            listOf(spend("2000.00", "SWIGGY", day))
+        } + (1..3).map { back ->
+            classifier.classify(
+                SmsMessage(
+                    nextId++, "AD-HDFCBK",
+                    "Credit Alert! Rs.20000.00 credited to HDFC Bank A/c XX5765 on 05-0$back-26 from VPA boss@okhdfc (UPI 1234$back)",
+                    today.minusMonths(back.toLong()).withDayOfMonth(5).atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), true
+                )
+            )
+        }
+        val found = QuickAdds.find(messages, MoneyPlan(), emptyList(), emptySet(), now, zone)
+
+        val limit = found.filterIsInstance<QuickAdd.Limit>().single()
+        assertEquals(0, bd("2000").compareTo(limit.monthly))
+        val goal = found.filterIsInstance<QuickAdd.SavingsGoal>().single()
+        assertTrue(goal.toString(), goal.amount.signum() > 0)
+
+        val withLimit = QuickAdds.find(messages, MoneyPlan(), emptyList(), emptySet(), now, zone, mapOf(limit.category to bd("3000")))
+        assertTrue(withLimit.none { it is QuickAdd.Limit })
+    }
 }

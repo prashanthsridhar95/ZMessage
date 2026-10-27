@@ -155,6 +155,8 @@ class HomeViewModel(
             is QuickAdd.Salary -> planRepository.save(plan.copy(salary = quick.amount, salaryDay = quick.day))
             is QuickAdd.Item -> planRepository.save(plan.copy(items = plan.items + quick.item))
             is QuickAdd.Account -> cardRepository.save(quick.card)
+            is QuickAdd.SavingsGoal -> planRepository.save(plan.copy(savingsGoal = quick.amount))
+            is QuickAdd.Limit -> budgetRepository.setBudget(quick.category, quick.monthly)
         }
     }
 
@@ -191,7 +193,7 @@ class HomeViewModel(
 
             updated.copy(
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
-                quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone),
+                quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone) + LowBalance.warnings(live, balances, today))
                     .take(MAX_NUDGES),
                 refunds = RefundTracker.build(live, updated.now, zone),
