@@ -32,6 +32,7 @@ import com.zyke.message.presentation.dashboard.DashboardContract
 import com.zyke.message.presentation.dashboard.DashboardRoute
 import com.zyke.message.presentation.dashboard.DashboardViewModel
 import com.zyke.message.presentation.home.HomeContract
+import com.zyke.message.presentation.home.HomePage
 import com.zyke.message.presentation.home.HomeRoute
 import com.zyke.message.presentation.home.HomeViewModel
 import com.zyke.message.presentation.messages.MessagesContract
@@ -165,6 +166,20 @@ class MainActivity : ComponentActivity() {
                             viewModel = dashboardViewModel,
                             onRequestPermission = { smsPermission.launch(Manifest.permission.READ_SMS) },
                             modifier = modifier
+                        )
+                        AppTab.BILLS -> HomeRoute(
+                            viewModel = homeViewModel,
+                            onNavigate = navigate,
+                            onRequestPermission = { smsPermission.launch(Manifest.permission.READ_SMS) },
+                            modifier = modifier,
+                            page = HomePage.BILLS
+                        )
+                        AppTab.CODES -> HomeRoute(
+                            viewModel = homeViewModel,
+                            onNavigate = navigate,
+                            onRequestPermission = { smsPermission.launch(Manifest.permission.READ_SMS) },
+                            modifier = modifier,
+                            page = HomePage.CODES
                         )
                         AppTab.INBOX -> MessagesRoute(messagesViewModel, modifier)
                     }

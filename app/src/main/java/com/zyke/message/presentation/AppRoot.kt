@@ -38,19 +38,21 @@ import com.zyke.message.R
 
 private const val TAB_SLIDE_DIVISOR = 12
 
-/** The three places the app lives: the overview, the money picture, and the inbox. */
+/** Five places, each with one job: am I okay, where did it go, what is due, a code, and the messages. */
 enum class AppTab(val label: String, val icon: Int) {
     HOME("Home", R.drawable.baseline_home_24),
-    MONEY("Money", R.drawable.baseline_wallet_24),
+    MONEY("Spend", R.drawable.baseline_wallet_24),
+    BILLS("Bills", R.drawable.baseline_receipt_24),
+    CODES("Codes", R.drawable.baseline_lock_24),
     INBOX("Inbox", R.drawable.baseline_message_24)
 }
 
 /** The tab the app opens on, and the one Back returns to before leaving. */
-val StartTab = AppTab.INBOX
+val StartTab = AppTab.HOME
 
 /**
- * Tab shell. The app opens on the Inbox. Each tab keeps its scroll position while another is showing,
- * and Back from any other tab returns to the Inbox before leaving the app, so the way out is always
+ * Tab shell. The app opens on Home. Each tab keeps its scroll position while another is showing,
+ * and Back from any other tab returns to Home before leaving the app, so the way out is always
  * the same.
  */
 @Composable

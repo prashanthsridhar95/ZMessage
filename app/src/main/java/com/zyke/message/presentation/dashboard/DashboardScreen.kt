@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.dashboard
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.common.LinkButton
 import android.Manifest
@@ -218,6 +221,8 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     val ranking = dashboard.categories.map { it.category }
     val received = state.direction == FlowDirection.RECEIVED
     val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
+    // The tab opens on the total and the top few categories; the rest is one tap away.
+    var showDetail by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -255,6 +260,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
         }
 
+        if (showDetail) {
         item(key = "plan") {
             PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
         }
@@ -303,13 +309,15 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "card-cycles") { CardCyclesSection(state.cardCycles) }
         }
 
+        }
+
         val reportCard = state.reportCard
-        if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
+        if (showDetail && !dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
             item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
         if (!dashboard.isEmpty) {
-            item(key = "trend") {
+            if (showDetail) item(key = "trend") {
                 SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
                     TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
                     ChartLegend(ranking, Modifier.padding(top = 12.dp))
@@ -317,8 +325,13 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
 
             item(key = "categories") {
-                SectionCard(stringResource(R.string.dashboard_by_category), summary = DisplayFormatters.count(dashboard.categories.size, "category", "categories")) {
-                    dashboard.categories.forEachIndexed { index, item ->
+                SectionCard(
+                    stringResource(R.string.dashboard_by_category),
+                    summary = DisplayFormatters.count(dashboard.categories.size, "category", "categories"),
+                    startOpen = true
+                ) {
+                    val shown = if (showDetail) dashboard.categories else dashboard.categories.take(COLLAPSED_CATEGORIES)
+                    shown.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
                         CategoryRow(
                             item = item,
@@ -335,7 +348,11 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
-            item(key = "vendors") {
+            item(key = "more") {
+                LinkButton(if (showDetail) "Show less" else "More detail", { showDetail = !showDetail })
+            }
+
+            if (showDetail) item(key = "vendors") {
                 val vendors = if (state.showAllVendors) dashboard.vendors else dashboard.vendors.take(COLLAPSED_VENDORS)
                 SectionCard(stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor)) {
                     vendors.forEachIndexed { index, vendor ->
@@ -358,7 +375,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
-            item(key = "sources") {
+            if (showDetail) item(key = "sources") {
                 SectionCard(stringResource(if (received) R.string.dashboard_by_source_received else R.string.dashboard_by_source)) {
                     dashboard.sources.forEachIndexed { index, source ->
                         if (index > 0) HorizontalDivider()
@@ -369,3 +386,5 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
     }
 }
+
+private const val COLLAPSED_CATEGORIES = 5
