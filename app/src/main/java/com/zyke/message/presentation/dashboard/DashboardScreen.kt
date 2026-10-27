@@ -294,7 +294,9 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 FintechCard {
                     IncomeExpenseCard(
                         dashboard, state.expenseTrend, state.incomeTrend, state.period, state.direction,
-                        onDirection = { onIntent(Intent.SelectDirection(it)) }
+                        onDirection = { onIntent(Intent.SelectDirection(it)) },
+                        onShift = { onIntent(Intent.ShiftCycle(it)) },
+                        canGoForward = state.cycleOffset < 0 || state.period != DashboardPeriod.THIS_MONTH
                     )
                 }
             }

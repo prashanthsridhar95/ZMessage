@@ -72,6 +72,9 @@ internal fun IncomeExpenseCard(
     period: DashboardPeriod,
     direction: FlowDirection,
     onDirection: (FlowDirection) -> Unit,
+    /** Moves to the pay cycle before (-1) or after (1); null where the chart cannot be moved. */
+    onShift: ((Int) -> Unit)? = null,
+    canGoForward: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val dates = (expense.map { it.start } + income.map { it.start }).distinct().sorted()
@@ -88,7 +91,11 @@ internal fun IncomeExpenseCard(
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
 
     Column(modifier.fillMaxWidth()) {
-        Caption(caption.uppercase())
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (onShift != null) AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            Caption(caption.uppercase(), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (onShift != null) AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = canGoForward)
+        }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             Total("Spent", dashboard.spentTotal, ExpenseColor, direction == FlowDirection.SPENT) { onDirection(FlowDirection.SPENT) }
             Total("Received", dashboard.receivedTotal, IncomeColor, direction == FlowDirection.RECEIVED) { onDirection(FlowDirection.RECEIVED) }

@@ -68,9 +68,18 @@ class DashboardViewModel(
                 if (intent.permissionGranted) startObserving() else reduce { copy(isLoading = false, permissionMissing = true) }
 
             is Intent.SelectCustomRange -> reduceDashboard {
-                copy(period = DashboardPeriod.CUSTOM, customRange = com.zyke.message.domain.dashboard.DateRange(intent.start, intent.end), expandedVendor = null)
+                copy(period = DashboardPeriod.CUSTOM, customRange = com.zyke.message.domain.dashboard.DateRange(intent.start, intent.end), cycleOffset = 0, expandedVendor = null)
             }
-            is Intent.SelectPeriod -> reduceDashboard { copy(period = intent.period, expandedVendor = null) }
+            is Intent.SelectPeriod -> reduceDashboard { copy(period = intent.period, cycleOffset = 0, expandedVendor = null) }
+            is Intent.ShiftCycle -> reduceDashboard {
+                val offset = (cycleOffset + intent.delta).coerceAtMost(0)
+                val today = LocalDate.ofInstant(now, clock.zone)
+                if (offset == 0) {
+                    copy(period = DashboardPeriod.THIS_MONTH, customRange = null, cycleOffset = 0, expandedVendor = null)
+                } else {
+                    copy(period = DashboardPeriod.CUSTOM, customRange = cycle.shifted(today, offset), cycleOffset = offset, expandedVendor = null)
+                }
+            }
             is Intent.SelectDirection -> reduceDashboard { copy(direction = intent.direction, expandedVendor = null) }
             is Intent.SelectCategory -> reduceDashboard {
                 copy(category = if (category == intent.category) null else intent.category, expandedVendor = null)
@@ -83,7 +92,7 @@ class DashboardViewModel(
             Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
             Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
             Intent.ResetFilters -> reduceDashboard {
-                copy(period = DashboardPeriod.THIS_MONTH, category = null, expandedVendor = null)
+                copy(period = DashboardPeriod.THIS_MONTH, customRange = null, cycleOffset = 0, category = null, expandedVendor = null)
             }
             Intent.ClearCategory -> reduceDashboard { copy(category = null, expandedVendor = null) }
 

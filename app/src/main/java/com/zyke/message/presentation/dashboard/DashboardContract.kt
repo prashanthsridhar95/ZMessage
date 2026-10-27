@@ -30,6 +30,8 @@ object DashboardContract {
         val period: DashboardPeriod = DashboardPeriod.THIS_MONTH,
         /** The days chosen by hand, used when [period] is Custom range. */
         val customRange: com.zyke.message.domain.dashboard.DateRange? = null,
+        /** How many pay cycles back the chart has been moved: 0 is the current one, -1 the one before. */
+        val cycleOffset: Int = 0,
         /** Where the person's month starts, from their settings. */
         val cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR,
         val direction: FlowDirection = FlowDirection.SPENT,
@@ -79,12 +81,14 @@ object DashboardContract {
 
         /** Period and category live in the filter sheet; the direction has its own switch on screen. */
         val activeFilterCount: Int
-            get() = (if (period != DashboardPeriod.THIS_MONTH) 1 else 0) + (if (category != null) 1 else 0)
+            get() = (if (period != DashboardPeriod.THIS_MONTH && cycleOffset == 0) 1 else 0) + (if (category != null) 1 else 0)
     }
 
     sealed interface Intent {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SelectPeriod(val period: DashboardPeriod) : Intent
+        /** Moves the chart and lists to the pay cycle before or after; never past the current one. */
+        data class ShiftCycle(val delta: Int) : Intent
         data class SelectCustomRange(val start: java.time.LocalDate, val end: java.time.LocalDate) : Intent
         data class SelectDirection(val direction: FlowDirection) : Intent
         /** Tapping the selected category again clears it. */
