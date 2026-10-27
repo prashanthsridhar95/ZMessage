@@ -39,7 +39,7 @@ object SplitInsights {
         val byId = messages.associateBy { it.id }
         val credits = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (!tx.isReceived) return@mapNotNull null
+            if (!tx.isReceived || tx.isCardPayment) return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
             Credit(message.id, message.message.date, amount, "${tx.payee} ${message.merchant.name}".lowercase())
         }

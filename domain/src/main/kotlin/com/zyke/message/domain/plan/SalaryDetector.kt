@@ -47,7 +47,7 @@ object SalaryDetector {
 
         val credits = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (!tx.isReceived) return@mapNotNull null
+            if (!tx.isReceived || tx.isCardPayment) return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it >= MIN_AMOUNT } ?: return@mapNotNull null
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             val month = YearMonth.from(date)

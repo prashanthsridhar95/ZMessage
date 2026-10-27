@@ -77,6 +77,8 @@ object DashboardBuilder {
 
     private fun toMovement(message: ClassifiedMessage, zone: ZoneId): Movement? {
         val tx = message.content as? MessageContent.Transaction ?: return null
+        // Paying a card's bill is money moving between the person's own accounts, neither income nor a new expense.
+        if (tx.isCardPayment) return null
         val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return null
         val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
         return Movement(message, tx, amount, date)

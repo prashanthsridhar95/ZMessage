@@ -132,7 +132,8 @@ class MessageClassifier(
                 amount = normalizeAmount(tx.amount),
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 isReceived = tx.type == BankTransactionType.RECEIVED,
-                isCard = message.body.contains("Card", ignoreCase = true)
+                isCard = message.body.contains("Card", ignoreCase = true),
+                isCardPayment = tx.type == BankTransactionType.RECEIVED && CARD_PAYMENT.containsMatchIn(message.body)
             )
         )
     }
@@ -288,6 +289,11 @@ class MessageClassifier(
         if (raw.startsWith("x")) raw.replace("x", "") else raw
 
     private companion object {
+        /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
+        private val CARD_PAYMENT = Regex(
+            "(?i)(?=.*\\bcard\\b)(?!.*\\brefund)(?:\\bpayment\\b|\\btowards\\b|thank you for (?:the |your )?payment|\\bdue\\b|\\boutstanding\\b)",
+            RegexOption.DOT_MATCHES_ALL
+        )
         const val MAX_PARSED_LENGTH = 4096
 
         /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */

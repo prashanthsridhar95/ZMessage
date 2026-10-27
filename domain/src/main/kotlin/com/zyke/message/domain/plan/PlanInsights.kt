@@ -93,6 +93,7 @@ object PlanInsightsBuilder {
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(monthStart) || date.isAfter(today)) return@mapNotNull null
+            if (tx.isCardPayment) return@mapNotNull null
             Move(date, amount, tx.isReceived, "${tx.payee} ${message.merchant.name}".lowercase())
         }
         val sent = moves.filter { !it.received }

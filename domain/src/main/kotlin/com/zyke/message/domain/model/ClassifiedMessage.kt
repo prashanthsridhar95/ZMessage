@@ -46,7 +46,9 @@ sealed interface MessageContent : java.io.Serializable {
         val amount: String,
         val accountNumber: String,
         val isReceived: Boolean,
-        val isCard: Boolean
+        val isCard: Boolean,
+        /** A credit to a card that is the person paying its bill: money moved between their own accounts, not income. */
+        val isCardPayment: Boolean = false
     ) : MessageContent
 
     data class CardBill(
