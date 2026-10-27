@@ -1,5 +1,6 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
@@ -53,11 +54,12 @@ object SpendingLimits {
         monthly: Map<MessageCategory, BigDecimal>,
         daily: Map<MessageCategory, BigDecimal>,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        cycle: CycleRule = CycleRule.CALENDAR
     ): List<CategoryLimits> {
         val today = LocalDate.ofInstant(now, zone)
-        val monthStart = today.withDayOfMonth(1)
-        val daysLeft = today.lengthOfMonth() - today.dayOfMonth + 1
+        val monthStart = cycle.containing(today).start
+        val daysLeft = cycle.daysLeft(today)
 
         val spentToday = HashMap<MessageCategory, BigDecimal>()
         val spentMonth = HashMap<MessageCategory, BigDecimal>()

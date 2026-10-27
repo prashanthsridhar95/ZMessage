@@ -54,7 +54,7 @@ class DailyBudgetAndQuickAddTest {
     @Test
     fun calendar_marksUnderOverAndFutureDays() {
         val messages = listOf(spend("100.00", "CAFE ONE", today.minusDays(2)), spend("900.00", "CAFE ONE", today.minusDays(1)))
-        val days = DailyBudgets.month(messages, bd("500"), YearMonth.from(today), now, zone)
+        val days = DailyBudgets.days(messages, bd("500"), com.zyke.message.domain.dashboard.DateRange(YearMonth.from(today).atDay(1), YearMonth.from(today).atEndOfMonth()), now, zone)
         assertEquals(DayStatus.UNDER, days.first { it.date == today.minusDays(2) }.status)
         assertEquals(DayStatus.OVER, days.first { it.date == today.minusDays(1) }.status)
         assertEquals(DayStatus.NONE, days.first { it.date == today.plusDays(1) }.status)

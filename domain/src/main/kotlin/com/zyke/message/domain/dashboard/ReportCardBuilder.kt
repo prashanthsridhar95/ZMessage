@@ -1,5 +1,6 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.diagnostics.DiagnosticsBuilder
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
@@ -19,13 +20,14 @@ object ReportCardBuilder {
         messages: List<ClassifiedMessage>,
         budgets: Map<MessageCategory, BigDecimal>,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        cycle: CycleRule = CycleRule.CALENDAR
     ): ReportCard {
         val query = DashboardQuery(DashboardPeriod.THIS_MONTH, FlowDirection.SPENT)
-        val spentView = DashboardBuilder.build(messages, query, now, zone, budgets)
-        val receivedView = DashboardBuilder.build(messages, query.copy(direction = FlowDirection.RECEIVED), now, zone)
+        val spentView = DashboardBuilder.build(messages, query, now, zone, budgets, cycle)
+        val receivedView = DashboardBuilder.build(messages, query.copy(direction = FlowDirection.RECEIVED), now, zone, cycle = cycle)
 
-        val previousByCategory = previousSpent(messages, now, zone)
+        val previousByCategory = previousSpent(messages, now, zone, cycle)
         val subjects = spentView.categories
             .map { subject(it, previousByCategory[it.category] ?: BigDecimal.ZERO) }
             .filter { it.spent.signum() > 0 || it.budget != null }
@@ -49,14 +51,14 @@ object ReportCardBuilder {
     }
 
     /** What each category cost over the same days of last month, so a half-finished month is judged fairly. */
-    private fun previousSpent(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): Map<MessageCategory, BigDecimal> {
+    private fun previousSpent(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId, cycle: CycleRule): Map<MessageCategory, BigDecimal> {
         val query = DashboardQuery(DashboardPeriod.THIS_MONTH, FlowDirection.SPENT)
         val today = LocalDate.ofInstant(now, zone)
-        val range = DashboardBuilder.rangeFor(DashboardPeriod.THIS_MONTH, today, null)
-        val previous = DashboardBuilder.previousRange(DashboardPeriod.THIS_MONTH, range, today) ?: return emptyMap()
+        val range = DashboardBuilder.rangeFor(DashboardPeriod.THIS_MONTH, today, null, cycle)
+        val previous = DashboardBuilder.previousRange(DashboardPeriod.THIS_MONTH, range, today, cycle) ?: return emptyMap()
         // The previous window is an ordinary month window, so reuse the builder by shifting "now" into it.
         val shifted = previous.endInclusive.atTime(12, 0).atZone(zone).toInstant()
-        return DashboardBuilder.build(messages, query, shifted, zone).categories.associate { it.category to it.total }
+        return DashboardBuilder.build(messages, query, shifted, zone, cycle = cycle).categories.associate { it.category to it.total }
     }
 
     private fun subject(total: CategoryTotal, previous: BigDecimal): Subject {

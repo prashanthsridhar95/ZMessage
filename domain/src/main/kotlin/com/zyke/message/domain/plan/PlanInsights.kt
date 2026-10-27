@@ -1,5 +1,6 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
@@ -73,13 +74,19 @@ object PlanInsightsBuilder {
     /** A credit this large is taken to be the salary. */
     private val SALARY_SHARE = BigDecimal("0.7")
 
-    fun build(plan: MoneyPlan, messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): PlanInsights? {
+    fun build(
+        plan: MoneyPlan,
+        messages: List<ClassifiedMessage>,
+        now: Instant,
+        zone: ZoneId,
+        cycle: CycleRule = CycleRule.CALENDAR
+    ): PlanInsights? {
         // The salary the messages show wins; what the person entered is the fallback when there is no such pattern.
         val spotted = SalaryDetector.detect(messages, now, zone)
         if (plan.isEmpty && spotted == null) return null
         val today = LocalDate.ofInstant(now, zone)
-        val monthStart = today.withDayOfMonth(1)
-        val daysLeft = today.lengthOfMonth() - today.dayOfMonth + 1
+        val monthStart = cycle.containing(today).start
+        val daysLeft = cycle.daysLeft(today)
 
         val moves = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null

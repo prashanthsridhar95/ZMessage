@@ -9,6 +9,7 @@ enum class DashboardPeriod(val label: String) {
     THIS_MONTH("This month"),
     LAST_MONTH("Last month"),
     LAST_3_MONTHS("3 months"),
+    CUSTOM("Custom range"),
     ALL_TIME("All time")
 }
 
@@ -21,7 +22,9 @@ data class DashboardQuery(
     val period: DashboardPeriod = DashboardPeriod.THIS_MONTH,
     val direction: FlowDirection = FlowDirection.SPENT,
     /** Narrows everything below the headline to one category. */
-    val category: MessageCategory? = null
+    val category: MessageCategory? = null,
+    /** The days to look at when [period] is [DashboardPeriod.CUSTOM]. */
+    val customRange: DateRange? = null
 )
 
 data class DateRange(val start: LocalDate, val endInclusive: LocalDate) {

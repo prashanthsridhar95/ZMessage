@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.dashboard.CategoryLimits
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.wishlist.WishItem
@@ -23,9 +24,15 @@ object PaceNudges {
     private const val NOTICE_FROM_USED = 0.4f
     private const val AHEAD_BY = 0.2f
 
-    fun build(limits: List<CategoryLimits>, wishlist: List<WishItem>, now: Instant, zone: ZoneId): List<Nudge> {
+    fun build(
+        limits: List<CategoryLimits>,
+        wishlist: List<WishItem>,
+        now: Instant,
+        zone: ZoneId,
+        cycle: CycleRule = CycleRule.CALENDAR
+    ): List<Nudge> {
         val today = LocalDate.ofInstant(now, zone)
-        val elapsed = today.dayOfMonth.toFloat() / today.lengthOfMonth()
+        val elapsed = cycle.dayNumber(today).toFloat() / cycle.length(today)
         val nudges = ArrayList<Nudge>()
 
         limits.forEach { entry ->
@@ -41,7 +48,7 @@ object PaceNudges {
                 nudges += Nudge(NudgeKind.OVER_LIMIT, "You're ${money(daily.deficit)} over today's $name limit.")
             } else if (monthly != null && monthly.used >= NOTICE_FROM_USED && monthly.used - elapsed >= AHEAD_BY) {
                 val percent = (monthly.used * 100).toInt()
-                var text = "It's the ${ordinal(today.dayOfMonth)} and you've used $percent% of your $name limit."
+                var text = "It's day ${cycle.dayNumber(today)} of ${cycle.length(today)} and you've used $percent% of your $name limit."
                 entry.perDayLeft?.let { text += " About ${money(it)} a day keeps you within it." }
                 wishFor(entry.category, wishlist)?.let { text += " ${it.name} could wait until next month." }
                 nudges += Nudge(NudgeKind.PACE, text)
@@ -51,11 +58,6 @@ object PaceNudges {
     }
 
     private fun wishFor(category: MessageCategory, wishlist: List<WishItem>) = wishlist.firstOrNull { it.category == category }
-
-    private fun ordinal(day: Int): String {
-        val suffix = if (day in 11..13) "th" else when (day % 10) { 1 -> "st"; 2 -> "nd"; 3 -> "rd"; else -> "th" }
-        return "$day$suffix"
-    }
 
     internal fun money(amount: java.math.BigDecimal): String {
         val whole = amount.stripTrailingZeros().scale() <= 0

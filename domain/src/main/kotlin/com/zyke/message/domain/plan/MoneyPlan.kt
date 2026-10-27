@@ -1,5 +1,6 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.cycle.CycleMode
 import java.math.BigDecimal
 
 enum class PlanItemKind(val label: String) {
@@ -31,7 +32,10 @@ data class MoneyPlan(
     val salaryDay: Int? = null,
     val items: List<PlanItem> = emptyList(),
     /** How much to put aside each month. */
-    val savingsGoal: BigDecimal? = null
+    val savingsGoal: BigDecimal? = null,
+    /** Where the month starts for graphs, limits and the report card, and the day when it is the person's own. */
+    val cycleMode: CycleMode = CycleMode.SALARY,
+    val cycleDay: Int? = null
 ) {
     val outflows: List<PlanItem> get() = items.filter { it.kind == PlanItemKind.OUTFLOW }
     val investments: List<PlanItem> get() = items.filter { it.kind == PlanItemKind.INVESTMENT }
