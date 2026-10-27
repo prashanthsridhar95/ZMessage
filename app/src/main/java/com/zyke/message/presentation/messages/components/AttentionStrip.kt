@@ -30,6 +30,7 @@ import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.movingBorder
 import com.zyke.message.presentation.format.DisplayFormatters
 import java.time.LocalDate
 
@@ -45,12 +46,14 @@ internal fun AttentionStrip(
     today: LocalDate,
     actions: FeedActions,
     modifier: Modifier = Modifier,
-    /** Side padding for the heading and rows; zero where the page already has its own. */
+    /** Side padding for the heading and rows, inside the border. */
     inset: Dp = 16.dp
 ) {
     if (items.isEmpty()) return
 
-    Column(modifier.fillMaxWidth()) {
+    Column(
+        modifier.fillMaxWidth().movingBorder(MaterialTheme.colorScheme.primary).padding(vertical = 12.dp)
+    ) {
         Text(
             modifier = Modifier.padding(horizontal = inset, vertical = 2.dp),
             text = "Needs your attention",

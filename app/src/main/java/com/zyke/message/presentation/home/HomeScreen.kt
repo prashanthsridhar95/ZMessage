@@ -180,8 +180,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
 
         if (state.attention.isNotEmpty()) {
             item(key = "attention") {
-                // The strip carries its own heading.
-                AttentionStrip(state.attention, today, actions, inset = 0.dp)
+                AttentionStrip(state.attention, today, actions)
             }
         }
 

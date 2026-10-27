@@ -1,6 +1,23 @@
 package com.zyke.message.presentation.common
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.hypot
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -62,5 +79,46 @@ fun Modifier.pressScale(source: InteractionSource): Modifier {
     return graphicsLayer {
         scaleX = scale
         scaleY = scale
+    }
+}
+
+private const val BORDER_SWEEP_MS = 3500
+private const val BORDER_BASE_ALPHA = 0.25f
+
+/**
+ * A thin border with a bright stretch that travels slowly round it, for the one place that asks for
+ * attention. A faint full outline stays visible, so the shape is clear even where the light has not
+ * reached and when the system has animations turned off.
+ */
+fun Modifier.movingBorder(color: Color, corner: Dp = 20.dp, width: Dp = 1.5.dp): Modifier = composed {
+    val sweep = rememberInfiniteTransition(label = "border").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(BORDER_SWEEP_MS, easing = LinearEasing)),
+        label = "border-angle"
+    )
+    drawBehind {
+        val stroke = width.toPx()
+        val outer = corner.toPx()
+        val ring = Path().apply {
+            fillType = PathFillType.EvenOdd
+            addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(outer)))
+            addRoundRect(
+                RoundRect(stroke, stroke, size.width - stroke, size.height - stroke, CornerRadius((outer - stroke).coerceAtLeast(0f)))
+            )
+        }
+        drawPath(ring, color.copy(alpha = BORDER_BASE_ALPHA))
+        clipPath(ring) {
+            rotate(sweep.value, pivot = center) {
+                drawCircle(
+                    brush = Brush.sweepGradient(
+                        listOf(Color.Transparent, color, Color.Transparent, Color.Transparent),
+                        center = center
+                    ),
+                    radius = hypot(size.width, size.height) / 2f,
+                    center = center
+                )
+            }
+        }
     }
 }
