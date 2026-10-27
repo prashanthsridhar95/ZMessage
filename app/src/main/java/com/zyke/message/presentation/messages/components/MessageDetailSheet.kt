@@ -181,6 +181,20 @@ internal fun MessageDetailSheet(
                 )
             }
 
+            if (content !is MessageContent.Otp) {
+                val sender = SenderKey.displayAddress(message.sender)
+                AppButton(
+                    text = if (item.isMuted) "Unmute $sender" else "Mute $sender",
+                    onClick = { actions.onToggleMute(item.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                    style = ButtonStyle.TEXT,
+                    size = ButtonSize.COMPACT
+                )
+                if (!item.isMuted) {
+                    Caption("Muted senders move to Promos and stay out of Home, the unread badge and the digest.", maxLines = 3)
+                }
+            }
+
             if (!inConversation) {
                 LinkButton("More from $title", onMoreFromSender)
             }

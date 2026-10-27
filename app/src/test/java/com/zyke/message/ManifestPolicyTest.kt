@@ -26,9 +26,17 @@ class ManifestPolicyTest {
         (0 until length).map { (item(it) as Element).getAttributeNS(android, attribute) }
 
     @Test
-    fun onlyReadSmsAndTheLogoInternetPermissionAreRequested() {
+    fun onlyTheNamedPermissionsAreRequested() {
         val permissions = manifest.getElementsByTagName("uses-permission").names("name")
-        assertEquals(listOf("android.permission.READ_SMS", "android.permission.INTERNET"), permissions)
+        assertEquals(
+            listOf(
+                "android.permission.READ_SMS",
+                "android.permission.INTERNET", // brand logos
+                "android.permission.POST_NOTIFICATIONS", // morning digest
+                "android.permission.RECEIVE_BOOT_COMPLETED" // putting the digest alarm back after a restart
+            ),
+            permissions
+        )
         assertFalse("ACCESS_NETWORK_STATE" in File("src/main/AndroidManifest.xml").readText())
     }
 
@@ -64,7 +72,13 @@ class ManifestPolicyTest {
         assertEquals(1, activities.length)
         assertEquals("true", (activities.item(0) as Element).getAttributeNS(android, "exported"))
 
-        assertEquals("unexpected <receiver>", 0, manifest.getElementsByTagName("receiver").length)
+        // Receivers exist for the widget, the morning alarm and the restart; none is reachable by other apps.
+        val receivers = manifest.getElementsByTagName("receiver")
+        assertEquals(
+            setOf(".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver"),
+            receivers.names("name").toSet()
+        )
+        assertEquals(List(receivers.length) { "false" }, receivers.names("exported"))
 
         val services = manifest.getElementsByTagName("service")
         assertEquals(1, services.length)

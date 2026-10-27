@@ -13,7 +13,10 @@ import com.zyke.message.domain.life.LifeAgenda
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.repository.BudgetRepository
+import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.MutedSenderRepository
+import com.zyke.message.domain.repository.NoMutedSenders
 import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -33,7 +36,8 @@ class HomeViewModel(
     private val userStateRepository: UserMessageStateRepository,
     private val budgetRepository: BudgetRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
-    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
+    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
+    private val mutedSenders: MutedSenderRepository = NoMutedSenders
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value)
 ) {
@@ -75,6 +79,9 @@ class HomeViewModel(
                 userStateRepository.setArchived(intent.messageId, true)
             }
             is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
+                mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
+            }
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
                 ?.let(CategoryKey::of)
                 ?.let { categoryOverrides.set(it, intent.category) }
@@ -131,12 +138,14 @@ class HomeViewModel(
         private val observeMessages: ObserveMessagesUseCase,
         private val userStateRepository: UserMessageStateRepository,
         private val budgetRepository: BudgetRepository,
-        private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
+        private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
+        private val mutedSenders: MutedSenderRepository = NoMutedSenders
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             HomeViewModel(
-                observeMessages, userStateRepository, budgetRepository, categoryOverrides = categoryOverrides
+                observeMessages, userStateRepository, budgetRepository,
+                categoryOverrides = categoryOverrides, mutedSenders = mutedSenders
             ) as T
     }
 

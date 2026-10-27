@@ -13,6 +13,9 @@ import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.NoCategoryOverrides
+import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.repository.MutedSenderRepository
+import com.zyke.message.domain.repository.NoMutedSenders
 import com.zyke.message.domain.repository.NoSenderImages
 import com.zyke.message.domain.repository.SenderImageRepository
 import com.zyke.message.domain.repository.SmsRepository
@@ -33,7 +36,8 @@ class ObserveMessagesUseCase(
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
     private val cardRepository: CardRepository = NoCards,
     private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
-    private val senderImages: SenderImageRepository = NoSenderImages
+    private val senderImages: SenderImageRepository = NoSenderImages,
+    private val mutedSenders: MutedSenderRepository = NoMutedSenders
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
@@ -54,6 +58,11 @@ class ObserveMessagesUseCase(
                 if (keys.isEmpty()) classified else classified.map { message ->
                     val key = CategoryKey.of(message)
                     if (key != null && key in keys) message.copy(merchant = message.merchant.copy(imageKey = key)) else message
+                }
+            }
+            .combine(mutedSenders.muted) { classified, muted ->
+                if (muted.isEmpty()) classified else classified.map { message ->
+                    if (SenderKey.of(message.message.sender) in muted) message.copy(isPromotional = true, isMuted = true) else message
                 }
             }
             .map(CategorySuggester::annotate)

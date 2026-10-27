@@ -105,6 +105,8 @@ object MessagesContract {
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
         data class TogglePin(val messageId: Long) : Intent
+        /** Mute the sender of this message, or unmute it if it already is muted. */
+        data class ToggleMute(val messageId: Long) : Intent
         /** The one-tap clean-up: archive old promotions or old one-time codes together. */
         data class ArchiveMany(val ids: List<Long>) : Intent
         data class UnarchiveMany(val ids: List<Long>) : Intent

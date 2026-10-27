@@ -5,6 +5,7 @@ import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.CardRepositoryImpl
 import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
+import com.zyke.message.data.repository.MutedSenderRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
 import com.zyke.message.data.repository.UserMessageStateRepositoryImpl
@@ -14,6 +15,7 @@ import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.SmsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
@@ -32,5 +34,9 @@ class AppContainer(context: Context) {
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
-    val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier, categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore)
+    val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
+    val observeMessages = ObserveMessagesUseCase(
+        smsRepository, messageClassifier,
+        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders
+    )
 }

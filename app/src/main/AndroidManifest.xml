@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <!-- Only for the optional "Fetch brand logos" setting (off by default); see LogoFetcher and ManifestPolicyTest. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Only for the optional morning digest (off by default): the notification, and putting its alarm back after a restart. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
 
     <application
@@ -45,6 +48,29 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Receivers: none is exported. The system delivers the widget, boot and alarm broadcasts to them. -->
+        <receiver
+            android:name=".notifications.DaysAheadWidget"
+            android:exported="false"
+            android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/days_ahead_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".notifications.DigestReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Lets the user share the parsing report file. Not exported: access is granted per share only. -->
         <provider

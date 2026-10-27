@@ -1,7 +1,12 @@
 package com.zyke.message.presentation
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.os.Bundle
+import android.os.SystemClock
+import androidx.compose.runtime.mutableStateOf
+import com.zyke.message.notifications.DaysAheadWidget
+import com.zyke.message.notifications.DigestScheduler
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,7 +48,9 @@ class MainActivity : ComponentActivity() {
     private val container get() = (application as ZykeMessagesApplication).container
 
     private val messagesViewModel: MessagesViewModel by viewModels {
-        MessagesViewModel.Factory(container.observeMessages, container.userMessageState, container.categoryOverrides)
+        MessagesViewModel.Factory(
+            container.observeMessages, container.userMessageState, container.categoryOverrides, container.mutedSenders
+        )
     }
 
     private val dashboardViewModel: DashboardViewModel by viewModels {
@@ -51,13 +58,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private val homeViewModel: HomeViewModel by viewModels {
-        HomeViewModel.Factory(container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides)
+        HomeViewModel.Factory(
+            container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders
+        )
     }
 
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModel.Factory(
             container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards,
-            onLogosTurnedOff = container.imageStore::clearLogos
+            onLogosTurnedOff = container.imageStore::clearLogos,
+            onDigestChanged = { DigestScheduler(this).apply(it) }
         )
     }
 
@@ -75,6 +85,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         applyScreenProtection(container.settings.settings.value.screenProtection)
         observeScreenProtection()
+        // Locked from the very first frame, so the inbox never flashes before the lock screen.
+        lockedState.value = container.settings.settings.value.appLock &&
+            getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
         val versionName = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
             .getOrNull().orEmpty()
@@ -96,6 +109,10 @@ class MainActivity : ComponentActivity() {
             }
             CompositionLocalProvider(LocalImageStore provides container.imageStore) {
             ZykeMessageTheme(darkTheme = darkTheme) {
+                val locked by lockedState
+                if (locked) {
+                    LockScreen(onUnlock = ::requestUnlock)
+                } else {
                 val home by homeViewModel.state.collectAsStateWithLifecycle()
                 val inbox by messagesViewModel.state
                     .map { it.toToolbarState() }
@@ -145,9 +162,55 @@ class MainActivity : ComponentActivity() {
                         AppTab.INBOX -> MessagesRoute(messagesViewModel, modifier)
                     }
                 }
+                }
             }
             }
         }
+    }
+
+    // ---- app lock
+
+    private val lockedState = mutableStateOf(false)
+    private var leftAt = 0L
+    private var authenticating = false
+
+    private val credential = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        authenticating = false
+        if (result.resultCode == RESULT_OK) lockedState.value = false
+    }
+
+    /** The phone's own fingerprint / face / PIN screen. It needs no library and no permission. */
+    private fun requestUnlock() {
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        val intent = keyguard?.createConfirmDeviceCredentialIntent("Unlock Zyke", null)
+        if (intent == null) {
+            lockedState.value = false
+            return
+        }
+        authenticating = true
+        credential.launch(intent)
+    }
+
+    private fun lockIfAway() {
+        val lockOn = container.settings.settings.value.appLock
+        if (!lockOn || authenticating) return
+        val away = SystemClock.elapsedRealtime() - leftAt
+        if (leftAt == 0L || away > LOCK_AFTER_MS) {
+            lockedState.value = true
+            requestUnlock()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        lockIfAway()
+        container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
+        DaysAheadWidget.refresh(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        leftAt = SystemClock.elapsedRealtime()
     }
 
     private fun observeScreenProtection() {
@@ -167,6 +230,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** How long away from the app before it asks to be unlocked again. */
+private const val LOCK_AFTER_MS = 30_000L
 
 /** Buttons are only offered once the screen underneath has something to filter or search. */
 private fun MessagesContract.State.toToolbarState() = InboxToolbarState(

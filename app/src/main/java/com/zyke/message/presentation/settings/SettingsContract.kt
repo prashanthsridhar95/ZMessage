@@ -21,6 +21,8 @@ object SettingsContract {
         data class SetScreenProtection(val enabled: Boolean) : Intent
         data class SetThemeMode(val mode: ThemeMode) : Intent
         data class SetFetchLogos(val enabled: Boolean) : Intent
+        data class SetAppLock(val enabled: Boolean) : Intent
+        data class SetMorningDigest(val enabled: Boolean) : Intent
         data class SaveCard(val card: UserCard) : Intent
         data class DeleteCard(val id: String) : Intent
         data object AskReset : Intent

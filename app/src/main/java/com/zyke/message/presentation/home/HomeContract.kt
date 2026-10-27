@@ -64,6 +64,7 @@ object HomeContract {
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
+        data class ToggleMute(val messageId: Long) : Intent
         /** Try again after the inbox could not be read. */
         data object Retry : Intent
     }

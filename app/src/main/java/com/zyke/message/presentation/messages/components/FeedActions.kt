@@ -16,7 +16,9 @@ data class FeedActions(
     val onDismissAttention: (String) -> Unit,
     val onOpenSummary: () -> Unit,
     val onOpenLink: (String) -> Unit,
-    val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit
+    val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit,
+    /** Mute or unmute the sender of this message. */
+    val onToggleMute: (messageId: Long) -> Unit = {}
 ) {
     companion object {
         val None = FeedActions({}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> })

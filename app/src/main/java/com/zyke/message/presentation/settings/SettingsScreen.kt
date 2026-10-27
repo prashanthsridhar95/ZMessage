@@ -6,6 +6,9 @@ import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -146,6 +149,23 @@ fun SettingsSheet(
                     onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
                     modifier = Modifier.padding(top = 12.dp)
                 )
+                AppLockToggle(
+                    enabled = state.settings.appLock,
+                    onChange = { onIntent(Intent.SetAppLock(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            SectionCard("Reminders") {
+                MorningDigestToggle(
+                    enabled = state.settings.morningDigest,
+                    onChange = { onIntent(Intent.SetMorningDigest(it)) }
+                )
+                Caption(
+                    "You can also add the \"Your day\" widget from your home screen's widget list.",
+                    Modifier.padding(top = 12.dp),
+                    maxLines = 2
+                )
             }
 
             SectionCard("Parsing health") {
@@ -257,6 +277,47 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
             onDismiss = { editing = null }
         )
     }
+}
+
+/** Ask for the phone's fingerprint, face or screen lock when coming back to the app; needs a screen lock to exist. */
+@Composable
+private fun AppLockToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val hasScreenLock = remember {
+        (context.getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager).isDeviceSecure
+    }
+    ToggleRow(
+        title = "Lock the app",
+        description = if (hasScreenLock) {
+            "Ask for your fingerprint, face or screen lock when you come back after a short time away."
+        } else {
+            "Set a screen lock on your phone first, then this can be switched on."
+        },
+        checked = enabled && hasScreenLock,
+        onCheckedChange = { if (hasScreenLock) onChange(it) },
+        modifier = modifier
+    )
+}
+
+/** The morning digest needs permission to show notifications on newer Android, asked for only when it is switched on. */
+@Composable
+private fun MorningDigestToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
+    ToggleRow(
+        title = "Morning digest",
+        description = "A short notification at about 8 AM with what is due and what is on today. Built on this phone.",
+        checked = enabled,
+        onCheckedChange = { wanted ->
+            val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            when {
+                !wanted -> onChange(false)
+                allowed -> onChange(true)
+                else -> launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    )
 }
 
 /** RCS chats are not in the SMS provider; the only way to see them is the messaging app's notifications. */

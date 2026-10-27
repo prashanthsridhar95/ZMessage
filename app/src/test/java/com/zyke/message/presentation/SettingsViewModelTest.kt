@@ -45,6 +45,8 @@ class SettingsViewModelTest {
         override fun setScreenProtection(enabled: Boolean) { _s.value = _s.value.copy(screenProtection = enabled) }
         override fun setThemeMode(mode: com.zyke.message.domain.model.ThemeMode) { _s.value = _s.value.copy(themeMode = mode) }
         override fun setFetchLogos(enabled: Boolean) { _s.value = _s.value.copy(fetchLogos = enabled) }
+        override fun setAppLock(enabled: Boolean) { _s.value = _s.value.copy(appLock = enabled) }
+        override fun setMorningDigest(enabled: Boolean) { _s.value = _s.value.copy(morningDigest = enabled) }
     }
 
     private class FakeUser : UserMessageStateRepository {

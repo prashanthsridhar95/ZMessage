@@ -32,4 +32,6 @@
     <string name="dashboard_empty_received">No money received in this period</string>
     <string name="error_hint">Check that SMS access is allowed, then try again.</string>
     <string name="report_failed">Couldn\'t prepare the report</string>
+    <string name="widget_description">What is due and what is on today, from your messages</string>
+    <string name="widget_title">Your day</string>
 </resources>

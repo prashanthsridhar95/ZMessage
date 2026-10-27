@@ -19,7 +19,9 @@ data class ClassifiedMessage(
     /** What the on-device model thinks an uncategorised sender / receiver belongs under; never applied on its own. */
     val suggestedCategory: MessageCategory? = null,
     /** The amount and payee were read by the on-device model, then checked against the text. */
-    val isModelParsed: Boolean = false
+    val isModelParsed: Boolean = false,
+    /** The person muted this sender; it is treated like marketing, kept out of the main views and the unread badge. */
+    val isMuted: Boolean = false
 ) {
     val id: Long get() = message.id
 }

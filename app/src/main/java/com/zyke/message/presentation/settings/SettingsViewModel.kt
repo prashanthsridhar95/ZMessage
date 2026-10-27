@@ -31,7 +31,9 @@ class SettingsViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val cardRepository: CardRepository = NoCards,
     /** Called when downloaded logos should be forgotten (the person turned the feature off). */
-    private val onLogosTurnedOff: () -> Unit = {}
+    private val onLogosTurnedOff: () -> Unit = {},
+    /** Called when the morning digest is switched on or off, so its alarm can be set or cancelled. */
+    private val onDigestChanged: (Boolean) -> Unit = {}
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value)
 ) {
@@ -55,6 +57,11 @@ class SettingsViewModel(
             is Intent.SetFetchLogos -> {
                 settingsRepository.setFetchLogos(intent.enabled)
                 if (!intent.enabled) onLogosTurnedOff()
+            }
+            is Intent.SetAppLock -> settingsRepository.setAppLock(intent.enabled)
+            is Intent.SetMorningDigest -> {
+                settingsRepository.setMorningDigest(intent.enabled)
+                onDigestChanged(intent.enabled)
             }
             is Intent.SaveCard -> {
                 val card = intent.card
@@ -118,13 +125,14 @@ class SettingsViewModel(
         private val userStateRepository: UserMessageStateRepository,
         private val budgetRepository: BudgetRepository,
         private val cardRepository: CardRepository = NoCards,
-        private val onLogosTurnedOff: () -> Unit = {}
+        private val onLogosTurnedOff: () -> Unit = {},
+        private val onDigestChanged: (Boolean) -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
-                cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff
+                cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged
             ) as T
     }
 }

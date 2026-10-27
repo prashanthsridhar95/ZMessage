@@ -162,7 +162,8 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             onTogglePin = { onIntent(Intent.TogglePin(it)) },
             onArchive = { onIntent(Intent.Archive(it)) },
             onUnarchive = { onIntent(Intent.Unarchive(it)) },
-            onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) }
+            onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) },
+            onToggleMute = { onIntent(Intent.ToggleMute(it)) }
         )
     }
 

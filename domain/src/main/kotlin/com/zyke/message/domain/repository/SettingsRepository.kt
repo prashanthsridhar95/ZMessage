@@ -12,4 +12,8 @@ interface SettingsRepository {
     fun setThemeMode(mode: ThemeMode)
 
     fun setFetchLogos(enabled: Boolean)
+
+    fun setAppLock(enabled: Boolean)
+
+    fun setMorningDigest(enabled: Boolean)
 }
