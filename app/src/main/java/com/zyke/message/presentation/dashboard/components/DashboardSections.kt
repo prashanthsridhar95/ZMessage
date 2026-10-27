@@ -114,9 +114,12 @@ private fun plural(count: Int, one: String, many: String) = if (count == 1) "$co
 internal fun FlowDirection.countLabel(count: Int) =
     if (this == FlowDirection.SPENT) plural(count, "payment", "payments") else plural(count, "credit", "credits")
 
+/** When true, [SectionCard] is a row that opens a bottom sheet instead of unfolding in place. */
+internal val LocalSectionsAsSheets = androidx.compose.runtime.compositionLocalOf { false }
+
 /**
- * A titled section on the plain page, folded by default: a title, a short [summary] and a chevron on one line.
- * Opening it shows the detail. Keeps every screen to a few quiet lines until the person wants more.
+ * A titled section on the plain page: a title, a short [summary] and a chevron on one line. It unfolds in place,
+ * or, where [LocalSectionsAsSheets] is set, opens its detail in a bottom sheet.
  */
 @Composable
 internal fun SectionCard(
@@ -127,14 +130,17 @@ internal fun SectionCard(
     startOpen: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val asSheet = LocalSectionsAsSheets.current && !startOpen
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Row(
             Modifier
                 .fillMaxWidth()
-                .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
-                .clickable(role = Role.Button, onClickLabel = if (open) "Fold $title" else "Open $title") { open = !open }
+                .semantics { if (!asSheet) stateDescription = if (open) "Expanded" else "Collapsed" }
+                .clickable(role = Role.Button, onClickLabel = if (asSheet) "Open $title" else if (open) "Fold $title" else "Open $title") {
+                    open = !open
+                }
                 .padding(vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -148,12 +154,24 @@ internal fun SectionCard(
                 Caption(summary)
                 Spacer(Modifier.width(8.dp))
             }
-            Text(if (open) "\u2303" else "\u2304", color = mutedColor())
+            Text(if (asSheet) "\u203A" else if (open) "\u2303" else "\u2304", color = mutedColor())
         }
-        AnimatedVisibility(open) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 10.dp), maxLines = 3)
-                content()
+        if (asSheet) {
+            if (open) {
+                AppBottomSheet({ open = false }) {
+                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                        Text(title, Modifier.heading().padding(bottom = 4.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                        if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 12.dp), maxLines = 3)
+                        content()
+                    }
+                }
+            }
+        } else {
+            AnimatedVisibility(open) {
+                Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                    if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 10.dp), maxLines = 3)
+                    content()
+                }
             }
         }
     }

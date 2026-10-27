@@ -121,8 +121,17 @@ class DashboardViewModel(
         if (!updated.hasLoaded) {
             updated
         } else {
+            val flowQuery = updated.query.copy(category = null)
             updated.copy(
                 dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
+                expenseTrend = DashboardBuilder.build(
+                    updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),
+                    updated.now, clock.zone, updated.budgets
+                ).trend,
+                incomeTrend = DashboardBuilder.build(
+                    updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED),
+                    updated.now, clock.zone, updated.budgets
+                ).trend,
                 reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),

@@ -24,7 +24,10 @@ object QueryInterpreter {
         "diesel" to MessageCategory.FUEL, "shopping" to MessageCategory.SHOPPING, "travel" to MessageCategory.TRAVEL,
         "groceries" to MessageCategory.GROCERIES, "grocery" to MessageCategory.GROCERIES,
         "health" to MessageCategory.HEALTH, "entertainment" to MessageCategory.ENTERTAINMENT,
-        "utilities" to MessageCategory.UTILITIES, "fastag" to MessageCategory.FASTAG, "courier" to MessageCategory.COURIER
+        "utilities" to MessageCategory.UTILITIES, "investment" to MessageCategory.INVESTMENTS,
+        "investments" to MessageCategory.INVESTMENTS, "savings" to MessageCategory.SAVINGS, "insurance" to MessageCategory.INSURANCE,
+        "charity" to MessageCategory.CHARITY, "donation" to MessageCategory.CHARITY, "education" to MessageCategory.EDUCATION,
+        "family" to MessageCategory.FAMILY, "fastag" to MessageCategory.FASTAG, "courier" to MessageCategory.COURIER
     )
     private val SMART_WORDS: Map<String, SmartFilter> = mapOf(
         "otp" to SmartFilter.OTP, "otps" to SmartFilter.OTP, "bill" to SmartFilter.BILLS, "bills" to SmartFilter.BILLS,

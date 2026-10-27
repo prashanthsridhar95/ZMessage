@@ -17,6 +17,12 @@ enum class MessageCategory(val displayString: String) {
     TRAVEL("Travel"),
     GROCERIES("Groceries"),
     HEALTH("Health"),
+    INVESTMENTS("Investments"),
+    SAVINGS("Savings"),
+    INSURANCE("Insurance"),
+    CHARITY("Charity"),
+    EDUCATION("Education"),
+    FAMILY("Family & gifts"),
     OTHERS("Others");
 
     companion object {

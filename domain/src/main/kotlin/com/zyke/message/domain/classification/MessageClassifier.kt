@@ -1,5 +1,6 @@
 package com.zyke.message.domain.classification
 
+import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.life.LifeParser
@@ -116,7 +117,11 @@ class MessageClassifier(
         transaction(message, tx).copy(isModelParsed = true)
 
     private fun transaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
-        val merchant = nameIfMissing(merchants.resolve(tx.payee), tx)
+        var merchant = nameIfMissing(merchants.resolve(tx.payee), tx)
+        // A mutual-fund SIP is an investment whatever the fund is called.
+        if (tx.bankName == BankName.MUTUAL_FUND && merchant.category == MessageCategory.OTHERS) {
+            merchant = merchant.copy(category = MessageCategory.INVESTMENTS)
+        }
         return ClassifiedMessage(
             message = message,
             category = merchant.category,

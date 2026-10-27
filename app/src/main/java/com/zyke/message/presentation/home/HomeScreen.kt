@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.mutableLongStateOf
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.NudgeKind
@@ -226,6 +230,17 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             item(key = "attention") { AttentionStrip(state.attention.take(1), today, actions) }
         }
 
+        if (state.agenda.isNotEmpty()) {
+            item(key = "plans") {
+                PlainSection("Plans") {
+                    state.agenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
+                        if (index > 0) HorizontalDivider()
+                        AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+                    }
+                }
+            }
+        }
+
         if (next != null) {
             item(key = "next") {
                 Column(Modifier.fillMaxWidth()) {
@@ -238,10 +253,10 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
     }
 }
 
-/** Everything with a date or a person attached, soonest first, on one plain list. */
+/** Everything due or owed, soonest first, on one plain list. */
 @Composable
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
-    val empty = state.upcoming.isEmpty() && state.agenda.isEmpty() && state.refunds.isEmpty() &&
+    val empty = state.upcoming.isEmpty() && state.refunds.isEmpty() &&
         state.owed.isEmpty() && state.subscriptions.isEmpty()
 
     LazyColumn(
@@ -258,16 +273,6 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
                         UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }) { onIntent(Intent.OpenLink(it)) }
-                    }
-                }
-            }
-        }
-        if (state.agenda.isNotEmpty()) {
-            item(key = "agenda") {
-                PlainSection("Plans") {
-                    state.agenda.forEachIndexed { index, agendaItem ->
-                        if (index > 0) HorizontalDivider()
-                        AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
                     }
                 }
             }
@@ -307,12 +312,23 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     }
 }
 
-/** Fresh one-time codes, newest first, each with one big button. Nothing else on the screen. */
+/**
+ * Codes laid out like an authenticator app: the code in large grouped digits, the sender above it and a ring on
+ * the right that empties as the code runs out. Tap a code to copy it. A code is treated as live for ten minutes,
+ * which is how long most services accept one.
+ */
 @Composable
 private fun CodesPage(state: State, onIntent: (Intent) -> Unit) {
-    val cutoff = state.now.toEpochMilli() - CODE_LIFETIME_MS
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            kotlinx.coroutines.delay(CODE_TICK_MS)
+        }
+    }
+
     val codes = state.messages.filter {
-        it.content is MessageContent.Otp && it.message.date >= cutoff && it.id !in state.userState.archivedIds
+        it.content is MessageContent.Otp && it.message.date >= nowMillis - CODE_LIST_MS && it.id !in state.userState.archivedIds
     }.take(MAX_CODES)
 
     if (codes.isEmpty()) {
@@ -322,30 +338,68 @@ private fun CodesPage(state: State, onIntent: (Intent) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("No codes right now", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
-            Caption("A code from the last day shows up here the moment it arrives.", maxLines = 2)
+            Caption("A code shows up here the moment it arrives.", maxLines = 2)
         }
         return
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(32.dp)
-    ) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
         items(codes, key = { it.id }) { message ->
             val otp = message.content as MessageContent.Otp
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Caption(otp.senderName.ifEmpty { message.merchant.name }.uppercase())
-                Text(
-                    otp.code,
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
-                )
-                otp.paymentAmount?.let { Caption("For a payment of ${DisplayFormatters.rupees(it)}") }
-                AppButton("Copy", { onIntent(Intent.CopyOtp(message.id, otp.code)) }, Modifier.fillMaxWidth())
+            val left = (message.message.date + CODE_LIFE_MS - nowMillis).coerceAtLeast(0)
+            CodeRow(
+                sender = otp.senderName.ifEmpty { message.merchant.name },
+                code = otp.code,
+                note = otp.paymentAmount?.let { "Payment of ${DisplayFormatters.rupees(it)}" },
+                fractionLeft = left.toFloat() / CODE_LIFE_MS,
+                secondsLeft = (left / MILLIS_PER_SECOND).toInt(),
+                onCopy = { onIntent(Intent.CopyOtp(message.id, otp.code)) }
+            )
+            HorizontalDivider(Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        }
+    }
+}
+
+@Composable
+private fun CodeRow(sender: String, code: String, note: String?, fractionLeft: Float, secondsLeft: Int, onCopy: () -> Unit) {
+    val expired = secondsLeft == 0
+    val running = if (fractionLeft > CODE_WARN_FRACTION) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val spoken = if (expired) "expired" else "${secondsLeft / SECONDS_PER_MINUTE} minutes ${secondsLeft % SECONDS_PER_MINUTE} seconds left"
+    // Digits are grouped in threes and fours so a code can be read at a glance and typed in without losing the place.
+    val grouped = if (code.length in CODE_GROUPABLE) code.chunked(code.length / 2).joinToString(" ") else code
+
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable(onClickLabel = "Copy code", onClick = onCopy)
+            .semantics(mergeDescendants = true) { contentDescription = "$sender code $code, $spoken" }
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Caption(sender)
+            Text(
+                grouped,
+                Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = if (expired) mutedColor() else MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
+            if (note != null) Caption(note, Modifier.padding(top = 2.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawArc(track, 0f, 360f, false, style = stroke)
+                if (!expired) drawArc(running, -90f, 360f * fractionLeft, false, style = stroke)
             }
+            Text(
+                if (expired) "\u2013" else "${(secondsLeft + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE}m",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (expired) mutedColor() else running
+            )
         }
     }
 }
@@ -429,8 +483,15 @@ private const val BUDGET_WARNING = 0.8
 private const val MAX_BUDGETS = 3
 
 private const val MAX_RECENT = 3
-private const val CODE_LIFETIME_MS = 24 * 60 * 60 * 1000L
+private const val CODE_LIFE_MS = 10 * 60 * 1000L
+private const val CODE_LIST_MS = 60 * 60 * 1000L
+private const val CODE_TICK_MS = 1000L
+private const val MILLIS_PER_SECOND = 1000
+private const val SECONDS_PER_MINUTE = 60
+private const val CODE_WARN_FRACTION = 0.2f
+private val CODE_GROUPABLE = 4..10 step 2
 private const val MAX_CODES = 5
+private const val MAX_PLANS = 4
 
 /** A heading and its rows on the plain page: no box, no fill. */
 @Composable

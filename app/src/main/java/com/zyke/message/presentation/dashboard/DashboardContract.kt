@@ -42,6 +42,9 @@ object DashboardContract {
         val showAllVendors: Boolean = false,
 
         val dashboard: Dashboard? = null,
+        /** Money in and money out over the chosen period, for the line chart; independent of direction and category. */
+        val expenseTrend: List<com.zyke.message.domain.dashboard.TrendPoint> = emptyList(),
+        val incomeTrend: List<com.zyke.message.domain.dashboard.TrendPoint> = emptyList(),
         /** This month as a report card; independent of the period and filters above. */
         val reportCard: ReportCard? = null,
         /** Credit card statements by card; independent of the selected period. */

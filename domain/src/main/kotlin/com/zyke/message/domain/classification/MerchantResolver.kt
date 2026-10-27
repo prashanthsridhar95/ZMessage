@@ -20,6 +20,11 @@ class MerchantResolver {
     )
 
     private val rules = listOf(
+        Rule(listOf("Zerodha", "Groww", "Upstox", "Kuvera", "Mutual Fund", "Smallcase", "Coin by"), MerchantLogo.PERSON, null, MessageCategory.INVESTMENTS),
+        Rule(listOf("Recurring Deposit", "Fixed Deposit", "PPF", "Sukanya", "National Pension"), MerchantLogo.PERSON, null, MessageCategory.SAVINGS),
+        Rule(listOf("LIC of India", "Insurance", "Policybazaar", "Acko"), MerchantLogo.PERSON, null, MessageCategory.INSURANCE),
+        Rule(listOf("Donat", "Charit", "Foundation", "Akshaya Patra", "GiveIndia", "Ketto", "Milaap"), MerchantLogo.PERSON, null, MessageCategory.CHARITY),
+        Rule(listOf("School", "College", "University", "Tuition", "Byju", "Unacademy"), MerchantLogo.PERSON, null, MessageCategory.EDUCATION),
         Rule(listOf("HDFC"), MerchantLogo.HDFC, "HDFC", MessageCategory.CREDIT_CARDS, upiAware = true),
         Rule(
             listOf("Federal Bank", "FEDBNK"), MerchantLogo.FEDERAL_BANK, "Federal Bank",

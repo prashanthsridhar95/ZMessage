@@ -70,13 +70,13 @@ import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
-import com.zyke.message.presentation.dashboard.components.HeroCard
+import com.zyke.message.presentation.dashboard.components.IncomeExpenseCard
+import com.zyke.message.presentation.dashboard.components.LocalSectionsAsSheets
 import com.zyke.message.presentation.dashboard.components.ReportCardSheet
 import com.zyke.message.presentation.dashboard.components.ReportCardSummary
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
 import com.zyke.message.presentation.dashboard.components.TrendChart
-import androidx.compose.material3.TextButton
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.presentation.dashboard.components.VendorRow
 import com.zyke.message.presentation.messages.components.Caption
@@ -196,7 +196,9 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         // With no hero card (nothing in this view) the switch has nowhere else to live, so it stays above the list.
         if (dashboard.isEmpty) CollapsedHeroBar(dashboard, onDirection)
         Box(Modifier.weight(1f)) {
-            DashboardList(state, dashboard, onIntent, listState)
+            androidx.compose.runtime.CompositionLocalProvider(LocalSectionsAsSheets provides true) {
+                DashboardList(state, dashboard, onIntent, listState)
+            }
             HeroBarOverlay(collapsed && !dashboard.isEmpty, dashboard, onDirection, Modifier.align(Alignment.TopCenter))
         }
     }
@@ -221,8 +223,6 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     val ranking = dashboard.categories.map { it.category }
     val received = state.direction == FlowDirection.RECEIVED
     val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
-    // The tab opens on the total and the top few categories; the rest is one tap away.
-    var showDetail by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -257,10 +257,15 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
         } else {
-            item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
+            item(key = "hero") {
+                IncomeExpenseCard(
+                    dashboard, state.expenseTrend, state.incomeTrend, state.period, state.direction,
+                    onDirection = { onIntent(Intent.SelectDirection(it)) }
+                )
+            }
         }
 
-        if (showDetail) {
+        run {
         item(key = "plan") {
             PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
         }
@@ -312,12 +317,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         val reportCard = state.reportCard
-        if (showDetail && !dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
+        if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
             item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
         if (!dashboard.isEmpty) {
-            if (showDetail) item(key = "trend") {
+            item(key = "trend") {
                 SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
                     TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
                     ChartLegend(ranking, Modifier.padding(top = 12.dp))
@@ -327,11 +332,9 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "categories") {
                 SectionCard(
                     stringResource(R.string.dashboard_by_category),
-                    summary = DisplayFormatters.count(dashboard.categories.size, "category", "categories"),
-                    startOpen = true
+                    summary = dashboard.categories.firstOrNull()?.let { "${it.category.displayString} ${DisplayFormatters.rupees(it.total)}" }
                 ) {
-                    val shown = if (showDetail) dashboard.categories else dashboard.categories.take(COLLAPSED_CATEGORIES)
-                    shown.forEachIndexed { index, item ->
+                    dashboard.categories.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
                         CategoryRow(
                             item = item,
@@ -348,11 +351,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
-            item(key = "more") {
-                LinkButton(if (showDetail) "Show less" else "More detail", { showDetail = !showDetail })
-            }
-
-            if (showDetail) item(key = "vendors") {
+            item(key = "vendors") {
                 val vendors = if (state.showAllVendors) dashboard.vendors else dashboard.vendors.take(COLLAPSED_VENDORS)
                 SectionCard(stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor)) {
                     vendors.forEachIndexed { index, vendor ->
@@ -375,7 +374,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
-            if (showDetail) item(key = "sources") {
+            item(key = "sources") {
                 SectionCard(stringResource(if (received) R.string.dashboard_by_source_received else R.string.dashboard_by_source)) {
                     dashboard.sources.forEachIndexed { index, source ->
                         if (index > 0) HorizontalDivider()
@@ -387,4 +386,3 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     }
 }
 
-private const val COLLAPSED_CATEGORIES = 5
