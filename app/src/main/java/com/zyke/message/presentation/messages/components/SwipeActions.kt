@@ -9,7 +9,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import kotlin.math.abs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -21,14 +27,17 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-/** How far across the row a swipe must go before it takes effect. */
-private const val SWIPE_COMMIT_FRACTION = 0.75f
+/**
+ * How far across the row a swipe must go before it takes effect: all the way, give or take a thumb's width.
+ * A flick or a half swipe that is let go simply springs back and does nothing.
+ */
+private const val SWIPE_COMMIT_FRACTION = 0.95f
 
 /** How strong the background is before the swipe has gone far enough to count. */
 private const val PENDING_ALPHA = 0.55f
 
 /**
- * Swipe right to archive (or restore), swipe left to pin. The row always snaps back;
+ * Swipe right all the way to archive (or restore), left all the way to pin. The row always snaps back;
  * the list update then removes or moves it, which keeps this safe in filtered views.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,25 +53,37 @@ internal fun SwipeActions(
     val archiveOrRestore by rememberUpdatedState(onArchiveOrRestore)
     val togglePin by rememberUpdatedState(onTogglePin)
 
+    var rowWidth by remember { mutableFloatStateOf(0f) }
+    // Filled in once the state exists; the confirm callback below needs to read where the row has been dragged to.
+    val stateHolder = remember { arrayOfNulls<SwipeToDismissBoxState>(1) }
+    fun dragFraction(): Float {
+        val state = stateHolder[0] ?: return 0f
+        val offset = runCatching { state.requireOffset() }.getOrDefault(0f)
+        return if (rowWidth > 0f) abs(offset) / rowWidth else 0f
+    }
+
     val state = rememberSwipeToDismissBoxState(
-        // The action shows from the first pixel, but only counts once the row is dragged three quarters across.
         positionalThreshold = { totalDistance -> totalDistance * SWIPE_COMMIT_FRACTION },
         confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> archiveOrRestore()
-                SwipeToDismissBoxValue.EndToStart -> togglePin()
-                SwipeToDismissBoxValue.Settled -> Unit
+            // Even a fast flick must have taken the row all the way across, or nothing happens.
+            if (dragFraction() >= SWIPE_COMMIT_FRACTION) {
+                when (value) {
+                    SwipeToDismissBoxValue.StartToEnd -> archiveOrRestore()
+                    SwipeToDismissBoxValue.EndToStart -> togglePin()
+                    SwipeToDismissBoxValue.Settled -> Unit
+                }
             }
             false
         }
     )
+    stateHolder[0] = state
 
     val archiveLabel = if (isArchived) "Restore" else "Archive"
     val pinLabel = if (isPinned) "Unpin" else "Pin"
 
     SwipeToDismissBox(
         state = state,
-        modifier = modifier.semantics {
+        modifier = modifier.onSizeChanged { rowWidth = it.width.toFloat() }.semantics {
             customActions = buildList {
                 add(CustomAccessibilityAction(archiveLabel) { archiveOrRestore(); true })
                 if (!isArchived) add(CustomAccessibilityAction(pinLabel) { togglePin(); true })
@@ -70,8 +91,8 @@ internal fun SwipeActions(
         },
         enableDismissFromEndToStart = !isArchived,
         backgroundContent = {
-            // Follows the finger from the start; it firms up once letting go would apply the action.
-            val committed = state.targetValue != SwipeToDismissBoxValue.Settled
+            // Follows the finger from the start; it firms up only once the row is all the way across.
+            val committed = dragFraction() >= SWIPE_COMMIT_FRACTION
             val (label, base, alignment) = when (state.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd ->
                     Triple(archiveLabel, MaterialTheme.colorScheme.primaryContainer, Alignment.CenterStart)
