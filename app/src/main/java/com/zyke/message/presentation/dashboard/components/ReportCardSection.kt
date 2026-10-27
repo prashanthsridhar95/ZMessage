@@ -1,6 +1,16 @@
 package com.zyke.message.presentation.dashboard.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import com.zyke.message.R
+import com.zyke.message.presentation.common.AppBottomSheet
+import com.zyke.message.presentation.messages.components.mutedColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,40 +39,74 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 
 /**
- * This month as a report card: an overall grade, one sentence about it, and a mark per category.
+ * The report card in one tappable row: the overall grade and what stands out. The full marks open in a sheet.
  *
  * Every grade is a letter, so the meaning never rests on colour; the colours only echo it, and each pair
  * is a container with its own "on" colour so the letter stays readable in both themes.
  */
 @Composable
-internal fun ReportCardSection(card: ReportCard, modifier: Modifier = Modifier) {
-    SectionCard(
-        title = "Report card · ${DisplayFormatters.monthName(card.month)}",
-        subtitle = "This month so far, against the same days last month",
-        modifier = modifier
+internal fun ReportCardSummary(card: ReportCard, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .clickable(onClickLabel = "Open report card", onClick = onOpen)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            GradeBadge(card.overall, size = 64.dp)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                RowTitle(overallLine(card))
-                Caption(remarkText(card.remark), Modifier.padding(top = 2.dp), maxLines = 3)
-            }
+        GradeBadge(card.overall, size = 48.dp)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            RowTitle("Report card · ${DisplayFormatters.monthName(card.month)}")
+            Caption(remarkText(card.remark), Modifier.padding(top = 2.dp), maxLines = 2)
         }
+        Image(
+            modifier = Modifier.size(20.dp),
+            painter = painterResource(R.drawable.baseline_chevron_right_24),
+            colorFilter = ColorFilter.tint(mutedColor()),
+            contentDescription = null
+        )
+    }
+}
 
-        if (card.subjects.isNotEmpty()) {
-            Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                card.subjects.forEach { SubjectRow(it) }
-            }
-        }
-
-        if (card.unreadMessages > 0) {
-            Caption(
-                "${DisplayFormatters.count(card.unreadMessages, "money message", "money messages")} couldn't be read, " +
-                    "so these marks may be kinder than the truth.",
-                Modifier.padding(top = 12.dp),
-                maxLines = 3
+/** This month's marks in full: overall grade, a sentence about it, and a mark per category. */
+@Composable
+internal fun ReportCardSheet(card: ReportCard, onDismiss: () -> Unit) {
+    AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)
+        ) {
+            Text(
+                text = "Report card · ${DisplayFormatters.monthName(card.month)}",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
             )
+            Caption("This month so far, against the same days last month", Modifier.padding(top = 2.dp, bottom = 16.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GradeBadge(card.overall, size = 64.dp)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    RowTitle(overallLine(card))
+                    Caption(remarkText(card.remark), Modifier.padding(top = 2.dp), maxLines = 3)
+                }
+            }
+
+            if (card.subjects.isNotEmpty()) {
+                Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    card.subjects.forEach { SubjectRow(it) }
+                }
+            }
+
+            if (card.unreadMessages > 0) {
+                Caption(
+                    "${DisplayFormatters.count(card.unreadMessages, "money message", "money messages")} couldn't be read, " +
+                        "so these marks may be kinder than the truth.",
+                    Modifier.padding(top = 12.dp),
+                    maxLines = 3
+                )
+            }
         }
     }
 }

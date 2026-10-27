@@ -199,4 +199,13 @@ class DashboardViewModelTest {
         assertEquals(DashboardPeriod.THIS_MONTH, vm.state.value.period)
         assertNull(vm.state.value.category)
     }
+
+    @Test
+    fun reportCardSheet_opensAndCloses() {
+        val vm = vm()
+        vm.onIntent(Intent.OpenReportCard)
+        assertTrue(vm.state.value.showReportCard)
+        vm.onIntent(Intent.CloseReportCard)
+        assertFalse(vm.state.value.showReportCard)
+    }
 }

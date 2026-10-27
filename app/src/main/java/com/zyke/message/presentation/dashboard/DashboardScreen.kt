@@ -12,7 +12,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import com.zyke.message.presentation.dashboard.components.CollapsedHeroBar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,13 +52,13 @@ import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ChartLegend
 import com.zyke.message.presentation.common.ErrorState
 import com.zyke.message.presentation.common.PermissionGate
-import com.zyke.message.presentation.dashboard.components.DashboardControls
 import com.zyke.message.presentation.dashboard.components.DashboardFilterSheet
 import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import com.zyke.message.presentation.dashboard.components.HeroCard
-import com.zyke.message.presentation.dashboard.components.ReportCardSection
+import com.zyke.message.presentation.dashboard.components.ReportCardSheet
+import com.zyke.message.presentation.dashboard.components.ReportCardSummary
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
 import com.zyke.message.presentation.dashboard.components.TrendChart
@@ -62,6 +73,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 private const val COLLAPSED_VENDORS = 5
+private val COLLAPSE_AT = 24.dp
 
 @Composable
 fun DashboardRoute(viewModel: DashboardViewModel, onRequestPermission: () -> Unit, modifier: Modifier = Modifier) {
@@ -100,15 +112,6 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        if (state.dashboard != null && !state.permissionMissing && !state.hasError) {
-            // Always on screen, so switching between money out and money in is one tap from anywhere.
-            DashboardControls(
-                direction = state.direction,
-                onDirection = { onIntent(Intent.SelectDirection(it)) },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
         val dashboard = state.dashboard
         when {
             state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
@@ -118,7 +121,7 @@ fun DashboardScreen(
                 onRetry = { onIntent(Intent.Retry) }
             )
             state.isLoading || dashboard == null -> MessageListSkeleton()
-            else -> DashboardContent(state, dashboard, onIntent)
+            else -> DashboardContent(state, dashboard, onIntent, Modifier.weight(1f))
         }
     }
 
@@ -136,6 +139,11 @@ fun DashboardScreen(
         )
     }
 
+    val reportCardForSheet = state.reportCard
+    if (state.showReportCard && reportCardForSheet != null) {
+        ReportCardSheet(reportCardForSheet, onDismiss = { onIntent(Intent.CloseReportCard) })
+    }
+
     state.editingBudget?.let { category ->
         BudgetDialog(
             category = category,
@@ -147,7 +155,43 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit) {
+private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState()
+    val collapseAt = with(LocalDensity.current) { COLLAPSE_AT.toPx() }
+    // The hero card carries the switch; once it has scrolled away the compact bar takes over.
+    val collapsed by remember(listState, collapseAt) {
+        derivedStateOf {
+            val hero = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "hero" }
+            hero == null || hero.offset + hero.size < collapseAt
+        }
+    }
+    val onDirection = { direction: FlowDirection -> onIntent(Intent.SelectDirection(direction)) }
+
+    Column(modifier.fillMaxSize()) {
+        // With no hero card (nothing in this view) the switch has nowhere else to live, so it stays above the list.
+        if (dashboard.isEmpty) CollapsedHeroBar(dashboard, onDirection)
+        Box(Modifier.weight(1f)) {
+            DashboardList(state, dashboard, onIntent, listState)
+            HeroBarOverlay(collapsed && !dashboard.isEmpty, dashboard, onDirection, Modifier.align(Alignment.TopCenter))
+        }
+    }
+}
+
+/** Fades the compact bar in over the list. A function of its own so no layout scope's overload gets picked. */
+@Composable
+private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: (FlowDirection) -> Unit, modifier: Modifier) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = fadeIn() + slideInVertically { -it / 2 },
+        exit = fadeOut() + slideOutVertically { -it / 2 }
+    ) {
+        CollapsedHeroBar(dashboard, onDirection)
+    }
+}
+
+@Composable
+private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
     val ranking = dashboard.categories.map { it.category }
     // Budgets are monthly limits, so they only make sense against this month's spending.
@@ -157,6 +201,7 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
 
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -173,11 +218,6 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                     horizontalInset = 0.dp
                 )
             }
-        }
-
-        val reportCard = state.reportCard
-        if (reportCard != null && !reportCard.isEmpty) {
-            item(key = "report-card") { ReportCardSection(reportCard) }
         }
 
         if (dashboard.isEmpty) {
@@ -209,6 +249,11 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                     }
                 }
             }
+        }
+
+        val reportCard = state.reportCard
+        if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
+            item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
         if (!dashboard.isEmpty) {

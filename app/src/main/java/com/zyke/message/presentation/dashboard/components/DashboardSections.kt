@@ -111,6 +111,35 @@ internal fun SectionCard(
     }
 }
 
+/**
+ * What the hero card turns into once it has scrolled away: the same total, small, beside the Spent / Received
+ * switch, so the switch is never more than a glance away.
+ */
+@Composable
+internal fun CollapsedHeroBar(
+    dashboard: Dashboard,
+    onDirection: (FlowDirection) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+            text = DisplayFormatters.rupees(dashboard.total),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1
+        )
+        DashboardControls(dashboard.direction, onDirection, Modifier.weight(1.4f))
+    }
+}
+
 /** The Spent / Received switch; period tabs sit above and the category filter lives in the sheet. */
 @Composable
 internal fun DashboardControls(

@@ -45,6 +45,8 @@ class DashboardViewModel(
                 copy(category = if (category == intent.category) null else intent.category, expandedVendor = null)
             }
             is Intent.SetCategory -> reduceDashboard { copy(category = intent.category, expandedVendor = null) }
+            Intent.OpenReportCard -> reduce { copy(showReportCard = true) }
+            Intent.CloseReportCard -> reduce { copy(showReportCard = false) }
             Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
             Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
             Intent.ResetFilters -> reduceDashboard {

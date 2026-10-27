@@ -31,6 +31,7 @@ object DashboardContract {
         val editingBudget: MessageCategory? = null,
 
         val showFilterSheet: Boolean = false,
+        val showReportCard: Boolean = false,
         val expandedVendor: String? = null,
         val showAllVendors: Boolean = false,
 
@@ -56,6 +57,8 @@ object DashboardContract {
         data class SelectCategory(val category: MessageCategory) : Intent
         data object ClearCategory : Intent
         data class SetCategory(val category: MessageCategory?) : Intent
+        data object OpenReportCard : Intent
+        data object CloseReportCard : Intent
         data object OpenFilters : Intent
         data object CloseFilters : Intent
         data object ResetFilters : Intent
