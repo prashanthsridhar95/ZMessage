@@ -132,6 +132,12 @@ fun SettingsSheet(
                 )
             }
 
+            LimitsSection(
+                limits = state.limits,
+                onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },
+                onRemove = { onIntent(Intent.RemoveLimits(it)) }
+            )
+
             CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
             RcsSection()

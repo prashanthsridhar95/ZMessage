@@ -9,6 +9,7 @@ import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.ReportCardBuilder
+import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.NoCards
@@ -39,6 +40,9 @@ class DashboardViewModel(
     init {
         viewModelScope.launch {
             budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
+        }
+        viewModelScope.launch {
+            budgetRepository.dailyBudgets.collect { daily -> reduceDashboard { copy(dailyBudgets = daily) } }
         }
         userStateRepository?.let { repository ->
             viewModelScope.launch {
@@ -114,7 +118,8 @@ class DashboardViewModel(
                 dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
                 reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
-                cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone)
+                cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
+                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone)
             )
         }
     }

@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.diagnostics.DiagnosticsBuilder
+import com.zyke.message.domain.model.ClassifiedMessage
+import java.math.BigDecimal
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.NoCards
@@ -41,10 +44,17 @@ class SettingsViewModel(
 ) {
 
     private var observeJob: Job? = null
+    private var inbox: List<ClassifiedMessage> = emptyList()
 
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
+        }
+        viewModelScope.launch {
+            budgetRepository.budgets.collect { monthly -> reduce { copy(monthlyLimits = monthly) }; recomputeLimits() }
+        }
+        viewModelScope.launch {
+            budgetRepository.dailyBudgets.collect { daily -> reduce { copy(dailyLimits = daily) }; recomputeLimits() }
         }
         viewModelScope.launch {
             cardRepository.cards.collect { cards -> reduce { copy(cards = cards) } }
@@ -76,6 +86,16 @@ class SettingsViewModel(
                     emitEffect(Effect.ShowMessage("${card.label} saved"))
                 }
             }
+            is Intent.SetLimits -> {
+                budgetRepository.setDailyBudget(intent.category, amountOf(intent.daily))
+                budgetRepository.setBudget(intent.category, amountOf(intent.monthly))
+                emitEffect(Effect.ShowMessage("Limits saved for ${intent.category.displayString}"))
+            }
+            is Intent.RemoveLimits -> {
+                budgetRepository.setDailyBudget(intent.category, null)
+                budgetRepository.setBudget(intent.category, null)
+                emitEffect(Effect.ShowMessage("Limits removed"))
+            }
             is Intent.DeleteCard -> {
                 cardRepository.remove(intent.id)
                 emitEffect(Effect.ShowMessage("Removed"))
@@ -97,9 +117,24 @@ class SettingsViewModel(
         observeJob = viewModelScope.launch {
             observeMessages()
                 .catch { reduce { copy(diagnostics = null) } }
-                .collect { inbox -> reduce { copy(diagnostics = DiagnosticsBuilder.build(inbox)) } }
+                .collect { messages ->
+                    inbox = messages
+                    reduce { copy(diagnostics = DiagnosticsBuilder.build(messages)) }
+                    recomputeLimits()
+                }
         }
     }
+
+    /** Where each limit stands, from the latest inbox and the limits as they are now. */
+    private fun recomputeLimits() {
+        val state = currentState()
+        val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone)
+        reduce { copy(limits = limits) }
+    }
+
+    /** A blank or unusable entry clears the limit rather than keeping a stale one. */
+    private fun amountOf(text: String): BigDecimal? =
+        text.trim().replace(",", "").toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
 
     private fun shareDiagnostics() {
         val diagnostics = currentState().diagnostics ?: return

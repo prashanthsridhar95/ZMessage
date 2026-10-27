@@ -59,6 +59,8 @@ import com.zyke.message.domain.dashboard.BillEntry
 import com.zyke.message.domain.cards.CardCycles
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.dashboard.CardBills
+import com.zyke.message.domain.dashboard.CategoryLimits
+import com.zyke.message.presentation.common.LimitStatus
 import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
@@ -813,3 +815,35 @@ internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Mod
         }
     }
 }
+
+/**
+ * How the spending limits are going, in green and red. Limits are set in Settings, so this only shows them and
+ * points the way there.
+ */
+@Composable
+internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modifier: Modifier = Modifier) {
+    SectionCard(title = "Spending limits", modifier = modifier) {
+        if (limits.isEmpty()) {
+            Caption("Set a daily or monthly limit for any category in Settings, and see here what is available.", maxLines = 3)
+        } else {
+            limits.take(MAX_LIMITS_SHOWN).forEachIndexed { index, entry ->
+                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                RowTitle(entry.category.displayString)
+                entry.daily?.let { LimitStatus(it, Modifier.padding(top = 4.dp)) }
+                entry.monthly?.let { LimitStatus(it, Modifier.padding(top = 8.dp)) }
+            }
+            if (limits.size > MAX_LIMITS_SHOWN) {
+                Caption("${limits.size - MAX_LIMITS_SHOWN} more in Settings", Modifier.padding(top = 10.dp))
+            }
+        }
+        AppButton(
+            text = if (limits.isEmpty()) "Set limits in Settings" else "Manage limits in Settings",
+            onClick = onManage,
+            style = ButtonStyle.TONAL,
+            size = ButtonSize.COMPACT,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+    }
+}
+
+private const val MAX_LIMITS_SHOWN = 4

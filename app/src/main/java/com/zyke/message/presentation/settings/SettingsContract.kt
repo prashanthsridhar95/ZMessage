@@ -1,9 +1,12 @@
 package com.zyke.message.presentation.settings
 
 import com.zyke.message.domain.diagnostics.ParsingDiagnostics
+import com.zyke.message.domain.dashboard.CategoryLimits
 import com.zyke.message.domain.model.AppSettings
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.domain.model.UserCard
+import java.math.BigDecimal
 
 object SettingsContract {
 
@@ -12,7 +15,11 @@ object SettingsContract {
         /** Null until the inbox has been read (or when SMS access is missing). */
         val diagnostics: ParsingDiagnostics? = null,
         val confirmingReset: Boolean = false,
-        val cards: List<UserCard> = emptyList()
+        val cards: List<UserCard> = emptyList(),
+        /** Categories with a daily and / or monthly limit, and where they stand today and this month. */
+        val limits: List<CategoryLimits> = emptyList(),
+        val dailyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
+        val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap()
     )
 
     sealed interface Intent {
@@ -26,6 +33,9 @@ object SettingsContract {
         data class SetLiveAlerts(val enabled: Boolean) : Intent
         data class SaveCard(val card: UserCard) : Intent
         data class DeleteCard(val id: String) : Intent
+        /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */
+        data class SetLimits(val category: MessageCategory, val daily: String, val monthly: String) : Intent
+        data class RemoveLimits(val category: MessageCategory) : Intent
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent

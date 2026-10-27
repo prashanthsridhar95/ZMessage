@@ -52,7 +52,7 @@ import com.zyke.message.presentation.dashboard.DashboardContract.Intent
 import com.zyke.message.presentation.dashboard.DashboardContract.State
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
-import com.zyke.message.presentation.dashboard.components.BudgetDialog
+import com.zyke.message.presentation.dashboard.components.LimitsCard
 import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CardCyclesSection
 import com.zyke.message.presentation.dashboard.components.CardBillSheet
@@ -172,15 +172,6 @@ fun DashboardScreen(
             onDismiss = { onIntent(Intent.ToggleCard(bills.key)) }
         )
     }
-
-    state.editingBudget?.let { category ->
-        BudgetDialog(
-            category = category,
-            current = state.budgets[category],
-            onSave = { onIntent(Intent.SaveBudget(category, it)) },
-            onDismiss = { onIntent(Intent.EditBudget(null)) }
-        )
-    }
 }
 
 @Composable
@@ -223,8 +214,6 @@ private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: 
 private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
     val ranking = dashboard.categories.map { it.category }
-    // Budgets are monthly limits, so they only make sense against this month's spending.
-    val budgetsApply = state.period == DashboardPeriod.THIS_MONTH && state.direction == FlowDirection.SPENT
     val received = state.direction == FlowDirection.RECEIVED
     val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
 
@@ -261,6 +250,10 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         } else {
             item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
+        }
+
+        item(key = "limits") {
+            LimitsCard(state.limits, onManage = LocalOpenSettings.current)
         }
 
         if (state.showCardsPrompt) {
@@ -321,7 +314,8 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                             total = categoryTotal,
                             color = ChartColors.forRank(index),
                             selected = item.category == state.category,
-                            canSetBudget = budgetsApply,
+                            // Limits are set in Settings; here they are only shown.
+                            canSetBudget = false,
                             direction = state.direction,
                             onClick = { onIntent(Intent.SelectCategory(item.category)) },
                             onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
