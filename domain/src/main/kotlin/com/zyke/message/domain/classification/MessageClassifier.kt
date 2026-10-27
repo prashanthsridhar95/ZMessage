@@ -111,7 +111,7 @@ class MessageClassifier(
         transaction(message, tx).copy(isModelParsed = true)
 
     private fun transaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
-        val merchant = merchants.resolve(tx.payee)
+        val merchant = nameIfMissing(merchants.resolve(tx.payee), tx)
         return ClassifiedMessage(
             message = message,
             category = merchant.category,
@@ -128,7 +128,7 @@ class MessageClassifier(
     }
 
     private fun scheduled(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
-        val merchant = merchants.resolve(tx.payee.ifEmpty { tx.bankName.displayString })
+        val merchant = nameIfMissing(merchants.resolve(tx.payee.ifEmpty { tx.bankName.displayString }), tx)
         return ClassifiedMessage(
             message = message,
             category = merchant.category,
@@ -143,6 +143,23 @@ class MessageClassifier(
                 isCard = message.body.contains("Card", ignoreCase = true)
             )
         )
+    }
+
+    /**
+     * A row needs a name. When the message has no payee, or only an opaque id (a hash, a long reference),
+     * say what kind of movement it was instead of leaving the title empty or showing the id.
+     */
+    private fun nameIfMissing(merchant: Merchant, tx: BankTransaction): Merchant {
+        val name = merchant.name.trim()
+        val opaque = name.isEmpty() || OPAQUE_ID.matches(name)
+        if (!opaque) return merchant
+        val received = tx.type == BankTransactionType.RECEIVED
+        val label = when {
+            merchant.logo == MerchantLogo.UPI || name.isNotEmpty() -> if (received) "UPI credit" else "UPI payment"
+            tx.bankName.displayString.isNotEmpty() -> "${tx.bankName.displayString} ${if (received) "credit" else "debit"}"
+            else -> if (received) "Money received" else "Payment"
+        }
+        return merchant.copy(name = label)
     }
 
     private fun scheduledKind(type: BankTransactionType) = when (type) {
@@ -244,6 +261,9 @@ class MessageClassifier(
 
     private companion object {
         const val MAX_PARSED_LENGTH = 4096
+
+        /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */
+        val OPAQUE_ID = Regex("(?=.*\\d)[A-Za-z0-9]{16,}")
 
         val DATA_USAGE =
             """(\d+)% Alert: You have consumed \1% of your daily high Speed Data limit\. Track usage on Airtel Thanks App i\.airtel\.in/Get-Data""".toRegex()

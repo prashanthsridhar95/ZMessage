@@ -37,9 +37,11 @@ object DisplayFormatters {
 
     /** "₹12,345" (Indian digit grouping where the platform supports it), fractions only when non-zero. */
     fun rupees(amount: BigDecimal, locale: Locale = Locale.forLanguageTag("en-IN")): String {
+        // Whole amounts show no decimals; anything with paise always shows two (₹2,15,134.10, not ₹2,15,134.1).
+        val whole = amount.stripTrailingZeros().scale() <= 0
         val format = NumberFormat.getNumberInstance(locale).apply {
             maximumFractionDigits = 2
-            minimumFractionDigits = 0
+            minimumFractionDigits = if (whole) 0 else 2
         }
         return "₹" + format.format(amount)
     }

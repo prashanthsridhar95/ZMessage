@@ -260,4 +260,15 @@ class ParsingReportRegressionTest {
         assertEquals("95", b.tollAmount)
         assertEquals("505.50", b.balance)
     }
+
+    @Test
+    fun rowsAlwaysHaveAName_evenWithoutAPayeeOrWithOnlyAnId() {
+        val hash = classify("Sent Rs.13428.00\nFrom HDFC Bank A/C *5765\nTo 5dd063f0f029a9e1e0634dcee10a9f77\nOn 26/10/26\nRef 1")
+        assertEquals("UPI payment", (hash as MessageContent.Transaction).let { classifierName("Sent Rs.13428.00\nFrom HDFC Bank A/C *5765\nTo 5dd063f0f029a9e1e0634dcee10a9f77\nOn 26/10/26\nRef 1") })
+
+        val blank = classifierName("Rs.500.00 debited from A/c XX5765 on 26-10-26. Ref 12345")
+        assertTrue(blank.isNotBlank())
+    }
+
+    private fun classifierName(body: String) = classifier.classify(SmsMessage(1, "AD-HDFCBK", body, 0L, true)).merchant.name
 }
