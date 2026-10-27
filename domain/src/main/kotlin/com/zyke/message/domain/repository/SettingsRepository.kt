@@ -16,4 +16,6 @@ interface SettingsRepository {
     fun setAppLock(enabled: Boolean)
 
     fun setMorningDigest(enabled: Boolean)
+
+    fun setLiveAlerts(enabled: Boolean)
 }

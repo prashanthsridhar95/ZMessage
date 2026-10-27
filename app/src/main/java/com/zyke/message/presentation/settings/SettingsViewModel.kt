@@ -33,7 +33,9 @@ class SettingsViewModel(
     /** Called when downloaded logos should be forgotten (the person turned the feature off). */
     private val onLogosTurnedOff: () -> Unit = {},
     /** Called when the morning digest is switched on or off, so its alarm can be set or cancelled. */
-    private val onDigestChanged: (Boolean) -> Unit = {}
+    private val onDigestChanged: (Boolean) -> Unit = {},
+    /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
+    private val onLiveAlertsChanged: (Boolean) -> Unit = {}
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value)
 ) {
@@ -59,6 +61,10 @@ class SettingsViewModel(
                 if (!intent.enabled) onLogosTurnedOff()
             }
             is Intent.SetAppLock -> settingsRepository.setAppLock(intent.enabled)
+            is Intent.SetLiveAlerts -> {
+                settingsRepository.setLiveAlerts(intent.enabled)
+                onLiveAlertsChanged(intent.enabled)
+            }
             is Intent.SetMorningDigest -> {
                 settingsRepository.setMorningDigest(intent.enabled)
                 onDigestChanged(intent.enabled)
@@ -126,13 +132,15 @@ class SettingsViewModel(
         private val budgetRepository: BudgetRepository,
         private val cardRepository: CardRepository = NoCards,
         private val onLogosTurnedOff: () -> Unit = {},
-        private val onDigestChanged: (Boolean) -> Unit = {}
+        private val onDigestChanged: (Boolean) -> Unit = {},
+        private val onLiveAlertsChanged: (Boolean) -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
-                cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged
+                cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
+                onLiveAlertsChanged = onLiveAlertsChanged
             ) as T
     }
 }

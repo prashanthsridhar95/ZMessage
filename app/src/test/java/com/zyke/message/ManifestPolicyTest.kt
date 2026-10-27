@@ -33,7 +33,8 @@ class ManifestPolicyTest {
                 "android.permission.READ_SMS",
                 "android.permission.INTERNET", // brand logos
                 "android.permission.POST_NOTIFICATIONS", // morning digest
-                "android.permission.RECEIVE_BOOT_COMPLETED" // putting the digest alarm back after a restart
+                "android.permission.RECEIVE_BOOT_COMPLETED", // putting the digest alarm back after a restart
+                "android.permission.RECEIVE_SMS" // live code and bill buttons, off until switched on
             ),
             permissions
         )
@@ -72,13 +73,22 @@ class ManifestPolicyTest {
         assertEquals(1, activities.length)
         assertEquals("true", (activities.item(0) as Element).getAttributeNS(android, "exported"))
 
-        // Receivers exist for the widget, the morning alarm and the restart; none is reachable by other apps.
+        // Receivers exist for the widget, the morning alarm, the restart, the copy button and live alerts.
         val receivers = manifest.getElementsByTagName("receiver")
         assertEquals(
-            setOf(".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver"),
+            setOf(
+                ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
+                ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver"
+            ),
             receivers.names("name").toSet()
         )
-        assertEquals(List(receivers.length) { "false" }, receivers.names("exported"))
+        // Only the SMS receiver is exported (the phone's telephony service has to reach it); it is guarded by
+        // BROADCAST_SMS so no other app can send to it, and it is disabled until the person opts in.
+        val exported = (0 until receivers.length).map { receivers.item(it) as Element }
+            .filter { it.getAttributeNS(android, "exported") == "true" }
+        assertEquals(listOf(".notifications.SmsReceiver"), exported.map { it.getAttributeNS(android, "name") })
+        assertEquals("android.permission.BROADCAST_SMS", exported.single().getAttributeNS(android, "permission"))
+        assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
         assertEquals(1, services.length)

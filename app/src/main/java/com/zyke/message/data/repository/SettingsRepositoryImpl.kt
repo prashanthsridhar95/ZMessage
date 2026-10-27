@@ -18,7 +18,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             themeMode = ThemeMode.entries.firstOrNull { it.name == prefs.getString(THEME_MODE, null) } ?: ThemeMode.SYSTEM,
             fetchLogos = prefs.getBoolean(FETCH_LOGOS, true),
             appLock = prefs.getBoolean(APP_LOCK, false),
-            morningDigest = prefs.getBoolean(MORNING_DIGEST, false)
+            morningDigest = prefs.getBoolean(MORNING_DIGEST, false),
+            liveAlerts = prefs.getBoolean(LIVE_ALERTS, false)
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -48,7 +49,13 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(morningDigest = enabled)
     }
 
+    override fun setLiveAlerts(enabled: Boolean) {
+        prefs.edit().putBoolean(LIVE_ALERTS, enabled).apply()
+        _settings.value = _settings.value.copy(liveAlerts = enabled)
+    }
+
     private companion object {
+        const val LIVE_ALERTS = "live_alerts"
         const val FETCH_LOGOS = "fetch_logos"
         const val SCREEN_PROTECTION = "screen_protection"
         const val THEME_MODE = "theme_mode"

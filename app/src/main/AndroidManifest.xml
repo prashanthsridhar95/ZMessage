@@ -11,6 +11,8 @@
     <!-- Only for the optional morning digest (off by default): the notification, and putting its alarm back after a restart. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Only for the optional live alerts (off by default): hearing about a new code or bill the moment it arrives. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
 
     <application
@@ -64,6 +66,20 @@
         <receiver
             android:name=".notifications.DigestReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".notifications.CopyCodeReceiver"
+            android:exported="false" />
+        <!-- Exported only because the phone's telephony service must reach it; the BROADCAST_SMS permission lets
+             nothing else send to it. Disabled until the person turns on live alerts. -->
+        <receiver
+            android:name=".notifications.SmsReceiver"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".notifications.BootReceiver"
             android:exported="false">

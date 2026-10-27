@@ -12,6 +12,7 @@
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
 | Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage | No |
+| New texts as they arrive (live alerts, off until chosen) | The phone's `SMS_RECEIVED` broadcast, `RECEIVE_SMS` | No: read in memory to spot a code or card bill, then dropped | No |
 | Muted senders | User action | Sender names, private SharedPreferences | No |
 | Settings (screenshot protection, theme, app lock, morning digest) | User input | Booleans and one choice | No |
 | Morning digest and widget (off until chosen) | Built on the phone from the inbox | A notification text shown on the lock screen only as a private notification; the widget draws the same lines on the home screen | No |
@@ -30,6 +31,8 @@ There is no account, no analytics and no crash reporter. The only network use is
 | Someone looks over the shoulder / screen capture / recent-apps preview | Optional `FLAG_SECURE` ("Block screenshots") |
 | Malicious or malformed SMS crashes or stalls the app | Classifier never throws, parses at most 4096 characters, fuzz and hostile-input tests |
 | Another app drives ours | Only the launcher activity is exported; the notification listener service and the three receivers (widget, morning alarm, restart) are not exported, and a unit test pins the list |
+| A rogue app fakes an incoming text to the live-alerts receiver | It is the only exported receiver, guarded by the system-only `BROADCAST_SMS` permission, disabled until the person opts in, and it only ever shows a notification |
+| A code shows on the lock screen or in the clipboard preview | The notification is private (the lock screen says "A new one-time code"), and the copied code is marked sensitive |
 | Someone else picks up an unlocked phone | Optional app lock: the phone's own fingerprint, face or screen-lock prompt after 30 seconds away |
 | Digest or widget shows private details | The notification is private on the lock screen; the widget is something you add yourself and shows only short lines such as "Insurance expires tomorrow" |
 | Reverse engineering | R8 minification and obfuscation in release |

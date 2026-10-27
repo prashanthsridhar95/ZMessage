@@ -161,6 +161,11 @@ fun SettingsSheet(
                     enabled = state.settings.morningDigest,
                     onChange = { onIntent(Intent.SetMorningDigest(it)) }
                 )
+                LiveAlertsToggle(
+                    enabled = state.settings.liveAlerts,
+                    onChange = { onIntent(Intent.SetLiveAlerts(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
                 Caption(
                     "You can also add the \"Your day\" widget from your home screen's widget list.",
                     Modifier.padding(top = 12.dp),
@@ -317,6 +322,37 @@ private fun MorningDigestToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
                 else -> launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+    )
+}
+
+/**
+ * "Copy code" and "Pay" buttons the moment a code or card bill arrives. It needs permission to hear about new
+ * texts and to show notifications, and both are asked for only when this is switched on.
+ */
+@Composable
+private fun LiveAlertsToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val permissions = buildList {
+        add(Manifest.permission.RECEIVE_SMS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }.toTypedArray()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        onChange(permissions.all { results[it] == true })
+    }
+    ToggleRow(
+        title = "Copy-code and Pay buttons",
+        description = "As soon as a one-time code or card bill arrives, show a notification with a Copy code or Pay button. " +
+            "Your messaging app still shows its own notification, and nothing is stored or sent.",
+        checked = enabled,
+        onCheckedChange = { wanted ->
+            val allowed = permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+            when {
+                !wanted -> onChange(false)
+                allowed -> onChange(true)
+                else -> launcher.launch(permissions)
+            }
+        },
+        modifier = modifier
     )
 }
 

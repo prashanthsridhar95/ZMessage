@@ -7,6 +7,7 @@ import android.os.SystemClock
 import androidx.compose.runtime.mutableStateOf
 import com.zyke.message.notifications.DaysAheadWidget
 import com.zyke.message.notifications.DigestScheduler
+import com.zyke.message.notifications.LiveAlerts
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -67,7 +68,8 @@ class MainActivity : ComponentActivity() {
         SettingsViewModel.Factory(
             container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards,
             onLogosTurnedOff = container.imageStore::clearLogos,
-            onDigestChanged = { DigestScheduler(this).apply(it) }
+            onDigestChanged = { DigestScheduler(this).apply(it) },
+            onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) }
         )
     }
 
