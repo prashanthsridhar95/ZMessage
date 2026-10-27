@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardPeriod
+import com.zyke.message.domain.dashboard.ReportCardBuilder
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
@@ -92,6 +93,7 @@ class DashboardViewModel(
         } else {
             updated.copy(
                 dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
+                reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone))
             )
         }

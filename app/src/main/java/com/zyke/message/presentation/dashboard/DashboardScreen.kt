@@ -47,6 +47,7 @@ import com.zyke.message.presentation.messages.components.ActiveFilterBar
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import com.zyke.message.presentation.dashboard.components.HeroCard
+import com.zyke.message.presentation.dashboard.components.ReportCardSection
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
 import com.zyke.message.presentation.dashboard.components.TrendChart
@@ -172,6 +173,11 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                     horizontalInset = 0.dp
                 )
             }
+        }
+
+        val reportCard = state.reportCard
+        if (reportCard != null && !reportCard.isEmpty) {
+            item(key = "report-card") { ReportCardSection(reportCard) }
         }
 
         if (dashboard.isEmpty) {

@@ -87,6 +87,8 @@ class DashboardViewModelTest {
         assertEquals(1300.0, dashboard.total.toDouble(), 0.001)
         assertEquals(2, dashboard.vendors.size)
         assertFalse(vm.state.value.isLoading)
+        // The report card is for this month whatever the dashboard is filtered to.
+        assertEquals(1300.0, vm.state.value.reportCard!!.spent.toDouble(), 0.001)
     }
 
     @Test

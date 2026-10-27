@@ -5,6 +5,7 @@ import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.dashboard.FlowDirection
+import com.zyke.message.domain.dashboard.ReportCard
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import java.math.BigDecimal
@@ -34,6 +35,8 @@ object DashboardContract {
         val showAllVendors: Boolean = false,
 
         val dashboard: Dashboard? = null,
+        /** This month as a report card; independent of the period and filters above. */
+        val reportCard: ReportCard? = null,
         /** Credit card statements by card; independent of the selected period. */
         val cardBills: List<CardBills> = emptyList(),
         val expandedCard: String? = null
