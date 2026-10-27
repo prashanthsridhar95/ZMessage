@@ -115,7 +115,11 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val cards = overview.accounts.filter { it.isCard }
     val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     var tab by rememberSaveable { mutableStateOf(0) }
-    val shown = if (tab == 0) banks else cards
+    val shown = when (tab) {
+        0 -> banks
+        1 -> cards
+        else -> emptyList()
+    }
 
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
@@ -126,15 +130,15 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         item(key = "tabs") {
             UnderlineTabs(
-                labels = listOf("Accounts", "Cards"),
-                counts = listOf(banks.size, cards.size),
+                labels = listOf("Accounts", "Cards", "Goals"),
+                counts = listOf(banks.size, cards.size, state.goals.size),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
             )
         }
 
-        if (shown.isEmpty()) {
+        if (tab != 2 && shown.isEmpty()) {
             item(key = "empty") {
                 FintechCard { Caption(if (tab == 0) "No accounts yet" else "No cards yet") }
             }
@@ -143,7 +147,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
         }
 
-        if (tab == 0) {
+        if (tab == 2) {
             item(key = "goals") {
                 GoalsCard(
                     goals = state.goals,
