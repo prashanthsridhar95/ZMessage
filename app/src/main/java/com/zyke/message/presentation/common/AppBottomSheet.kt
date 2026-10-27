@@ -14,18 +14,19 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 
 /**
- * The one bottom sheet for the app. It opens as tall as its content; when the content is taller than half
- * the screen it opens at the full height rather than at a preset half, and it can be dragged down to
- * dismiss. Content that still does not fit scrolls only once the sheet is full height.
+ * The one bottom sheet for the app. It opens straight to as tall as its content needs, and to the full height
+ * (below the status bar) when the content is taller than the screen, with no half-way stop that hides data. It can be
+ * dragged down to dismiss. Content that still does not fit scrolls once the sheet is full height.
+ *
+ * A sheet that holds a long list of choices, such as the filters, can ask for [partial]: it then opens part way and
+ * is pulled up for the rest.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    LaunchedEffect(sheetState) { sheetState.expand() }
+fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, partial: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = !partial)
     // Read here, in the app's window: the sheet's own window can report no insets. A full-height sheet then
     // stops below the status bar and the camera cut-out instead of putting its handle behind them.
     val topInset = WindowInsets.statusBars.union(WindowInsets.displayCutout).asPaddingValues().calculateTopPadding()

@@ -36,7 +36,7 @@ fun FilterSheet(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
+    AppBottomSheet(onDismiss, partial = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
