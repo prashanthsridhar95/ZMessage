@@ -3,6 +3,7 @@ package com.zyke.message.domain.classification
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.BankTransaction
 import com.zyke.message.domain.model.BankTransactionType
+import com.zyke.message.domain.insights.RefundTracker
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -17,6 +18,8 @@ class GenericTransactionParser {
 
     fun parse(message: String): BankTransaction? {
         if (PromoDetector.hasPromoHints(message)) return null
+        // "Refund of Rs 500 initiated" is a promise, not money received yet.
+        if (RefundTracker.announcesPendingRefund(message.replace(Regex("\\s+"), " "))) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
         return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)

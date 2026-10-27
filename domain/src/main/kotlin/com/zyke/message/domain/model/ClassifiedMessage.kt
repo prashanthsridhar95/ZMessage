@@ -108,7 +108,8 @@ enum class NoticeKind(val label: String) {
     FUNDS_UNBLOCKED("Funds unblocked"),
     LIMIT_CHANGE("Limit changed"),
     DUES_REMINDER("Dues reminder"),
-    ADVISORY("Advisory")
+    ADVISORY("Advisory"),
+    REFUND_PENDING("Refund on the way")
 }
 
 enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET, MANDATE_CANCELLED, MANDATE_REQUEST }

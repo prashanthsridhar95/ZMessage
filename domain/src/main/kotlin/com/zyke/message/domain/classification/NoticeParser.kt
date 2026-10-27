@@ -6,6 +6,7 @@ import com.zyke.message.domain.model.NoticeKind
 object NoticeParser {
     private val RULES: List<Pair<Regex, NoticeKind>> = listOf(
         Regex("(?i)\\bAutopay Failed") to NoticeKind.AUTOPAY_FAILED,
+        Regex("(?i)\\brefund\\b.*\\b(?:initiated|processed|approved|will be credited|being processed|in process|raised|issued)\\b") to NoticeKind.REFUND_PENDING,
         Regex("(?i)\\bRedeem your .*?(?:Miles|Points|Reward)") to NoticeKind.REWARD_REDEMPTION,
         Regex("(?i)\\bIPO\\b.*?\\ballotted") to NoticeKind.IPO_ALLOTMENT,
         Regex("(?i)\\bTotal TDS by\\b") to NoticeKind.TAX_DEDUCTED,
