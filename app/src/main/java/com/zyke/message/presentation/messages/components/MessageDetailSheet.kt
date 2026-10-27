@@ -347,3 +347,44 @@ private fun RemovePicture(item: ClassifiedMessage) {
             AppButton("Show the logo again", { store.showLogo(name) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
+
+/** A nickname for this sender / receiver, shown everywhere their name appears. */
+@Composable
+private fun RenameSender(item: ClassifiedMessage, shownName: String, actions: FeedActions) {
+    var renaming by remember { mutableStateOf(false) }
+    AppButton(
+        text = if (item.merchant.renamed) "Change nickname" else "Give a nickname",
+        onClick = { renaming = true },
+        modifier = Modifier.fillMaxWidth(),
+        style = ButtonStyle.TEXT,
+        size = ButtonSize.COMPACT
+    )
+    if (renaming) {
+        var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
+        AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text("Nickname for ${CategoryKey.label(item)}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nickname") })
+                    Caption("Shown wherever this name appears")
+                }
+            },
+            confirmButton = {
+                AppButton(
+                    "Save",
+                    { actions.onRename(item.id, name); renaming = false },
+                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank()
+                )
+            },
+            dismissButton = {
+                if (item.merchant.renamed) {
+                    AppButton("Use original", { actions.onRename(item.id, ""); renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                } else {
+                    AppButton("Cancel", { renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                }
+            }
+        )
+    }
+}
+
