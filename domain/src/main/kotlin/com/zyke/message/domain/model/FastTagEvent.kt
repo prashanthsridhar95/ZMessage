@@ -1,6 +1,6 @@
 package com.zyke.message.domain.model
 
-sealed class FastTagEvent {
+sealed class FastTagEvent : java.io.Serializable {
     abstract val vehicleNumber: String
 
     data class TollPaid(

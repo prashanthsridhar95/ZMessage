@@ -14,7 +14,10 @@ import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.model.SmsMessage
+import com.zyke.message.domain.repository.ClassificationCache
 import com.zyke.message.domain.repository.MutedSenderRepository
+import com.zyke.message.domain.repository.NoClassificationCache
 import com.zyke.message.domain.repository.NoMutedSenders
 import com.zyke.message.domain.repository.NoSenderImages
 import com.zyke.message.domain.repository.SenderImageRepository
@@ -37,16 +40,25 @@ class ObserveMessagesUseCase(
     private val cardRepository: CardRepository = NoCards,
     private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
     private val senderImages: SenderImageRepository = NoSenderImages,
-    private val mutedSenders: MutedSenderRepository = NoMutedSenders
+    private val mutedSenders: MutedSenderRepository = NoMutedSenders,
+    private val classificationCache: ClassificationCache = NoClassificationCache
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
             .map { inbox ->
                 val zone = ZoneId.systemDefault()
-                inbox.sortedByDescending { it.date }
+                val remembered = classificationCache.load()
+                val fresh = ArrayList<ClassifiedMessage>()
+
+                val classified = inbox.sortedByDescending { it.date }
                     .distinctBy { it.body to Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
-                    .map(classifier::classify)
-                    .let { classified -> if (modelParser.isAvailable) classified.map { upgrade(it) } else classified }
+                    .map { sms -> remembered[sms.id]?.takeIf { sameText(it.message, sms) }?.withMessage(sms) ?: read(sms, fresh) }
+
+                // Only what is new or changed is saved; what has gone from the inbox is forgotten.
+                if (fresh.isNotEmpty()) classificationCache.save(fresh)
+                if (inbox.isNotEmpty()) classificationCache.retainOnly(inbox.mapTo(HashSet()) { it.id })
+
+                if (modelParser.isAvailable) classified.map { upgrade(it) } else classified
             }
             .combine(categoryOverrides.overrides) { classified, overrides ->
                 classified.map { CategoryKey.apply(it, overrides) }
@@ -67,6 +79,15 @@ class ObserveMessagesUseCase(
             }
             .map(CategorySuggester::annotate)
             .flowOn(dispatcher)
+
+    private fun read(sms: SmsMessage, fresh: MutableList<ClassifiedMessage>): ClassifiedMessage =
+        classifier.classify(sms).also { fresh += it }
+
+    /** The same text from the same sender at the same time; the read flag may have changed since, which does not matter. */
+    private fun sameText(old: SmsMessage, new: SmsMessage) =
+        old.sender == new.sender && old.body == new.body && old.date == new.date
+
+    private fun ClassifiedMessage.withMessage(sms: SmsMessage) = if (message == sms) this else copy(message = sms)
 
     /** Money messages the rules left as plain text get a second read by the on-device model, if the phone has one. */
     private suspend fun upgrade(message: ClassifiedMessage): ClassifiedMessage {

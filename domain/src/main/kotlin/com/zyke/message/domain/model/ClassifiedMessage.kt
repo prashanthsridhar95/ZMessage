@@ -22,11 +22,12 @@ data class ClassifiedMessage(
     val isModelParsed: Boolean = false,
     /** The person muted this sender; it is treated like marketing, kept out of the main views and the unread badge. */
     val isMuted: Boolean = false
-) {
+) : java.io.Serializable {
     val id: Long get() = message.id
 }
 
-sealed interface MessageContent {
+/** Serializable so a classified message can be kept in the encrypted on-device cache. */
+sealed interface MessageContent : java.io.Serializable {
 
     data class Otp(
         val code: String,

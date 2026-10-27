@@ -8,4 +8,4 @@ data class SmsMessage(
     val isRead: Boolean,
     /** Captured from a chat (RCS) notification rather than read from the SMS provider. */
     val isRcs: Boolean = false
-)
+) : java.io.Serializable

@@ -4,7 +4,7 @@
 
 | Data | Where it comes from | Stored? | Leaves the device? |
 |---|---|---|---|
-| SMS text, sender, time | Android SMS provider (`READ_SMS`) | No: read into memory, re-read on change | No |
+| SMS text, sender, time | Android SMS provider (`READ_SMS`) | Read into memory and re-read on change. Also remembered, with how it was read, in a local database where every entry is encrypted with a key held in the Android Keystore; the database is excluded from backups and is rebuilt on every app update | No |
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
 | Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
@@ -27,6 +27,7 @@ There is no account, no analytics and no crash reporter. The only network use is
 | Threat | Mitigation |
 |---|---|
 | App exfiltrates messages | `INTERNET` is used by one file (`LogoFetcher`) for the logo setting, which sends only a brand's website name; a unit test enforces that no other file touches the network |
+| The cache database is copied off the phone and read | Each entry is AES-256-GCM encrypted with a Keystore key that cannot be exported, so the file alone is unreadable; backups and device transfer exclude databases; a damaged or old entry is dropped, never trusted |
 | Messages end up in a cloud backup | `allowBackup=false` plus exclude-all backup and transfer rules |
 | Someone looks over the shoulder / screen capture / recent-apps preview | Optional `FLAG_SECURE` ("Block screenshots") |
 | Malicious or malformed SMS crashes or stalls the app | Classifier never throws, parses at most 4096 characters, fuzz and hostile-input tests |

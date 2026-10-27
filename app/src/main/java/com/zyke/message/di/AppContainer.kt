@@ -1,6 +1,7 @@
 package com.zyke.message.di
 
 import android.content.Context
+import com.zyke.message.data.cache.EncryptedClassificationCache
 import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.CardRepositoryImpl
@@ -14,6 +15,7 @@ import com.zyke.message.data.sms.SmsDataSource
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.repository.ClassificationCache
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.SettingsRepository
@@ -35,8 +37,21 @@ class AppContainer(context: Context) {
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
+
+    /**
+     * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
+     * new or reinstalled build, which may read messages differently, starts again from the messages themselves.
+     */
+    val classificationCache: ClassificationCache = EncryptedClassificationCache(context, cacheTag(context))
+
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
-        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders
+        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders,
+        classificationCache = classificationCache
     )
+
+    private fun cacheTag(context: Context): String {
+        val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        return "${info?.versionName}-${info?.longVersionCode}-${info?.lastUpdateTime}"
+    }
 }
