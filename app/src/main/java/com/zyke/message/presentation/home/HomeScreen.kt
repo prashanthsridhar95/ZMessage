@@ -2,6 +2,10 @@ package com.zyke.message.presentation.home
 
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.SpendNarrative
+import com.zyke.message.domain.insights.NudgeKind
+import com.zyke.message.domain.insights.RefundItem
+import com.zyke.message.domain.insights.Subscription
+import com.zyke.message.domain.split.SplitShare
 import com.zyke.message.domain.life.AgendaItem
 import com.zyke.message.presentation.messages.components.whenLabel
 import com.zyke.message.presentation.common.AppBottomSheet

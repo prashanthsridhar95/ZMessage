@@ -9,7 +9,6 @@ import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.feed.FeedBuilder
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
-import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.NoMutedSenders
