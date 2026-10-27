@@ -1,6 +1,13 @@
 package com.zyke.message.presentation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import com.zyke.message.presentation.common.Motion
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
@@ -23,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+
+private const val TAB_SLIDE_DIVISOR = 12
 
 /** The three places the app lives: the overview, the money picture, and the inbox. */
 enum class AppTab(val label: String, val icon: Int) {
@@ -59,8 +68,19 @@ fun AppRoot(
         topBar = { toolbar(tab) { showSettings = true } },
         bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }) }
     ) { padding ->
-        stateHolder.SaveableStateProvider(tab.name) {
-            content(tab, Modifier.padding(padding)) { tab = it }
+        // Tabs slide the way you moved along the bar, so where you are in the app is felt, not just read.
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                (fadeIn(tween(Motion.STANDARD_MS)) + slideInHorizontally(tween(Motion.STANDARD_MS)) { direction * it / TAB_SLIDE_DIVISOR })
+                    .togetherWith(fadeOut(tween(Motion.QUICK_MS)))
+            },
+            label = "tab"
+        ) { shown ->
+            stateHolder.SaveableStateProvider(shown.name) {
+                content(shown, Modifier.padding(padding)) { tab = it }
+            }
         }
         if (showSettings) settings { showSettings = false }
     }

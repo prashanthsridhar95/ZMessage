@@ -3,6 +3,7 @@ package com.zyke.message.presentation.common
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +66,8 @@ fun AppButton(
     val compact = size == ButtonSize.COMPACT
     val shape = if (compact) CompactShape else RegularShape
     val padding = if (compact) PaddingValues(horizontal = 14.dp, vertical = 6.dp) else PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-    val sized = modifier.heightIn(min = if (compact) 40.dp else 48.dp)
+    val source = remember { MutableInteractionSource() }
+    val sized = modifier.heightIn(min = if (compact) 40.dp else 48.dp).pressScale(source)
     val scheme = MaterialTheme.colorScheme
 
     val label: @Composable () -> Unit = {
@@ -78,7 +81,8 @@ fun AppButton(
 
     when (style) {
         ButtonStyle.PRIMARY -> Button(
-            onClick = onClick, modifier = sized, enabled = enabled, shape = shape, contentPadding = padding
+            onClick = onClick, modifier = sized, enabled = enabled, shape = shape, contentPadding = padding,
+            interactionSource = source
         ) { label() }
 
         ButtonStyle.TONAL -> Button(
@@ -87,6 +91,7 @@ fun AppButton(
             enabled = enabled,
             shape = shape,
             contentPadding = padding,
+            interactionSource = source,
             colors = ButtonDefaults.buttonColors(containerColor = scheme.primaryContainer, contentColor = scheme.onPrimaryContainer)
         ) { label() }
 
@@ -96,11 +101,13 @@ fun AppButton(
             enabled = enabled,
             shape = shape,
             contentPadding = padding,
+            interactionSource = source,
             border = BorderStroke(1.5.dp, if (enabled) scheme.primary.copy(alpha = 0.6f) else scheme.onSurface.copy(alpha = 0.12f))
         ) { label() }
 
         ButtonStyle.TEXT -> TextButton(
-            onClick = onClick, modifier = sized, enabled = enabled, shape = shape, contentPadding = padding
+            onClick = onClick, modifier = sized, enabled = enabled, shape = shape, contentPadding = padding,
+            interactionSource = source
         ) { label() }
     }
 }

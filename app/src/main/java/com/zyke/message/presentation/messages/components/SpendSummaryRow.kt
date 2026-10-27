@@ -1,6 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.common.AppBottomSheet
+import com.zyke.message.presentation.common.rememberAnimatedRupees
+import com.zyke.message.presentation.common.rememberGrowingFraction
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,13 +69,13 @@ internal fun SpendSummarySheet(summary: SpendSummary, onDismiss: () -> Unit) {
             Column {
                 Caption("Spent in ${DisplayFormatters.monthName(summary.month)}")
                 Text(
-                    text = DisplayFormatters.rupees(summary.total),
+                    text = rememberAnimatedRupees(summary.total),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
             summary.byCategory.forEach { spend ->
-                val fraction = (spend.amount.toDouble() / summary.total.toDouble()).toFloat().coerceIn(0f, 1f)
+                val fraction = rememberGrowingFraction((spend.amount.toDouble() / summary.total.toDouble()).toFloat().coerceIn(0f, 1f))
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         RowTitle(spend.category.displayString)

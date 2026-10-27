@@ -56,6 +56,8 @@ import com.zyke.message.domain.dashboard.TrendUnit
 import com.zyke.message.domain.dashboard.VendorSummary
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.presentation.format.DateFormatters
+import com.zyke.message.presentation.common.rememberAnimatedRupees
+import com.zyke.message.presentation.common.rememberGrowingFraction
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
 import com.zyke.message.presentation.messages.components.Caption
@@ -130,7 +132,7 @@ internal fun CollapsedHeroBar(
     ) {
         Text(
             modifier = Modifier.weight(1f).padding(end = 12.dp),
-            text = DisplayFormatters.rupees(dashboard.total),
+            text = rememberAnimatedRupees(dashboard.total),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
@@ -239,7 +241,7 @@ internal fun HeroCard(
         )
         Text(
             modifier = Modifier.padding(top = 4.dp),
-            text = DisplayFormatters.rupees(dashboard.total),
+            text = rememberAnimatedRupees(dashboard.total),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -297,7 +299,7 @@ private fun FlowTotal(
         // As a plain link both totals are equal; as a switch the unchosen one steps back.
         Text(label, style = MaterialTheme.typography.labelMedium, color = onHero.copy(alpha = if (selected || !isSwitch) 1f else 0.8f))
         Text(
-            DisplayFormatters.rupees(amount),
+            rememberAnimatedRupees(amount),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = onHero,
@@ -354,7 +356,7 @@ internal fun TrendChart(
 
 @Composable
 private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<MessageCategory>) {
-    val height = point.amount.fractionOf(max).coerceAtLeast(0.04f)
+    val height = rememberGrowingFraction(point.amount.fractionOf(max).coerceAtLeast(0.04f)).coerceAtLeast(0.01f)
     Column(
         Modifier
             .fillMaxWidth()
@@ -491,6 +493,7 @@ internal fun ShareBar(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
+    val shown = rememberGrowingFraction(fraction.coerceIn(0.01f, 1f))
     Box(
         modifier
             .padding(top = 6.dp)
@@ -500,7 +503,7 @@ internal fun ShareBar(
     ) {
         Box(
             Modifier
-                .fillMaxWidth(fraction.coerceIn(0.01f, 1f))
+                .fillMaxWidth(shown.coerceAtLeast(0.01f))
                 .fillMaxHeight()
                 .background(color, RoundedCornerShape(2.dp))
         )

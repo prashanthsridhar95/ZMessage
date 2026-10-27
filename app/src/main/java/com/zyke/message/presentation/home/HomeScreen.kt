@@ -11,7 +11,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import com.zyke.message.presentation.common.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -49,6 +52,7 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.AppTab
 import com.zyke.message.presentation.common.ErrorState
+import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ShareBar
@@ -118,15 +122,24 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        when {
-            state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
-            state.hasError -> ErrorState(
-                title = "Couldn't read your messages",
-                hint = "Check that SMS access is allowed, then try again.",
-                onRetry = { onIntent(Intent.Retry) }
-            )
-            state.isLoading || !state.hasLoaded -> MessageListSkeleton()
-            else -> HomeContent(state, onIntent, onNavigate)
+        val stage = when {
+            state.permissionMissing -> 0
+            state.hasError -> 1
+            state.isLoading || !state.hasLoaded -> 2
+            else -> 3
+        }
+        // The skeleton fades into the real content instead of being swapped for it.
+        Crossfade(stage, animationSpec = tween(Motion.STANDARD_MS), label = "home-stage") { shown ->
+            when (shown) {
+                0 -> PermissionGate(onGrant = onRequestPermission)
+                1 -> ErrorState(
+                    title = "Couldn't read your messages",
+                    hint = "Check that SMS access is allowed, then try again.",
+                    onRetry = { onIntent(Intent.Retry) }
+                )
+                2 -> MessageListSkeleton()
+                else -> HomeContent(state, onIntent, onNavigate)
+            }
         }
     }
 }
@@ -239,7 +252,7 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClickLabel = "See where it went", onClick = onOpen)) {
         Caption("Spent in ${DisplayFormatters.monthName(java.time.YearMonth.from(month.range.start))}")
         Text(
-            text = DisplayFormatters.rupees(month.total),
+            text = rememberAnimatedRupees(month.total),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,

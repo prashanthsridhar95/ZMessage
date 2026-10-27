@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import com.zyke.message.presentation.common.Motion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -72,6 +75,8 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
 
+private enum class Stage { PERMISSION, ERROR, LOADING, CONTENT }
+
 private const val COLLAPSED_VENDORS = 5
 private val COLLAPSE_AT = 24.dp
 
@@ -113,15 +118,24 @@ fun DashboardScreen(
 ) {
     Column(modifier.fillMaxSize()) {
         val dashboard = state.dashboard
-        when {
-            state.permissionMissing -> PermissionGate(onGrant = onRequestPermission)
-            state.hasError -> ErrorState(
-                title = stringResource(R.string.messages_error),
-                hint = stringResource(R.string.error_hint),
-                onRetry = { onIntent(Intent.Retry) }
-            )
-            state.isLoading || dashboard == null -> MessageListSkeleton()
-            else -> DashboardContent(state, dashboard, onIntent, Modifier.weight(1f))
+        val stage = when {
+            state.permissionMissing -> Stage.PERMISSION
+            state.hasError -> Stage.ERROR
+            state.isLoading || dashboard == null -> Stage.LOADING
+            else -> Stage.CONTENT
+        }
+        // The skeleton fades into the real content instead of being swapped for it.
+        Crossfade(stage, Modifier.weight(1f), animationSpec = tween(Motion.STANDARD_MS), label = "dashboard-stage") { shown ->
+            when {
+                shown == Stage.PERMISSION -> PermissionGate(onGrant = onRequestPermission)
+                shown == Stage.ERROR -> ErrorState(
+                    title = stringResource(R.string.messages_error),
+                    hint = stringResource(R.string.error_hint),
+                    onRetry = { onIntent(Intent.Retry) }
+                )
+                shown == Stage.CONTENT && dashboard != null -> DashboardContent(state, dashboard, onIntent)
+                else -> MessageListSkeleton()
+            }
         }
     }
 
