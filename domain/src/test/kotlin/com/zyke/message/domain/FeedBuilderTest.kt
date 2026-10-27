@@ -43,6 +43,19 @@ class FeedBuilderTest {
     private val hdfcSpend = "Sent Rs.500.00\nFrom HDFC Bank A/C x1234\nTo friend@ybl\nOn 12/01/25\nRef 123456"
 
     @Test
+    fun othersTab_holdsUncategorisedMessagesButNotPromosOrCategorised() {
+        val plain = msg("See you at the meeting at 5", sender = "Jane")
+        val promo = msg("Flat Rs 200 off on your next order. T&C apply", sender = "AD-SHOPXY-P")
+        val swiggy = msg("Your Swiggy order is on the way", sender = "SWIGGY")
+
+        val feed = build(listOf(plain, promo, swiggy))
+        assertTrue(SmartFilter.OTHERS in feed.availableFilters)
+
+        val others = build(listOf(plain, promo, swiggy), MessageFilter(SmartFilter.OTHERS))
+        assertEquals(listOf(plain.id), others.sections.flatMap { it.items }.map { it.newest.id })
+    }
+
+    @Test
     fun promoSenderAndHints_areFlaggedAndHiddenFromAll() {
         val promo = msg("Flat Rs 200 off on your next order. T&C apply", sender = "AD-SHOPXY-P")
         val normal = msg("Your Swiggy order is on the way", sender = "SWIGGY")

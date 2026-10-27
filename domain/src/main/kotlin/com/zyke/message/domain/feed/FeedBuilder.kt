@@ -2,6 +2,7 @@ package com.zyke.message.domain.feed
 
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserMessageState
 import java.time.Instant
@@ -112,6 +113,8 @@ object FeedBuilder {
             SmartFilter.BILLS -> content is MessageContent.CardBill
             SmartFilter.TRAVEL -> (content is MessageContent.FastTag && !isFastTagStatusOnly(message)) ||
                 content is MessageContent.Courier
+            // Everything that did not land in a category, other than marketing.
+            SmartFilter.OTHERS -> message.category == MessageCategory.OTHERS && !message.isPromotional
             SmartFilter.PROMOS -> message.isPromotional
             SmartFilter.ARCHIVED -> false
         }
