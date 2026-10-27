@@ -42,6 +42,8 @@ class SmsRepositoryImpl(
         .map { dataSource.readInbox() }
         .flowOn(dispatcher)
 
+    override fun refresh() = dataSource.requestRefresh()
+
     private companion object {
         const val CHANGE_DEBOUNCE_MILLIS = 400L
     }

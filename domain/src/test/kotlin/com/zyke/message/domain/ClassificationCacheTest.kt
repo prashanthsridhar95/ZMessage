@@ -59,6 +59,33 @@ class ClassificationCacheTest {
         }
     }
 
+    private class Marks : com.zyke.message.domain.repository.UserMessageStateRepository {
+        override val state = kotlinx.coroutines.flow.MutableStateFlow(com.zyke.message.domain.model.UserMessageState())
+        var kept: Set<Long>? = null
+        override fun markRead(messageId: Long) = Unit
+        override fun setArchived(messageId: Long, archived: Boolean) = Unit
+        override fun setPinned(messageId: Long, pinned: Boolean) = Unit
+        override fun dismissAttention(key: String) = Unit
+        override fun clearAll() = Unit
+        override fun retainOnly(existingIds: Set<Long>) { kept = existingIds }
+    }
+
+    @Test
+    fun marksOfDeletedMessages_areDroppedWhenTheInboxIsRead_butNotWhenItIsEmpty() = runBlocking {
+        val marks = Marks()
+        val sms = Sms(inbox())
+        val useCase = ObserveMessagesUseCase(sms, classifier, Dispatchers.Unconfined, userState = marks)
+
+        useCase().first()
+        assertEquals(bodies.indices.map { it + 1L }.toSet(), marks.kept)
+
+        // An empty read could be a glitch, so it must not wipe what the person pinned or archived.
+        marks.kept = null
+        sms.messages = emptyList()
+        useCase().first()
+        assertEquals(null, marks.kept)
+    }
+
     @Test
     fun secondPass_readsNothingAgain_andNewOrChangedMessagesAreReadOnce() = runBlocking {
         val cache = MemoryCache()

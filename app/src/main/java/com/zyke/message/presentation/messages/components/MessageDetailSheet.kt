@@ -1,6 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.common.heading
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -192,6 +194,18 @@ internal fun MessageDetailSheet(
                 )
                 if (!item.isMuted) {
                     Caption("Muted senders move to Promos and stay out of Home, the unread badge and the digest.", maxLines = 3)
+                }
+            }
+
+            // Deleting, replying and marking as read belong to the messaging app; whatever is done there shows up here.
+            if (!item.message.isRcs) {
+                val context = LocalContext.current
+                LinkButton("Open in your messaging app") {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(message.sender)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
                 }
             }
 

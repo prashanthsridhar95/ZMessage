@@ -47,7 +47,7 @@ class AppContainer(context: Context) {
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
         categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders,
-        classificationCache = classificationCache
+        classificationCache = classificationCache, userState = userMessageState
     )
 
     private fun cacheTag(context: Context): String {

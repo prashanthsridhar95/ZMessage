@@ -7,8 +7,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Telephony
 import com.zyke.message.domain.model.SmsMessage
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.merge
 
@@ -56,7 +58,15 @@ class SmsDataSource(
     }
 
     /** Emits once on collection, then on every change to the SMS provider. */
-    fun inboxChanges(): Flow<Unit> = if (rcsStore == null) providerChanges() else merge(providerChanges(), rcsStore.changes)
+    fun inboxChanges(): Flow<Unit> =
+        if (rcsStore == null) merge(providerChanges(), refreshes) else merge(providerChanges(), rcsStore.changes, refreshes)
+
+    private val refreshes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Asks every collector to read the inbox again, whether or not the provider announced a change. */
+    fun requestRefresh() {
+        refreshes.tryEmit(Unit)
+    }
 
     private fun providerChanges(): Flow<Unit> = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {

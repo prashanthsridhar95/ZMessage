@@ -35,6 +35,19 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
         prefs.edit().clear().apply()
     }
 
+    override fun retainOnly(existingIds: Set<Long>) {
+        val current = _state.value
+        val stale = (current.readIds + current.archivedIds + current.pinnedIds).any { it !in existingIds }
+        if (!stale) return
+        change {
+            copy(
+                readIds = readIds.filterTo(HashSet()) { it in existingIds },
+                archivedIds = archivedIds.filterTo(HashSet()) { it in existingIds },
+                pinnedIds = pinnedIds.filterTo(HashSet()) { it in existingIds }
+            )
+        }
+    }
+
     private fun change(transform: UserMessageState.() -> UserMessageState) {
         _state.update { it.transform() }
         save(_state.value)

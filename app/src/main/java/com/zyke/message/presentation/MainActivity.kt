@@ -206,6 +206,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         lockIfAway()
+        // Whatever was deleted or read in the messaging app while this app was away shows up now.
+        container.smsRepository.refresh()
         container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
         DaysAheadWidget.refresh(this)
     }

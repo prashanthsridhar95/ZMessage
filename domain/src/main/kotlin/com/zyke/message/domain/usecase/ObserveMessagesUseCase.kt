@@ -18,6 +18,7 @@ import com.zyke.message.domain.model.SmsMessage
 import com.zyke.message.domain.repository.ClassificationCache
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.NoClassificationCache
+import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.repository.NoMutedSenders
 import com.zyke.message.domain.repository.NoSenderImages
 import com.zyke.message.domain.repository.SenderImageRepository
@@ -41,7 +42,9 @@ class ObserveMessagesUseCase(
     private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
     private val senderImages: SenderImageRepository = NoSenderImages,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
-    private val classificationCache: ClassificationCache = NoClassificationCache
+    private val classificationCache: ClassificationCache = NoClassificationCache,
+    /** When given, marks for messages that have left the inbox are dropped each time the inbox is read. */
+    private val userState: UserMessageStateRepository? = null
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
@@ -56,7 +59,12 @@ class ObserveMessagesUseCase(
 
                 // Only what is new or changed is saved; what has gone from the inbox is forgotten.
                 if (fresh.isNotEmpty()) classificationCache.save(fresh)
-                if (inbox.isNotEmpty()) classificationCache.retainOnly(inbox.mapTo(HashSet()) { it.id })
+                if (inbox.isNotEmpty()) {
+                    // A message deleted in the messaging app is gone from here too, along with every trace of it.
+                    val present = inbox.mapTo(HashSet()) { it.id }
+                    classificationCache.retainOnly(present)
+                    userState?.retainOnly(present)
+                }
 
                 if (modelParser.isAvailable) classified.map { upgrade(it) } else classified
             }
