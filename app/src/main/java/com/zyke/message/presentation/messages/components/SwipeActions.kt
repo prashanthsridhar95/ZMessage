@@ -28,16 +28,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
- * How far across the row a swipe must go before it takes effect: all the way, give or take a thumb's width.
- * A flick or a half swipe that is let go simply springs back and does nothing.
+ * How far across the row a swipe must go before it takes effect: seven tenths of the way.
+ * A flick or a shorter swipe that is let go simply springs back and does nothing.
  */
-private const val SWIPE_COMMIT_FRACTION = 0.95f
+private const val SWIPE_COMMIT_FRACTION = 0.70f
 
 /** How strong the background is before the swipe has gone far enough to count. */
 private const val PENDING_ALPHA = 0.55f
 
 /**
- * Swipe right all the way to archive (or restore), left all the way to pin. The row always snaps back;
+ * Swipe right most of the way to archive (or restore), left to pin. The row always snaps back;
  * the list update then removes or moves it, which keeps this safe in filtered views.
  */
 @OptIn(ExperimentalMaterial3Api::class)
