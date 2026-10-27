@@ -14,6 +14,8 @@ import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.NoMoneyPlan
 import com.zyke.message.domain.repository.NoCards
+import com.zyke.message.domain.repository.NoWishlist
+import com.zyke.message.domain.repository.WishlistRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -42,9 +44,11 @@ class SettingsViewModel(
     private val onDigestChanged: (Boolean) -> Unit = {},
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
-    private val planRepository: MoneyPlanRepository = NoMoneyPlan
+    private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+    private val wishlistRepository: WishlistRepository = NoWishlist
 ) : MviViewModel<State, Intent, Effect>(
-    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
+    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
+        wishlist = wishlistRepository.items.value)
 ) {
 
     private var observeJob: Job? = null
@@ -53,6 +57,9 @@ class SettingsViewModel(
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
+        }
+        viewModelScope.launch {
+            wishlistRepository.items.collect { items -> reduce { copy(wishlist = items) } }
         }
         viewModelScope.launch {
             planRepository.plan.collect { plan -> reduce { copy(plan = plan) } }
@@ -105,6 +112,8 @@ class SettingsViewModel(
                 )
             )
             is Intent.SetSavingsGoal -> planRepository.save(planRepository.plan.value.copy(savingsGoal = amountOf(intent.amount)))
+            is Intent.SaveWish -> wishlistRepository.save(intent.item)
+            is Intent.RemoveWish -> wishlistRepository.remove(intent.id)
             is Intent.SavePlanItem -> {
                 val plan = planRepository.plan.value
                 val exists = plan.items.any { it.id == intent.item.id }
@@ -196,14 +205,15 @@ class SettingsViewModel(
         private val onLogosTurnedOff: () -> Unit = {},
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
-        private val planRepository: MoneyPlanRepository = NoMoneyPlan
+        private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+        private val wishlistRepository: WishlistRepository = NoWishlist
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository
             ) as T
     }
 }

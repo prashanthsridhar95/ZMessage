@@ -4,11 +4,17 @@ import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
+import com.zyke.message.domain.insights.Nudge
+import com.zyke.message.domain.insights.RefundItem
 import com.zyke.message.domain.insights.SpendAlert
+import com.zyke.message.domain.insights.Subscription
 import com.zyke.message.domain.life.AgendaItem
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.UserMessageState
+import com.zyke.message.domain.split.Split
+import com.zyke.message.domain.split.SplitShare
+import com.zyke.message.domain.wishlist.WishItem
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -24,6 +30,9 @@ object HomeContract {
         val messages: List<ClassifiedMessage> = emptyList(),
         val userState: UserMessageState = UserMessageState(),
         val budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        val wishlist: List<WishItem> = emptyList(),
+        val splits: List<Split> = emptyList(),
         val now: Instant = Instant.EPOCH,
 
         // Derived
@@ -37,13 +46,25 @@ object HomeContract {
         val unreadCount: Int = 0,
         /** Odd-looking payments from the last two weeks. */
         val alerts: List<SpendAlert> = emptyList(),
+        /** Short, numeric heads-ups: pacing against limits, and an account too low for a coming debit. */
+        val nudges: List<Nudge> = emptyList(),
+        /** Refunds announced by messages, waiting or recently arrived. */
+        val refunds: List<RefundItem> = emptyList(),
+        /** Shares of shared payments that have not come back yet. */
+        val owed: List<SplitShare> = emptyList(),
+        /** Payments that repeat monthly, soonest due first. */
+        val subscriptions: List<Subscription> = emptyList(),
         /** Appointments, trips and renewals in the next two weeks, and orders on their way. */
         val agenda: List<AgendaItem> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,
-        val budgetDetail: MessageCategory? = null
+        val budgetDetail: MessageCategory? = null,
+        /** The payment being split with friends, while its dialog is open. */
+        val splittingMessageId: Long? = null
     ) {
+        val splitting: ClassifiedMessage? get() = splittingMessageId?.let { id -> messages.firstOrNull { it.id == id } }
+
         val detail: ClassifiedMessage? get() = detailMessageId?.let { id -> messages.firstOrNull { it.id == id } }
 
         /** Nothing money-related has been seen yet. */
@@ -63,6 +84,11 @@ object HomeContract {
         data class TogglePin(val messageId: Long) : Intent
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
+        data class StartSplit(val messageId: Long) : Intent
+        data object CancelSplit : Intent
+        data class SaveSplit(val split: Split) : Intent
+        data class SettleShare(val splitId: String, val person: String) : Intent
+        data class RemoveSplit(val id: String) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class ToggleMute(val messageId: Long) : Intent
         /** Try again after the inbox could not be read. */

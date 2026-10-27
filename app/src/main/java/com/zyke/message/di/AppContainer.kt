@@ -9,6 +9,8 @@ import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
 import com.zyke.message.data.repository.MoneyPlanRepositoryImpl
 import com.zyke.message.data.repository.MutedSenderRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
+import com.zyke.message.data.repository.SplitRepositoryImpl
+import com.zyke.message.data.repository.WishlistRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
 import com.zyke.message.data.repository.UserMessageStateRepositoryImpl
 import com.zyke.message.data.sms.RcsMessageStore
@@ -22,6 +24,8 @@ import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.SmsRepository
+import com.zyke.message.domain.repository.SplitRepository
+import com.zyke.message.domain.repository.WishlistRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
@@ -37,6 +41,8 @@ class AppContainer(context: Context) {
     val cards: CardRepository = CardRepositoryImpl(context)
     val moneyPlan: MoneyPlanRepository = MoneyPlanRepositoryImpl(context)
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
+    val wishlist: WishlistRepository = WishlistRepositoryImpl(context)
+    val splits: SplitRepository = SplitRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)

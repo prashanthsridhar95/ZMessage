@@ -18,7 +18,9 @@ data class FeedActions(
     val onOpenLink: (String) -> Unit,
     val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit,
     /** Mute or unmute the sender of this message. */
-    val onToggleMute: (messageId: Long) -> Unit = {}
+    val onToggleMute: (messageId: Long) -> Unit = {},
+    /** Start splitting a payment with friends; null where splitting is not offered. */
+    val onSplit: ((messageId: Long) -> Unit)? = null
 ) {
     companion object {
         val None = FeedActions({}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> })

@@ -159,6 +159,11 @@ internal fun MessageDetailSheet(
                 }
             }
 
+            val split = actions.onSplit
+            if (split != null && content is MessageContent.Transaction && !content.isReceived) {
+                AppButton("Split with friends", { split(item.id) }, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
+            }
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (!isArchived) {
                     AppButton(

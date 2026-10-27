@@ -163,7 +163,8 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             onArchive = { onIntent(Intent.Archive(it)) },
             onUnarchive = { onIntent(Intent.Unarchive(it)) },
             onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) },
-            onToggleMute = { onIntent(Intent.ToggleMute(it)) }
+            onToggleMute = { onIntent(Intent.ToggleMute(it)) },
+            onSplit = { onIntent(Intent.StartSplit(it)) }
         )
     }
 
@@ -198,9 +199,22 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             }
         }
 
-        if (state.alerts.isNotEmpty()) {
+        if (state.nudges.isNotEmpty() || state.alerts.isNotEmpty()) {
             item(key = "alerts") {
                 PlainSection("Worth a look", subtitle = "Found on your phone from your own history") {
+                    state.nudges.forEachIndexed { index, nudge ->
+                        if (index > 0) HorizontalDivider()
+                        val open = nudge.messageId
+                        Text(
+                            nudge.text,
+                            Modifier.fillMaxWidth()
+                                .then(if (open != null) Modifier.clickable(onClickLabel = "Open details") { onIntent(Intent.OpenMessage(open)) } else Modifier)
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (nudge.kind == NudgeKind.PACE) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (state.nudges.isNotEmpty() && state.alerts.isNotEmpty()) HorizontalDivider()
                     state.alerts.forEachIndexed { index, alert ->
                         if (index > 0) HorizontalDivider()
                         Text(
@@ -222,6 +236,41 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                     state.agenda.forEachIndexed { index, agendaItem ->
                         if (index > 0) HorizontalDivider()
                         AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+                    }
+                }
+            }
+        }
+
+        if (state.refunds.isNotEmpty()) {
+            item(key = "refunds") {
+                PlainSection("Refunds", subtitle = "Tracked from your messages") {
+                    state.refunds.forEachIndexed { index, refund ->
+                        if (index > 0) HorizontalDivider()
+                        RefundRow(refund) { onIntent(Intent.OpenMessage(refund.message.id)) }
+                    }
+                }
+            }
+        }
+
+        if (state.owed.isNotEmpty()) {
+            item(key = "owed") {
+                PlainSection("Friends owe you", subtitle = "Shares of payments you split") {
+                    state.owed.forEachIndexed { index, share ->
+                        if (index > 0) HorizontalDivider()
+                        OwedRow(share, onSettle = { onIntent(Intent.SettleShare(share.split.id, share.person.name)) }) {
+                            onIntent(Intent.OpenMessage(share.split.messageId))
+                        }
+                    }
+                }
+            }
+        }
+
+        if (state.subscriptions.isNotEmpty()) {
+            item(key = "subscriptions") {
+                PlainSection("Repeats every month", subtitle = "Spotted from your payments; you pay these yourself") {
+                    state.subscriptions.forEachIndexed { index, subscription ->
+                        if (index > 0) HorizontalDivider()
+                        SubscriptionRow(subscription, today) { onIntent(Intent.OpenMessage(subscription.messageId)) }
                     }
                 }
             }
@@ -282,6 +331,14 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
                 onNavigate(AppTab.INBOX)
             },
             onDismiss = { onIntent(Intent.CloseMessage) }
+        )
+    }
+
+    state.splitting?.let { message ->
+        SplitDialog(
+            message = message,
+            onSave = { onIntent(Intent.SaveSplit(it)) },
+            onDismiss = { onIntent(Intent.CancelSplit) }
         )
     }
 
@@ -491,3 +548,62 @@ private fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         )
     }
 }
+
+@Composable
+private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
+    val status = if (item.isPending) {
+        "On the way since " + shortDate(item.startedOn)
+    } else {
+        "Arrived " + shortDate(item.arrivedOn!!)
+    }
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            RowTitle(item.from)
+            Caption(status, color = if (item.isPending) mutedColor() else MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
+    }
+}
+
+@Composable
+private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            RowTitle(share.person.name)
+            Caption("For ${share.split.title}")
+            AppButton(
+                text = "Mark as paid",
+                onClick = onSettle,
+                style = ButtonStyle.TONAL,
+                size = ButtonSize.COMPACT,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary)
+    }
+}
+
+@Composable
+private fun SubscriptionRow(item: Subscription, today: LocalDate, onOpen: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            RowTitle(item.payee)
+            Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · paid ${item.times} months running")
+        }
+        Spacer(Modifier.width(12.dp))
+        AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
+    }
+}
+
+private fun shortDate(date: LocalDate): String = java.time.format.DateTimeFormatter.ofPattern("d MMM").format(date)

@@ -147,6 +147,12 @@ fun SettingsSheet(
                 onRemove = { onIntent(Intent.RemoveLimits(it)) }
             )
 
+            WishlistSection(
+                items = state.wishlist,
+                onSave = { onIntent(Intent.SaveWish(it)) },
+                onRemove = { onIntent(Intent.RemoveWish(it)) }
+            )
+
             CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
             RcsSection()

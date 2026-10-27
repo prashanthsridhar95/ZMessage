@@ -62,7 +62,8 @@ class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModel.Factory(
-            container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders
+            container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
+            container.wishlist, container.splits
         )
     }
 
@@ -72,7 +73,8 @@ class MainActivity : ComponentActivity() {
             onLogosTurnedOff = container.imageStore::clearLogos,
             onDigestChanged = { DigestScheduler(this).apply(it) },
             onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
-            planRepository = container.moneyPlan
+            planRepository = container.moneyPlan,
+            wishlistRepository = container.wishlist
         )
     }
 
