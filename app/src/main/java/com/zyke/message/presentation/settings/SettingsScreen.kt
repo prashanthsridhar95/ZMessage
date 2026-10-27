@@ -142,6 +142,13 @@ fun SettingsSheet(
                 onDeleteItem = { onIntent(Intent.DeletePlanItem(it)) }
             )
 
+            CycleSection(
+                plan = state.plan,
+                spotted = state.spottedSalary,
+                current = state.cycleRange,
+                onChange = { mode, day -> onIntent(Intent.SetCycle(mode, day)) }
+            )
+
             LimitsSection(
                 limits = state.limits,
                 onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },

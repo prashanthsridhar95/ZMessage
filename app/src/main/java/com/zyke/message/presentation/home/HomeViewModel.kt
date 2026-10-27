@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.cycle.CycleRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -18,7 +19,6 @@ import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.NoMoneyPlan
-import java.time.YearMonth
 import com.zyke.message.domain.insights.LowBalance
 import com.zyke.message.domain.insights.PaceNudges
 import com.zyke.message.domain.insights.RefundTracker
@@ -121,9 +121,9 @@ class HomeViewModel(
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
                 ?.let(CategoryKey::of)
                 ?.let { categoryOverrides.set(it, intent.category) }
-            Intent.OpenCalendar -> reduce { copy(calendarMonth = YearMonth.from(java.time.LocalDate.ofInstant(now, clock.zone))) }
-            Intent.CloseCalendar -> reduce { copy(calendarMonth = null) }
-            is Intent.ShiftCalendar -> reduce { copy(calendarMonth = calendarMonth?.plusMonths(intent.months.toLong())) }
+            Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
+            Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
+            is Intent.ShiftCalendar -> reduce { copy(calendarOffset = calendarOffset?.plus(intent.months)?.coerceAtMost(0)) }
             Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
@@ -183,18 +183,20 @@ class HomeViewModel(
             val zone = clock.zone
             val today = LocalDate.ofInstant(updated.now, zone)
             val live = updated.messages.filter { it.id !in updated.userState.archivedIds }
-            val dashboard = DashboardBuilder.build(updated.messages, DashboardQuery(), updated.now, zone, updated.budgets)
+            val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, zone)
+            val dashboard = DashboardBuilder.build(updated.messages, DashboardQuery(), updated.now, zone, updated.budgets, cycle)
 
-            val limits = SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, updated.now, zone)
+            val limits = SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, updated.now, zone, cycle)
             val balances = BalanceReader.latest(live, zone)
 
-            val insights = PlanInsightsBuilder.build(updated.plan, live, updated.now, zone)
-            val allowance = DailyBudgets.allowance(insights, today)
+            val insights = PlanInsightsBuilder.build(updated.plan, live, updated.now, zone, cycle)
+            val allowance = DailyBudgets.allowance(insights, today, cycle)
 
             updated.copy(
+                cycle = cycle,
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
                 quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
-                nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone) + LowBalance.warnings(live, balances, today))
+                nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))
                     .take(MAX_NUDGES),
                 refunds = RefundTracker.build(live, updated.now, zone),
                 owed = SplitInsights.build(updated.splits, updated.messages, zone).filter { !it.settled },

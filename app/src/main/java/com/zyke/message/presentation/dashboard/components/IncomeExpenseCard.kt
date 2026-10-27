@@ -66,7 +66,7 @@ internal fun IncomeExpenseCard(
     val peak = (spent + received).maxOrNull()?.takeIf { it.signum() > 0 }?.toFloat() ?: 1f
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val caption = when (period) {
-        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH -> monthFmt.format(dashboard.range.start)
+        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> periodName(dashboard.range)
         DashboardPeriod.LAST_3_MONTHS -> "Last 3 months"
         DashboardPeriod.ALL_TIME -> "All time"
     }

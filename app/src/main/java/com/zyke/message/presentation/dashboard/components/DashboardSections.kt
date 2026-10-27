@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.domain.dashboard.DateRange
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.runtime.remember
@@ -225,10 +226,12 @@ internal fun DashboardControls(
 @Composable
 internal fun DashboardFilterSheet(
     period: DashboardPeriod,
+    customRange: DateRange?,
     category: MessageCategory?,
     dashboard: Dashboard,
     canReset: Boolean,
     onPeriod: (DashboardPeriod) -> Unit,
+    onCustomRange: (java.time.LocalDate, java.time.LocalDate) -> Unit,
     onCategory: (MessageCategory?) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit
@@ -240,8 +243,28 @@ internal fun DashboardFilterSheet(
         onReset = onReset,
         onDismiss = onDismiss
     ) {
+        var pickingRange by rememberSaveable { mutableStateOf(false) }
         SheetSection("Period")
-        TileGrid(DashboardPeriod.entries.map { TileOption(it.label, it == period, { onPeriod(it) }) })
+        TileGrid(
+            DashboardPeriod.entries.map { option ->
+                if (option == DashboardPeriod.CUSTOM) {
+                    val chosen = customRange?.takeIf { period == DashboardPeriod.CUSTOM }
+                    TileOption(
+                        option.label, option == period, { pickingRange = true },
+                        chosen?.let { rangeLabel(it) } ?: "Pick the days"
+                    )
+                } else {
+                    TileOption(option.label, option == period, { onPeriod(option) })
+                }
+            }
+        )
+        if (pickingRange) {
+            CustomRangeDialog(
+                initial = customRange,
+                onPick = { start, end -> onCustomRange(start, end); pickingRange = false },
+                onDismiss = { pickingRange = false }
+            )
+        }
 
         SheetSection("Category")
         TileGrid(
@@ -278,7 +301,7 @@ internal fun HeroCard(
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val verb = dashboard.direction.label
     val caption = when (period) {
-        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH -> "$verb in ${monthFmt.format(dashboard.range.start)}"
+        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> "$verb · ${periodName(dashboard.range)}"
         DashboardPeriod.LAST_3_MONTHS -> "$verb in the last 3 months"
         DashboardPeriod.ALL_TIME -> "$verb in total"
     }
@@ -286,6 +309,7 @@ internal fun HeroCard(
         DashboardPeriod.THIS_MONTH -> "than the same days last month"
         DashboardPeriod.LAST_MONTH -> "than the month before"
         DashboardPeriod.LAST_3_MONTHS -> "than the previous 3 months"
+        DashboardPeriod.CUSTOM -> "than the days just before"
         DashboardPeriod.ALL_TIME -> null
     }
     val onHero = MaterialTheme.colorScheme.onSurface
@@ -897,3 +921,41 @@ internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modi
 }
 
 private const val MAX_LIMITS_SHOWN = 4
+
+private val RangeFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+
+/** "28 Sep – 5 Oct", or just the month's name when the days are a whole calendar month. */
+internal fun rangeLabel(range: DateRange): String = "${RangeFormat.format(range.start)} – ${RangeFormat.format(range.endInclusive)}"
+
+/** What to call a period on screen: the month's name for a calendar month so far, else the days it covers. */
+internal fun periodName(range: DateRange): String {
+    val calendarMonth = range.start.dayOfMonth == 1 && java.time.YearMonth.from(range.start) == java.time.YearMonth.from(range.endInclusive)
+    return if (calendarMonth) DateTimeFormatter.ofPattern("MMMM", Locale.getDefault()).format(range.start) else rangeLabel(range)
+}
+
+/** Pick any two days from a calendar. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun CustomRangeDialog(initial: DateRange?, onPick: (java.time.LocalDate, java.time.LocalDate) -> Unit, onDismiss: () -> Unit) {
+    fun millis(date: java.time.LocalDate?) = date?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+    fun day(millis: Long) = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+    val state = androidx.compose.material3.rememberDateRangePickerState(
+        initialSelectedStartDateMillis = millis(initial?.start),
+        initialSelectedEndDateMillis = millis(initial?.endInclusive)
+    )
+    val start = state.selectedStartDateMillis
+    val end = state.selectedEndDateMillis
+    androidx.compose.material3.DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            AppButton(
+                "Use these days",
+                { if (start != null && end != null) onPick(day(start), day(end)) },
+                style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = start != null && end != null
+            )
+        },
+        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+    ) {
+        androidx.compose.material3.DateRangePicker(state, Modifier.height(480.dp))
+    }
+}

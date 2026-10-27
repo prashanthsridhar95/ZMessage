@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.dashboard.components.rangeLabel
 import com.zyke.message.presentation.dashboard.components.countLabel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.height
@@ -161,10 +162,12 @@ fun DashboardScreen(
     if (state.showFilterSheet && dashboardForSheet != null) {
         DashboardFilterSheet(
             period = state.period,
+            customRange = state.customRange,
             category = state.category,
             dashboard = dashboardForSheet,
             canReset = state.activeFilterCount > 0,
             onPeriod = { onIntent(Intent.SelectPeriod(it)) },
+            onCustomRange = { start, end -> onIntent(Intent.SelectCustomRange(start, end)) },
             onCategory = { onIntent(Intent.SetCategory(it)) },
             onReset = { onIntent(Intent.ResetFilters) },
             onDismiss = { onIntent(Intent.CloseFilters) }
@@ -257,7 +260,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "active-filters") {
                 ActiveFilterBar(
                     summary = listOfNotNull(
-                        state.period.label.takeIf { state.period != DashboardPeriod.THIS_MONTH },
+                        (if (state.period == DashboardPeriod.CUSTOM) state.customRange?.let(::rangeLabel) else state.period.label).takeIf { state.period != DashboardPeriod.THIS_MONTH },
                         state.category?.displayString
                     ).joinToString(" · "),
                     resultCount = dashboard.count,

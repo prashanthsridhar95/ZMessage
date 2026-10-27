@@ -441,11 +441,11 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
         )
     }
 
-    val calendarMonth = state.calendarMonth
+    val calendarOffset = state.calendarOffset
     val daily = state.daily
-    if (calendarMonth != null && daily != null) {
+    if (calendarOffset != null && daily != null) {
         BudgetCalendarSheet(
-            messages = state.messages, daily = daily, month = calendarMonth, now = state.now,
+            messages = state.messages, daily = daily, cycle = state.cycle, offset = calendarOffset, now = state.now,
             onShift = { onIntent(Intent.ShiftCalendar(it)) }, onDismiss = { onIntent(Intent.CloseCalendar) }
         )
     }

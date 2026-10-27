@@ -9,7 +9,6 @@ import com.zyke.message.domain.insights.Nudge
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.QuickAdd
 import com.zyke.message.domain.model.UserCard
-import java.time.YearMonth
 import com.zyke.message.domain.insights.RefundItem
 import com.zyke.message.domain.insights.SpendAlert
 import com.zyke.message.domain.insights.Subscription
@@ -71,8 +70,10 @@ object HomeContract {
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,
         val budgetDetail: MessageCategory? = null,
-        /** The month shown in the budget calendar while it is open, and whether the quick-add sheet is open. */
-        val calendarMonth: YearMonth? = null,
+        /** The pay cycle shown in the budget calendar while it is open (0 is this one, -1 the one before), and whether the quick-add sheet is open. */
+        val calendarOffset: Int? = null,
+        /** Where the person's month starts, from their settings. */
+        val cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR,
         val showQuickAdds: Boolean = false,
         /** The payment being split with friends, while its dialog is open. */
         val splittingMessageId: Long? = null

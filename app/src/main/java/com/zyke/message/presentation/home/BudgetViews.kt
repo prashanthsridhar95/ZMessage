@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.cycle.CycleRule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +51,6 @@ import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
 import java.time.DayOfWeek
 import java.time.Instant
-import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -93,22 +93,23 @@ internal fun TodayBudget(daily: DailyBudgetStatus, onOpen: () -> Unit) {
     }
 }
 
-/** A month of days, each green when it stayed within the daily budget and red when it went over; the streak above. */
+/** A pay cycle of days, each green when it stayed within the daily budget and red when it went over; the streak above. */
 @Composable
 internal fun BudgetCalendarSheet(
     messages: List<ClassifiedMessage>,
     daily: DailyBudgetStatus,
-    month: YearMonth,
+    cycle: CycleRule,
+    offset: Int,
     now: Instant,
     onShift: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val zone = ZoneId.systemDefault()
-    val days = remember(messages, daily.allowance, month, now) { DailyBudgets.month(messages, daily.allowance, month, now, zone) }
-    val byDate = days.associateBy { it.date }
     val today = java.time.LocalDate.ofInstant(now, zone)
-    val monthFormat = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-    val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
+    val range = remember(cycle, offset, today) { cycle.shifted(today, offset) }
+    val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone) }
+    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val leading = (range.start.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
 
     AppBottomSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -123,26 +124,26 @@ internal fun BudgetCalendarSheet(
             Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                 Text(
-                    monthFormat.format(month), Modifier.weight(1f), textAlign = TextAlign.Center,
+                    "${dayFormat.format(range.start)} – ${dayFormat.format(range.endInclusive)}", Modifier.weight(1f), textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
                 )
-                AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = month < YearMonth.from(today))
+                AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = offset < 0)
             }
 
             Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                (0..6).forEach { offset ->
+                (0..6).forEach { offsetDay ->
                     Caption(
-                        DayOfWeek.MONDAY.plus(offset.toLong()).getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                        DayOfWeek.MONDAY.plus(offsetDay.toLong()).getDisplayName(TextStyle.NARROW, Locale.getDefault()),
                         Modifier.weight(1f), textAlign = TextAlign.Center
                     )
                 }
             }
-            val cells = leading + month.lengthOfMonth()
+            val cells = leading + days.size
             (0 until (cells + 6) / 7).forEach { week ->
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     (0..6).forEach { column ->
-                        val dayOfMonth = week * 7 + column - leading + 1
-                        val day = if (dayOfMonth in 1..month.lengthOfMonth()) byDate[month.atDay(dayOfMonth)] else null
+                        val index = week * 7 + column - leading
+                        val day = days.getOrNull(index)
                         Box(Modifier.weight(1f).aspectRatio(1f).padding(3.dp), contentAlignment = Alignment.Center) {
                             if (day != null) DayCell(day, isToday = day.date == today)
                         }

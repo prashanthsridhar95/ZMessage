@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.domain.cycle.CycleRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -62,7 +63,7 @@ class SettingsViewModel(
             wishlistRepository.items.collect { items -> reduce { copy(wishlist = items) } }
         }
         viewModelScope.launch {
-            planRepository.plan.collect { plan -> reduce { copy(plan = plan) } }
+            planRepository.plan.collect { plan -> reduce { copy(plan = plan) }; recomputeLimits() }
         }
         viewModelScope.launch {
             budgetRepository.budgets.collect { monthly -> reduce { copy(monthlyLimits = monthly) }; recomputeLimits() }
@@ -112,6 +113,12 @@ class SettingsViewModel(
                 )
             )
             is Intent.SetSavingsGoal -> planRepository.save(planRepository.plan.value.copy(savingsGoal = amountOf(intent.amount)))
+            is Intent.SetCycle -> planRepository.save(
+                planRepository.plan.value.copy(
+                    cycleMode = intent.mode,
+                    cycleDay = intent.day.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAY }
+                )
+            )
             is Intent.SaveWish -> wishlistRepository.save(intent.item)
             is Intent.RemoveWish -> wishlistRepository.remove(intent.id)
             is Intent.SavePlanItem -> {
@@ -162,9 +169,11 @@ class SettingsViewModel(
     /** Where each limit stands, from the latest inbox and the limits as they are now. */
     private fun recomputeLimits() {
         val state = currentState()
-        val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone)
+        val cycle = CycleRule.resolve(state.plan, inbox, clock.instant(), clock.zone)
+        val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle)
         val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
-        reduce { copy(limits = limits, spottedSalary = spotted) }
+        val range = cycle.containing(java.time.LocalDate.ofInstant(clock.instant(), clock.zone))
+        reduce { copy(limits = limits, spottedSalary = spotted, cycleRange = range) }
     }
 
     /** A blank or unusable entry clears the limit rather than keeping a stale one. */

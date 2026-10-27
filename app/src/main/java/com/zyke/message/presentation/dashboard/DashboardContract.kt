@@ -28,6 +28,10 @@ object DashboardContract {
         val hasLoaded: Boolean = false,
         val messages: List<ClassifiedMessage> = emptyList(),
         val period: DashboardPeriod = DashboardPeriod.THIS_MONTH,
+        /** The days chosen by hand, used when [period] is Custom range. */
+        val customRange: com.zyke.message.domain.dashboard.DateRange? = null,
+        /** Where the person's month starts, from their settings. */
+        val cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR,
         val direction: FlowDirection = FlowDirection.SPENT,
         val category: MessageCategory? = null,
         val now: Instant = Instant.EPOCH,
@@ -69,7 +73,7 @@ object DashboardContract {
         /** Nudge towards Settings until they add a card or say not now. */
         val showCardsPrompt: Boolean get() = hasLoaded && cards.isEmpty() && CARDS_TIP !in dismissedTips
 
-        val query get() = DashboardQuery(period, direction, category)
+        val query get() = DashboardQuery(period, direction, category, customRange)
 
         /** Period and category live in the filter sheet; the direction has its own switch on screen. */
         val activeFilterCount: Int
@@ -79,6 +83,7 @@ object DashboardContract {
     sealed interface Intent {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SelectPeriod(val period: DashboardPeriod) : Intent
+        data class SelectCustomRange(val start: java.time.LocalDate, val end: java.time.LocalDate) : Intent
         data class SelectDirection(val direction: FlowDirection) : Intent
         /** Tapping the selected category again clears it. */
         data class SelectCategory(val category: MessageCategory) : Intent

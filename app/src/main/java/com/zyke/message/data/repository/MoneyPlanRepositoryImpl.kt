@@ -1,5 +1,6 @@
 package com.zyke.message.data.repository
 
+import com.zyke.message.domain.cycle.CycleMode
 import android.content.Context
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.PlanItem
@@ -32,6 +33,8 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
             .put("salary", plan.salary?.toPlainString() ?: JSONObject.NULL)
             .put("salaryDay", plan.salaryDay ?: JSONObject.NULL)
             .put("savingsGoal", plan.savingsGoal?.toPlainString() ?: JSONObject.NULL)
+            .put("cycleMode", plan.cycleMode.name)
+            .put("cycleDay", plan.cycleDay ?: JSONObject.NULL)
             .put("items", items)
         prefs.edit().putString(KEY, json.toString()).apply()
     }
@@ -48,6 +51,8 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
             salary = json.optString("salary").toBigDecimalOrNull(),
             salaryDay = if (json.isNull("salaryDay")) null else json.optInt("salaryDay"),
             savingsGoal = json.optString("savingsGoal").toBigDecimalOrNull(),
+            cycleMode = CycleMode.entries.firstOrNull { it.name == json.optString("cycleMode") } ?: CycleMode.SALARY,
+            cycleDay = if (json.isNull("cycleDay")) null else json.optInt("cycleDay"),
             items = (0 until items.length()).mapNotNull {
                 val o = items.getJSONObject(it)
                 val kind = PlanItemKind.entries.firstOrNull { k -> k.name == o.optString("kind") } ?: return@mapNotNull null

@@ -26,6 +26,8 @@ object SettingsContract {
         val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
         /** What the person has told the app about their month. */
         val plan: MoneyPlan = MoneyPlan(),
+        /** The pay cycle now in force, from the person's choice. */
+        val cycleRange: com.zyke.message.domain.dashboard.DateRange? = null,
         val wishlist: List<WishItem> = emptyList(),
         /** The salary the messages show arriving each month, if there is one. It is used ahead of the entered amount. */
         val spottedSalary: SalaryPattern? = null
@@ -48,6 +50,8 @@ object SettingsContract {
         /** The usual monthly salary and the day it arrives; a blank amount clears it. */
         data class SetSalary(val amount: String, val day: String) : Intent
         data class SetSavingsGoal(val amount: String) : Intent
+        /** Where the month starts; [day] is only used for the day-of-month choice. */
+        data class SetCycle(val mode: com.zyke.message.domain.cycle.CycleMode, val day: String) : Intent
         data class SaveWish(val item: WishItem) : Intent
         data class RemoveWish(val id: String) : Intent
         data class SavePlanItem(val item: PlanItem) : Intent

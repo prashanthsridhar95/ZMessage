@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.domain.cycle.CycleRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -66,6 +67,9 @@ class DashboardViewModel(
             is Intent.ScreenStarted ->
                 if (intent.permissionGranted) startObserving() else reduce { copy(isLoading = false, permissionMissing = true) }
 
+            is Intent.SelectCustomRange -> reduceDashboard {
+                copy(period = DashboardPeriod.CUSTOM, customRange = com.zyke.message.domain.dashboard.DateRange(intent.start, intent.end), expandedVendor = null)
+            }
             is Intent.SelectPeriod -> reduceDashboard { copy(period = intent.period, expandedVendor = null) }
             is Intent.SelectDirection -> reduceDashboard { copy(direction = intent.direction, expandedVendor = null) }
             is Intent.SelectCategory -> reduceDashboard {
@@ -124,24 +128,26 @@ class DashboardViewModel(
             updated
         } else {
             val flowQuery = updated.query.copy(category = null)
+            val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, clock.zone)
             updated.copy(
+                cycle = cycle,
                 categoryDetail = updated.openCategory?.let { open ->
-                    DashboardBuilder.build(updated.messages, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets)
+                    DashboardBuilder.build(updated.messages, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets, cycle)
                 },
-                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
+                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets, cycle),
                 expenseTrend = DashboardBuilder.build(
                     updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),
-                    updated.now, clock.zone, updated.budgets
+                    updated.now, clock.zone, updated.budgets, cycle
                 ).trend,
                 incomeTrend = DashboardBuilder.build(
                     updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED),
-                    updated.now, clock.zone, updated.budgets
+                    updated.now, clock.zone, updated.budgets, cycle
                 ).trend,
-                reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
+                reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone, cycle),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
-                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone),
-                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone)
+                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),
+                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
             )
         }
     }
