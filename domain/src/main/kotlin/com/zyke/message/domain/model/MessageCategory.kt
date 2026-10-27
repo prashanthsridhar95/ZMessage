@@ -14,5 +14,13 @@ enum class MessageCategory(val displayString: String) {
     OTP("OTP"),
     FASTAG("Fastag"),
     NETWORK_CARRIERS("Network Carrier"),
-    OTHERS("Others")
+    TRAVEL("Travel"),
+    GROCERIES("Groceries"),
+    HEALTH("Health"),
+    OTHERS("Others");
+
+    companion object {
+        /** What a person can file a sender or receiver under; OTP and "Others" are not their call. */
+        val assignable: List<MessageCategory> = entries.filter { it != OTP && it != OTHERS }
+    }
 }

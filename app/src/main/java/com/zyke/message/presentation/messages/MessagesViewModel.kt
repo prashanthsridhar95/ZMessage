@@ -9,7 +9,10 @@ import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.feed.FeedBuilder
 import com.zyke.message.domain.feed.MessageFilter
 import com.zyke.message.domain.feed.SmartFilter
+import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.UserMessageStateRepository
+import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
@@ -26,7 +29,8 @@ import kotlinx.coroutines.launch
 class MessagesViewModel(
     private val observeMessages: ObserveMessagesUseCase,
     private val userStateRepository: UserMessageStateRepository,
-    private val clock: Clock = Clock.systemDefaultZone()
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
@@ -93,6 +97,9 @@ class MessagesViewModel(
                 intent.messageId,
                 intent.messageId !in currentState().userState.pinnedIds
             )
+            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
+                ?.let(CategoryKey::of)
+                ?.let { categoryOverrides.set(it, intent.category) }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
         }
@@ -191,10 +198,13 @@ class MessagesViewModel(
 
     class Factory(
         private val observeMessages: ObserveMessagesUseCase,
-        private val userStateRepository: UserMessageStateRepository
+        private val userStateRepository: UserMessageStateRepository,
+        private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            MessagesViewModel(observeMessages, userStateRepository) as T
+            MessagesViewModel(
+                observeMessages, userStateRepository, categoryOverrides = categoryOverrides
+            ) as T
     }
 }

@@ -255,7 +255,8 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onTogglePin = { this(Intent.TogglePin(it)) },
     onDismissAttention = { this(Intent.DismissAttention(it)) },
     onOpenSummary = { this(Intent.OpenSummary) },
-    onOpenLink = { this(Intent.OpenLink(it)) }
+    onOpenLink = { this(Intent.OpenLink(it)) },
+    onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) }
 )
 
 /** Fills the tab area of the Inbox bar with a short count when there are no type tabs. */

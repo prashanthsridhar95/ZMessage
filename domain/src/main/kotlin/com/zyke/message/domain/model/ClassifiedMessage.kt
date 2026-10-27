@@ -9,7 +9,9 @@ data class ClassifiedMessage(
     val merchant: Merchant,
     val content: MessageContent,
     /** Marketing noise; only ever set on [MessageContent.Generic] messages. */
-    val isPromotional: Boolean = false
+    val isPromotional: Boolean = false,
+    /** True when [category] was chosen by the user for this sender / receiver rather than guessed. */
+    val categoryOverridden: Boolean = false
 ) {
     val id: Long get() = message.id
 }

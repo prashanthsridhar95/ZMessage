@@ -105,6 +105,8 @@ object MessagesContract {
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
         data class TogglePin(val messageId: Long) : Intent
+        /** File every message with this message's sender / receiver under [category]; null goes back to automatic. */
+        data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class DismissAttention(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
     }

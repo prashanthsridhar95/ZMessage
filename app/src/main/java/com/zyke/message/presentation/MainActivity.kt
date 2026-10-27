@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
     private val container get() = (application as ZykeMessagesApplication).container
 
     private val messagesViewModel: MessagesViewModel by viewModels {
-        MessagesViewModel.Factory(container.observeMessages, container.userMessageState)
+        MessagesViewModel.Factory(container.observeMessages, container.userMessageState, container.categoryOverrides)
     }
 
     private val dashboardViewModel: DashboardViewModel by viewModels {

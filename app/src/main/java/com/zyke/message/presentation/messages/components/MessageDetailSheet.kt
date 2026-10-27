@@ -14,6 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,7 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MerchantLogo
 import com.zyke.message.domain.model.MessageContent
@@ -114,6 +119,8 @@ internal fun MessageDetailSheet(
                 }
             }
 
+            CategoryPicker(item, actions)
+
             // The one action that matters most for this kind of message.
             val billLink = (content as? MessageContent.CardBill)?.paymentLink
             when {
@@ -150,5 +157,34 @@ internal fun MessageDetailSheet(
             }
             Spacer(Modifier.height(4.dp))
         }
+    }
+}
+
+/** File this sender / receiver under a category; it applies to every message with them and to the dashboard. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
+    if (item.content is MessageContent.Otp) return
+    if (CategoryKey.of(item) == null) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Caption("CATEGORY FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            MessageCategory.assignable.forEach { category ->
+                FilterChip(
+                    selected = item.category == category,
+                    onClick = {
+                        // Tapping the chosen one goes back to the automatic guess.
+                        val clear = item.categoryOverridden && item.category == category
+                        actions.onSetCategory(item.id, if (clear) null else category)
+                    },
+                    label = { Text(category.displayString) }
+                )
+            }
+        }
+        Caption(
+            if (item.categoryOverridden) "Chosen by you. Tap it again to go back to automatic." else "Automatic. Pick one to change it.",
+            maxLines = 2
+        )
     }
 }
