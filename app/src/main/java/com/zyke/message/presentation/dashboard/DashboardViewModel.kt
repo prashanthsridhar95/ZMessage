@@ -72,6 +72,8 @@ class DashboardViewModel(
                 copy(category = if (category == intent.category) null else intent.category, expandedVendor = null)
             }
             is Intent.SetCategory -> reduceDashboard { copy(category = intent.category, expandedVendor = null) }
+            is Intent.OpenCategory -> reduceDashboard { copy(openCategory = intent.category, expandedVendor = null) }
+            Intent.CloseCategory -> reduce { copy(openCategory = null, categoryDetail = null, expandedVendor = null) }
             Intent.OpenReportCard -> reduce { copy(showReportCard = true) }
             Intent.CloseReportCard -> reduce { copy(showReportCard = false) }
             Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
@@ -123,6 +125,9 @@ class DashboardViewModel(
         } else {
             val flowQuery = updated.query.copy(category = null)
             updated.copy(
+                categoryDetail = updated.openCategory?.let { open ->
+                    DashboardBuilder.build(updated.messages, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets)
+                },
                 dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
                 expenseTrend = DashboardBuilder.build(
                     updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),

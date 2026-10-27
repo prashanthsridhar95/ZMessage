@@ -1,5 +1,11 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import com.zyke.message.presentation.common.heading
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,8 +84,16 @@ internal fun MessageDetailSheet(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            val pickPicture = rememberPicturePicker(item)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp)
+                MerchantChip(
+                    item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
+                    modifier = if (pickPicture != null) {
+                        Modifier.clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Change picture", onClick = pickPicture)
+                    } else {
+                        Modifier
+                    }
+                )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -132,7 +146,7 @@ internal fun MessageDetailSheet(
 
             CategoryPicker(item, actions)
 
-            PicturePicker(item)
+            RemovePicture(item)
 
             if (item.isModelParsed) {
                 Caption("The amount and name were read by on-device AI and checked against the message. Worth a glance.", maxLines = 3)
@@ -208,15 +222,28 @@ internal fun MessageDetailSheet(
     }
 }
 
-/** File this sender / receiver under a category; it applies to every message with them and to the dashboard. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The category this sender / receiver is filed under, with a button to change it. The full list is another
+ * sheet, so this one stays short.
+ */
 @Composable
 private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
     if (item.content is MessageContent.Otp) return
     if (CategoryKey.of(item) == null) return
+    var choosing by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Caption("CATEGORY FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                item.category.displayString,
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            AppButton("Change", { choosing = true }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+        }
         val suggestion = item.suggestedCategory
         if (suggestion != null && !item.categoryOverridden) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -224,40 +251,63 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
                     "Looks like ${suggestion.displayString}",
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.secondary
                 )
-                AppButton("Apply", { actions.onSetCategory(item.id, suggestion) }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
-            }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            MessageCategory.assignable.forEach { category ->
-                FilterChip(
-                    selected = item.category == category,
-                    onClick = {
-                        // Tapping the chosen one goes back to the automatic guess.
-                        val clear = item.categoryOverridden && item.category == category
-                        actions.onSetCategory(item.id, if (clear) null else category)
-                    },
-                    label = { Text(category.displayString) }
-                )
+                AppButton("Apply", { actions.onSetCategory(item.id, suggestion) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
         Caption(
-            if (item.categoryOverridden) {
-                "Chosen by you for every message with ${CategoryKey.label(item)}. Tap it again to go back to automatic."
-            } else {
-                "Picked automatically. Choosing one applies to every message with ${CategoryKey.label(item)} and to your dashboard."
-            },
+            if (item.categoryOverridden) "Chosen by you for every message with ${CategoryKey.label(item)}."
+            else "Picked automatically. Changing it applies to every message with ${CategoryKey.label(item)}.",
             maxLines = 2
         )
     }
+
+    if (choosing) {
+        AppBottomSheet({ choosing = false }) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                Text(
+                    "Category for ${CategoryKey.label(item)}",
+                    Modifier.padding(bottom = 8.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                MessageCategory.assignable.forEach { category ->
+                    val current = item.category == category
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable(onClickLabel = "File under ${category.displayString}") {
+                                // Choosing the current one goes back to the automatic guess.
+                                val clear = item.categoryOverridden && current
+                                actions.onSetCategory(item.id, if (clear) null else category)
+                                choosing = false
+                            }
+                            .padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            category.displayString,
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (current) Text("\u2713", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
 }
 
-/** Choose a picture for this sender / receiver from the person's own photos; no permission is needed. */
+/**
+ * Choosing a picture for this sender / receiver from the person's own photos; no permission is needed. The
+ * sheet's round picture is the button. Null where pictures are not available.
+ */
 @Composable
-private fun PicturePicker(item: ClassifiedMessage) {
-    val store = LocalImageStore.current ?: return
-    val key = CategoryKey.of(item) ?: return
+private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
+    val store = LocalImageStore.current ?: return null
+    val key = CategoryKey.of(item) ?: return null
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -267,20 +317,14 @@ private fun PicturePicker(item: ClassifiedMessage) {
             }
         }
     }
+    return { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+}
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Caption("PICTURE FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            AppButton(
-                text = if (item.merchant.imageKey != null) "Change picture" else "Choose picture",
-                onClick = { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                style = ButtonStyle.OUTLINE,
-                size = ButtonSize.COMPACT
-            )
-            if (item.merchant.imageKey != null) {
-                AppButton("Remove", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
-        }
-        Caption("Shown wherever this name appears. Kept on this phone only.", maxLines = 2)
-    }
+/** Only shown once a picture has been chosen: the way back to the automatic one. */
+@Composable
+private fun RemovePicture(item: ClassifiedMessage) {
+    val store = LocalImageStore.current ?: return
+    val key = CategoryKey.of(item) ?: return
+    if (item.merchant.imageKey == null) return
+    AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
 }

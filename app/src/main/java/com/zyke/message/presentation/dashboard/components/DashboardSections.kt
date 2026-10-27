@@ -483,7 +483,7 @@ internal fun CategoryRow(
     Column(
         modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = "Filter by ${item.category.displayString}", onClick = onClick)
+            .clickable(onClickLabel = "Show ${item.category.displayString} payments", onClick = onClick)
             .padding(vertical = 10.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

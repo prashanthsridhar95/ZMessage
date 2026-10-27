@@ -226,8 +226,10 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
                     focus.messageId?.let { onIntent(Intent.OpenMessage(it)) }
                 }
             }
-        } else if (state.attention.isNotEmpty()) {
-            item(key = "attention") { AttentionStrip(state.attention.take(1), today, actions) }
+        }
+
+        if (state.attention.isNotEmpty()) {
+            item(key = "attention") { AttentionStrip(state.attention, today, actions) }
         }
 
         if (state.agenda.isNotEmpty()) {

@@ -1,5 +1,12 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.dashboard.components.countLabel
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -161,6 +168,19 @@ fun DashboardScreen(
             onCategory = { onIntent(Intent.SetCategory(it)) },
             onReset = { onIntent(Intent.ResetFilters) },
             onDismiss = { onIntent(Intent.CloseFilters) }
+        )
+    }
+
+    val categoryForSheet = state.openCategory
+    val detailForSheet = state.categoryDetail
+    if (categoryForSheet != null && detailForSheet != null) {
+        CategorySheet(
+            category = categoryForSheet,
+            detail = detailForSheet,
+            direction = state.direction,
+            expandedVendor = state.expandedVendor,
+            onVendor = { onIntent(Intent.ToggleVendor(it)) },
+            onDismiss = { onIntent(Intent.CloseCategory) }
         )
     }
 
@@ -340,11 +360,11 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                             item = item,
                             total = categoryTotal,
                             color = ChartColors.forRank(index),
-                            selected = item.category == state.category,
+                            selected = false,
                             // Limits are set in Settings; here they are only shown.
                             canSetBudget = false,
                             direction = state.direction,
-                            onClick = { onIntent(Intent.SelectCategory(item.category)) },
+                            onClick = { onIntent(Intent.OpenCategory(item.category)) },
                             onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
                         )
                     }
@@ -386,3 +406,40 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     }
 }
 
+
+/** What went into one category: its total, then who the money went to (or came from), each opening to its payments. */
+@Composable
+private fun CategorySheet(
+    category: com.zyke.message.domain.model.MessageCategory,
+    detail: Dashboard,
+    direction: FlowDirection,
+    expandedVendor: String?,
+    onVendor: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)
+        ) {
+            Text(category.displayString, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Text(
+                DisplayFormatters.rupees(detail.total),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Caption(direction.countLabel(detail.count))
+            Spacer(Modifier.height(12.dp))
+            detail.vendors.forEachIndexed { index, vendor ->
+                if (index > 0) HorizontalDivider()
+                VendorRow(
+                    vendor = vendor,
+                    total = detail.total,
+                    expanded = expandedVendor == vendor.key,
+                    direction = direction,
+                    onClick = { onVendor(vendor.key) }
+                )
+            }
+        }
+    }
+}

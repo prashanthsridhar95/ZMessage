@@ -39,6 +39,9 @@ object DashboardContract {
         val showFilterSheet: Boolean = false,
         val showReportCard: Boolean = false,
         val expandedVendor: String? = null,
+        /** The category whose payments are open in a sheet, and what they add up to. */
+        val openCategory: MessageCategory? = null,
+        val categoryDetail: Dashboard? = null,
         val showAllVendors: Boolean = false,
 
         val dashboard: Dashboard? = null,
@@ -79,6 +82,8 @@ object DashboardContract {
         data class SelectDirection(val direction: FlowDirection) : Intent
         /** Tapping the selected category again clears it. */
         data class SelectCategory(val category: MessageCategory) : Intent
+        data class OpenCategory(val category: MessageCategory) : Intent
+        data object CloseCategory : Intent
         data object ClearCategory : Intent
         data class SetCategory(val category: MessageCategory?) : Intent
         data object OpenReportCard : Intent

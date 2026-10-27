@@ -59,12 +59,6 @@ fun MessageList(
             }
         }
 
-        feed.summary?.let { summary ->
-            item(key = "summary", contentType = "summary") {
-                SpendSummaryRow(summary, actions.onOpenSummary, Modifier.animateItem())
-            }
-        }
-
         feed.sections.forEach { section ->
             stickyHeader(key = "section-${section.id}") {
                 SectionHeader(
