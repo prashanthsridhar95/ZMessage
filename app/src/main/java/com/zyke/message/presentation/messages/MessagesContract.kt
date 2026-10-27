@@ -105,6 +105,9 @@ object MessagesContract {
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
         data class TogglePin(val messageId: Long) : Intent
+        /** The one-tap clean-up: archive old promotions or old one-time codes together. */
+        data class ArchiveMany(val ids: List<Long>) : Intent
+        data class UnarchiveMany(val ids: List<Long>) : Intent
         /** File every message with this message's sender / receiver under [category]; null goes back to automatic. */
         data class SetCategory(val messageId: Long, val category: MessageCategory?, val announce: Boolean = true) : Intent
         data class DismissAttention(val key: String) : Intent
@@ -116,6 +119,7 @@ object MessagesContract {
         data class CopyToClipboard(val label: String, val text: String) : Effect
         /** Offer to take back an archive. */
         data class MessageArchived(val messageId: Long) : Effect
+        data class ManyArchived(val ids: List<Long>) : Effect
         data class OpenLink(val url: String) : Effect
         /** Say what changed and offer to take it back: [previous] is null if it was automatic before. */
         data class CategoryChanged(

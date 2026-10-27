@@ -13,6 +13,7 @@ enum class SmartFilter(val label: String) {
     OTP("OTP"),
     BILLS("Bills"),
     TRAVEL("Travel"),
+    REMINDERS("Reminders"),
     OTHERS("Others"),
     PROMOS("Promos"),
     ARCHIVED("Archived")

@@ -30,7 +30,10 @@ object QueryInterpreter {
         "otp" to SmartFilter.OTP, "otps" to SmartFilter.OTP, "bill" to SmartFilter.BILLS, "bills" to SmartFilter.BILLS,
         "money" to SmartFilter.MONEY, "payments" to SmartFilter.MONEY, "promo" to SmartFilter.PROMOS,
         "promos" to SmartFilter.PROMOS, "offers" to SmartFilter.PROMOS, "others" to SmartFilter.OTHERS,
-        "archived" to SmartFilter.ARCHIVED
+        "archived" to SmartFilter.ARCHIVED,
+        "orders" to SmartFilter.TRAVEL, "deliveries" to SmartFilter.TRAVEL, "delivery" to SmartFilter.TRAVEL,
+        "trips" to SmartFilter.TRAVEL, "flights" to SmartFilter.TRAVEL, "tickets" to SmartFilter.TRAVEL,
+        "appointments" to SmartFilter.REMINDERS, "renewals" to SmartFilter.REMINDERS, "reminders" to SmartFilter.REMINDERS
     )
     private val STATUS_WORDS = mapOf("unread" to StatusFilter.UNREAD, "pinned" to StatusFilter.PINNED)
     private val FILLER = setOf("show", "me", "my", "all", "the", "from", "in", "on", "of", "for", "messages", "message", "sms", "a", "an")

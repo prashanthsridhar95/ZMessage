@@ -38,7 +38,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import com.zyke.message.domain.feed.Cleanup
 import com.zyke.message.domain.feed.MessageFilter
+import com.zyke.message.domain.feed.SmartFilter
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
@@ -113,6 +120,15 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
                 }.onFailure {
                     Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show()
                 }
+                is Effect.ManyArchived -> scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Archived ${effect.ids.size}",
+                        actionLabel = context.getString(R.string.undo),
+                        duration = SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) viewModel.onIntent(Intent.UnarchiveMany(effect.ids))
+                }
                 is Effect.CategoryChanged -> scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     val result = snackbarHostState.showSnackbar(
@@ -176,6 +192,19 @@ fun MessagesScreen(
                         )
                         else -> ModeSummary(DisplayFormatters.count(state.feed.visibleCount, "result", "results"))
                     }
+                }
+                val staleIds = remember(state.messages, state.userState, state.filter.smart, state.now) {
+                    Cleanup.staleIds(state.messages, state.userState, state.now, state.filter.smart)
+                }
+                if (staleIds.isNotEmpty() && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
+                    CleanupBar(
+                        text = if (state.filter.smart == SmartFilter.PROMOS) {
+                            "${staleIds.size} promotions older than 30 days"
+                        } else {
+                            "${staleIds.size} one-time codes older than a day"
+                        },
+                        onArchive = { onIntent(Intent.ArchiveMany(staleIds)) }
+                    )
                 }
                 state.feed.searchNote?.takeIf { state.isSearching }?.let {
                     Caption("Showing: $it", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), maxLines = 2)
@@ -273,6 +302,18 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onOpenLink = { this(Intent.OpenLink(it)) },
     onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) }
 )
+
+/** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */
+@Composable
+private fun CleanupBar(text: String, onArchive: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Caption(text, Modifier.weight(1f), maxLines = 2)
+        AppButton("Archive", onArchive, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+    }
+}
 
 /** Fills the tab area of the Inbox bar with a short count when there are no type tabs. */
 @Composable

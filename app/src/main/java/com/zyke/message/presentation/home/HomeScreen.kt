@@ -2,6 +2,8 @@ package com.zyke.message.presentation.home
 
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.SpendNarrative
+import com.zyke.message.domain.life.AgendaItem
+import com.zyke.message.presentation.messages.components.whenLabel
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -213,6 +215,17 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             }
         }
 
+        if (state.agenda.isNotEmpty()) {
+            item(key = "agenda") {
+                PlainSection("Your days ahead", subtitle = "Trips, appointments, renewals and orders on the way") {
+                    state.agenda.forEachIndexed { index, agendaItem ->
+                        if (index > 0) HorizontalDivider()
+                        AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+                    }
+                }
+            }
+        }
+
         if (upcoming.isNotEmpty()) {
             item(key = "upcoming") {
                 PlainSection("Coming up", subtitle = "Next 30 days") {
@@ -359,6 +372,36 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
             maxLines = 2
         )
         SpendNarrative.of(month)?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 3) }
+    }
+}
+
+/** One thing ahead: an order on its way, a trip, an appointment or a renewal. Tap for the message. */
+@Composable
+private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
+    val life = item.message.content as MessageContent.Life
+    val date = item.date
+    val soon = date != null && date <= today.plusDays(2)
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MerchantChip(
+            item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name,
+            description = item.title, size = 44.dp
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            RowTitle(item.title)
+            Caption("${item.kind.label} · ${item.status}")
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = date?.let { whenLabel(it, life, today) } ?: "On the way",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (soon) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+            maxLines = 1
+        )
     }
 }
 

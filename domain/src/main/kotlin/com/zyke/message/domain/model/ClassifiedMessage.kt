@@ -1,6 +1,8 @@
 package com.zyke.message.domain.model
 
+import com.zyke.message.domain.life.LifeKind
 import java.time.LocalDate
+import java.time.LocalTime
 
 /** An [SmsMessage] together with everything the UI needs to render it. */
 data class ClassifiedMessage(
@@ -75,6 +77,17 @@ sealed interface MessageContent {
 
     /** An informational message that mentions money without being a payment (failed autopay, IPO allotment, ...). */
     data class Notice(val kind: NoticeKind, val amount: String?) : MessageContent
+
+    /** An order, trip, appointment or renewal read from a non-money message. */
+    data class Life(
+        val kind: LifeKind,
+        val title: String,
+        val status: String,
+        val date: LocalDate?,
+        val time: LocalTime?,
+        val reference: String?,
+        val isDone: Boolean
+    ) : MessageContent
 
     data object Generic : MessageContent
 }

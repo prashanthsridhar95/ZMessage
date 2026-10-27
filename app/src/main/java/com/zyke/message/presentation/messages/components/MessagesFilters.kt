@@ -51,6 +51,7 @@ private fun SmartFilter.icon(): Int = when (this) {
     SmartFilter.OTP -> R.drawable.baseline_lock_24
     SmartFilter.BILLS -> R.drawable.baseline_receipt_24
     SmartFilter.TRAVEL -> R.drawable.baseline_flight_24
+    SmartFilter.REMINDERS -> R.drawable.baseline_event_24
     SmartFilter.OTHERS -> R.drawable.baseline_more_horiz_24
     SmartFilter.PROMOS -> R.drawable.baseline_sell_24
     SmartFilter.ARCHIVED -> R.drawable.baseline_archive_24

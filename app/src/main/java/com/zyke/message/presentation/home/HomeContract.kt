@@ -5,6 +5,7 @@ import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
 import com.zyke.message.domain.insights.SpendAlert
+import com.zyke.message.domain.life.AgendaItem
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.UserMessageState
@@ -36,6 +37,8 @@ object HomeContract {
         val unreadCount: Int = 0,
         /** Odd-looking payments from the last two weeks. */
         val alerts: List<SpendAlert> = emptyList(),
+        /** Appointments, trips and renewals in the next two weeks, and orders on their way. */
+        val agenda: List<AgendaItem> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,

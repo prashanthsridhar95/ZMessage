@@ -1,5 +1,10 @@
 package com.zyke.message.domain.classification
 
+import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.life.LifeKind
+import com.zyke.message.domain.life.LifeParser
+import java.time.Instant
+import java.time.ZoneId
 import com.zyke.message.domain.model.BankTransaction
 import com.zyke.message.domain.model.BankTransactionType
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -61,7 +66,7 @@ class MessageClassifier(
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
             body.contains("Petpooja") -> loyalty(message)
-            else -> generic(message)
+            else -> life(message) ?: generic(message)
         }
     }
 
@@ -96,7 +101,7 @@ class MessageClassifier(
 
     private fun bank(message: SmsMessage): ClassifiedMessage {
         val transaction = bankParser.parse(message.body)
-        if (transaction == null || transaction.amount.isEmpty()) return notice(message) ?: generic(message)
+        if (transaction == null || transaction.amount.isEmpty()) return notice(message) ?: life(message) ?: generic(message)
 
         return when (transaction.type) {
             BankTransactionType.CARD_BILL -> cardBill(message, transaction)
@@ -183,6 +188,24 @@ class MessageClassifier(
                 dueDate = tx.dueDate,
                 paymentLink = tx.paymentLink
             )
+        )
+    }
+
+    /** Orders, trips, appointments and renewals: anything dated or tracked that is not a payment. */
+    private fun life(message: SmsMessage): ClassifiedMessage? {
+        val received = Instant.ofEpochMilli(message.date).atZone(ZoneId.systemDefault()).toLocalDate()
+        val facts = LifeParser.parse(message.body, received) ?: return null
+        val merchant = merchants.resolve("${message.sender} ${message.body}")
+        val title = when {
+            merchant.name != "${message.sender} ${message.body}" && merchant.logo != MerchantLogo.PERSON -> merchant.name
+            else -> SenderKey.displayAddress(message.sender)
+        }
+        val category = if (facts.kind == LifeKind.TRAVEL) MessageCategory.TRAVEL else merchant.category
+        return ClassifiedMessage(
+            message = message,
+            category = category,
+            merchant = merchant.copy(name = title, category = category),
+            content = MessageContent.Life(facts.kind, title, facts.status, facts.date, facts.time, facts.reference, facts.isDone)
         )
     }
 

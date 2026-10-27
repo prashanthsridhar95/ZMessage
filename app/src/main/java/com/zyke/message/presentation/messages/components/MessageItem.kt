@@ -71,6 +71,7 @@ internal fun MessageCard(
             is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)
             is MessageContent.Courier -> CourierCard(item, content, time, isUnread, expand, modifier)
             is MessageContent.Loyalty -> LoyaltyCard(item, content, time, isUnread, expand, modifier)
+            is MessageContent.Life -> LifeCard(item, content, time, isUnread, today, expand, modifier)
             is MessageContent.Notice -> GenericCard(item, time, isUnread, expand, modifier)
             MessageContent.Generic -> GenericCard(item, time, isUnread, expand, modifier)
         }

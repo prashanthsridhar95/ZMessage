@@ -26,6 +26,13 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
             DetailFact(if (c.isLoaded) "Earned" else "Used", "${c.points} points"),
             DetailFact("Balance", c.balance)
         )
+        is MessageContent.Life -> listOfNotNull(
+            DetailFact("Type", c.kind.label),
+            DetailFact("Status", c.status),
+            c.date?.let { DetailFact("Date", dates.format(it)) },
+            c.time?.let { DetailFact("Time", DateTimeFormatter.ofPattern("h:mm a", locale).format(it)) },
+            c.reference?.let { DetailFact("Reference", it) }
+        )
         is MessageContent.Notice -> listOfNotNull(
             DetailFact("Type", c.kind.label),
             c.amount?.let { DetailFact("Amount", DisplayFormatters.rupees(it)) }

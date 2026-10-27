@@ -153,8 +153,15 @@ class MessageClassifierTest {
 
     @Test
     fun plainMessage_isGenericAndKeepsMerchantCategory() {
-        val result = classifier.classify(sms("Your Swiggy order is on the way", "SWIGGY"))
+        val result = classifier.classify(sms("Rate your last Swiggy experience", "SWIGGY"))
         assertEquals(MessageContent.Generic, result.content)
+        assertEquals(MessageCategory.FOOD, result.category)
+    }
+
+    @Test
+    fun orderUpdate_isAnOrderCardInTheMerchantsCategory() {
+        val result = classifier.classify(sms("Your Swiggy order is on the way", "SWIGGY"))
+        assertEquals("On the way", (result.content as MessageContent.Life).status)
         assertEquals(MessageCategory.FOOD, result.category)
     }
 

@@ -93,6 +93,11 @@ class MessagesViewModel(
                 emitEffect(Effect.MessageArchived(intent.messageId))
             }
             is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.ArchiveMany -> {
+                intent.ids.forEach { userStateRepository.setArchived(it, true) }
+                emitEffect(Effect.ManyArchived(intent.ids))
+            }
+            is Intent.UnarchiveMany -> intent.ids.forEach { userStateRepository.setArchived(it, false) }
             is Intent.TogglePin -> userStateRepository.setPinned(
                 intent.messageId,
                 intent.messageId !in currentState().userState.pinnedIds

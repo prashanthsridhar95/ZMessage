@@ -1,5 +1,6 @@
 package com.zyke.message.domain.feed
 
+import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
 import com.zyke.message.domain.model.MessageCategory
@@ -122,7 +123,10 @@ object FeedBuilder {
             SmartFilter.OTP -> content is MessageContent.Otp
             SmartFilter.BILLS -> content is MessageContent.CardBill
             SmartFilter.TRAVEL -> (content is MessageContent.FastTag && !isFastTagStatusOnly(message)) ||
-                content is MessageContent.Courier
+                content is MessageContent.Courier ||
+                (content is MessageContent.Life && (content.kind == LifeKind.TRAVEL || content.kind == LifeKind.DELIVERY))
+            SmartFilter.REMINDERS -> content is MessageContent.Life &&
+                (content.kind == LifeKind.APPOINTMENT || content.kind == LifeKind.RENEWAL)
             // Everything that did not land in a category, other than marketing.
             SmartFilter.OTHERS -> message.category == MessageCategory.OTHERS && !message.isPromotional
             SmartFilter.PROMOS -> message.isPromotional
@@ -179,6 +183,7 @@ object FeedBuilder {
             is MessageContent.CardBill -> content.amount
             is MessageContent.Loyalty -> content.programme
             is MessageContent.ScheduledPayment -> "${content.payee} ${content.amount}"
+            is MessageContent.Life -> "${content.title} ${content.status} ${content.reference.orEmpty()}"
             else -> ""
         }
         return listOf(message.message.body, message.message.sender, message.merchant.name, extra)

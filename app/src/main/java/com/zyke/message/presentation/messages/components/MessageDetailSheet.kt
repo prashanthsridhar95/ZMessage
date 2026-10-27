@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.zyke.message.presentation.common.LocalImageStore
 import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.AppBottomSheet
+import com.zyke.message.presentation.common.addToCalendar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -144,6 +145,18 @@ internal fun MessageDetailSheet(
                     AppButton("Copy code", { actions.onCopyOtp(item.id, content.code) }, Modifier.fillMaxWidth())
                 billLink != null ->
                     AppButton("View / pay bill", { actions.onOpenLink(billLink) }, Modifier.fillMaxWidth())
+                content is MessageContent.Life && content.date != null && !content.isDone -> {
+                    val context = LocalContext.current
+                    AppButton(
+                        "Add to calendar",
+                        {
+                            if (!addToCalendar(context, content)) {
+                                Toast.makeText(context, "No calendar app found", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        Modifier.fillMaxWidth()
+                    )
+                }
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

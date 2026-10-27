@@ -49,6 +49,12 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
         }
         is MessageContent.Loyalty ->
             "${merchant.displayName}: ${if (c.isLoaded) "earned" else "used"} ${c.points} points, balance ${c.balance}"
+        is MessageContent.Life -> listOfNotNull(
+            "${c.kind.label} from ${c.title}",
+            c.status,
+            c.date?.let { com.zyke.message.presentation.messages.components.whenLabel(it, c, today) },
+            c.reference?.let { "reference $it" }
+        ).joinToString(". ")
         is MessageContent.Notice -> "${c.kind.label}${c.amount?.let { ": ${DisplayFormatters.rupees(it)}" }.orEmpty()}"
         MessageContent.Generic -> "Message from ${message.sender}: ${message.body.replace(Regex("\\s+"), " ").take(160)}"
     }
