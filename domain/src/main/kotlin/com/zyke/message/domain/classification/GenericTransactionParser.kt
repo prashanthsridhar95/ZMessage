@@ -19,7 +19,74 @@ class GenericTransactionParser {
         if (PromoDetector.hasPromoHints(message)) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
-        return parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
+        return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
+    }
+
+    /** Fixed-format messages (autopay, SIPs, netbanking, ATM, ...) that carry no debit / credit keyword. */
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    private fun parseTemplate(body: String): BankTransaction? {
+        SIP_PROCESSED.find(body)?.let {
+            return BankTransaction(BankName.MUTUAL_FUND, "", it.groupValues[1], clean(it.groupValues[2]), BankTransactionType.SENT)
+        }
+        SIP_DUE.find(body)?.let {
+            return BankTransaction(
+                BankName.MUTUAL_FUND, "", "SIP instalment", clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT,
+                dueDate = it.groupValues[2].let(::parseDate)
+            )
+        }
+        AUTOPAY_SUCCESS.find(body)?.let {
+            val payee = it.groupValues[1].substringBefore(" - ").substringBefore("..").trim()
+            return BankTransaction(
+                bank(body), it.groupValues[3], payee, clean(it.groupValues[2]), BankTransactionType.SENT
+            )
+        }
+        AUTOPAY_ACTIVATED.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[3], it.groupValues[2].trim(), clean(it.groupValues[1]), BankTransactionType.MANDATE_SET
+            )
+        }
+        EMANDATE_DEDUCTION.find(body)?.let {
+            return BankTransaction(
+                bank(body), "", it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT,
+                dueDate = parseDate(it.groupValues[2])
+            )
+        }
+        DEDUCTED_FROM_ACCOUNT.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[2], it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.SENT
+            )
+        }
+        NETBANKING_PAYMENT.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[2], it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.SENT
+            )
+        }
+        UPI_LITE_TOP_UP.find(body)?.let {
+            return BankTransaction(bank(body), "", "UPI Lite", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        WITHDRAWN.find(body)?.let {
+            val bank = if (body.contains("IndianBank", ignoreCase = true) || body.contains("Indian Bank", ignoreCase = true)) {
+                BankName.INDIAN_BANK
+            } else {
+                bank(body)
+            }
+            return BankTransaction(bank, it.groupValues[2], ATM_PAYEE, clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        POS_RECEIPT.find(body)?.let {
+            return BankTransaction(
+                BankName.OTHERS, "", it.groupValues[1].let(::tidy).orEmpty(), clean(it.groupValues[2]), BankTransactionType.SENT
+            )
+        }
+        UTILITY_BILL.find(body)?.let {
+            return BankTransaction(
+                BankName.OTHERS, "", it.groupValues[3].let(::tidy) ?: "Electricity", clean(it.groupValues[1]),
+                BankTransactionType.UPCOMING_DEBIT, dueDate = it.groupValues[2].let(::parseDate)
+            )
+        }
+        INSURANCE_PREMIUM.find(body)?.let {
+            return BankTransaction(BankName.OTHERS, "", "Insurance premium", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        return null
     }
 
     private fun parseMovement(body: String): BankTransaction? {
@@ -239,12 +306,37 @@ class GenericTransactionParser {
         private val PROCESSED = Regex("(?i)\\bprocessed\\s+$CURRENCY\\s*$NUMBER\\s+for your\\s+(.+?)(?=\\s+\\d{6,}|[.,]|$)")
         private val PAYMENT_MADE = Regex("(?i)\\bpayment of\\s+$CURRENCY\\s*$NUMBER\\b.*?\\bsuccessfully made\\b")
         private val PAYMENT_MADE_PAYEE = Regex("\\bOn\\s+([A-Za-z][A-Za-z0-9&.' ]{1,40}?)\\s+successfully made\\b")
-        private val UPCOMING = Regex("(?i)\\bwill be (?:auto[- ]?)?debited")
+        private val UPCOMING = Regex("(?i)\\bwill be (?:auto[- ]?)?(?:debited|deducted)")
         private val MANDATE = Regex("(?i)\\bmandate\\s+(?:set|created|registered|activated|successful|approved)")
         private val ON_DATE = Regex("(?i)\\bon\\s+(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
         private val FOR_PAYEE = Regex(
             "(?i)\\bfor\\s+([A-Za-z0-9][A-Za-z0-9&.' ]{1,40}?)(?=\\s+-\\s|\\s+ID:|\\.\\.|\\s+Act:|\\s+from\\b|\\.?$)"
         )
+
+        private val SIP_PROCESSED = Regex("(?i)\\bSIP in \\d+ in (.+?) for $CURRENCY\\s*$NUMBER is processed")
+        private val SIP_DUE = Regex("(?i)\\bSIP instal?ment\\b.*?for $CURRENCY\\s*$NUMBER is due for debit.*? on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
+        private val AUTOPAY_SUCCESS = Regex(
+            "(?i)AutoPay \\(E-mandate\\) Success!\\s*For (.*?)\\s*Txn Amt:\\s*$CURRENCY\\s*$NUMBER.*?\\bCC (\\d+)"
+        )
+        private val AUTOPAY_ACTIVATED = Regex(
+            "(?i)AutoPay activation successful\\.?\\s*Txn amt:\\s*$CURRENCY\\s*$NUMBER\\s*Merchant:\\s*(.+?)\\s+\\w+ Bank Card no\\.?:\\s*[xX*]*(\\d+)"
+        )
+        private val EMANDATE_DEDUCTION = Regex(
+            "(?i)E-Mandate!\\s*$CURRENCY\\s*$NUMBER will be deducted on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})[^A-Za-z]*For (.+?) mandate"
+        )
+        private val DEDUCTED_FROM_ACCOUNT = Regex(
+            "(?i)PAYMENT ALERT!\\s*$CURRENCY\\s*$NUMBER deducted from .*?A/C No (\\d+) towards (.+?)(?=\\s+UMRN|:|$)"
+        )
+        private val NETBANKING_PAYMENT = Regex(
+            "(?i)Payment Successful!\\s*$CURRENCY\\s*$NUMBER from A/c [xX*]*(\\d+) to (.+?) via .*?NetBanking"
+        )
+        private val UPI_LITE_TOP_UP = Regex("(?i)UPI LITE Top-up amounting to $CURRENCY\\s*$NUMBER has been successful")
+        private val WITHDRAWN = Regex("(?i)$CURRENCY\\s*$NUMBER w/d from A/c [xX*]*(\\d+)")
+        private val POS_RECEIPT = Regex("(?i)POS Receipt:\\s*\\S+\\s+(.+?)\\s+$CURRENCY\\s*$NUMBER\\s*$")
+        private val UTILITY_BILL = Regex(
+            "(?i)Electricity charges of $CURRENCY\\s*$NUMBER.*? is due on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}).*?-\\s*(\\w+)\\s*$"
+        )
+        private val INSURANCE_PREMIUM = Regex("(?i)\\bPremium $CURRENCY\\s*$NUMBER")
 
         private val UPI_MARKERS = setOf("UPI", "P2M", "P2P", "P2A", "IMPS", "NEFT", "RTGS")
         private val REJECTED_PREFIXES = listOf("a/c", "ac ", "acct", "account", "your", "the ", "you", "card", "bank", "sbi", "hdfc")

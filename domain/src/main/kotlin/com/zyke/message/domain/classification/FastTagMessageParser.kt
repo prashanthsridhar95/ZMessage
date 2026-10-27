@@ -17,8 +17,11 @@ class FastTagMessageParser {
     }
 
     private fun toppedUp(message: String): FastTagEvent? {
-        val g = TOP_UP.find(message)?.groupValues ?: return null
-        return FastTagEvent.ToppedUp(vehicleNumber = g[1], amount = g[3], balance = g[5])
+        TOP_UP.find(message)?.groupValues?.let {
+            return FastTagEvent.ToppedUp(vehicleNumber = it[1], amount = it[3], balance = it[5])
+        }
+        val g = TOP_UP_CREDITED.find(message)?.groupValues ?: return null
+        return FastTagEvent.ToppedUp(vehicleNumber = g[1], amount = g[2].trimEnd('.'), balance = g[3].trimEnd('.'))
     }
 
     private fun rechargeNeeded(message: String): FastTagEvent? {
@@ -40,6 +43,10 @@ class FastTagMessageParser {
 
         val TOP_UP =
             "Recharge successful: (.*?) FASTag (.*?) Credited with Rs (\\d+) Ref: (\\d+) Avbl Bal:Rs (\\d+)".toRegex()
+
+        /** "Recharge successful: IDFC FIRST Bank FASTag on TN01AB1234 credited with Rs.500.0 on ... Avbl Bal: Rs.620.5". */
+        val TOP_UP_CREDITED =
+            "(?is)Recharge successful: .*?FASTag on (\\S+) credited with Rs\\.?\\s*([\\d,.]+) on .*?Avbl Bal:\\s*Rs\\.?\\s*([\\d,.]+)".toRegex()
 
         val LOW_BALANCE_PATTERNS = listOf(
             "vehicle (\\w+) is low on balance",

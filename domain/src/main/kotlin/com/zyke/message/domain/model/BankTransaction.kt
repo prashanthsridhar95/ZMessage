@@ -19,6 +19,8 @@ enum class BankName(val displayString: String, val isCard: Boolean) {
     BANK_OF_BARODA("Bank of Baroda", true),
     INDUSIND("IndusInd", true),
     PAYTM("Paytm", false),
+    INDIAN_BANK("Indian Bank", true),
+    MUTUAL_FUND("Mutual Fund", false),
     PETPOOJA("", false),
     OTHERS("", false)
 }

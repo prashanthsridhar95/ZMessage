@@ -111,4 +111,81 @@ class ParsingReportRegressionTest {
         assertNotNull(classify("Your a/c balance is Rs. 5000.00 as of today"))
         assertFalse(classify("Your a/c balance is Rs. 5000.00 as of today") is MessageContent.Transaction)
     }
+
+    @Test
+    fun sipProcessed_isMoneyOut() {
+        val c = transaction("Dear Investor, your SIP in 1234567890 in Mahindra Manulife Value Fund Reg Growth for Rs.5,000.00 is processed and units 120.123 at NAV 41.6000 dated 10-Oct-2026 are allotted on receipt of funds. - Mahindra Manulife MF.")
+        assertEquals(BankName.MUTUAL_FUND, c.bankName)
+        assertEquals("5000", c.amount)
+        assertEquals("Mahindra Manulife Value Fund Reg Growth", c.payee)
+    }
+
+    @Test
+    fun hdfcAutopaySuccess_isCardSpend() {
+        val c = transaction("AutoPay (E-mandate) Success!\nFor Netflix - Conten..\nTxn Amt:INR649.00\nDt:10/10/2026\nVia:HDFC Bank CC 1234\nMandate ID: XMhddGVLF9\nNot You? Call 18002586161")
+        assertEquals("649", c.amount)
+        assertEquals("1234", c.accountNumber)
+        assertEquals("Netflix", c.payee)
+    }
+
+    @Test
+    fun axisAutopayActivation_isAutopaySetUp() {
+        val c = scheduled("AutoPay activation successful.\nTxn amt: INR 189.00\nMerchant: Youtube\nAxis Bank Card no.: XX1234\nMax limit: INR 15000.00\nID: YgSNb9CCqk\nManage AutoPay at https://x.in")
+        assertEquals(ScheduledKind.MANDATE_SET, c.kind)
+        assertEquals("189", c.amount)
+        assertEquals("Youtube", c.payee)
+        assertEquals("1234", c.accountNumber)
+    }
+
+    @Test
+    fun eMandateDeduction_isUpcomingDebit() {
+        val c = scheduled("E-Mandate!\nRs.1500.00 will be deducted on 28/10/26, 10:00:00\nFor Jane On Hunger Foundation mandate\nUMN abc@okhdfcbank\nMaintain Balance\n-HDFC Bank")
+        assertEquals(ScheduledKind.UPCOMING_DEBIT, c.kind)
+        assertEquals("1500", c.amount)
+        assertEquals(LocalDate.of(2026, 10, 28), c.date)
+    }
+
+    @Test
+    fun paymentAlertAndNetBanking_areMoneyOut() {
+        val alert = transaction("PAYMENT ALERT! \nINR 2500.00 deducted from HDFC Bank A/C No 1234 towards ACME LOANS UMRN: HDFC1234567890123456")
+        assertEquals("2500", alert.amount)
+        assertEquals("1234", alert.accountNumber)
+        assertEquals("ACME LOANS", alert.payee)
+
+        val net = transaction("Payment Successful! Rs. 12000.50 from A/c **********1234 to Jane Doe via HDFC Bank NetBanking. Not you?Call 18002586161")
+        assertEquals("12000.50", net.amount)
+        assertEquals("Jane Doe", net.payee)
+    }
+
+    @Test
+    fun upiLiteAtmPosAndPremium_areMoneyOut() {
+        assertEquals("500", transaction("UPI LITE Top-up amounting to Rs.500.00 has been successful.\nRef No 123456789012\n- HDFC Bank").amount)
+
+        val atm = transaction("Rs.2000.00 w/d from A/c XX1234 at ABHTN123 , GN CHETTY ROAD T NGR on 10/10/26 10:00 RRN:123456789012.Not you? SMS BLOCK to 9444012345-IndianBank")
+        assertEquals(BankName.INDIAN_BANK, atm.bankName)
+        assertEquals("2000", atm.amount)
+
+        val pos = transaction("Razorpay POS Receipt:https://x.in/abc\nAMPLE TECHNOLOGIES\nINR12,500")
+        assertEquals("12500", pos.amount)
+        assertEquals("AMPLE TECHNOLOGIES", pos.payee)
+
+        assertEquals("9.99", transaction("DEAR CUSTOMER, PNR 1234567890; PA INSURANCE CERTIFICATE/S MAILED; PREMIUM RS. 9.99. FOR JANE & TO JOHN https://x.in").amount)
+    }
+
+    @Test
+    fun electricityBillAndSipReminder_areUpcoming() {
+        val bill = scheduled("Electricity charges of Rs.450 for 120 units for Jane 123456789012 is due on 30/10/2026. Pay at www.tnebnet.org/qwp/qpay?st=123456789012 -TANGEDCO")
+        assertEquals("450", bill.amount)
+        assertEquals(LocalDate.of(2026, 10, 30), bill.date)
+
+        val sip = scheduled("Dear Investor, Your SIP instalment in Folio No. XXXXXXX1234 for Rs.2000.00 is due for debit from your XXXXXXXXXX1234 A/c on 05/11/2026. Request you to maintain sufficient balance in your account. Regards, Bajaj Finserv Mutual Fund.")
+        assertEquals("2000", sip.amount)
+        assertEquals(LocalDate.of(2026, 11, 5), sip.date)
+    }
+
+    @Test
+    fun fastagRecharge_isTopUp() {
+        val event = (classify("Hi, Recharge successful: IDFC FIRST Bank FASTag on TN01AB1234 credited with Rs.500.0 on 10/10/2026 10:00. Ref:123456789012345678 Avbl Bal: Rs.620.5") as MessageContent.FastTag).event
+        assertEquals("TN01AB1234", event.vehicleNumber)
+    }
 }
