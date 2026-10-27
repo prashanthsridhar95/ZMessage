@@ -23,7 +23,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Domain tests
         run: ./gradlew :domain:test
       - name: Static analysis (detekt)
@@ -47,7 +47,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
       - name: Lint
