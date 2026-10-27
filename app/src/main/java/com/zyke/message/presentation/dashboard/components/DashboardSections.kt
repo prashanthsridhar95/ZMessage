@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -118,7 +119,7 @@ internal fun SectionCard(
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
         Spacer(Modifier.height(12.dp))
         content()
@@ -650,7 +651,7 @@ internal fun CardBillSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column {
-                Text(bills.label, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Text(bills.label, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 Caption(
                     if (due != null) DisplayFormatters.dueLabel(due, today) else "Statement · ${dayFmt.format(statementDate(latest))}",
                     color = if (due != null && !due.isBefore(today) && DisplayFormatters.isUrgent(due, today)) {

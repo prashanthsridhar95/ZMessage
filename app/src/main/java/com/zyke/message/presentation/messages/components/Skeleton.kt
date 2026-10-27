@@ -21,20 +21,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import com.zyke.message.presentation.common.rememberReduceMotion
 import androidx.compose.ui.unit.dp
 
 /** Placeholder rows shown while the inbox loads. */
 @Composable
 fun MessageListSkeleton(modifier: Modifier = Modifier, rows: Int = 7) {
-    val pulse by rememberInfiniteTransition(label = "skeleton").animateFloat(
+    val reduce = rememberReduceMotion()
+    val animated by rememberInfiniteTransition(label = "skeleton").animateFloat(
         initialValue = 0.25f,
         targetValue = 0.6f,
         animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
         label = "alpha"
     )
+    val pulse = if (reduce) 0.4f else animated
     val block = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
 
-    Column(modifier.alpha(pulse)) {
+    // One announcement instead of a screenful of empty boxes.
+    Column(modifier.alpha(pulse).clearAndSetSemantics { contentDescription = "Loading messages" }) {
         repeat(rows) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.size(60.dp).background(block, RoundedCornerShape(16.dp)))

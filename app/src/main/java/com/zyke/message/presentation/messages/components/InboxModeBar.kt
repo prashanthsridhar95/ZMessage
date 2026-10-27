@@ -65,20 +65,28 @@ private fun ViewModeToggle(mode: ViewMode, onMode: (ViewMode) -> Unit) {
 
 @Composable
 private fun ModeIcon(icon: Int, description: String, selected: Boolean, onClick: () -> Unit) {
+    // The pill is 36dp to look right; the tappable area around it is the full 48dp.
     Box(
         Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .size(48.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(role = Role.Tab, onClickLabel = description, onClick = onClick)
             .semantics { this.selected = selected },
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            modifier = Modifier.size(20.dp),
-            painter = painterResource(icon),
-            colorFilter = ColorFilter.tint(if (selected) MaterialTheme.colorScheme.onPrimary else mutedColor()),
-            contentDescription = description
-        )
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                modifier = Modifier.size(20.dp),
+                painter = painterResource(icon),
+                colorFilter = ColorFilter.tint(if (selected) MaterialTheme.colorScheme.onPrimary else mutedColor()),
+                contentDescription = description
+            )
+        }
     }
 }

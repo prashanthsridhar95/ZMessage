@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.zyke.message.presentation.common.scaledLines
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -159,7 +160,7 @@ internal fun RowTitle(text: String, modifier: Modifier = Modifier, color: Color 
         modifier = modifier,
         text = text,
         style = MaterialTheme.typography.bodyLarge,
-        maxLines = 1,
+        maxLines = scaledLines(1),
         overflow = TextOverflow.Ellipsis,
         color = color
     )
@@ -179,7 +180,7 @@ internal fun Caption(
         text = text,
         textAlign = textAlign,
         style = MaterialTheme.typography.bodySmall,
-        maxLines = maxLines,
+        maxLines = scaledLines(maxLines),
         overflow = TextOverflow.Ellipsis,
         color = color
     )
@@ -208,7 +209,7 @@ internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifie
         text = text,
         textAlign = TextAlign.End,
         style = MaterialTheme.typography.titleLarge,
-        maxLines = 1,
+        maxLines = scaledLines(1),
         overflow = TextOverflow.Ellipsis,
         color = color
     )

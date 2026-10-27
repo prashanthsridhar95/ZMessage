@@ -54,6 +54,7 @@ object Motion {
  */
 @Composable
 fun rememberAnimatedRupees(target: BigDecimal): String {
+    if (rememberReduceMotion()) return DisplayFormatters.rupees(target)
     val goal = target.toFloat()
     val progress = remember { Animatable(goal) }
     LaunchedEffect(goal) {
@@ -72,6 +73,7 @@ fun rememberAnimatedRupees(target: BigDecimal): String {
 /** [target] approached from zero when first shown, then eased to any new value; for bars that grow into place. */
 @Composable
 fun rememberGrowingFraction(target: Float): Float {
+    if (rememberReduceMotion()) return target
     val grown = remember { Animatable(0f) }
     LaunchedEffect(target) { grown.animateTo(target, tween(Motion.GROW_MS, easing = FastOutSlowInEasing)) }
     return grown.value
@@ -81,7 +83,8 @@ fun rememberGrowingFraction(target: Float): Float {
 @Composable
 fun Modifier.pressScale(source: InteractionSource): Modifier {
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) Motion.PRESSED_SCALE else 1f, tween(Motion.QUICK_MS), label = "press")
+    val reduce = rememberReduceMotion()
+    val scale by animateFloatAsState(if (pressed && !reduce) Motion.PRESSED_SCALE else 1f, tween(Motion.QUICK_MS), label = "press")
     return graphicsLayer {
         scaleX = scale
         scaleY = scale
@@ -97,12 +100,17 @@ private const val BORDER_BASE_ALPHA = 0.25f
  * reached and when the system has animations turned off.
  */
 fun Modifier.movingBorder(color: Color, corner: Dp = 20.dp, width: Dp = 1.5.dp): Modifier = composed {
-    val sweep = rememberInfiniteTransition(label = "border").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(BORDER_SWEEP_MS, easing = LinearEasing)),
-        label = "border-angle"
-    )
+    val reduce = rememberReduceMotion()
+    val angle = if (reduce) {
+        0f
+    } else {
+        rememberInfiniteTransition(label = "border").animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(BORDER_SWEEP_MS, easing = LinearEasing)),
+            label = "border-angle"
+        ).value
+    }
     drawBehind {
         val stroke = width.toPx()
         val outer = corner.toPx()
@@ -114,8 +122,9 @@ fun Modifier.movingBorder(color: Color, corner: Dp = 20.dp, width: Dp = 1.5.dp):
             )
         }
         drawPath(ring, color.copy(alpha = BORDER_BASE_ALPHA))
-        clipPath(ring) {
-            rotate(sweep.value, pivot = center) {
+        // With animations off, only the faint full outline stays; the travelling light would be a still smear.
+        if (!reduce) clipPath(ring) {
+            rotate(angle, pivot = center) {
                 drawCircle(
                     brush = Brush.sweepGradient(
                         listOf(Color.Transparent, color, Color.Transparent, Color.Transparent),

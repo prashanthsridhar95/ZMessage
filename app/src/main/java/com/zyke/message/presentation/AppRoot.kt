@@ -2,12 +2,15 @@ package com.zyke.message.presentation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import com.zyke.message.presentation.common.Motion
+import com.zyke.message.presentation.common.rememberReduceMotion
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
@@ -59,6 +62,7 @@ fun AppRoot(
     var tab by rememberSaveable { mutableStateOf(StartTab) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val stateHolder = rememberSaveableStateHolder()
+    val reduceMotion = rememberReduceMotion()
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
@@ -72,6 +76,7 @@ fun AppRoot(
         AnimatedContent(
             targetState = tab,
             transitionSpec = {
+                if (reduceMotion) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
                 val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
                 (fadeIn(tween(Motion.STANDARD_MS)) + slideInHorizontally(tween(Motion.STANDARD_MS)) { direction * it / TAB_SLIDE_DIVISOR })
                     .togetherWith(fadeOut(tween(Motion.QUICK_MS)))

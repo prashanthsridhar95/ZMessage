@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.SpendNarrative
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
@@ -327,7 +328,7 @@ private const val MAX_RECENT = 3
 @Composable
 private fun PlainSection(title: String, subtitle: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
         Spacer(Modifier.height(8.dp))
         content()

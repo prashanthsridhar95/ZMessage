@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -87,7 +88,7 @@ fun SettingsSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = 4.dp).heading(),
                 text = "Settings",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
@@ -205,7 +206,7 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
         )
         cards.forEach { card ->
             Row(
-                Modifier.fillMaxWidth().clickable { editing = card }.padding(top = 12.dp),
+                Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Edit ${card.label}") { editing = card }.padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
