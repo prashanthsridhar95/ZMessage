@@ -1,5 +1,21 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.rememberReduceMotion
+import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.AppButton
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,7 +79,6 @@ internal fun IncomeExpenseCard(
     val receivedByDate = income.associate { it.start to it.amount }
     val spent = dates.map { spentByDate[it] ?: BigDecimal.ZERO }
     val received = dates.map { receivedByDate[it] ?: BigDecimal.ZERO }
-    val peak = (spent + received).maxOrNull()?.takeIf { it.signum() > 0 }?.toFloat() ?: 1f
     val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val caption = when (period) {
         DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> periodName(dashboard.range)
@@ -80,40 +95,102 @@ internal fun IncomeExpenseCard(
         }
 
         if (dates.size >= 2) {
+            val last = dates.size - 1
+            val maxZoom = (dates.size / MIN_VISIBLE_POINTS.toFloat()).coerceAtLeast(1f)
+            var zoom by rememberSaveable(dates.first(), dates.size) { mutableFloatStateOf(1f) }
+            var view by rememberSaveable(dates.first(), dates.size) { mutableFloatStateOf(0f) }
+            val span = last / zoom
+            val viewAt = view.coerceIn(0f, (last - span).coerceAtLeast(0f))
+
+            // The lines draw themselves in from the left each time the period or its data changes.
+            val reveal = remember { Animatable(0f) }
+            val reduceMotion = rememberReduceMotion()
+            LaunchedEffect(dates.first(), dates.size, spent.lastOrNull(), received.lastOrNull()) {
+                if (reduceMotion) {
+                    reveal.snapTo(1f)
+                } else {
+                    reveal.snapTo(0f)
+                    reveal.animateTo(1f, tween(REVEAL_MS))
+                }
+            }
+            val shownSpan by animateFloatAsState(span, tween(ZOOM_MS), label = "zoom-span")
+            val shownView by animateFloatAsState(viewAt, tween(ZOOM_MS), label = "zoom-view")
+
             Canvas(
                 Modifier
                     .padding(top = 20.dp)
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(150.dp)
+                    .pointerInput(dates.size) {
+                        detectTransformGestures { _, pan, gestureZoom, _ ->
+                            val newZoom = (zoom * gestureZoom).coerceIn(1f, maxZoom)
+                            // Pan in points: how many points the finger moved across the visible stretch.
+                            val visibleSpan = last / newZoom
+                            val moved = -pan.x / size.width * visibleSpan
+                            zoom = newZoom
+                            view = (view.coerceIn(0f, (last - span).coerceAtLeast(0f)) + moved).coerceIn(0f, (last - visibleSpan).coerceAtLeast(0f))
+                        }
+                    }
                     .semantics {
                         contentDescription = "Line chart of money spent and received. Spent ${DisplayFormatters.rupees(dashboard.spentTotal)}, " +
-                            "received ${DisplayFormatters.rupees(dashboard.receivedTotal)}."
+                            "received ${DisplayFormatters.rupees(dashboard.receivedTotal)}. Pinch to zoom."
                     }
             ) {
                 val pad = 6.dp.toPx()
+                val usableWidth = size.width - 2 * pad
                 val usable = size.height - 2 * pad
-                val step = (size.width - 2 * pad) / (dates.size - 1)
+                fun x(index: Int) = pad + (index - shownView) / shownSpan.coerceAtLeast(MIN_SPAN) * usableWidth
+
+                // The scale follows what is on screen, so zooming into a quiet stretch shows its detail.
+                val from = kotlin.math.floor(shownView).toInt().coerceIn(0, last)
+                val to = kotlin.math.ceil(shownView + shownSpan).toInt().coerceIn(0, last)
+                val peak = (spent.subList(from, to + 1) + received.subList(from, to + 1)).maxOrNull()?.takeIf { it.signum() > 0 }?.toFloat() ?: 1f
+
                 drawLine(gridColor, Offset(0f, size.height - pad), Offset(size.width, size.height - pad), strokeWidth = 1.dp.toPx())
+                repeat(GRID_LINES) { i ->
+                    val y = pad + usable * (i + 1) / (GRID_LINES + 1)
+                    drawLine(gridColor.copy(alpha = 0.06f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                }
 
                 fun draw(values: List<BigDecimal>, color: Color) {
-                    val points = values.mapIndexed { i, v -> Offset(pad + step * i, size.height - pad - usable * (v.toFloat() / peak)) }
-                    val path = Path().apply { points.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) } }
-                    drawPath(path, color, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    drawCircle(color, radius = 4.dp.toPx(), center = points.last())
+                    val points = (from..to).map { i -> Offset(x(i), size.height - pad - usable * (values[i].toFloat() / peak)) }
+                    val whole = Path().apply { points.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) } }
+                    val measure = PathMeasure().apply { setPath(whole, false) }
+                    val drawn = Path()
+                    measure.getSegment(0f, measure.length * reveal.value, drawn, true)
+                    drawPath(drawn, color, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    val tip = if (reveal.value >= 1f) points.last() else measure.getPosition(measure.length * reveal.value)
+                    drawCircle(color, radius = 4.dp.toPx(), center = tip)
+                    // Zoomed in far enough, each day or month gets its own dot.
+                    if (shownSpan <= DOT_SPAN) points.forEach { drawCircle(color, radius = 2.5.dp.toPx(), center = it) }
                 }
                 draw(received, IncomeColor)
                 draw(spent, ExpenseColor)
             }
             val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Caption(dayFmt.format(dates.first()))
-                Caption(dayFmt.format(dates.last()))
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Caption(dayFmt.format(dates[kotlin.math.round(viewAt).toInt().coerceIn(0, last)]), Modifier.weight(1f))
+                AppButton("−", { zoom = (zoom / ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom > 1f)
+                AppButton("+", { zoom = (zoom * ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom < maxZoom)
+                Caption(
+                    dayFmt.format(dates[kotlin.math.round(viewAt + span).toInt().coerceIn(0, last)]),
+                    Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
             }
         } else {
             Caption("Not enough days yet", Modifier.padding(top = 16.dp))
         }
     }
 }
+
+private const val MIN_VISIBLE_POINTS = 4
+private const val MIN_SPAN = 0.5f
+private const val REVEAL_MS = 900
+private const val ZOOM_MS = 220
+private const val ZOOM_STEP = 1.6f
+private const val DOT_SPAN = 14f
+private const val GRID_LINES = 3
 
 @Composable
 private fun Total(label: String, amount: BigDecimal, color: Color, selected: Boolean, onClick: () -> Unit) {

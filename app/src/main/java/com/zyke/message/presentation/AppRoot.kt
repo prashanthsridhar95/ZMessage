@@ -1,5 +1,6 @@
 package com.zyke.message.presentation
 
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
@@ -47,12 +48,12 @@ import com.zyke.message.R
 private const val TAB_SLIDE_DIVISOR = 12
 
 /** Five places, money first: how things stand, the accounts, the insights, what is due, and the messages behind it all. */
-enum class AppTab(val label: String, val icon: Int) {
-    HOME("Home", R.drawable.baseline_home_24),
-    ACCOUNTS("Accounts", R.drawable.ic_accounts_24),
-    MONEY("Insights", R.drawable.ic_insights_24),
-    BILLS("Bills", R.drawable.baseline_receipt_24),
-    INBOX("Messages", R.drawable.baseline_message_24)
+enum class AppTab(val label: String, val icon: Int, val outline: Int) {
+    HOME("Home", R.drawable.baseline_home_24, R.drawable.ic_nav_home_outline),
+    ACCOUNTS("Accounts", R.drawable.ic_accounts_24, R.drawable.ic_nav_accounts_outline),
+    MONEY("Insights", R.drawable.ic_insights_24, R.drawable.ic_nav_insights_outline),
+    BILLS("Bills", R.drawable.baseline_receipt_24, R.drawable.ic_nav_bills_outline),
+    INBOX("Messages", R.drawable.baseline_message_24, R.drawable.ic_nav_messages_outline)
 }
 
 /** The tab the app opens on, and the one Back returns to before leaving. */
@@ -133,48 +134,37 @@ fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, 
 }
 
 /**
- * A tab's icon, alive to being chosen: it springs up and tilts once as it is selected, settles a little larger and
- * lifted, and eases back when another tab is chosen. With reduced motion it only changes size.
+ * A tab's icon, drawn as an outline. Choosing the tab fills it in: the solid icon grows in over the outline and the
+ * outline fades out, a smooth settle rather than a jump. With reduced motion the change is instant.
  */
 @Composable
 private fun AnimatedTabIcon(tab: AppTab, selected: Boolean, badge: Int) {
     val reduceMotion = rememberReduceMotion()
-    val scale by animateFloatAsState(
-        targetValue = if (selected) SELECTED_SCALE else 1f,
-        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-        label = "tab-scale"
+    val fill by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = tween(if (reduceMotion) 0 else FILL_MS),
+        label = "tab-fill"
     )
-    val lift by animateFloatAsState(
-        targetValue = if (selected) -LIFT_DP else 0f,
-        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "tab-lift"
-    )
-    // One quick tilt each way when the tab becomes the chosen one.
-    val tilt = remember { Animatable(0f) }
-    LaunchedEffect(selected) {
-        if (selected && !reduceMotion) {
-            tilt.animateTo(-TILT_DEGREES, tween(90))
-            tilt.animateTo(TILT_DEGREES, tween(120))
-            tilt.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-        } else {
-            tilt.snapTo(0f)
+    val icon: @Composable () -> Unit = {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(painterResource(tab.outline), contentDescription = null, modifier = Modifier.graphicsLayer { alpha = 1f - fill })
+            Icon(
+                painterResource(tab.icon), contentDescription = null,
+                modifier = Modifier.graphicsLayer {
+                    alpha = fill
+                    val grow = FILL_FROM_SCALE + (1f - FILL_FROM_SCALE) * fill
+                    scaleX = grow
+                    scaleY = grow
+                }
+            )
         }
-    }
-    val modifier = Modifier.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-        translationY = lift.dp.toPx()
-        rotationZ = tilt.value
     }
     if (badge > 0) {
-        BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else badge.toString()) } }, modifier = modifier) {
-            Icon(painterResource(tab.icon), contentDescription = null)
-        }
+        BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else badge.toString()) } }) { icon() }
     } else {
-        Icon(painterResource(tab.icon), contentDescription = null, modifier = modifier)
+        icon()
     }
 }
 
-private const val SELECTED_SCALE = 1.18f
-private const val LIFT_DP = 2f
-private const val TILT_DEGREES = 12f
+private const val FILL_MS = 260
+private const val FILL_FROM_SCALE = 0.7f

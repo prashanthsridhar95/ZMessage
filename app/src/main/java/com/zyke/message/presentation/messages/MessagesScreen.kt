@@ -178,10 +178,6 @@ fun MessagesScreen(
         Column(Modifier.fillMaxSize()) {
             val ready = state.permission == PermissionStatus.GRANTED && !state.isLoading && !state.hasError
             if (ready) {
-                SourceStrip(
-                    moneyMessages = state.feed.counts[SmartFilter.MONEY] ?: 0,
-                    onOpenSettings = LocalOpenSettings.current
-                )
                 InboxModeBar(
                     mode = state.viewMode,
                     onMode = { onIntent(Intent.SetViewMode(it)) }
@@ -310,26 +306,6 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onToggleMute = { this(Intent.ToggleMute(it)) },
     onRename = { id, name -> this(Intent.Rename(id, name)) }
 )
-
-/**
- * Says what this tab is to the rest of the app: the messages Home, Accounts and Insights are read from. The money ones
- * are counted, and a tap goes to the place that shows how well they are understood.
- */
-@Composable
-private fun SourceStrip(moneyMessages: Int, onOpenSettings: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable(onClickLabel = "See how messages are read", onClick = onOpenSettings),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Caption(
-                if (moneyMessages > 0) "Source of your money screens · $moneyMessages money messages" else "Source of your money screens",
-                maxLines = 1
-            )
-        }
-        Caption("How it's read")
-    }
-}
 
 /** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */
 @Composable

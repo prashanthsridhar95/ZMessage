@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.CardCycleSheet
 import com.zyke.message.presentation.dashboard.components.rangeLabel
@@ -299,69 +300,13 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         }
 
-        run {
-        item(key = "plan") {
-            PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
-        }
-
-        item(key = "limits") {
-            LimitsCard(state.limits, onManage = LocalOpenSettings.current)
-        }
-
-        if (state.showCardsPrompt) {
-            item(key = "cards-prompt") {
-                val openSettings = LocalOpenSettings.current
-                SectionCard("Track your cards and accounts", startOpen = true) {
-                    Caption(
-                        "Add the last four digits of a card or bank account in Settings to see its spends and payments by " +
-                            "billing cycle, and to group its messages together.",
-                        maxLines = 4
-                    )
-                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AppButton("Add in Settings", openSettings, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
-                        AppButton("Not now", { onIntent(Intent.DismissTip(DashboardContract.CARDS_TIP)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                    }
-                }
-            }
-        }
-
-        if (state.cardBills.isNotEmpty()) {
-            item(key = "card-bills") {
-                SectionCard(
-                    stringResource(R.string.dashboard_card_bills),
-                    subtitle = stringResource(R.string.dashboard_card_bills_hint),
-                    summary = DisplayFormatters.count(state.cardBills.size, "card", "cards")
-                ) {
-                    state.cardBills.forEachIndexed { index, bills ->
-                        if (index > 0) HorizontalDivider()
-                        CardBillRow(
-                            bills = bills,
-                            today = today,
-                            onOpen = { onIntent(Intent.ToggleCard(bills.key)) }
-                        )
-                    }
-                }
-            }
-        }
-
-        if (state.cardCycles.isNotEmpty()) {
-            item(key = "card-cycles") { CardCyclesSection(state.cardCycles, onOpen = { onIntent(Intent.ToggleCardCycle(it)) }) }
-        }
-
-        }
-
         val reportCard = state.reportCard
         if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
             item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
         if (!dashboard.isEmpty) {
-            item(key = "trend") {
-                SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
-                    TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
-                    ChartLegend(ranking, Modifier.padding(top = 12.dp))
-                }
-            }
+            item(key = "label-spending") { GroupLabel("Spending") }
 
             item(key = "categories") {
                 SectionCard(
@@ -387,7 +332,10 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
             item(key = "vendors") {
                 val vendors = if (state.showAllVendors) dashboard.vendors else dashboard.vendors.take(COLLAPSED_VENDORS)
-                SectionCard(stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor)) {
+                SectionCard(
+                    stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor),
+                    summary = dashboard.vendors.firstOrNull()?.let { it.merchant.name }
+                ) {
                     vendors.forEachIndexed { index, vendor ->
                         if (index > 0) HorizontalDivider()
                         VendorRow(
@@ -408,14 +356,22 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
-            item(key = "sources") {
-                SectionCard(stringResource(if (received) R.string.dashboard_by_source_received else R.string.dashboard_by_source)) {
-                    dashboard.sources.forEachIndexed { index, source ->
-                        if (index > 0) HorizontalDivider()
-                        SourceRow(source, dashboard.total, state.direction)
-                    }
+            item(key = "trend") {
+                SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
+                    TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
+                    ChartLegend(ranking, Modifier.padding(top = 12.dp))
                 }
             }
+        }
+
+        item(key = "label-planning") { GroupLabel("Planning") }
+
+        item(key = "plan") {
+            PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
+        }
+
+        item(key = "limits") {
+            LimitsCard(state.limits, onManage = LocalOpenSettings.current)
         }
     }
 }
@@ -456,4 +412,16 @@ private fun CategorySheet(
             }
         }
     }
+}
+
+/** A small heading over a group of tiles. */
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        Modifier.padding(start = 4.dp, top = 12.dp).heading(),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.secondary
+    )
 }
