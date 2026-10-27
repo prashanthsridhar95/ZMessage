@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.dashboard.LimitLine
 import com.zyke.message.domain.dashboard.LimitPeriod
+import com.zyke.message.domain.plan.IncomeSource
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.PlanInsights
 import com.zyke.message.domain.plan.SalaryStatus
@@ -193,13 +194,22 @@ private fun SalarySplit(insights: PlanInsights) {
 @Composable
 private fun SalaryLine(plan: MoneyPlan, insights: PlanInsights, status: SalaryStatus) {
     val colors = limitColors()
-    val salary = DisplayFormatters.rupees(insights.income)
+    val usual = DisplayFormatters.rupees(insights.income)
+    val around = insights.salaryDay?.let { " around day $it" }.orEmpty()
+    val spotted = insights.incomeSource != IncomeSource.ENTERED
+    val range = insights.salaryRange?.let { " (${DisplayFormatters.rupees(it.first)} to ${DisplayFormatters.rupees(it.second)} lately)" }.orEmpty()
     val (text, color) = when (status) {
         SalaryStatus.RECEIVED -> "Salary of ${DisplayFormatters.rupees(insights.salaryReceived ?: insights.income)} received" to colors.good
-        SalaryStatus.LATE -> "Salary of $salary hasn't arrived yet" to colors.bad
-        SalaryStatus.EXPECTED -> "Salary of $salary expected${plan.salaryDay?.let { " around day $it" }.orEmpty()}" to com.zyke.message.presentation.messages.components.mutedColor()
+        SalaryStatus.LATE -> "Salary hasn't arrived yet. Usually about $usual$around" to colors.bad
+        SalaryStatus.EXPECTED -> "Salary expected$around, usually about $usual$range" to com.zyke.message.presentation.messages.components.mutedColor()
     }
     Text(text, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color)
+    Caption(
+        if (spotted) "Salary spotted in your messages; it changes a little each month, so this follows what actually arrives."
+        else "No salary pattern found in your messages yet, so this uses the amount you entered.",
+        Modifier.padding(top = 2.dp),
+        maxLines = 3
+    )
 }
 
 @Composable

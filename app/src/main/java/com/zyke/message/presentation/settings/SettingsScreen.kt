@@ -134,6 +134,7 @@ fun SettingsSheet(
 
             PlanSection(
                 plan = state.plan,
+                spotted = state.spottedSalary,
                 onSalary = { amount, day -> onIntent(Intent.SetSalary(amount, day)) },
                 onSavingsGoal = { onIntent(Intent.SetSavingsGoal(it)) },
                 onSaveItem = { onIntent(Intent.SavePlanItem(it)) },

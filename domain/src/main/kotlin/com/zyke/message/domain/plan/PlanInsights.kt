@@ -38,13 +38,30 @@ data class PlanInsights(
     val salaryStatus: SalaryStatus?,
     val items: List<PlanItemStatus>,
     /** Money in less money out so far this month, against [savingsGoal]. */
-    val savedSoFar: BigDecimal
+    val savedSoFar: BigDecimal,
+    /** Where [income] comes from; null when there is neither a spotted salary nor an entered one. */
+    val incomeSource: IncomeSource?,
+    val salaryDay: Int?,
+    /** The lowest and highest salary of the recent months, when they differed. */
+    val salaryRange: Pair<BigDecimal, BigDecimal>?
 ) {
     val isOverPlan: Boolean get() = spendableLeft.signum() < 0
     val planAddsUp: Boolean get() = spendable.signum() >= 0
 }
 
 enum class SalaryStatus { RECEIVED, EXPECTED, LATE }
+
+/** How the month's income was worked out. */
+enum class IncomeSource {
+    /** This month's salary has arrived and was found in the messages. */
+    SPOTTED_RECEIVED,
+
+    /** Not here yet; estimated from the recent months' salaries found in the messages. */
+    SPOTTED_ESTIMATE,
+
+    /** No salary pattern in the messages, so the amount the person entered. */
+    ENTERED
+}
 
 object PlanInsightsBuilder {
     /** A payment to the item's name counts as it when within this share of the planned amount... */
@@ -57,7 +74,9 @@ object PlanInsightsBuilder {
     private val SALARY_SHARE = BigDecimal("0.7")
 
     fun build(plan: MoneyPlan, messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): PlanInsights? {
-        if (plan.isEmpty) return null
+        // The salary the messages show wins; what the person entered is the fallback when there is no such pattern.
+        val spotted = SalaryDetector.detect(messages, now, zone)
+        if (plan.isEmpty && spotted == null) return null
         val today = LocalDate.ofInstant(now, zone)
         val monthStart = today.withDayOfMonth(1)
         val daysLeft = today.lengthOfMonth() - today.dayOfMonth + 1
@@ -77,7 +96,33 @@ object PlanInsightsBuilder {
         val totalSent = sent.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount }
         val totalReceived = received.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount }
 
-        val income = plan.salary ?: BigDecimal.ZERO
+        val enteredReceived = plan.salary?.let { salary ->
+            received.filter { it.amount >= salary.multiply(SALARY_SHARE) }.maxByOrNull { it.amount }?.amount
+        }
+        val incomeSource: IncomeSource?
+        val income: BigDecimal
+        val salaryReceived: BigDecimal?
+        val salaryDay: Int?
+        when {
+            spotted != null -> {
+                salaryReceived = spotted.thisMonth
+                income = spotted.thisMonth ?: spotted.typical
+                incomeSource = if (spotted.thisMonth != null) IncomeSource.SPOTTED_RECEIVED else IncomeSource.SPOTTED_ESTIMATE
+                salaryDay = spotted.typicalDay
+            }
+            plan.salary != null -> {
+                salaryReceived = enteredReceived
+                income = plan.salary
+                incomeSource = IncomeSource.ENTERED
+                salaryDay = plan.salaryDay
+            }
+            else -> {
+                salaryReceived = null
+                income = BigDecimal.ZERO
+                incomeSource = null
+                salaryDay = null
+            }
+        }
         val outflows = plan.outflows.sumOf { it.amount }
         val investments = plan.investments.sumOf { it.amount }
         val goal = plan.savingsGoal ?: BigDecimal.ZERO
@@ -87,13 +132,10 @@ object PlanInsightsBuilder {
         val left = spendable - spentOnRest
         val perDay = left.takeIf { it.signum() > 0 }?.divide(BigDecimal(daysLeft), 0, RoundingMode.FLOOR)
 
-        val salaryReceived = plan.salary?.let { salary ->
-            received.filter { it.amount >= salary.multiply(SALARY_SHARE) }.maxByOrNull { it.amount }?.amount
-        }
-        val salaryStatus = plan.salary?.let {
+        val salaryStatus = incomeSource?.let {
             when {
                 salaryReceived != null -> SalaryStatus.RECEIVED
-                plan.salaryDay != null && today.dayOfMonth > plan.salaryDay + LATE_AFTER_DAYS -> SalaryStatus.LATE
+                salaryDay != null && today.dayOfMonth > salaryDay + LATE_AFTER_DAYS -> SalaryStatus.LATE
                 else -> SalaryStatus.EXPECTED
             }
         }
@@ -111,7 +153,10 @@ object PlanInsightsBuilder {
             salaryReceived = salaryReceived,
             salaryStatus = salaryStatus,
             items = statuses,
-            savedSoFar = totalReceived - totalSent
+            savedSoFar = totalReceived - totalSent,
+            incomeSource = incomeSource,
+            salaryDay = salaryDay,
+            salaryRange = spotted?.takeIf { it.low.compareTo(it.high) != 0 }?.let { it.low to it.high }
         )
     }
 

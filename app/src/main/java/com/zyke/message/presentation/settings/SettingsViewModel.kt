@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.diagnostics.DiagnosticsBuilder
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.plan.SalaryDetector
 import java.math.BigDecimal
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
@@ -153,7 +154,8 @@ class SettingsViewModel(
     private fun recomputeLimits() {
         val state = currentState()
         val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone)
-        reduce { copy(limits = limits) }
+        val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
+        reduce { copy(limits = limits, spottedSalary = spotted) }
     }
 
     /** A blank or unusable entry clears the limit rather than keeping a stale one. */

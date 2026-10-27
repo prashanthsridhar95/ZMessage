@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.PlanItem
 import com.zyke.message.domain.plan.PlanItemKind
+import com.zyke.message.domain.plan.SalaryPattern
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -48,6 +49,7 @@ private const val MAX_DAY = 31
 @Composable
 internal fun PlanSection(
     plan: MoneyPlan,
+    spotted: SalaryPattern?,
     onSalary: (amount: String, day: String) -> Unit,
     onSavingsGoal: (String) -> Unit,
     onSaveItem: (PlanItem) -> Unit,
@@ -66,9 +68,22 @@ internal fun PlanSection(
             maxLines = 4
         )
 
-        // Salary
+        // Salary: the messages come first; what is entered here is the fallback.
+        if (spotted != null) {
+            val range = if (spotted.low.compareTo(spotted.high) != 0) {
+                ", lately ${DisplayFormatters.rupees(spotted.low)} to ${DisplayFormatters.rupees(spotted.high)}"
+            } else {
+                ""
+            }
+            PlanRow(
+                title = "Salary found in your messages",
+                value = DisplayFormatters.rupees(spotted.typical),
+                detail = "Around day ${spotted.typicalDay}$range. Used instead of the amount below.",
+                onClick = { editSalary = true }
+            )
+        }
         PlanRow(
-            title = "Monthly salary",
+            title = if (spotted != null) "Salary to use if none is found" else "Monthly salary",
             value = plan.salary?.let { DisplayFormatters.rupees(it) } ?: "Not set",
             detail = plan.salaryDay?.let { "Usually arrives on day $it" },
             onClick = { editSalary = true }
@@ -115,9 +130,9 @@ internal fun PlanSection(
         )
 
         // What is left
-        val salary = plan.salary
+        val salary = spotted?.typical ?: plan.salary
         if (salary != null) {
-            val left = salary - plan.outflows.sumOf { it.amount } - plan.investments.sumOf { it.amount } - (plan.savingsGoal ?: BigDecimal.ZERO)
+            val left = salary -plan.outflows.sumOf { it.amount } - plan.investments.sumOf { it.amount } - (plan.savingsGoal ?: BigDecimal.ZERO)
             val fits = left.signum() >= 0
             Text(
                 if (fits) {

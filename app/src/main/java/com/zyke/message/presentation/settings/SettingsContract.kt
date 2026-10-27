@@ -8,6 +8,7 @@ import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.PlanItem
+import com.zyke.message.domain.plan.SalaryPattern
 import java.math.BigDecimal
 
 object SettingsContract {
@@ -23,7 +24,9 @@ object SettingsContract {
         val dailyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
         val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
         /** What the person has told the app about their month. */
-        val plan: MoneyPlan = MoneyPlan()
+        val plan: MoneyPlan = MoneyPlan(),
+        /** The salary the messages show arriving each month, if there is one. It is used ahead of the entered amount. */
+        val spottedSalary: SalaryPattern? = null
     )
 
     sealed interface Intent {
