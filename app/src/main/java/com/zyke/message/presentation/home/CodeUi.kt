@@ -1,5 +1,10 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.ButtonSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -54,17 +59,12 @@ private const val COPIED_FOR_MS = 1_800L
 private const val APPEAR_MS = 520
 
 /**
- * A one-time code as a card of its own: who sent it, each digit on its own tile, a ring that counts down the minutes it
- * has left and a bar that drains beneath, and one button that says "Copied" once it is. The digits arrive one after
- * another. When the time is up the card dims and the button is switched off.
+ * A one-time code: who sent it, each digit on its own tile, a ring that counts down the minutes it has left and a bar
+ * that drains beneath, and one button that says "Copied" once it is. The digits arrive one after another. When the
+ * time is up it dims and the button is switched off. No card round it; the card on Home and the list of codes add theirs.
  */
 @Composable
-internal fun CodeCard(
-    message: ClassifiedMessage,
-    nowMillis: Long,
-    onCopy: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+internal fun CodeCardContent(message: ClassifiedMessage, nowMillis: Long, onCopy: () -> Unit) {
     val otp = message.content as? MessageContent.Otp ?: return
     val left = (message.message.date + CODE_LIFE_WINDOW_MS - nowMillis).coerceAtLeast(0)
     val fraction = left.toFloat() / CODE_LIFE_WINDOW_MS
@@ -88,9 +88,8 @@ internal fun CodeCard(
     val appear = remember(otp.code) { Animatable(if (reduceMotion) 1f else 0f) }
     LaunchedEffect(otp.code) { if (!reduceMotion) appear.animateTo(1f, tween(APPEAR_MS)) }
 
-    FintechCard(
-        modifier.semantics { contentDescription = "Verification code from $sender, ${otp.code.toList().joinToString(" ")}, " + (if (expired) "expired" else "${seconds / SECONDS_IN_MINUTE} minutes ${seconds % SECONDS_IN_MINUTE} seconds left") },
-        onClick = if (expired) null else ({ copiedAt = System.currentTimeMillis(); onCopy() })
+    Column(
+        Modifier.semantics { contentDescription = "Verification code from $sender, ${otp.code.toList().joinToString(" ")}, " + (if (expired) "expired" else "${seconds / SECONDS_IN_MINUTE} minutes ${seconds % SECONDS_IN_MINUTE} seconds left") }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = sender, size = 44.dp)
@@ -152,6 +151,54 @@ internal fun CodeCard(
             style = if (copied) ButtonStyle.TONAL else ButtonStyle.PRIMARY,
             enabled = !expired
         )
+    }
+}
+
+/** One code on a card of its own, as in the list of all codes. */
+@Composable
+internal fun CodeCard(message: ClassifiedMessage, nowMillis: Long, onCopy: () -> Unit, modifier: Modifier = Modifier) {
+    FintechCard(modifier) { CodeCardContent(message, nowMillis, onCopy) }
+}
+
+/**
+ * Every code that is still good, on one card: swipe sideways between them, with dots under the card's content to say
+ * how many there are, and the full list one tap away inside the same card.
+ */
+@Composable
+internal fun CodePagerCard(
+    codes: List<ClassifiedMessage>,
+    nowMillis: Long,
+    onCopy: (ClassifiedMessage, String) -> Unit,
+    onAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pager = rememberPagerState { codes.size }
+    FintechCard(modifier) {
+        HorizontalPager(pager, Modifier.fillMaxWidth(), pageSpacing = 24.dp, verticalAlignment = Alignment.Top, key = { codes[it].id }) { page ->
+            val message = codes[page]
+            val otp = message.content as MessageContent.Otp
+            CodeCardContent(message, nowMillis, onCopy = { onCopy(message, otp.code) })
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (codes.size > 1) {
+                    repeat(codes.size) { index ->
+                        val selected = pager.currentPage == index
+                        val width by animateDpAsState(if (selected) 18.dp else 6.dp, tween(200), label = "dot")
+                        Box(
+                            Modifier.height(6.dp).width(width).background(
+                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                RoundedCornerShape(3.dp)
+                            )
+                        )
+                    }
+                }
+            }
+            AppButton(
+                if (codes.size > 1) "All ${codes.size} codes" else "All codes",
+                onAll, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+            )
+        }
     }
 }
 

@@ -370,6 +370,14 @@ private var sampleCache: Pair<Long, ClassifiedMessage>? = null
 
 private const val SAMPLE_ID = -9_000L
 
+/** Every code that has not yet run out, newest first, with the sample code first while it is on. */
+internal fun freshCodes(state: HomeContract.State, nowMillis: Long): List<ClassifiedMessage> =
+    listOfNotNull(sampleCode(state, nowMillis)) + state.messages.filter {
+        it.content is MessageContent.Otp && nowMillis - it.message.date in 0 until CODE_LIFE_WINDOW_MS && it.id !in state.userState.archivedIds
+    }.take(MAX_FRESH_CODES)
+
+private const val MAX_FRESH_CODES = 6
+
 /** The newest code that has not yet run out, or null. */
 internal fun freshCode(state: HomeContract.State, nowMillis: Long): ClassifiedMessage? =
     state.messages.firstOrNull {

@@ -210,7 +210,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
     val nowMillis = rememberNowMillis()
-    val code = freshCode(state, nowMillis) ?: sampleCode(state, nowMillis)
+    val codes = freshCodes(state, nowMillis)
 
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
@@ -233,12 +233,13 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(daily) } }
         }
 
-        if (code != null) {
+        if (codes.isNotEmpty()) {
             item(key = "code") {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    CodeCard(code, nowMillis, onCopy = { onIntent(Intent.CopyOtp(code.id, (code.content as MessageContent.Otp).code)) })
-                    LinkButton("All codes", { onIntent(Intent.OpenCodes) })
-                }
+                CodePagerCard(
+                    codes, nowMillis,
+                    onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
+                    onAll = { onIntent(Intent.OpenCodes) }
+                )
             }
         }
 
