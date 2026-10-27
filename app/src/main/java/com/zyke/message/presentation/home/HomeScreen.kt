@@ -168,8 +168,8 @@ fun HomeScreen(
     }
 }
 
-/** The three screens the shared home state feeds: the summary, what is due, and the codes. */
-enum class HomePage { HOME, BILLS, CODES }
+/** The three screens the shared home state feeds: the summary, the accounts, and what is due. */
+enum class HomePage { HOME, ACCOUNTS, BILLS }
 
 @Composable
 private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
@@ -195,77 +195,116 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     when (page) {
         HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate)
         HomePage.BILLS -> BillsPage(state, today, onIntent)
-        HomePage.CODES -> CodesPage(state, onIntent)
+        HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
     }
 }
 
 /**
- * Home answers one question, "am I okay?": the month in one number, then the one thing worth knowing and the
- * next payment due. Everything else has a tab of its own.
+ * Home is the money at a glance: what the accounts hold, today's budget, a code if one has just arrived, the one
+ * thing worth knowing, what is due next and the latest activity. Each part is a card; everything else has a tab.
  */
 @Composable
 private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
+    val nowMillis = rememberNowMillis()
+    val code = freshCode(state, nowMillis)
 
-    CompositionLocalProvider(LocalContentInset provides 24.dp) {
+    CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(40.dp)
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (state.isBlank) {
             item(key = "blank") {
-                PlainSection("Nothing here yet") {
-                    Caption("Payments and bills show up here as soon as the bank messages arrive.", maxLines = 3)
+                FintechCard {
+                    RowTitle("Nothing here yet")
+                    Caption("Your accounts, payments and bills show up here as soon as the bank messages arrive.", maxLines = 3)
                 }
             }
         }
 
+        item(key = "balance") { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } }
+
         state.daily?.let { daily ->
-            item(key = "today") { TodayBudget(daily) { onIntent(Intent.OpenCalendar) } }
+            item(key = "today") { FintechCard { TodayBudget(daily) { onIntent(Intent.OpenCalendar) } } }
         }
 
-        // With a daily budget the month is a line of context; without one it is the headline.
-        state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
-            item(key = "month") { MonthHeadline(month) { onNavigate(AppTab.MONEY) } }
-        }
-
-        if (state.quickAdds.isNotEmpty()) {
-            item(key = "quickadds") { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } }
+        if (code != null) {
+            item(key = "code") {
+                val otp = code.content as MessageContent.Otp
+                val left = (code.message.date + CODE_LIFE_WINDOW_MS - nowMillis).coerceAtLeast(0)
+                FintechCard {
+                    CodeRow(
+                        sender = otp.senderName.ifEmpty { code.merchant.name },
+                        code = otp.code,
+                        note = null,
+                        fractionLeft = left.toFloat() / CODE_LIFE_WINDOW_MS,
+                        secondsLeft = (left / 1000).toInt(),
+                        onCopy = { onIntent(Intent.CopyOtp(code.id, otp.code)) }
+                    )
+                    LinkButton("All codes", { onIntent(Intent.OpenCodes) })
+                }
+            }
         }
 
         if (focus != null) {
             item(key = "focus") {
-                FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE) {
-                    focus.messageId?.let { onIntent(Intent.OpenMessage(it)) }
+                FintechCard {
+                    FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE) {
+                        focus.messageId?.let { onIntent(Intent.OpenMessage(it)) }
+                    }
                 }
             }
         }
 
         if (state.attention.isNotEmpty()) {
-            item(key = "attention") { AttentionStrip(state.attention, today, actions) }
+            item(key = "attention") { FintechCard { AttentionStrip(state.attention, today, actions) } }
+        }
+
+        if (next != null) {
+            item(key = "next") {
+                FintechCard {
+                    Caption("NEXT DUE")
+                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }) { onIntent(Intent.OpenLink(it)) }
+                    LinkButton("All bills", { onNavigate(AppTab.BILLS) })
+                }
+            }
+        }
+
+        if (state.recent.isNotEmpty()) {
+            item(key = "activity") {
+                FintechCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RowTitle("Recent activity", Modifier.weight(1f))
+                        state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
+                            Caption("Spent ${DisplayFormatters.rupees(month.total)} · ${periodName(month.range)}")
+                        }
+                    }
+                    state.recent.take(MAX_RECENT_ACTIVITY).forEachIndexed { index, message ->
+                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        RecentRow(message, onOpen = { onIntent(Intent.OpenMessage(message.id)) })
+                    }
+                    LinkButton("Insights", { onNavigate(AppTab.MONEY) })
+                }
+            }
         }
 
         if (state.agenda.isNotEmpty()) {
             item(key = "plans") {
-                PlainSection("Plans") {
+                FintechCard {
+                    RowTitle("Plans")
                     state.agenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
-                        if (index > 0) HorizontalDivider()
+                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
                     }
                 }
             }
         }
 
-        if (next != null) {
-            item(key = "next") {
-                Column(Modifier.fillMaxWidth()) {
-                    Caption("NEXT DUE")
-                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }) { onIntent(Intent.OpenLink(it)) }
-                    LinkButton("All bills", { onNavigate(AppTab.BILLS) })
-                }
-            }
+        if (state.quickAdds.isNotEmpty()) {
+            item(key = "quickadds") { FintechCard { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } } }
         }
     }
     }
@@ -333,55 +372,12 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
 }
 
 /**
- * Codes laid out like an authenticator app: the code in large grouped digits, the sender above it and a ring on
- * the right that empties as the code runs out. Tap a code to copy it. A code is treated as live for ten minutes,
- * which is how long most services accept one.
+ * A code laid out like an authenticator app: the code in large grouped digits, the sender above it and a ring on
+ * the right that empties as the code runs out. Tap to copy. A code is treated as live for ten minutes, which is how
+ * long most services accept one.
  */
 @Composable
-private fun CodesPage(state: State, onIntent: (Intent) -> Unit) {
-    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            nowMillis = System.currentTimeMillis()
-            kotlinx.coroutines.delay(CODE_TICK_MS)
-        }
-    }
-
-    val codes = state.messages.filter {
-        it.content is MessageContent.Otp && it.message.date >= nowMillis - CODE_LIST_MS && it.id !in state.userState.archivedIds
-    }.take(MAX_CODES)
-
-    if (codes.isEmpty()) {
-        Column(
-            Modifier.fillMaxSize().padding(32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("No codes right now", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
-            Caption("A code shows up here the moment it arrives.", maxLines = 2)
-        }
-        return
-    }
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(codes, key = { it.id }) { message ->
-            val otp = message.content as MessageContent.Otp
-            val left = (message.message.date + CODE_LIFE_MS - nowMillis).coerceAtLeast(0)
-            CodeRow(
-                sender = otp.senderName.ifEmpty { message.merchant.name },
-                code = otp.code,
-                note = otp.paymentAmount?.let { "Payment of ${DisplayFormatters.rupees(it)}" },
-                fractionLeft = left.toFloat() / CODE_LIFE_MS,
-                secondsLeft = (left / MILLIS_PER_SECOND).toInt(),
-                onCopy = { onIntent(Intent.CopyOtp(message.id, otp.code)) }
-            )
-            HorizontalDivider(Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-        }
-    }
-}
-
-@Composable
-private fun CodeRow(sender: String, code: String, note: String?, fractionLeft: Float, secondsLeft: Int, onCopy: () -> Unit) {
+internal fun CodeRow(sender: String, code: String, note: String?, fractionLeft: Float, secondsLeft: Int, onCopy: () -> Unit) {
     val expired = secondsLeft == 0
     val running = if (fractionLeft > CODE_WARN_FRACTION) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
     val spoken = if (expired) "expired" else "${secondsLeft / SECONDS_PER_MINUTE} minutes ${secondsLeft % SECONDS_PER_MINUTE} seconds left"
@@ -440,6 +436,22 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             },
             onDismiss = { onIntent(Intent.CloseMessage) }
         )
+    }
+
+    val account = state.accounts.accounts.firstOrNull { it.key == state.openAccountKey }
+    if (account != null) {
+        AccountSheet(
+            account = account,
+            state = state,
+            onPay = { onIntent(Intent.OpenLink(it)) },
+            onName = { onIntent(Intent.NameAccount(account.key, it)) },
+            onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
+            onDismiss = { onIntent(Intent.CloseAccount) }
+        )
+    }
+
+    if (state.showCodes) {
+        CodesSheet(state, onCopy = { id, code -> onIntent(Intent.CopyOtp(id, code)) }, onDismiss = { onIntent(Intent.CloseCodes) })
     }
 
     val calendarOffset = state.calendarOffset
@@ -521,15 +533,11 @@ private const val BUDGET_WARNING = 0.8
 private const val MAX_BUDGETS = 3
 
 private const val MAX_RECENT = 3
-private const val CODE_LIFE_MS = 10 * 60 * 1000L
-private const val CODE_LIST_MS = 60 * 60 * 1000L
-private const val CODE_TICK_MS = 1000L
-private const val MILLIS_PER_SECOND = 1000
-private const val SECONDS_PER_MINUTE = 60
-private const val CODE_WARN_FRACTION = 0.2f
-private val CODE_GROUPABLE = 4..10 step 2
-private const val MAX_CODES = 5
+internal const val SECONDS_PER_MINUTE = 60
+internal const val CODE_WARN_FRACTION = 0.2f
+internal val CODE_GROUPABLE = 4..10 step 2
 private const val MAX_PLANS = 4
+private const val MAX_RECENT_ACTIVITY = 5
 
 /** A heading and its rows on the plain page: no box, no fill. */
 @Composable
@@ -656,7 +664,7 @@ private fun BudgetLine(item: CategoryTotal, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
+internal fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
     val tx = message.content as? MessageContent.Transaction ?: return
     val sign = if (tx.isReceived) "+" else "-"
     Row(

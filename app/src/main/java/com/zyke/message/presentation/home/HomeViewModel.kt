@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.model.UserCard
+import com.zyke.message.domain.model.CardType
+import com.zyke.message.domain.accounts.Accounts
+import com.zyke.message.domain.accounts.AccountKind
 import com.zyke.message.domain.cycle.CycleRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -124,6 +128,11 @@ class HomeViewModel(
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
             is Intent.ShiftCalendar -> reduce { copy(calendarOffset = calendarOffset?.plus(intent.months)?.coerceAtMost(0)) }
+            is Intent.OpenAccount -> reduce { copy(openAccountKey = intent.key) }
+            Intent.CloseAccount -> reduce { copy(openAccountKey = null) }
+            Intent.OpenCodes -> reduce { copy(showCodes = true) }
+            Intent.CloseCodes -> reduce { copy(showCodes = false) }
+            is Intent.NameAccount -> nameAccount(intent.key, intent.name)
             Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
@@ -147,6 +156,22 @@ class HomeViewModel(
                 startObserving()
             }
         }
+    }
+
+    private fun nameAccount(key: String, name: String) {
+        val account = currentState().accounts.accounts.firstOrNull { it.key == key } ?: return
+        val type = when (account.kind) {
+            AccountKind.BANK_ACCOUNT -> CardType.ACCOUNT
+            AccountKind.CREDIT_CARD -> CardType.CREDIT
+            AccountKind.DEBIT_CARD -> CardType.DEBIT
+        }
+        val existing = account.userCard
+        cardRepository.save(
+            UserCard(
+                id = existing?.id ?: "named-$key", type = existing?.type ?: type, last4 = account.last4,
+                name = name.trim(), statementDay = existing?.statementDay, bankName = existing?.bankName ?: account.bankName.displayString
+            )
+        )
     }
 
     private fun addQuick(quick: QuickAdd) {
@@ -195,6 +220,7 @@ class HomeViewModel(
             updated.copy(
                 cycle = cycle,
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
+                accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle),
                 quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))
                     .take(MAX_NUDGES),

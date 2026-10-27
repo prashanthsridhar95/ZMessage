@@ -4,6 +4,7 @@ import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
+import com.zyke.message.domain.accounts.AccountsOverview
 import com.zyke.message.domain.budget.DailyBudgetStatus
 import com.zyke.message.domain.insights.Nudge
 import com.zyke.message.domain.plan.MoneyPlan
@@ -62,6 +63,8 @@ object HomeContract {
         val subscriptions: List<Subscription> = emptyList(),
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
         val daily: DailyBudgetStatus? = null,
+        /** Every bank account and card the messages mention, and what the accounts hold in all. */
+        val accounts: AccountsOverview = AccountsOverview(emptyList(), null, 0),
         /** Things the messages show that the person has not entered yet. */
         val quickAdds: List<QuickAdd> = emptyList(),
         /** Appointments, trips and renewals in the next two weeks, and orders on their way. */
@@ -75,6 +78,9 @@ object HomeContract {
         /** Where the person's month starts, from their settings. */
         val cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR,
         val showQuickAdds: Boolean = false,
+        /** The account whose sheet is open, and whether the list of codes is. */
+        val openAccountKey: String? = null,
+        val showCodes: Boolean = false,
         /** The payment being split with friends, while its dialog is open. */
         val splittingMessageId: Long? = null
     ) {
@@ -103,6 +109,11 @@ object HomeContract {
         data object OpenCalendar : Intent
         data object CloseCalendar : Intent
         data class ShiftCalendar(val months: Int) : Intent
+        data class OpenAccount(val key: String) : Intent
+        data object CloseAccount : Intent
+        data class NameAccount(val key: String, val name: String) : Intent
+        data object OpenCodes : Intent
+        data object CloseCodes : Intent
         data object OpenQuickAdds : Intent
         data object CloseQuickAdds : Intent
         data class AddQuick(val quick: QuickAdd) : Intent

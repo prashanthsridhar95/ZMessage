@@ -39,13 +39,13 @@ import com.zyke.message.R
 
 private const val TAB_SLIDE_DIVISOR = 12
 
-/** Five places, each with one job: am I okay, where did it go, what is due, a code, and the messages. */
+/** Five places, money first: how things stand, the accounts, the insights, what is due, and the messages behind it all. */
 enum class AppTab(val label: String, val icon: Int) {
     HOME("Home", R.drawable.baseline_home_24),
-    MONEY("Spend", R.drawable.baseline_wallet_24),
+    ACCOUNTS("Accounts", R.drawable.ic_accounts_24),
+    MONEY("Insights", R.drawable.ic_insights_24),
     BILLS("Bills", R.drawable.baseline_receipt_24),
-    CODES("Codes", R.drawable.baseline_lock_24),
-    INBOX("Inbox", R.drawable.baseline_message_24)
+    INBOX("Messages", R.drawable.baseline_message_24)
 }
 
 /** The tab the app opens on, and the one Back returns to before leaving. */

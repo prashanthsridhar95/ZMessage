@@ -179,12 +179,12 @@ class MainActivity : ComponentActivity() {
                             modifier = modifier,
                             page = HomePage.BILLS
                         )
-                        AppTab.CODES -> HomeRoute(
+                        AppTab.ACCOUNTS -> HomeRoute(
                             viewModel = homeViewModel,
                             onNavigate = navigate,
                             onRequestPermission = { smsPermission.launch(Manifest.permission.READ_SMS) },
                             modifier = modifier,
-                            page = HomePage.CODES
+                            page = HomePage.ACCOUNTS
                         )
                         AppTab.INBOX -> MessagesRoute(messagesViewModel, modifier)
                     }
