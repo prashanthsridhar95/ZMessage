@@ -76,8 +76,7 @@ class HomeViewModel(
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val cardRepository: CardRepository = NoCards,
     private val goalRepository: GoalRepository = NoGoals,
-    private val reminderRepository: ReminderRepository = NoReminders,
-    private val sampleCode: kotlinx.coroutines.flow.StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)
+    private val reminderRepository: ReminderRepository = NoReminders
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
@@ -98,7 +97,6 @@ class HomeViewModel(
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
         viewModelScope.launch { planRepository.plan.collect { plan -> reduceHome { copy(plan = plan) } } }
-        viewModelScope.launch { sampleCode.collect { at -> reduceHome { copy(sampleCodeAt = at) } } }
         viewModelScope.launch { goalRepository.goals.collect { goals -> reduceHome { copy(goalList = goals) } } }
         viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
@@ -283,8 +281,7 @@ class HomeViewModel(
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val cardRepository: CardRepository = NoCards,
         private val goalRepository: GoalRepository = NoGoals,
-        private val reminderRepository: ReminderRepository = NoReminders,
-        private val sampleCode: kotlinx.coroutines.flow.StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)
+        private val reminderRepository: ReminderRepository = NoReminders
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -292,7 +289,7 @@ class HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
-                goalRepository = goalRepository, reminderRepository = reminderRepository, sampleCode = sampleCode
+                goalRepository = goalRepository, reminderRepository = reminderRepository
             ) as T
     }
 

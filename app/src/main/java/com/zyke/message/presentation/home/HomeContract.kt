@@ -92,8 +92,6 @@ object HomeContract {
         val showCodes: Boolean = false,
         val showGoals: Boolean = false,
         val showReminders: Boolean = false,
-        /** When the person asked to see a sample code, so the code card can be tried without waiting for a real one. */
-        val sampleCodeAt: Long? = null,
         /** The trip whose scene is open. */
         val journeyMessageId: Long? = null,
         /** The payment being split with friends, while its dialog is open. */
