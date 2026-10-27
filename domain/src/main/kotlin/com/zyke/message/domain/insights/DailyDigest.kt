@@ -6,6 +6,8 @@ import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserMessageState
+import com.zyke.message.domain.reminders.Reminder
+import com.zyke.message.domain.reminders.Reminders
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.time.Instant
@@ -23,10 +25,21 @@ object DailyDigest {
     private const val DUE_SOON_DAYS = 3L
     private const val MAX_LINES = 5
 
-    fun build(messages: List<ClassifiedMessage>, userState: UserMessageState, now: Instant, zone: ZoneId): DigestSummary? {
+    fun build(
+        messages: List<ClassifiedMessage>,
+        userState: UserMessageState,
+        now: Instant,
+        zone: ZoneId,
+        reminders: List<Reminder> = emptyList()
+    ): DigestSummary? {
         val today = LocalDate.ofInstant(now, zone)
         val live = messages.filter { it.id !in userState.archivedIds && !it.isPromotional }
         val lines = mutableListOf<String>()
+
+        // What the person asked to be reminded of comes first.
+        Reminders.upcoming(reminders, today, withinDays = 1).forEach { due ->
+            lines += "Reminder: ${due.reminder.title}" + (due.reminder.amount?.let { " ${rupees(it)}" } ?: "") + " ${dayWord(due.on, today)}"
+        }
 
         UpcomingBuilder.build(live, today).filter { !it.date.isAfter(today.plusDays(DUE_SOON_DAYS)) }.forEach { due ->
             lines += "${due.title} ${rupees(due.amount)} ${dayWord(due.date, today)}"
