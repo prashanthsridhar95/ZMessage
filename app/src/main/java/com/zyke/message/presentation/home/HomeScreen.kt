@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.periodName
 import com.zyke.message.presentation.common.fullWidthClickable
@@ -333,7 +334,10 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
                     RowTitle("Plans")
                     state.agenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+                        AgendaRow(agendaItem, today) {
+                            // A trip opens as its own scene; anything else shows the message.
+                            onIntent(if (agendaItem.kind == LifeKind.TRAVEL) Intent.OpenJourney(agendaItem.message.id) else Intent.OpenMessage(agendaItem.message.id))
+                        }
                     }
                 }
             }
@@ -489,6 +493,14 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             onName = { onIntent(Intent.NameAccount(account.key, it)) },
             onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
             onDismiss = { onIntent(Intent.CloseAccount) }
+        )
+    }
+
+    state.messages.firstOrNull { it.id == state.journeyMessageId }?.let { trip ->
+        JourneySheet(
+            message = trip,
+            onOpenMessage = { onIntent(Intent.CloseJourney); onIntent(Intent.OpenMessage(trip.id)) },
+            onDismiss = { onIntent(Intent.CloseJourney) }
         )
     }
 

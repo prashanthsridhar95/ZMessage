@@ -90,6 +90,8 @@ object HomeContract {
         /** The account whose sheet is open, and whether the list of codes is. */
         val openAccountKey: String? = null,
         val showCodes: Boolean = false,
+        /** The trip whose scene is open. */
+        val journeyMessageId: Long? = null,
         /** The payment being split with friends, while its dialog is open. */
         val splittingMessageId: Long? = null
     ) {
@@ -126,6 +128,8 @@ object HomeContract {
         data class OpenAccount(val key: String) : Intent
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent
+        data class OpenJourney(val messageId: Long) : Intent
+        data object CloseJourney : Intent
         data object OpenCodes : Intent
         data object CloseCodes : Intent
         data object OpenQuickAdds : Intent

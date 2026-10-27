@@ -148,6 +148,8 @@ class HomeViewModel(
             is Intent.RemoveReminder -> reminderRepository.remove(intent.id)
             is Intent.OpenAccount -> reduce { copy(openAccountKey = intent.key) }
             Intent.CloseAccount -> reduce { copy(openAccountKey = null) }
+            is Intent.OpenJourney -> reduce { copy(journeyMessageId = intent.messageId) }
+            Intent.CloseJourney -> reduce { copy(journeyMessageId = null) }
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
             Intent.CloseCodes -> reduce { copy(showCodes = false) }
             is Intent.NameAccount -> nameAccount(intent.key, intent.name)
