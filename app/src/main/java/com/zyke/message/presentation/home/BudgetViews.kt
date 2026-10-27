@@ -1,5 +1,12 @@
 package com.zyke.message.presentation.home
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import com.zyke.message.domain.cycle.CycleRule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -93,7 +100,11 @@ internal fun TodayBudget(daily: DailyBudgetStatus, onOpen: () -> Unit) {
     }
 }
 
-/** A pay cycle of days, each green when it stayed within the daily budget and red when it went over; the streak above. */
+/**
+ * The budget calendar: the streak as the headline, then the pay cycle as a plain grid. Days are not painted red or
+ * green; a small mark under the date says whether the day stayed within budget, the days of the current streak
+ * share one soft band, today has an outline, and tapping a day shows what was spent on it.
+ */
 @Composable
 internal fun BudgetCalendarSheet(
     messages: List<ClassifiedMessage>,
@@ -108,49 +119,100 @@ internal fun BudgetCalendarSheet(
     val today = java.time.LocalDate.ofInstant(now, zone)
     val range = remember(cycle, offset, today) { cycle.shifted(today, offset) }
     val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone) }
+    val streakDays = remember(daily.currentStreak, today) { (0 until daily.currentStreak).map { today.minusDays(it.toLong()) }.toSet() }
+    var selected by rememberSaveable(range.start) { mutableStateOf<java.time.LocalDate?>(null) }
     val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
     val leading = (range.start.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
+    val within = days.count { it.status == DayStatus.UNDER }
+    val over = days.count { it.status == DayStatus.OVER }
 
     AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text("Budget calendar", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-            Caption(
-                "${DisplayFormatters.count(daily.currentStreak, "day", "days")} in a row · best ${daily.bestStreak}",
-                Modifier.padding(top = 2.dp),
-                color = if (daily.currentStreak > 0) UnderColor else mutedColor()
-            )
-            Caption("Daily budget ${DisplayFormatters.rupees(daily.allowance)}. Investments, savings, insurance, charity and card bills don't count.", Modifier.padding(top = 2.dp), maxLines = 3)
-
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Caption("DAILY BUDGET STREAK")
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
                 Text(
-                    "${dayFormat.format(range.start)} – ${dayFormat.format(range.endInclusive)}", Modifier.weight(1f), textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
+                    daily.currentStreak.toString(),
+                    Modifier.heading(),
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+                Text(
+                    if (daily.currentStreak == 1) "day" else "days",
+                    Modifier.padding(start = 8.dp, bottom = 10.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Caption(
+                if (daily.currentStreak > 0) "within ${DisplayFormatters.rupees(daily.allowance)} a day · best ${daily.bestStreak}"
+                else "Stay within ${DisplayFormatters.rupees(daily.allowance)} today to start one · best ${daily.bestStreak}",
+                maxLines = 2
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 18.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${dayFormat.format(range.start)} – ${dayFormat.format(range.endInclusive)}",
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
+                    )
+                    Caption("$within within budget · $over over")
+                }
                 AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = offset < 0)
             }
 
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp)) {
                 (0..6).forEach { offsetDay ->
                     Caption(
-                        DayOfWeek.MONDAY.plus(offsetDay.toLong()).getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                        DayOfWeek.MONDAY.plus(offsetDay.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(2).uppercase(),
                         Modifier.weight(1f), textAlign = TextAlign.Center
                     )
                 }
             }
             val cells = leading + days.size
             (0 until (cells + 6) / 7).forEach { week ->
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     (0..6).forEach { column ->
-                        val index = week * 7 + column - leading
-                        val day = days.getOrNull(index)
-                        Box(Modifier.weight(1f).aspectRatio(1f).padding(3.dp), contentAlignment = Alignment.Center) {
-                            if (day != null) DayCell(day, isToday = day.date == today)
+                        val day = days.getOrNull(week * 7 + column - leading)
+                        Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
+                            if (day != null) {
+                                DayCell(
+                                    day,
+                                    isToday = day.date == today,
+                                    inStreak = day.date in streakDays,
+                                    isSelected = day.date == selected,
+                                    onClick = { selected = if (selected == day.date) null else day.date }
+                                )
+                            }
                         }
                     }
                 }
             }
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+
+            val chosen = days.firstOrNull { it.date == selected }
+            Column(Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 44.dp)) {
+                if (chosen != null) {
+                    Text(
+                        DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(chosen.date),
+                        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary
+                    )
+                    Caption(
+                        when (chosen.status) {
+                            DayStatus.UNDER -> "${DisplayFormatters.rupees(chosen.spent)} of ${DisplayFormatters.rupees(daily.allowance)} · within budget"
+                            DayStatus.OVER -> "${DisplayFormatters.rupees(chosen.spent)} of ${DisplayFormatters.rupees(daily.allowance)} · over by ${DisplayFormatters.rupees(chosen.spent - daily.allowance)}"
+                            DayStatus.NONE -> "No data for this day"
+                        },
+                        maxLines = 2
+                    )
+                } else {
+                    Caption("Tap a day to see what was spent. Investments, savings, insurance, charity and card bills don't count.", maxLines = 3)
+                }
+            }
+
+            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 Legend(UnderColor, "Within budget")
                 Legend(OverColor, "Over budget")
             }
@@ -158,41 +220,54 @@ internal fun BudgetCalendarSheet(
     }
 }
 
+/** A date with a small mark beneath it: green within budget, red over, none for days that have not happened. */
 @Composable
-private fun DayCell(day: BudgetDay, isToday: Boolean) {
-    val fill = when (day.status) {
-        DayStatus.UNDER -> UnderColor.copy(alpha = 0.22f)
-        DayStatus.OVER -> OverColor.copy(alpha = 0.22f)
-        DayStatus.NONE -> Color.Transparent
-    }
-    val text = when (day.status) {
+private fun DayCell(day: BudgetDay, isToday: Boolean, inStreak: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+    val mark = when (day.status) {
         DayStatus.UNDER -> UnderColor
         DayStatus.OVER -> OverColor
-        DayStatus.NONE -> mutedColor()
+        DayStatus.NONE -> Color.Transparent
     }
+    val shape = RoundedCornerShape(10.dp)
+    val ink = MaterialTheme.colorScheme.primary
     val spoken = when (day.status) {
         DayStatus.UNDER -> "within budget, spent ${DisplayFormatters.rupees(day.spent)}"
         DayStatus.OVER -> "over budget, spent ${DisplayFormatters.rupees(day.spent)}"
         DayStatus.NONE -> "no data"
     }
-    Box(
-        Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(fill)
-            .then(if (isToday) Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)) else Modifier)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(shape)
+            .background(
+                when {
+                    isSelected -> ink.copy(alpha = 0.14f)
+                    inStreak -> ink.copy(alpha = 0.07f)
+                    else -> Color.Transparent
+                }
+            )
+            .then(if (isToday) Modifier.border(1.5.dp, ink, shape) else Modifier)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show spending for day ${day.date.dayOfMonth}", onClick = onClick)
             .semantics { contentDescription = "${day.date.dayOfMonth}, $spoken" },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Text(
-            day.date.dayOfMonth.toString(), style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal, color = text
+            day.date.dayOfMonth.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (day.status == DayStatus.NONE) mutedColor() else MaterialTheme.colorScheme.primary
         )
+        Box(Modifier.padding(top = 3.dp).size(width = 14.dp, height = 3.dp).background(mark, RoundedCornerShape(2.dp)))
     }
 }
 
 @Composable
 private fun Legend(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).background(color, CircleShape))
-        Spacer(Modifier.width(6.dp))
+        Box(Modifier.size(width = 14.dp, height = 3.dp).background(color, RoundedCornerShape(2.dp)))
+        Spacer(Modifier.width(8.dp))
         Caption(label)
     }
 }
