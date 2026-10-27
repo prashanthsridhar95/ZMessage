@@ -13,6 +13,11 @@ object NoticeParser {
         Regex("(?i)\\bapproved against case ID") to NoticeKind.INSURANCE_CLAIM,
         Regex("(?i)\\bTo pay (?:INR|Rs\\.?)\\s*[\\d,.]+.*?\\bplease click") to NoticeKind.PAYMENT_REQUEST,
         Regex("(?i)\\bannual pass issued on FASTag") to NoticeKind.FASTAG_PASS,
+        Regex("(?i)\\bAutoPay \\(E-mandate\\) Modified") to NoticeKind.MANDATE_MODIFIED,
+        Regex("(?i)\\binstructed to unblock\\b") to NoticeKind.FUNDS_UNBLOCKED,
+        Regex("(?i)\\b(?:transfer|txn) limit\\b") to NoticeKind.LIMIT_CHANGE,
+        Regex("(?i)\\bdues of\\b.*?\\blegal action\\b") to NoticeKind.DUES_REMINDER,
+        Regex("(?i)\\bonce in every \\d+ days to be eligible for insurance") to NoticeKind.ADVISORY,
         Regex("(?i)\\bSIM or telecom service through fraud") to NoticeKind.ADVISORY
     )
 

@@ -210,4 +210,41 @@ class ParsingReportRegressionTest {
         assertTrue(classifier.classify(SmsMessage(1, "AX-XYZ", "Cust ID: Dear Sir/Mam Inv No.: Salary Rs99999, You can work from home Total Due amount: api.whatsapp.com/send?phone=919999999999 Pay Link Galaxy", 0L, true)).isPromotional)
         assertTrue(classifier.classify(SmsMessage(1, "AX-XYZ", "Dear Customer Your order for Jane on Rs99999 is confirmed. Service List: Simple Working Thanks Details api.whatsapp.com/send?phone=919999999999 VTPL", 0L, true)).isPromotional)
     }
+
+    @Test
+    fun round3_moneyMessages() {
+        val sip = transaction("Dear Investor, Your SIP under folio XXXXXXX1234 in Bajaj Finserv Multi Cap Fund Regular Plan - Growth for Rs. 3000.00 is processed and 120.123 units at NAV 25.123 dated 10/10/2026 are allotted on receipt of funds. Regards, Bajaj Finserv MF.")
+        assertEquals("3000", sip.amount)
+        assertEquals("Bajaj Finserv Multi Cap Fund Regular Plan - Growth", sip.payee)
+
+        assertEquals("Airtel recharge", transaction("Recharge of INR 299.00 is successful for your Airtel Mobile on 10-10-2026 10:00, Transaction ID 123456789.Check your balance on Airtel app i.airtel.in/SerAIr .").payee)
+        assertEquals("Domino's", transaction("Thanks for choosing Domino's.We will deliver your order hot & fresh at the earliest|Order no. 123 |Amount:Rs. 1,299.50 |Track order@ https://x.in").payee)
+        assertEquals("65000", transaction("Dear Prashanth, your flight booking with R123 booking ID: 12345678901234567890 is successfully confirmed by Acme for INR 65000. Please check your email.").amount)
+
+        val bill = scheduled("Dear Jane,\nBill Dated 1st of this month of Rs.1180 is Due on 10-Jul-2026.Kindly Pay by Acme www.skylinknet.in/re?r=p99pm9 Before Due Date to Acme")
+        assertEquals("Skylink", bill.payee)
+        assertEquals(LocalDate.of(2026, 7, 10), bill.date)
+        assertEquals("1180", scheduled("Dear Jane,\nBill Dated 1-JUL of Rs.1180 is Over Due Today. Kindly Pay by Acme www.skylinknet.in/re?r=9xiw9e Immediately").amount)
+
+        val toll = (classify("Dear Customer, txn. of INR 95 using IDFC FIRST Bank FASTag on TN01AB1234 done at Acme LTD on 10/10/2026 10:00. Avbl. Bal.: INR 505.50") as MessageContent.FastTag).event
+        assertEquals("TN01AB1234", toll.vehicleNumber)
+    }
+
+    @Test
+    fun round3_noticesAndSpam() {
+        assertEquals(NoticeKind.MANDATE_MODIFIED, notice("AutoPay (E-mandate) Modified!\nFor Netflix\nMax Amt:INR 1500.00\nVia:HDFC Bank CC 1234\nStart:10/10/2026\nEnd:10/10/2027\nSIHub ID:WduBApUHDw\nTnC").kind)
+        assertEquals(NoticeKind.FUNDS_UNBLOCKED, notice("Your bank is instructed to unblock Rs. 15000.00 for Jane applno. SDF123 due to non-allotment. Please contact your bank or ignore if already unblocked. -Kfintech").kind)
+        assertEquals(NoticeKind.LIMIT_CHANGE, notice("Your overall fund transfer limit has been reduced to INR 50,000. Limit can be increased after 1 Day. - Axis Bank").kind)
+        assertEquals(NoticeKind.LIMIT_CHANGE, notice("Welcome to Axis Bank Internet Banking. Current txn limit of INR 25,000 will be upgraded to INR 1,00,000 after 1 Day.").kind)
+        assertEquals(NoticeKind.ADVISORY, notice("Dear Customer, kindly do PoS/ECom TXN by Jane debit card once in every 90 days to be eligible for insurance cover of Rs. 2 Lakh by Acme-Indian Bank").kind)
+        assertEquals(NoticeKind.DUES_REMINDER, notice("Hello JANE,\n\nThis is to inform you that your Indian Bank,Secured Term Loan, A/C RARCIBCH1234567890 has been assigned to Acme Limited for Acme haven't received the payment toward dues of Rs 12345.67 despite several reminders. If we don't receive it, we will be forced to pursue legal action. -Sent via Credgenics").kind)
+
+        listOf(
+            "Trade model gave Rs99,999; proof clear https://x.in",
+            "Rs 9,999 profit in 48 hours. Last entries. https://x.in",
+            "Dear Sir, \nYour request for Rs.9,99,999 Loan is almost complete. Click on compact.link/pFkVP to view.\nrd",
+            "Dear Customer,\nyour Personal Loan request has been approved for Rs.9,99,999. View next steps: compact.link/BTPCa\nRodigi",
+            "Airtel Warning: SPAM | 9 trades, Rs 99,999 profit, and his son now goes to private school. https://x.in"
+        ).forEach { assertTrue(it, classifier.classify(SmsMessage(1, "AX-XYZ", it, 0L, true)).isPromotional) }
+    }
 }

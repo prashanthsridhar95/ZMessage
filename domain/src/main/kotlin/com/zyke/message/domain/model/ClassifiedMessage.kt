@@ -80,6 +80,10 @@ enum class NoticeKind(val label: String) {
     INSURANCE_CLAIM("Claim approved"),
     PAYMENT_REQUEST("Payment request"),
     FASTAG_PASS("FASTag annual pass"),
+    MANDATE_MODIFIED("Autopay changed"),
+    FUNDS_UNBLOCKED("Funds unblocked"),
+    LIMIT_CHANGE("Limit changed"),
+    DUES_REMINDER("Dues reminder"),
     ADVISORY("Advisory")
 }
 

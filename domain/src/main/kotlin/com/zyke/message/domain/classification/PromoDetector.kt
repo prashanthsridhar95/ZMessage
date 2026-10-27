@@ -10,7 +10,9 @@ object PromoDetector {
         "T&C", "unsubscribe", "STOP to", "% off", "use code", "limited time",
         "exclusive offer", "click here", "flat rs", "cashback up to",
         // Scam-style: a WhatsApp deep link or a work-from-home pitch
-        "api.whatsapp.com/send", "work from home"
+        "api.whatsapp.com/send", "work from home",
+        // Trading-tip and instant-loan scams
+        "Airtel Warning: SPAM", "profit in", "Trade model", "View next steps", "Loan is almost complete"
     )
 
     fun isPromotional(sender: String, body: String): Boolean =
