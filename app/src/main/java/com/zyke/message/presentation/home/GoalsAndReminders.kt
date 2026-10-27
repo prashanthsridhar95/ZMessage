@@ -1,5 +1,12 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.goals.Goals
+import com.zyke.message.presentation.common.ChipOption
+import com.zyke.message.presentation.common.Chips
+import com.zyke.message.presentation.common.AmountField
+import com.zyke.message.presentation.common.FormGroup
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.heading
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -106,68 +113,69 @@ internal fun GoalsCard(
     goals.firstOrNull { it.goal.id == topping }?.let { progress ->
         var amount by rememberSaveable { mutableStateOf("") }
         val value = amount.toBigDecimalOrNull()
-        AlertDialog(
-            onDismissRequest = { topping = null },
-            title = { Text("Add to ${progress.goal.name}") },
-            text = {
-                OutlinedTextField(
-                    value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } }, singleLine = true,
-                    prefix = { Text("₹") }, label = { Text("Amount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            },
-            confirmButton = {
-                AppButton("Add", { onAdd(progress.goal.id, value!!); topping = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = value != null && value.signum() > 0)
-            },
-            dismissButton = { AppButton("Cancel", { topping = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-        )
+        FormSheet(
+            title = "Add to ${progress.goal.name}",
+            onDismiss = { topping = null },
+            primaryLabel = value?.let { "Add ${DisplayFormatters.rupees(it)}" } ?: "Add",
+            primaryEnabled = value != null && value.signum() > 0,
+            onPrimary = { onAdd(progress.goal.id, value!!); topping = null }
+        ) {
+            AmountField(
+                label = "How much", value = amount, onChange = { amount = it },
+                supporting = "${DisplayFormatters.rupees(progress.remaining)} to go",
+                quickAdds = listOf(500, 1_000, 5_000, 10_000)
+            )
+        }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Unit)?, onDismiss: () -> Unit) {
+    val today = LocalDate.now()
     var name by rememberSaveable { mutableStateOf(goal?.name.orEmpty()) }
     var target by rememberSaveable { mutableStateOf(goal?.target?.stripTrailingZeros()?.toPlainString().orEmpty()) }
+    var saved by rememberSaveable { mutableStateOf(goal?.saved?.takeIf { it.signum() > 0 }?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     var dateMillis by rememberSaveable { mutableStateOf(goal?.targetDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val amount = target.toBigDecimalOrNull()
+    val date = dateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
+    val presets = listOf("3 months" to today.plusMonths(3), "6 months" to today.plusMonths(6), "1 year" to today.plusYears(1))
+    val preview = if (amount != null && amount.signum() > 0) {
+        Goals.progress(Goal("preview", name, amount, saved.toBigDecimalOrNull() ?: BigDecimal.ZERO, date), today).neededPerMonth
+    } else {
+        null
+    }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (goal == null) "New goal" else "Edit goal") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("What for") })
-                OutlinedTextField(
-                    value = target, onValueChange = { target = it.filter { c -> c.isDigit() || c == '.' } }, singleLine = true,
-                    prefix = { Text("₹") }, label = { Text("Target") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Caption(dateMillis?.let { "By ${DayFormat.format(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())}" } ?: "No date", Modifier.weight(1f))
-                    AppButton(if (dateMillis == null) "Pick a date" else "Change", { picking = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                    if (dateMillis != null) AppButton("Clear", { dateMillis = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                }
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                {
-                    onSave(
-                        Goal(
-                            goal?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, goal?.saved ?: BigDecimal.ZERO,
-                            dateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
-                        )
-                    )
+    FormSheet(
+        title = if (goal == null) "New goal" else "Edit goal",
+        onDismiss = onDismiss,
+        primaryLabel = if (goal == null) "Create goal" else "Save changes",
+        primaryEnabled = name.isNotBlank() && amount != null && amount.signum() > 0,
+        onPrimary = { onSave(Goal(goal?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, saved.toBigDecimalOrNull() ?: BigDecimal.ZERO, date)) },
+        secondaryLabel = if (onRemove != null) "Delete goal" else null,
+        onSecondary = onRemove
+    ) {
+        FormField("Goal", name, { name = it }, placeholder = "Goa trip, new laptop, rainy-day fund")
+        AmountField("Target amount", target, { target = it })
+        FormGroup("Target date (optional)") {
+            Chips(
+                buildList {
+                    add(ChipOption("None", date == null))
+                    presets.forEach { (label, day) -> add(ChipOption(label, date == day)) }
+                    add(ChipOption(if (date != null && presets.none { it.second == date }) DayFormat.format(date) else "Pick a date", date != null && presets.none { it.second == date }))
                 },
-                style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank() && amount != null && amount.signum() > 0
+                onSelect = { index ->
+                    when {
+                        index == 0 -> dateMillis = null
+                        index <= presets.size -> dateMillis = presets[index - 1].second.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                        else -> picking = true
+                    }
+                }
             )
-        },
-        dismissButton = {
-            if (onRemove != null) AppButton("Remove", onRemove, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            else AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            preview?.let { Caption("${DisplayFormatters.rupees(it)} a month gets you there") }
         }
-    )
+        if (goal == null) AmountField("Already saved (optional)", saved, { saved = it })
+    }
     if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
 }
 
@@ -233,39 +241,41 @@ private fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remin
     var monthly by rememberSaveable { mutableStateOf(reminder?.repeatsMonthly ?: false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val day = Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate()
+    val presets = listOf("Today" to today, "Tomorrow" to today.plusDays(1), "In a week" to today.plusWeeks(1))
+    val custom = presets.none { it.second == day }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (reminder == null) "New reminder" else "Edit reminder") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true, label = { Text("What") })
-                OutlinedTextField(
-                    value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } }, singleLine = true,
-                    prefix = { Text("₹") }, label = { Text("Amount (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Caption(DayFormat.format(day), Modifier.weight(1f))
-                    AppButton("Change day", { picking = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+    FormSheet(
+        title = if (reminder == null) "New reminder" else "Edit reminder",
+        onDismiss = onDismiss,
+        primaryLabel = if (reminder == null) "Add reminder" else "Save changes",
+        primaryEnabled = title.isNotBlank(),
+        onPrimary = { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly)) },
+        secondaryLabel = if (onRemove != null) "Delete reminder" else null,
+        onSecondary = onRemove
+    ) {
+        FormField("Reminder", title, { title = it }, placeholder = "Rent, insurance premium, pay Ravi")
+        AmountField("Amount (optional)", amount, { amount = it })
+        FormGroup("When") {
+            Chips(
+                buildList {
+                    presets.forEach { (label, d) -> add(ChipOption(label, day == d)) }
+                    add(ChipOption(if (custom) DayFormat.format(day) else "Pick a date", custom))
+                },
+                onSelect = { index ->
+                    if (index < presets.size) dateMillis = presets[index].second.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() else picking = true
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Caption("Every month on this day", Modifier.weight(1f))
-                    Switch(checked = monthly, onCheckedChange = { monthly = it })
-                }
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly)) },
-                style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = title.isNotBlank()
             )
-        },
-        dismissButton = {
-            if (onRemove != null) AppButton("Remove", onRemove, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            else AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         }
-    )
+        FormGroup("Repeat") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Every month", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                    Caption("on day ${day.dayOfMonth}")
+                }
+                Switch(checked = monthly, onCheckedChange = { monthly = it })
+            }
+        }
+    }
     if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
 }
 

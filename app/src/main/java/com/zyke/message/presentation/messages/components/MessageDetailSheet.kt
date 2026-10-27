@@ -1,5 +1,11 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.FormSheet
+import com.zyke.message.presentation.common.FintechCard
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.OutlinedTextField
@@ -63,9 +69,9 @@ import com.zyke.message.presentation.format.detailFacts
 import com.zyke.message.presentation.format.displayName
 
 /**
- * One message, in full, in a bottom sheet: who and when, the numbers we understood, the original text
- * (selectable), and the actions that make sense for this kind of message. The most useful action is
- * the single filled button; the rest step down.
+ * One message, in full, in a bottom sheet. It reads top to bottom: who and when, what was understood, the one action
+ * that matters, the original text, then two quiet lists of settings, one for the sender and one for this message,
+ * each a row with its current value. Nothing here is a loose button; a row opens what it names.
  */
 @Composable
 internal fun MessageDetailSheet(
@@ -81,24 +87,21 @@ internal fun MessageDetailSheet(
     val content = item.content
     val facts = item.detailFacts()
     val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
+    val sender = SenderKey.displayAddress(message.sender)
+    val canTag = content !is MessageContent.Otp && CategoryKey.of(item) != null
+    var choosingCategory by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf(false) }
+    val pickPicture = rememberPicturePicker(item)
+    val imageStore = LocalImageStore.current
+    val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
 
-    // skipPartiallyExpanded: the sheet is exactly as tall as its content (up to the screen), instead of
-    // opening at a preset half height that hides the rest behind a drag.
     AppBottomSheet(onDismiss) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val pickPicture = rememberPicturePicker(item)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MerchantChip(
-                    item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
-                    modifier = if (pickPicture != null) {
-                        Modifier.clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Change picture", onClick = pickPicture)
-                    } else {
-                        Modifier
-                    }
-                )
+                MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -109,20 +112,15 @@ internal fun MessageDetailSheet(
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1
                     )
-                    Caption("${DateFormatters.detailTimestamp(message.date)} · ${item.category.displayString}", maxLines = 2)
+                    Caption("${DateFormatters.detailTimestamp(message.date)} · ${item.category.displayString}", maxLines = 1)
                 }
             }
 
             if (facts.isNotEmpty()) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
+                FintechCard {
                     facts.forEachIndexed { index, fact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Caption(fact.label, Modifier.weight(1f))
                             Spacer(Modifier.width(12.dp))
                             Text(
@@ -136,25 +134,6 @@ internal fun MessageDetailSheet(
                         }
                     }
                 }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Caption("MESSAGE")
-                SelectionContainer {
-                    Text(
-                        text = message.body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
-            }
-
-            CategoryPicker(item, actions)
-
-            RemovePicture(item)
-
-            if (item.isModelParsed) {
-                Caption("Read by on-device AI")
             }
 
             // The one action that matters most for this kind of message.
@@ -177,134 +156,161 @@ internal fun MessageDetailSheet(
                     )
                 }
             }
-
             val split = actions.onSplit
             if (split != null && content is MessageContent.Transaction && !content.isReceived) {
                 AppButton("Split with friends", { split(item.id) }, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!isArchived) {
-                    AppButton(
-                        text = if (isPinned) "Unpin" else "Pin",
-                        onClick = { actions.onTogglePin(item.id) },
-                        modifier = Modifier.weight(1f),
-                        style = ButtonStyle.OUTLINE,
-                        size = ButtonSize.COMPACT
+            FintechCard {
+                Caption("MESSAGE")
+                SelectionContainer {
+                    Text(
+                        text = message.body,
+                        modifier = Modifier.padding(top = 6.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
-                AppButton(
-                    text = if (isArchived) "Restore" else "Archive",
-                    onClick = {
-                        if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id)
-                        if (isArchived) onDismiss()
-                    },
-                    modifier = Modifier.weight(1f),
-                    style = ButtonStyle.OUTLINE,
-                    size = ButtonSize.COMPACT
-                )
-            }
-
-            if (content !is MessageContent.Otp && CategoryKey.of(item) != null) {
-                RenameSender(item, title, actions)
+                if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = 8.dp))
             }
 
             if (content !is MessageContent.Otp) {
-                val sender = SenderKey.displayAddress(message.sender)
-                AppButton(
-                    text = if (item.isMuted) "Unmute $sender" else "Mute $sender",
-                    onClick = { actions.onToggleMute(item.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                    style = ButtonStyle.TEXT,
-                    size = ButtonSize.COMPACT
-                )
-                if (!item.isMuted) {
+                SettingsGroup("About $title") {
+                    if (canTag) {
+                        DetailRow("Category", item.category.displayString + if (item.categoryOverridden) "" else " · auto") { choosingCategory = true }
+                        DetailRow("Nickname", if (item.merchant.renamed) item.merchant.name else "None") { naming = true }
+                        if (pickPicture != null) {
+                            val pictureValue = when {
+                                item.merchant.imageKey != null -> "Your picture"
+                                imageStore != null && imageStore.hasLogo(item.merchant.name) && item.merchant.name.trim().lowercase() !in hiddenLogos -> "Brand logo"
+                                else -> "Default"
+                            }
+                            DetailRow("Picture", pictureValue, onClick = pickPicture)
+                            RemovePictureRow(item)
+                        }
+                    }
+                    SwitchRow("Mute $sender", item.isMuted) { actions.onToggleMute(item.id) }
+                }
+            }
+
+            SettingsGroup("This message") {
+                if (!isArchived) SwitchRow("Pinned", isPinned) { actions.onTogglePin(item.id) }
+                DetailRow(if (isArchived) "Restore" else "Archive", null) {
+                    if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id)
+                    if (isArchived) onDismiss()
                 }
             }
 
             if (!inConversation) {
                 LinkButton("More from $title", onMoreFromSender)
             }
-            Spacer(Modifier.height(4.dp))
+        }
+    }
+
+    if (choosingCategory) CategorySheet(item, actions) { choosingCategory = false }
+    if (naming) NicknameSheet(item, title, actions) { naming = false }
+}
+
+/** A titled card of rows, for settings that belong together. */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+        FintechCard(content = content)
+    }
+}
+
+/** A setting: its name on the left, its current value and a chevron on the right; a tap opens it. */
+@Composable
+private fun DetailRow(label: String, value: String?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = label, onClick = onClick).padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        if (value != null) {
+            Spacer(Modifier.width(12.dp))
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = mutedColor(), maxLines = 1)
+        }
+        Text("\u203A", Modifier.padding(start = 8.dp), color = mutedColor())
+    }
+}
+
+/** A setting that is on or off, switched in place. */
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Switch, onClickLabel = label, onClick = onToggle).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** Every category in a list, the current one ticked, with the automatic guess offered first when it differs. */
+@Composable
+private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismiss: () -> Unit) {
+    val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
+    AppBottomSheet(onDismiss) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text(
+                "Category for ${CategoryKey.label(item)}",
+                Modifier.padding(bottom = 8.dp).heading(),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            suggestion?.let {
+                CategoryRow("Looks like ${it.displayString}", current = false) {
+                    actions.onSetCategory(item.id, it)
+                    onDismiss()
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            }
+            MessageCategory.assignable.forEach { category ->
+                val current = item.category == category
+                CategoryRow(category.displayString, current) {
+                    // Choosing the current one goes back to the automatic guess.
+                    val clear = item.categoryOverridden && current
+                    actions.onSetCategory(item.id, if (clear) null else category)
+                    onDismiss()
+                }
+            }
         }
     }
 }
 
-/**
- * The category this sender / receiver is filed under, with a button to change it. The full list is another
- * sheet, so this one stays short.
- */
 @Composable
-private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
-    if (item.content is MessageContent.Otp) return
-    if (CategoryKey.of(item) == null) return
-    var choosing by remember { mutableStateOf(false) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Caption("CATEGORY FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                item.category.displayString,
-                Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            AppButton("Change", { choosing = true }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
-        }
-        val suggestion = item.suggestedCategory
-        if (suggestion != null && !item.categoryOverridden) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Looks like ${suggestion.displayString}",
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                AppButton("Apply", { actions.onSetCategory(item.id, suggestion) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
-        }
-        Caption(
-            if (item.categoryOverridden) "Chosen by you"
-            else "Picked automatically",
-            maxLines = 2
+private fun CategoryRow(label: String, current: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "File under $label", onClick = onClick).padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.primary
         )
+        if (current) Text("\u2713", color = MaterialTheme.colorScheme.primary)
     }
+}
 
-    if (choosing) {
-        AppBottomSheet({ choosing = false }) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-                Text(
-                    "Category for ${CategoryKey.label(item)}",
-                    Modifier.padding(bottom = 8.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                MessageCategory.assignable.forEach { category ->
-                    val current = item.category == category
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .fullWidthClickable(onClickLabel = "File under ${category.displayString}") {
-                                // Choosing the current one goes back to the automatic guess.
-                                val clear = item.categoryOverridden && current
-                                actions.onSetCategory(item.id, if (clear) null else category)
-                                choosing = false
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            category.displayString,
-                            Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (current) Text("\u2713", color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
+/** Giving the sender a nickname, in the app's one form shape. */
+@Composable
+private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: FeedActions, onDismiss: () -> Unit) {
+    var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
+    FormSheet(
+        title = "Nickname",
+        onDismiss = onDismiss,
+        primaryLabel = "Save",
+        primaryEnabled = name.isNotBlank(),
+        onPrimary = { actions.onRename(item.id, name); onDismiss() },
+        secondaryLabel = if (item.merchant.renamed) "Use the original name" else null,
+        onSecondary = { actions.onRename(item.id, ""); onDismiss() }
+    ) {
+        FormField("Name", name, { name = it }, placeholder = CategoryKey.label(item), supporting = "Shown wherever ${CategoryKey.label(item)} appears")
     }
 }
 
@@ -330,61 +336,17 @@ private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
 
 /**
  * Takes a picture away from this sender: the one chosen, or a brand logo that turns out to be wrong. A hidden logo
- * can be brought back from the same place.
+ * can be brought back from the same row.
  */
 @Composable
-private fun RemovePicture(item: ClassifiedMessage) {
+private fun RemovePictureRow(item: ClassifiedMessage) {
     val store = LocalImageStore.current ?: return
     val key = CategoryKey.of(item) ?: return
     val hidden by store.hiddenLogos.collectAsState()
     val name = item.merchant.name
     when {
-        item.merchant.imageKey != null ->
-            AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-        store.hasLogo(name) && !store.isHidden(name) ->
-            AppButton("This logo is wrong", { store.hideLogo(name) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-        store.isHidden(name) && hidden.isNotEmpty() ->
-            AppButton("Show the logo again", { store.showLogo(name) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        item.merchant.imageKey != null -> DetailRow("Remove picture", null) { store.removeChosen(key) }
+        store.hasLogo(name) && !store.isHidden(name) -> DetailRow("This logo is wrong", null) { store.hideLogo(name) }
+        store.isHidden(name) && hidden.isNotEmpty() -> DetailRow("Show the logo again", null) { store.showLogo(name) }
     }
 }
-
-/** A nickname for this sender / receiver, shown everywhere their name appears. */
-@Composable
-private fun RenameSender(item: ClassifiedMessage, shownName: String, actions: FeedActions) {
-    var renaming by remember { mutableStateOf(false) }
-    AppButton(
-        text = if (item.merchant.renamed) "Change nickname" else "Give a nickname",
-        onClick = { renaming = true },
-        modifier = Modifier.fillMaxWidth(),
-        style = ButtonStyle.TEXT,
-        size = ButtonSize.COMPACT
-    )
-    if (renaming) {
-        var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
-        AlertDialog(
-            onDismissRequest = { renaming = false },
-            title = { Text("Nickname for ${CategoryKey.label(item)}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nickname") })
-                    Caption("Shown wherever this name appears")
-                }
-            },
-            confirmButton = {
-                AppButton(
-                    "Save",
-                    { actions.onRename(item.id, name); renaming = false },
-                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank()
-                )
-            },
-            dismissButton = {
-                if (item.merchant.renamed) {
-                    AppButton("Use original", { actions.onRename(item.id, ""); renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                } else {
-                    AppButton("Cancel", { renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                }
-            }
-        )
-    }
-}
-
