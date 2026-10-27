@@ -36,7 +36,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -697,31 +704,42 @@ internal fun CardBillSheet(
 @Composable
 private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter, modifier: Modifier = Modifier) {
     val max = statements.maxOf { it.amount }.coerceAtLeast(BigDecimal.ONE)
+    val values = statements.map { it.amount.fractionOf(max) }
     val summary = statements.joinToString(", ") { "${dayFmt.format(statementDate(it))} ${DisplayFormatters.rupees(it.amount)}" }
+    // The line rises from the baseline when the sheet opens.
+    val rise = rememberGrowingFraction(1f)
+    val lineColor = MaterialTheme.colorScheme.primary
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+
     Column(modifier) {
-        Row(
+        Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(96.dp)
-                .semantics { contentDescription = "Statement amounts. $summary" },
-            horizontalArrangement = Arrangement.spacedBy(if (statements.size > 12) 2.dp else 6.dp),
-            verticalAlignment = Alignment.Bottom
+                .height(120.dp)
+                .semantics { contentDescription = "Line chart of statement amounts. $summary" }
         ) {
-            statements.forEachIndexed { index, bill ->
-                val height = rememberGrowingFraction(bill.amount.fractionOf(max).coerceAtLeast(0.04f)).coerceAtLeast(0.01f)
-                val isLatest = index == statements.lastIndex
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(height)
-                            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                            .background(
-                                if (isLatest) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            )
-                    )
-                }
+            val pad = 6.dp.toPx()
+            val usableHeight = size.height - 2 * pad
+            val step = if (values.size > 1) (size.width - 2 * pad) / (values.size - 1) else 0f
+            val points = values.mapIndexed { i, v ->
+                Offset(pad + step * i, size.height - pad - usableHeight * v.coerceIn(0f, 1f) * rise)
+            }
+
+            drawLine(gridColor, Offset(0f, size.height - pad), Offset(size.width, size.height - pad), strokeWidth = 1.dp.toPx())
+
+            val line = Path().apply {
+                points.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
+            }
+            val area = Path().apply {
+                addPath(line)
+                lineTo(points.last().x, size.height - pad)
+                lineTo(points.first().x, size.height - pad)
+                close()
+            }
+            drawPath(area, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.25f), Color.Transparent)))
+            drawPath(line, lineColor, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            points.forEachIndexed { i, p ->
+                drawCircle(lineColor, radius = if (i == points.lastIndex) 5.dp.toPx() else 3.dp.toPx(), center = p)
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
