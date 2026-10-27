@@ -46,13 +46,20 @@ class ManifestPolicyTest {
     }
 
     @Test
-    fun onlyTheLauncherActivityIsExported_andNoServicesOrReceiversExist() {
+    fun onlyTheLauncherActivityIsExported_andTheOnlyServiceIsTheSystemBoundRcsListener() {
         val activities = manifest.getElementsByTagName("activity")
         assertEquals(1, activities.length)
         assertEquals("true", (activities.item(0) as Element).getAttributeNS(android, "exported"))
-        for (tag in listOf("service", "receiver")) {
-            assertEquals("unexpected <$tag>", 0, manifest.getElementsByTagName(tag).length)
-        }
+
+        assertEquals("unexpected <receiver>", 0, manifest.getElementsByTagName("receiver").length)
+
+        val services = manifest.getElementsByTagName("service")
+        assertEquals(1, services.length)
+        val service = services.item(0) as Element
+        assertEquals(".data.sms.RcsNotificationListener", service.getAttributeNS(android, "name"))
+        assertEquals("false", service.getAttributeNS(android, "exported"))
+        // Only the system can bind it, and only once the user has granted notification access.
+        assertEquals("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", service.getAttributeNS(android, "permission"))
     }
 
     @Test

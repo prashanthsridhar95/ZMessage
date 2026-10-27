@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
@@ -15,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.zyke.message.ZykeMessagesApplication
+import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.presentation.dashboard.DashboardContract
 import com.zyke.message.presentation.dashboard.DashboardRoute
 import com.zyke.message.presentation.dashboard.DashboardViewModel
@@ -72,7 +74,14 @@ class MainActivity : ComponentActivity() {
             .getOrNull().orEmpty()
 
         setContent {
-            ZykeMessageTheme {
+            val appSettings by container.settings.settings.collectAsStateWithLifecycle()
+            ZykeMessageTheme(
+                darkTheme = when (appSettings.themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            ) {
                 val home by homeViewModel.state.collectAsStateWithLifecycle()
                 val inbox by messagesViewModel.state
                     .map { it.toToolbarState() }

@@ -41,6 +41,7 @@ class SettingsViewModel(
         when (intent) {
             is Intent.ScreenStarted -> if (intent.permissionGranted) startObserving()
             is Intent.SetScreenProtection -> settingsRepository.setScreenProtection(intent.enabled)
+            is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
             Intent.AskReset -> reduce { copy(confirmingReset = true) }
             Intent.CancelReset -> reduce { copy(confirmingReset = false) }
             Intent.ConfirmReset -> {

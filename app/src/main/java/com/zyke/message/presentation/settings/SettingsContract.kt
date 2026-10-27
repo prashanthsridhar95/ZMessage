@@ -2,6 +2,7 @@ package com.zyke.message.presentation.settings
 
 import com.zyke.message.domain.diagnostics.ParsingDiagnostics
 import com.zyke.message.domain.model.AppSettings
+import com.zyke.message.domain.model.ThemeMode
 
 object SettingsContract {
 
@@ -16,6 +17,7 @@ object SettingsContract {
         /** Starts reading the inbox for diagnostics, if SMS access is granted. */
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SetScreenProtection(val enabled: Boolean) : Intent
+        data class SetThemeMode(val mode: ThemeMode) : Intent
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent

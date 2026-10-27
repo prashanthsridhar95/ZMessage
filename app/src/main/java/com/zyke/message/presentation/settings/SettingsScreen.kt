@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
+import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.ShareBar
 import com.zyke.message.presentation.messages.components.Caption
@@ -84,6 +87,27 @@ fun SettingsSheet(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
+
+            SectionCard("Appearance") {
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = state.settings.themeMode == mode,
+                                onClick = { onIntent(Intent.SetThemeMode(mode)) },
+                                role = Role.RadioButton
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = state.settings.themeMode == mode, onClick = null)
+                        Text(mode.label, Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+
+            RcsSection()
 
             SectionCard("Privacy") {
                 Caption(
@@ -155,6 +179,32 @@ fun SettingsSheet(
             text = { Text("This clears read, pinned and archived marks, dismissed tips and all budgets. It can't be undone.") },
             confirmButton = { AppButton("Reset", { onIntent(Intent.ConfirmReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
             dismissButton = { AppButton("Cancel", { onIntent(Intent.CancelReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
+    }
+}
+
+/** RCS chats are not in the SMS provider; the only way to see them is the messaging app's notifications. */
+@Composable
+private fun RcsSection() {
+    val context = LocalContext.current
+    SectionCard("RCS messages") {
+        Caption(
+            "Chat (RCS) messages can't be read like SMS. If you allow notification access, new incoming " +
+                "chats from Google Messages and Samsung Messages are added to the inbox. They stay on this phone.",
+            maxLines = 5
+        )
+        AppButton(
+            text = "Notification access",
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            },
+            style = ButtonStyle.OUTLINE,
+            modifier = Modifier.padding(top = 12.dp)
         )
     }
 }

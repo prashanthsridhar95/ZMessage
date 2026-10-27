@@ -5,6 +5,7 @@ import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
 import com.zyke.message.data.repository.UserMessageStateRepositoryImpl
+import com.zyke.message.data.sms.RcsMessageStore
 import com.zyke.message.data.sms.SmsDataSource
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.repository.BudgetRepository
@@ -15,7 +16,8 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
 /** Manual dependency container; one instance lives in the Application. */
 class AppContainer(context: Context) {
-    private val smsDataSource = SmsDataSource(context.applicationContext.contentResolver)
+    val rcsStore = RcsMessageStore(context.applicationContext)
+    private val smsDataSource = SmsDataSource(context.applicationContext.contentResolver, rcsStore)
 
     val smsRepository: SmsRepository = SmsRepositoryImpl(smsDataSource)
     val userMessageState: UserMessageStateRepository = UserMessageStateRepositoryImpl(context)

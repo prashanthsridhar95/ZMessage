@@ -10,11 +10,20 @@ import com.zyke.message.domain.model.SmsMessage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.merge
 
 /** Reads the device SMS inbox through the telephony content provider. */
-class SmsDataSource(private val contentResolver: ContentResolver) {
+class SmsDataSource(
+    private val contentResolver: ContentResolver,
+    private val rcsStore: RcsMessageStore? = null
+) {
 
     fun readInbox(): List<SmsMessage> {
+        val sms = readSms()
+        return rcsStore?.mergeWith(sms) ?: sms
+    }
+
+    private fun readSms(): List<SmsMessage> {
         val cursor = contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI,
             PROJECTION,
@@ -47,7 +56,9 @@ class SmsDataSource(private val contentResolver: ContentResolver) {
     }
 
     /** Emits once on collection, then on every change to the SMS provider. */
-    fun inboxChanges(): Flow<Unit> = callbackFlow {
+    fun inboxChanges(): Flow<Unit> = if (rcsStore == null) providerChanges() else merge(providerChanges(), rcsStore.changes)
+
+    private fun providerChanges(): Flow<Unit> = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 trySend(Unit)
