@@ -30,13 +30,13 @@ internal fun FastTagCard(
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            RowTitle(event.vehicleNumber)
-            val balance = when (event) {
-                is FastTagEvent.TollPaid -> "Balance ${DisplayFormatters.rupees(event.balance)}"
-                is FastTagEvent.ToppedUp -> "Balance ${DisplayFormatters.rupees(event.balance)}"
-                else -> null
+            val title = when (event) {
+                is FastTagEvent.TollPaid -> event.tollName.ifEmpty { "Toll" }
+                is FastTagEvent.ToppedUp -> "FASTag recharge"
+                else -> event.vehicleNumber
             }
-            Caption(listOfNotNull(balance, time).joinToString(" · "))
+            RowTitle(title)
+            Caption(listOfNotNull(event.vehicleNumber.takeIf { title != it }, time).joinToString(" · "))
         }
 
         Spacer(Modifier.width(12.dp))
@@ -44,14 +44,15 @@ internal fun FastTagCard(
             when (event) {
                 is FastTagEvent.Activated -> AmountText("Active", MaterialTheme.colorScheme.primary)
                 is FastTagEvent.RechargeNeeded -> AmountText("Recharge", MaterialTheme.colorScheme.error)
-                is FastTagEvent.ToppedUp -> AmountText(
-                    "+ ${DisplayFormatters.rupees(event.amount)}", MaterialTheme.colorScheme.primary
-                )
-                is FastTagEvent.TollPaid -> AmountText(
-                    "- ${DisplayFormatters.rupees(event.tollAmount)}", MaterialTheme.colorScheme.secondary
-                )
+                is FastTagEvent.ToppedUp -> {
+                    AmountText("+ ${DisplayFormatters.rupees(event.amount)}", MaterialTheme.colorScheme.primary)
+                    Caption("Balance ${DisplayFormatters.rupees(event.balance)}")
+                }
+                is FastTagEvent.TollPaid -> {
+                    AmountText("- ${DisplayFormatters.rupees(event.tollAmount)}", MaterialTheme.colorScheme.secondary)
+                    Caption("Balance ${DisplayFormatters.rupees(event.balance)}")
+                }
             }
         }
     }
 }
-

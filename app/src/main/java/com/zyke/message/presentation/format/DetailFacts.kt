@@ -71,7 +71,8 @@ private fun otpFacts(c: MessageContent.Otp) = listOfNotNull(
 )
 
 private fun fastTagFacts(event: FastTagEvent) = when (event) {
-    is FastTagEvent.TollPaid -> listOf(
+    is FastTagEvent.TollPaid -> listOfNotNull(
+        event.tollName.takeIf { it.isNotEmpty() }?.let { DetailFact("Toll plaza", it) },
         DetailFact("Vehicle", event.vehicleNumber),
         DetailFact("Toll", DisplayFormatters.rupees(event.tollAmount)),
         DetailFact("Balance", DisplayFormatters.rupees(event.balance))

@@ -247,4 +247,17 @@ class ParsingReportRegressionTest {
             "Airtel Warning: SPAM | 9 trades, Rs 99,999 profit, and his son now goes to private school. https://x.in"
         ).forEach { assertTrue(it, classifier.classify(SmsMessage(1, "AX-XYZ", it, 0L, true)).isPromotional) }
     }
+
+    @Test
+    fun tollMessages_carryPlazaAmountAndVehicle() {
+        val a = (classify("INR 65 toll paid from HDFC Bank Tag 1234 for vehicle no. KA01AB1234 at Hosur Toll on 12-Jan-25 10:30. Avbl. Bal.: INR435") as MessageContent.FastTag).event as com.zyke.message.domain.model.FastTagEvent.TollPaid
+        assertEquals("Hosur", a.tollName)
+        assertEquals("65", a.tollAmount)
+        assertEquals("KA01AB1234", a.vehicleNumber)
+
+        val b = (classify("Dear Customer, txn. of INR 95 using IDFC FIRST Bank FASTag on TN01AB1234 done at Sholavandan Toll Plaza on 10/10/2026 10:00. Avbl. Bal.: INR 505.50") as MessageContent.FastTag).event as com.zyke.message.domain.model.FastTagEvent.TollPaid
+        assertEquals("Sholavandan Toll Plaza", b.tollName)
+        assertEquals("95", b.tollAmount)
+        assertEquals("505.50", b.balance)
+    }
 }

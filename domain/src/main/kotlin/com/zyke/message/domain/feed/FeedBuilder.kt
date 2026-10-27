@@ -1,6 +1,7 @@
 package com.zyke.message.domain.feed
 
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.FastTagEvent
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserMessageState
 import java.time.Instant
@@ -67,6 +68,7 @@ object FeedBuilder {
         zone: ZoneId
     ): Boolean {
         val isArchived = message.id in userState.archivedIds
+        if (isFastTagStatusOnly(message)) return false
         if (filter.category != null && message.category != filter.category) return false
 
         val statusOk = when (filter.status) {
@@ -90,6 +92,15 @@ object FeedBuilder {
         return if (filter.smart == SmartFilter.ARCHIVED) isArchived else !isArchived && bucket(message, filter.smart)
     }
 
+    /**
+     * "FASTag active" and "recharge needed" say nothing a row can act on by itself; low balance is raised
+     * in the attention strip instead, and search still finds them.
+     */
+    private fun isFastTagStatusOnly(message: ClassifiedMessage): Boolean {
+        val event = (message.content as? MessageContent.FastTag)?.event
+        return event is FastTagEvent.Activated || event is FastTagEvent.RechargeNeeded
+    }
+
     private fun bucket(message: ClassifiedMessage, filter: SmartFilter): Boolean {
         val content = message.content
         return when (filter) {
@@ -99,7 +110,8 @@ object FeedBuilder {
                 content is MessageContent.ScheduledPayment
             SmartFilter.OTP -> content is MessageContent.Otp
             SmartFilter.BILLS -> content is MessageContent.CardBill
-            SmartFilter.TRAVEL -> content is MessageContent.FastTag || content is MessageContent.Courier
+            SmartFilter.TRAVEL -> (content is MessageContent.FastTag && !isFastTagStatusOnly(message)) ||
+                content is MessageContent.Courier
             SmartFilter.PROMOS -> message.isPromotional
             SmartFilter.ARCHIVED -> false
         }

@@ -6,7 +6,9 @@ sealed class FastTagEvent {
     data class TollPaid(
         override val vehicleNumber: String,
         val balance: String,
-        val tollAmount: String
+        val tollAmount: String,
+        /** The toll plaza crossed; empty when the message doesn't name one. */
+        val tollName: String = ""
     ) : FastTagEvent()
 
     data class ToppedUp(

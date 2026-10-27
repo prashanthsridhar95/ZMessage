@@ -36,7 +36,7 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             ScheduledKind.MANDATE_SET -> "Autopay set up for ${c.payee.ifEmpty { "a subscription" }}, ${DisplayFormatters.rupees(c.amount)}"
         }
         is MessageContent.FastTag -> when (val e = c.event) {
-            is FastTagEvent.TollPaid -> "Toll paid ${DisplayFormatters.rupees(e.tollAmount)} for vehicle ${e.vehicleNumber}"
+            is FastTagEvent.TollPaid -> "Toll paid ${DisplayFormatters.rupees(e.tollAmount)}${if (e.tollName.isNotEmpty()) " at ${e.tollName}" else ""} for vehicle ${e.vehicleNumber}"
             is FastTagEvent.ToppedUp -> "FASTag topped up ${DisplayFormatters.rupees(e.amount)} for vehicle ${e.vehicleNumber}"
             is FastTagEvent.RechargeNeeded -> "FASTag balance low for vehicle ${e.vehicleNumber}. Recharge now"
             is FastTagEvent.Activated -> "FASTag active for vehicle ${e.vehicleNumber}"

@@ -14,12 +14,17 @@ class FastTagMessageParser {
 
     private fun tollPaid(message: String): FastTagEvent? {
         val g = TOLL_PAID.find(message)?.groupValues ?: return null
-        return FastTagEvent.TollPaid(vehicleNumber = g[4], balance = g[8], tollAmount = g[1])
+        return FastTagEvent.TollPaid(vehicleNumber = g[4], balance = g[8], tollAmount = g[1], tollName = g[5].trim())
     }
 
     private fun tollTransaction(message: String): FastTagEvent? {
         val g = TOLL_TXN.find(message)?.groupValues ?: return null
-        return FastTagEvent.TollPaid(vehicleNumber = g[2], balance = g[3].trimEnd('.'), tollAmount = g[1].trimEnd('.'))
+        return FastTagEvent.TollPaid(
+            vehicleNumber = g[2],
+            balance = g[4].trimEnd('.'),
+            tollAmount = g[1].trimEnd('.'),
+            tollName = g[3].trim()
+        )
     }
 
     private fun toppedUp(message: String): FastTagEvent? {
@@ -49,7 +54,7 @@ class FastTagMessageParser {
 
         /** "txn. of INR 95 using IDFC FIRST Bank FASTag on TN01AB1234 done at X on 10/10/2026 10:00. Avbl. Bal.: INR 505.5". */
         val TOLL_TXN =
-            "(?is)txn\\. of INR\\s*([\\d,.]+) using .*?FASTag on (\\S+) done at .*? Avbl\\. Bal\\.:\\s*INR\\s*([\\d,.]+)".toRegex()
+            "(?is)txn\\. of INR\\s*([\\d,.]+) using .*?FASTag on (\\S+) done at (.*?) on \\d{1,2}[-/ ].*?Avbl\\. Bal\\.:\\s*INR\\s*([\\d,.]+)".toRegex()
 
         val TOP_UP =
             "Recharge successful: (.*?) FASTag (.*?) Credited with Rs (\\d+) Ref: (\\d+) Avbl Bal:Rs (\\d+)".toRegex()
