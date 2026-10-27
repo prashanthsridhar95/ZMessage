@@ -201,7 +201,11 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
             }
         }
         Caption(
-            if (item.categoryOverridden) "Chosen by you. Tap it again to go back to automatic." else "Automatic. Pick one to change it.",
+            if (item.categoryOverridden) {
+                "Chosen by you for every message with ${CategoryKey.label(item)}. Tap it again to go back to automatic."
+            } else {
+                "Picked automatically. Choosing one applies to every message with ${CategoryKey.label(item)} and to your dashboard."
+            },
             maxLines = 2
         )
     }

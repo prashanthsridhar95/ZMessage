@@ -97,9 +97,14 @@ class MessagesViewModel(
                 intent.messageId,
                 intent.messageId !in currentState().userState.pinnedIds
             )
-            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
-                ?.let(CategoryKey::of)
-                ?.let { categoryOverrides.set(it, intent.category) }
+            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
+                val key = CategoryKey.of(message) ?: return@let
+                val previous = message.category.takeIf { message.categoryOverridden }
+                categoryOverrides.set(key, intent.category)
+                if (intent.announce) {
+                    emitEffect(Effect.CategoryChanged(message.id, CategoryKey.label(message), intent.category, previous))
+                }
+            }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
         }

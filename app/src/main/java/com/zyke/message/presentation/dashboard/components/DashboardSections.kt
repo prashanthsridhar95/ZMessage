@@ -627,6 +627,13 @@ internal fun CardBillRow(
             color = MaterialTheme.colorScheme.primary,
             maxLines = 1
         )
+        // A signifier: the row opens something.
+        Image(
+            modifier = Modifier.size(24.dp),
+            painter = painterResource(R.drawable.baseline_chevron_right_24),
+            colorFilter = ColorFilter.tint(mutedColor()),
+            contentDescription = null
+        )
     }
 }
 

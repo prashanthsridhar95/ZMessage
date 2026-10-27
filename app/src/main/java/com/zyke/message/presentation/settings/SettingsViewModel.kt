@@ -52,9 +52,15 @@ class SettingsViewModel(
             is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
             is Intent.SaveCard -> {
                 val card = intent.card
-                if (card.last4.length == LAST_DIGITS && card.last4.all { it.isDigit() }) cardRepository.save(card)
+                if (card.last4.length == LAST_DIGITS && card.last4.all { it.isDigit() }) {
+                    cardRepository.save(card)
+                    emitEffect(Effect.ShowMessage("${card.label} saved"))
+                }
             }
-            is Intent.DeleteCard -> cardRepository.remove(intent.id)
+            is Intent.DeleteCard -> {
+                cardRepository.remove(intent.id)
+                emitEffect(Effect.ShowMessage("Removed"))
+            }
             Intent.AskReset -> reduce { copy(confirmingReset = true) }
             Intent.CancelReset -> reduce { copy(confirmingReset = false) }
             Intent.ConfirmReset -> {

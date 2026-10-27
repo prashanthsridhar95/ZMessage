@@ -113,6 +113,17 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
                 }.onFailure {
                     Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show()
                 }
+                is Effect.CategoryChanged -> scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Filed ${effect.name} under ${effect.category?.displayString ?: "automatic"}",
+                        actionLabel = context.getString(R.string.undo),
+                        duration = SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.onIntent(Intent.SetCategory(effect.messageId, effect.previous, announce = false))
+                    }
+                }
                 is Effect.MessageArchived -> scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     val result = snackbarHostState.showSnackbar(

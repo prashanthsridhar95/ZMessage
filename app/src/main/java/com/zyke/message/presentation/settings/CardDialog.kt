@@ -39,6 +39,7 @@ internal fun CardDialog(
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var day by rememberSaveable { mutableStateOf(initial?.statementDay?.toString().orEmpty()) }
 
+    var confirmingRemove by rememberSaveable { mutableStateOf(false) }
     val statementDay = day.toIntOrNull()?.takeIf { it in 1..MAX_DAY }
     val valid = last4.length == LAST_DIGITS && (type != CardType.ACCOUNT || bank.isNotBlank()) && (day.isEmpty() || statementDay != null)
 
@@ -57,13 +58,15 @@ internal fun CardDialog(
                     onValueChange = { input -> last4 = input.filter(Char::isDigit).take(LAST_DIGITS) },
                     singleLine = true,
                     label = { Text(if (type == CardType.ACCOUNT) "Last 4 digits of account number" else "Last 4 digits of card") },
+                    isError = last4.isNotEmpty() && last4.length < LAST_DIGITS,
+                    supportingText = { if (last4.length < LAST_DIGITS) Text("Exactly 4 digits. Never enter the full number.") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
                 )
                 OutlinedTextField(
                     value = bank,
                     onValueChange = { bank = it.take(MAX_NAME) },
                     singleLine = true,
-                    label = { Text("Bank name") },
+                    label = { Text(if (type == CardType.ACCOUNT) "Bank name (required)" else "Bank name (optional)") },
                     placeholder = { Text("e.g. HDFC Bank") }
                 )
                 OutlinedTextField(
@@ -108,12 +111,22 @@ internal fun CardDialog(
         },
         dismissButton = {
             if (onDelete != null) {
-                AppButton("Remove", onDelete, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                AppButton("Remove", { confirmingRemove = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             } else {
                 AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
     )
+
+    if (confirmingRemove && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { confirmingRemove = false },
+            title = { Text("Remove this card or account?") },
+            text = { Text("Its messages stay in your inbox. They just stop being grouped under it.") },
+            confirmButton = { AppButton("Remove", onDelete, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            dismissButton = { AppButton("Keep", { confirmingRemove = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
+    }
 }
 
 private const val MAX_NAME = 30
