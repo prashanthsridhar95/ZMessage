@@ -1,5 +1,12 @@
 package com.zyke.message.presentation.dashboard.components
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
@@ -107,24 +114,48 @@ private fun plural(count: Int, one: String, many: String) = if (count == 1) "$co
 internal fun FlowDirection.countLabel(count: Int) =
     if (this == FlowDirection.SPENT) plural(count, "payment", "payments") else plural(count, "credit", "credits")
 
-/** A titled, rounded panel. Every section of the dashboard sits in one so they line up. */
+/**
+ * A titled section on the plain page, folded by default: a title, a short [summary] and a chevron on one line.
+ * Opening it shows the detail. Keeps every screen to a few quiet lines until the person wants more.
+ */
 @Composable
 internal fun SectionCard(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    summary: String? = null,
+    startOpen: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
-            .padding(16.dp)
-    ) {
-        Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
-        Spacer(Modifier.height(12.dp))
-        content()
+    var open by rememberSaveable(title) { mutableStateOf(startOpen) }
+    Column(modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+                .clickable(role = Role.Button, onClickLabel = if (open) "Fold $title" else "Open $title") { open = !open }
+                .padding(vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                title,
+                Modifier.weight(1f).heading(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            if (summary != null) {
+                Caption(summary)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(if (open) "\u2303" else "\u2304", color = mutedColor())
+        }
+        AnimatedVisibility(open) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 10.dp), maxLines = 3)
+                content()
+            }
+        }
     }
 }
 

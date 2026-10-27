@@ -54,7 +54,7 @@ import java.util.Locale
 @Composable
 internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Unit, modifier: Modifier = Modifier) {
     if (insights == null) {
-        SectionCard("Your month's plan", modifier) {
+        SectionCard("Your month's plan", modifier, startOpen = true) {
             Caption(
                 "Add your salary, regular outflows like parents or charity, investments and what you want to save, " +
                     "and this shows what is yours to spend each day.",

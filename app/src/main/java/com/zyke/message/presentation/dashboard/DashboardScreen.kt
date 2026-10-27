@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.common.LinkButton
 import android.Manifest
 import android.content.pm.PackageManager
@@ -244,7 +245,8 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 SectionCard(
                     stringResource(
                         if (received) R.string.dashboard_empty_received else R.string.dashboard_empty
-                    )
+                    ),
+                    startOpen = true
                 ) {
                     Caption(stringResource(R.string.dashboard_empty_hint), maxLines = 3)
                 }
@@ -264,7 +266,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         if (state.showCardsPrompt) {
             item(key = "cards-prompt") {
                 val openSettings = LocalOpenSettings.current
-                SectionCard("Track your cards and accounts") {
+                SectionCard("Track your cards and accounts", startOpen = true) {
                     Caption(
                         "Add the last four digits of a card or bank account in Settings to see its spends and payments by " +
                             "billing cycle, and to group its messages together.",
@@ -280,7 +282,11 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
         if (state.cardBills.isNotEmpty()) {
             item(key = "card-bills") {
-                SectionCard(stringResource(R.string.dashboard_card_bills), subtitle = stringResource(R.string.dashboard_card_bills_hint)) {
+                SectionCard(
+                    stringResource(R.string.dashboard_card_bills),
+                    subtitle = stringResource(R.string.dashboard_card_bills_hint),
+                    summary = DisplayFormatters.count(state.cardBills.size, "card", "cards")
+                ) {
                     state.cardBills.forEachIndexed { index, bills ->
                         if (index > 0) HorizontalDivider()
                         CardBillRow(
@@ -311,7 +317,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
 
             item(key = "categories") {
-                SectionCard(stringResource(R.string.dashboard_by_category)) {
+                SectionCard(stringResource(R.string.dashboard_by_category), summary = DisplayFormatters.count(dashboard.categories.size, "category", "categories")) {
                     dashboard.categories.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
                         CategoryRow(

@@ -36,7 +36,8 @@ fun QuickFilterTabs(feed: Feed, selected: SmartFilter, onSelect: (SmartFilter) -
     val types = feed.availableFilters
     UnderlineTabs(
         labels = types.map { it.label },
-        counts = types.map { feed.counts[it] },
+        // No per-tab counts: they are numbers to read and none of them is something to act on.
+        counts = types.map { null },
         icons = types.map { it.icon() },
         selectedIndex = types.indexOf(selected).coerceAtLeast(0),
         onSelect = { onSelect(types[it]) },

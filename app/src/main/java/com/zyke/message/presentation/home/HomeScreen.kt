@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.NudgeKind
 import com.zyke.message.domain.insights.RefundItem
@@ -612,26 +613,7 @@ private fun FocusCard(text: String, urgent: Boolean, onOpen: () -> Unit) {
     }
 }
 
-/** A title and a short summary on one line. Tap to unfold the rows; folded again by default. */
+/** A title and a short summary on one line; the same folded section the other tabs use. */
 @Composable
-private fun FoldSection(title: String, summary: String, content: @Composable ColumnScope.() -> Unit) {
-    var open by androidx.compose.runtime.saveable.rememberSaveable(title) { androidx.compose.runtime.mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-        Row(
-            Modifier.fillMaxWidth()
-                .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
-                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (open) "Fold $title" else "Open $title") { open = !open }
-                .padding(vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Caption(summary)
-            Spacer(Modifier.width(8.dp))
-            Text(if (open) "⌃" else "⌄", color = mutedColor())
-        }
-        androidx.compose.animation.AnimatedVisibility(open) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), content = content)
-        }
-    }
-}
+private fun FoldSection(title: String, summary: String, content: @Composable ColumnScope.() -> Unit) =
+    SectionCard(title, summary = summary, content = content)
