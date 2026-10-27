@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.settings
 
+import androidx.compose.ui.text.font.FontWeight
+import com.zyke.message.presentation.dashboard.components.LocalSectionsAsSheets
+import androidx.compose.runtime.CompositionLocalProvider
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
@@ -87,9 +90,11 @@ fun SettingsSheet(
     onDismiss: () -> Unit
 ) {
     AppBottomSheet(onDismiss, contentInset = 16.dp) {
+        // Each section is a tile here that opens its own sheet, so Settings is a short list to choose from.
+        CompositionLocalProvider(LocalSectionsAsSheets provides true) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 modifier = Modifier.padding(horizontal = 4.dp).heading(),
@@ -98,41 +103,7 @@ fun SettingsSheet(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            SectionCard("Appearance") {
-                ThemeMode.entries.forEach { mode ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = state.settings.themeMode == mode,
-                                onClick = { onIntent(Intent.SetThemeMode(mode)) },
-                                role = Role.RadioButton
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = state.settings.themeMode == mode, onClick = null)
-                        Text(mode.label, Modifier.padding(start = 12.dp))
-                    }
-                }
-            }
-
-            SectionCard("Pictures") {
-                Caption(
-                    "Choose a picture for any sender or receiver from its message sheet. Pictures stay on this phone.",
-                    maxLines = 3
-                )
-                ToggleRow(
-                    title = "Fetch brand logos from the internet",
-                    description = "Looks up the logo of well-known names such as Swiggy or HDFC, once each, and keeps it " +
-                        "on this phone. Only the brand's website name is sent, never your messages. Turning it off " +
-                        "deletes the downloaded logos.",
-                    checked = state.settings.fetchLogos,
-                    onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            }
-
+            GroupLabel("Money")
             PlanSection(
                 plan = state.plan,
                 spotted = state.spottedSalary,
@@ -163,44 +134,24 @@ fun SettingsSheet(
 
             CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
-            RcsSection()
-
-            SectionCard("Privacy") {
+            GroupLabel("Messages")
+            SectionCard("Pictures") {
                 Caption(
-                    "Messages are read and sorted on this phone only and are never uploaded. The only internet use is the " +
-                        "logo download below (you can turn it off), and backups of the app's data are switched off.",
-                    maxLines = 5
+                    "Choose a picture for any sender or receiver from its message sheet. Pictures stay on this phone.",
+                    maxLines = 3
                 )
                 ToggleRow(
-                    title = "Block screenshots",
-                    description = "Also hides the app's content in the recent-apps view",
-                    checked = state.settings.screenProtection,
-                    onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-                AppLockToggle(
-                    enabled = state.settings.appLock,
-                    onChange = { onIntent(Intent.SetAppLock(it)) },
+                    title = "Fetch brand logos from the internet",
+                    description = "Looks up the logo of well-known names such as Swiggy or HDFC, once each, and keeps it " +
+                        "on this phone. Only the brand's website name is sent, never your messages. Turning it off " +
+                        "deletes the downloaded logos.",
+                    checked = state.settings.fetchLogos,
+                    onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
 
-            SectionCard("Reminders") {
-                MorningDigestToggle(
-                    enabled = state.settings.morningDigest,
-                    onChange = { onIntent(Intent.SetMorningDigest(it)) }
-                )
-                LiveAlertsToggle(
-                    enabled = state.settings.liveAlerts,
-                    onChange = { onIntent(Intent.SetLiveAlerts(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-                Caption(
-                    "You can also add the \"Your day\" widget from your home screen's widget list.",
-                    Modifier.padding(top = 12.dp),
-                    maxLines = 2
-                )
-            }
+            RcsSection()
 
             SectionCard("Parsing health") {
                 val diagnostics = state.diagnostics
@@ -229,6 +180,64 @@ fun SettingsSheet(
                 }
             }
 
+            GroupLabel("Privacy and alerts")
+            SectionCard("Privacy", summary = if (state.settings.appLock) "App lock on" else "Private on this phone") {
+                Caption(
+                    "Messages are read and sorted on this phone only and are never uploaded. The only internet use is the " +
+                        "logo download below (you can turn it off), and backups of the app's data are switched off.",
+                    maxLines = 5
+                )
+                ToggleRow(
+                    title = "Block screenshots",
+                    description = "Also hides the app's content in the recent-apps view",
+                    checked = state.settings.screenProtection,
+                    onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                AppLockToggle(
+                    enabled = state.settings.appLock,
+                    onChange = { onIntent(Intent.SetAppLock(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            SectionCard("Reminders", summary = if (state.settings.morningDigest) "Morning summary on" else "Off") {
+                MorningDigestToggle(
+                    enabled = state.settings.morningDigest,
+                    onChange = { onIntent(Intent.SetMorningDigest(it)) }
+                )
+                LiveAlertsToggle(
+                    enabled = state.settings.liveAlerts,
+                    onChange = { onIntent(Intent.SetLiveAlerts(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                Caption(
+                    "You can also add the \"Your day\" widget from your home screen's widget list.",
+                    Modifier.padding(top = 12.dp),
+                    maxLines = 2
+                )
+            }
+
+            GroupLabel("App")
+            SectionCard("Appearance", summary = state.settings.themeMode.label) {
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = state.settings.themeMode == mode,
+                                onClick = { onIntent(Intent.SetThemeMode(mode)) },
+                                role = Role.RadioButton
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = state.settings.themeMode == mode, onClick = null)
+                        Text(mode.label, Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+
             SectionCard("Your data") {
                 Caption(
                     "Clear what the app remembers: read, pinned and archived marks, dismissed tips and budgets. " +
@@ -247,6 +256,7 @@ fun SettingsSheet(
                 Caption("Version $versionName")
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
             }
+        }
         }
     }
 
@@ -431,4 +441,16 @@ private fun ToggleRow(
         }
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
     }
+}
+
+/** A small heading over a group of settings tiles. */
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        Modifier.padding(start = 4.dp, top = 12.dp).heading(),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.secondary
+    )
 }
