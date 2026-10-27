@@ -5,6 +5,10 @@ import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
 import com.zyke.message.domain.accounts.AccountsOverview
+import com.zyke.message.domain.goals.Goal
+import com.zyke.message.domain.goals.GoalProgress
+import com.zyke.message.domain.reminders.Reminder
+import com.zyke.message.domain.reminders.ReminderDue
 import com.zyke.message.domain.budget.DailyBudgetStatus
 import com.zyke.message.domain.insights.Nudge
 import com.zyke.message.domain.plan.MoneyPlan
@@ -37,6 +41,8 @@ object HomeContract {
         val budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
         val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
         val plan: MoneyPlan = MoneyPlan(),
+        val goalList: List<Goal> = emptyList(),
+        val reminderList: List<Reminder> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
@@ -64,6 +70,9 @@ object HomeContract {
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
         val daily: DailyBudgetStatus? = null,
         /** Every bank account and card the messages mention, and what the accounts hold in all. */
+        /** Goals with how far along each is, and reminders with the day each next falls on. */
+        val goals: List<GoalProgress> = emptyList(),
+        val reminders: List<ReminderDue> = emptyList(),
         val accounts: AccountsOverview = AccountsOverview(emptyList(), null, 0),
         /** Things the messages show that the person has not entered yet. */
         val quickAdds: List<QuickAdd> = emptyList(),
@@ -109,6 +118,11 @@ object HomeContract {
         data object OpenCalendar : Intent
         data object CloseCalendar : Intent
         data class ShiftCalendar(val months: Int) : Intent
+        data class SaveGoal(val goal: Goal) : Intent
+        data class RemoveGoal(val id: String) : Intent
+        data class AddToGoal(val id: String, val amount: java.math.BigDecimal) : Intent
+        data class SaveReminder(val reminder: Reminder) : Intent
+        data class RemoveReminder(val id: String) : Intent
         data class OpenAccount(val key: String) : Intent
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent

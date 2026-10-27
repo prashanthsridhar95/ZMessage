@@ -1,5 +1,11 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.repository.NoReminders
+import com.zyke.message.domain.repository.ReminderRepository
+import com.zyke.message.domain.repository.NoGoals
+import com.zyke.message.domain.repository.GoalRepository
+import com.zyke.message.domain.reminders.Reminders
+import com.zyke.message.domain.goals.Goals
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.accounts.Accounts
@@ -68,11 +74,14 @@ class HomeViewModel(
     private val splitRepository: SplitRepository = NoSplits,
     private val nicknames: NicknameRepository = NoNicknames,
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-    private val cardRepository: CardRepository = NoCards
+    private val cardRepository: CardRepository = NoCards,
+    private val goalRepository: GoalRepository = NoGoals,
+    private val reminderRepository: ReminderRepository = NoReminders
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
-        plan = planRepository.plan.value, cards = cardRepository.cards.value)
+        plan = planRepository.plan.value, cards = cardRepository.cards.value,
+        goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value)
 ) {
 
     private var observeJob: Job? = null
@@ -88,6 +97,8 @@ class HomeViewModel(
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
         viewModelScope.launch { planRepository.plan.collect { plan -> reduceHome { copy(plan = plan) } } }
+        viewModelScope.launch { goalRepository.goals.collect { goals -> reduceHome { copy(goalList = goals) } } }
+        viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
@@ -128,6 +139,13 @@ class HomeViewModel(
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
             is Intent.ShiftCalendar -> reduce { copy(calendarOffset = calendarOffset?.plus(intent.months)?.coerceAtMost(0)) }
+            is Intent.SaveGoal -> goalRepository.save(intent.goal)
+            is Intent.RemoveGoal -> goalRepository.remove(intent.id)
+            is Intent.AddToGoal -> goalRepository.goals.value.firstOrNull { it.id == intent.id }?.let {
+                goalRepository.save(it.copy(saved = (it.saved + intent.amount).max(java.math.BigDecimal.ZERO)))
+            }
+            is Intent.SaveReminder -> reminderRepository.save(intent.reminder)
+            is Intent.RemoveReminder -> reminderRepository.remove(intent.id)
             is Intent.OpenAccount -> reduce { copy(openAccountKey = intent.key) }
             Intent.CloseAccount -> reduce { copy(openAccountKey = null) }
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
@@ -220,6 +238,8 @@ class HomeViewModel(
             updated.copy(
                 cycle = cycle,
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
+                goals = Goals.all(updated.goalList, today),
+                reminders = Reminders.upcoming(updated.reminderList, today),
                 accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle),
                 quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))
@@ -253,14 +273,17 @@ class HomeViewModel(
         private val splits: SplitRepository = NoSplits,
         private val nicknames: NicknameRepository = NoNicknames,
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-        private val cardRepository: CardRepository = NoCards
+        private val cardRepository: CardRepository = NoCards,
+        private val goalRepository: GoalRepository = NoGoals,
+        private val reminderRepository: ReminderRepository = NoReminders
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
-                planRepository = planRepository, cardRepository = cardRepository
+                planRepository = planRepository, cardRepository = cardRepository,
+                goalRepository = goalRepository, reminderRepository = reminderRepository
             ) as T
     }
 

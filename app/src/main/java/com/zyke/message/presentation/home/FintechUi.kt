@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,24 +60,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-/** The surface everything on the money screens sits on: a soft, rounded panel with room inside. */
-@Composable
-internal fun FintechCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(24.dp)
-    // The card is the tap target, so the rows in it do not stretch past its edge.
-    CompositionLocalProvider(LocalContentInset provides 0.dp) {
-        Column(
-            modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .padding(20.dp),
-            content = content
-        )
-    }
-}
 
 /** What the accounts hold in all, as the one big number on Home. */
 @Composable
@@ -153,6 +136,14 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             cards.forEach { account ->
                 item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
             }
+        }
+        item(key = "goals") {
+            GoalsCard(
+                goals = state.goals,
+                onSave = { onIntent(HomeContract.Intent.SaveGoal(it)) },
+                onRemove = { onIntent(HomeContract.Intent.RemoveGoal(it)) },
+                onAdd = { id, amount -> onIntent(HomeContract.Intent.AddToGoal(id, amount)) }
+            )
         }
     }
 }

@@ -17,6 +17,8 @@
 | Money plan (rough salary and its day, regular outflows such as parents or charity, investments, savings goal) | User input in Settings | Names and amounts in private SharedPreferences | No |
 | Wishlist (things to buy, their price and category) | User input in Settings | Names and amounts in private SharedPreferences | No |
 | Split payments (friends' names, their shares, which are paid) | User input in the message sheet | Names and amounts in private SharedPreferences; nobody is contacted or asked for money | No |
+| Savings goals (name, target, saved so far, date) | User input on the Accounts tab | Names and amounts in private SharedPreferences | No |
+| Reminders (what, amount, day, monthly or not) | User input on the Bills tab | Private SharedPreferences; mentioned in the morning digest if that is on, otherwise only shown in the app | No |
 | Daily and monthly spending limits | User input in Settings | Category and amount in private SharedPreferences | No |
 | Muted senders | User action | Sender names, private SharedPreferences | No |
 | Settings (screenshot protection, theme, app lock, morning digest) | User input | Booleans and one choice | No |

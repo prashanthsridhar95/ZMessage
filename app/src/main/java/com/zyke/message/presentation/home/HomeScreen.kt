@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.periodName
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.LocalContentInset
@@ -273,6 +274,41 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             }
         }
 
+        val soon = state.reminders.filter { it.daysFrom(today) <= REMINDER_SOON_DAYS }
+        if (soon.isNotEmpty()) {
+            item(key = "reminders") {
+                FintechCard {
+                    Caption("REMINDERS")
+                    soon.take(MAX_REMINDERS_ON_HOME).forEach { due ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                RowTitle(due.reminder.title)
+                                Caption(DisplayFormatters.dueLabel(due.on, today))
+                            }
+                            due.reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
+                        }
+                    }
+                    LinkButton("All reminders", { onNavigate(AppTab.BILLS) })
+                }
+            }
+        }
+
+        state.goals.firstOrNull { !it.isReached }?.let { goal ->
+            item(key = "goal") {
+                FintechCard(onClick = { onNavigate(AppTab.ACCOUNTS) }) {
+                    Caption("GOAL")
+                    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RowTitle(goal.goal.name, Modifier.weight(1f))
+                        Text(
+                            "${DisplayFormatters.rupees(goal.goal.saved)} of ${DisplayFormatters.rupees(goal.goal.target)}",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1
+                        )
+                    }
+                    ShareBar(goal.fraction)
+                }
+            }
+        }
+
         if (state.recent.isNotEmpty()) {
             item(key = "activity") {
                 FintechCard {
@@ -316,12 +352,18 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     val empty = state.upcoming.isEmpty() && state.refunds.isEmpty() &&
         state.owed.isEmpty() && state.subscriptions.isEmpty()
 
-    CompositionLocalProvider(LocalContentInset provides 24.dp) {
+    CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(32.dp)
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item(key = "reminders") {
+            RemindersCard(
+                reminders = state.reminders, today = today,
+                onSave = { onIntent(Intent.SaveReminder(it)) }, onRemove = { onIntent(Intent.RemoveReminder(it)) }
+            )
+        }
         if (empty) {
             item(key = "empty") { PlainSection("Nothing due") { Caption("Bills and auto-debits show up here before they are due.", maxLines = 3) } }
         }
@@ -537,12 +579,14 @@ internal const val SECONDS_PER_MINUTE = 60
 internal const val CODE_WARN_FRACTION = 0.2f
 internal val CODE_GROUPABLE = 4..10 step 2
 private const val MAX_PLANS = 4
+private const val REMINDER_SOON_DAYS = 7L
+private const val MAX_REMINDERS_ON_HOME = 3
 private const val MAX_RECENT_ACTIVITY = 5
 
-/** A heading and its rows on the plain page: no box, no fill. */
+/** A titled card with its rows. */
 @Composable
 private fun PlainSection(title: String, subtitle: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
+    FintechCard {
         Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
         Spacer(Modifier.height(8.dp))

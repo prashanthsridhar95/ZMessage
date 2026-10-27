@@ -1,5 +1,9 @@
 package com.zyke.message.di
 
+import com.zyke.message.domain.repository.ReminderRepository
+import com.zyke.message.domain.repository.GoalRepository
+import com.zyke.message.data.repository.ReminderRepositoryImpl
+import com.zyke.message.data.repository.GoalRepositoryImpl
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +52,8 @@ class AppContainer(context: Context) {
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
     val wishlist: WishlistRepository = WishlistRepositoryImpl(context)
     val splits: SplitRepository = SplitRepositoryImpl(context)
+    val goals: GoalRepository = GoalRepositoryImpl(context)
+    val reminders: ReminderRepository = ReminderRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)

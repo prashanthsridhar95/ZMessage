@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.domain.dashboard.DateRange
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.semantics.stateDescription
@@ -134,6 +135,29 @@ internal fun SectionCard(
 ) {
     val asSheet = LocalSectionsAsSheets.current && !startOpen
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
+    if (asSheet) {
+        // A tile on the page; its detail is in a sheet.
+        FintechCard(modifier, onClick = { open = true }) {
+            Row(Modifier.semantics { contentDescription = "$title, ${summary.orEmpty()}. Opens details" }, verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f).heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                if (summary != null) {
+                    Caption(summary)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("\u203A", color = mutedColor())
+            }
+        }
+        if (open) {
+            AppBottomSheet({ open = false }) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                    Text(title, Modifier.heading().padding(bottom = 4.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                    if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 12.dp), maxLines = 3)
+                    content()
+                }
+            }
+        }
+        return
+    }
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Row(

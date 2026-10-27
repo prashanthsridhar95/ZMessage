@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.CardCycleSheet
 import com.zyke.message.presentation.dashboard.components.rangeLabel
 import com.zyke.message.presentation.dashboard.components.countLabel
@@ -259,7 +260,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         Modifier.fillMaxSize(),
         state = listState,
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (state.activeFilterCount > 0) {
             item(key = "active-filters") {
@@ -289,10 +290,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         } else {
             item(key = "hero") {
-                IncomeExpenseCard(
-                    dashboard, state.expenseTrend, state.incomeTrend, state.period, state.direction,
-                    onDirection = { onIntent(Intent.SelectDirection(it)) }
-                )
+                FintechCard {
+                    IncomeExpenseCard(
+                        dashboard, state.expenseTrend, state.incomeTrend, state.period, state.direction,
+                        onDirection = { onIntent(Intent.SelectDirection(it)) }
+                    )
+                }
             }
         }
 
