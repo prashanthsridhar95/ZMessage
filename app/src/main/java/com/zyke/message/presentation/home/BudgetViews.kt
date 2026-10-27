@@ -68,12 +68,12 @@ private val OverColor = Color(0xFFE8505B)
 
 /** Today's share of what is spendable, how much of it is left, and the run of days kept within it. Tap for the calendar. */
 @Composable
-internal fun TodayBudget(daily: DailyBudgetStatus, onOpen: () -> Unit) {
+internal fun TodayBudget(daily: DailyBudgetStatus) {
     val over = daily.isOver
     val color = if (over) OverColor else UnderColor
     val used = if (daily.allowance.signum() > 0) (daily.spentToday.toFloat() / daily.allowance.toFloat()) else 1f
 
-    Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open budget calendar", onClick = onOpen)) {
+    Column(Modifier.fillMaxWidth()) {
         Caption("TODAY'S BUDGET")
         Text(
             DisplayFormatters.rupees(if (over) daily.leftToday.negate() else daily.leftToday),

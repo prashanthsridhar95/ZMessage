@@ -117,8 +117,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     var tab by rememberSaveable { mutableStateOf(0) }
     val shown = when (tab) {
         0 -> banks
-        1 -> cards
-        else -> emptyList()
+        else -> cards
     }
 
     androidx.compose.foundation.lazy.LazyColumn(
@@ -130,15 +129,15 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         item(key = "tabs") {
             UnderlineTabs(
-                labels = listOf("Accounts", "Cards", "Goals"),
-                counts = listOf(banks.size, cards.size, state.goals.size),
+                labels = listOf("Accounts", "Cards"),
+                counts = listOf(banks.size, cards.size),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
             )
         }
 
-        if (tab != 2 && shown.isEmpty()) {
+        if (shown.isEmpty()) {
             item(key = "empty") {
                 FintechCard { Caption(if (tab == 0) "No accounts yet" else "No cards yet") }
             }
@@ -147,16 +146,6 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
         }
 
-        if (tab == 2) {
-            item(key = "goals") {
-                GoalsCard(
-                    goals = state.goals,
-                    onSave = { onIntent(HomeContract.Intent.SaveGoal(it)) },
-                    onRemove = { onIntent(HomeContract.Intent.RemoveGoal(it)) },
-                    onAdd = { id, amount -> onIntent(HomeContract.Intent.AddToGoal(id, amount)) }
-                )
-            }
-        }
     }
 }
 
@@ -341,9 +330,9 @@ private const val ACTIVITY_SHOWN = 6
 @Composable
 internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Unit, onDismiss: () -> Unit) {
     val now = rememberNowMillis()
-    val codes = state.messages.filter {
+    val codes = (listOfNotNull(sampleCode(state, now)) + state.messages.filter {
         it.content is MessageContent.Otp && it.message.date >= now - CODE_LIST_WINDOW_MS && it.id !in state.userState.archivedIds
-    }.take(CODES_SHOWN)
+    }).take(CODES_SHOWN)
 
     AppBottomSheet(onDismiss, contentInset = 0.dp) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
@@ -370,6 +359,22 @@ internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Uni
         }
     }
 }
+
+/** A made-up code that looks like a real one, for trying the code card; null once it has run out or when none was asked for. */
+internal fun sampleCode(state: HomeContract.State, nowMillis: Long): ClassifiedMessage? {
+    val at = state.sampleCodeAt ?: return null
+    if (nowMillis - at !in 0 until CODE_LIFE_WINDOW_MS) return null
+    sampleCache?.takeIf { it.first == at }?.let { return it.second }
+    val message = com.zyke.message.domain.classification.MessageClassifier().classify(
+        com.zyke.message.domain.model.SmsMessage(SAMPLE_ID, "AX-ZYKEDEMO", "482916 is your one-time password for Zyke Demo. Do not share it.", at, false)
+    )
+    sampleCache = at to message
+    return message
+}
+
+private var sampleCache: Pair<Long, ClassifiedMessage>? = null
+
+private const val SAMPLE_ID = -9_000L
 
 /** The newest code that has not yet run out, or null. */
 internal fun freshCode(state: HomeContract.State, nowMillis: Long): ClassifiedMessage? =

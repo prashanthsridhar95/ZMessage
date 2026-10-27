@@ -24,8 +24,8 @@ fun FintechCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
-    // The card is the tap target, so the rows in it do not stretch past its edge.
-    CompositionLocalProvider(LocalContentInset provides 0.dp) {
+    // Rows inside let their touch ripple run out to the card's edges, across its side padding.
+    CompositionLocalProvider(LocalContentInset provides 20.dp) {
         Column(
             modifier
                 .fillMaxWidth()

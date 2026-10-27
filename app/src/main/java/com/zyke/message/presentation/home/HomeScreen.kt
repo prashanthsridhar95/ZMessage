@@ -210,7 +210,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
     val nowMillis = rememberNowMillis()
-    val code = freshCode(state, nowMillis)
+    val code = freshCode(state, nowMillis) ?: sampleCode(state, nowMillis)
 
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
@@ -230,7 +230,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
         item(key = "balance") { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } }
 
         state.daily?.let { daily ->
-            item(key = "today") { FintechCard { TodayBudget(daily) { onIntent(Intent.OpenCalendar) } } }
+            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(daily) } }
         }
 
         if (code != null) {
@@ -253,10 +253,8 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
 
         if (focus != null) {
             item(key = "focus") {
-                FintechCard {
-                    FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE) {
-                        focus.messageId?.let { onIntent(Intent.OpenMessage(it)) }
-                    }
+                FintechCard(onClick = focus.messageId?.let { id -> { onIntent(Intent.OpenMessage(id)) } }) {
+                    FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE)
                 }
             }
         }
@@ -278,38 +276,18 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             }
         }
 
-        val soon = state.reminders.filter { it.daysFrom(today) <= REMINDER_SOON_DAYS }
-        if (soon.isNotEmpty()) {
-            item(key = "reminders") {
-                FintechCard {
-                    Caption("REMINDERS")
-                    soon.take(MAX_REMINDERS_ON_HOME).forEach { due ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                RowTitle(due.reminder.title)
-                                Caption(DisplayFormatters.dueLabel(due.on, today))
-                            }
-                            due.reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
-                        }
-                    }
-                    LinkButton("All reminders", { onNavigate(AppTab.BILLS) })
-                }
-            }
-        }
-
-        state.goals.firstOrNull { !it.isReached }?.let { goal ->
-            item(key = "goal") {
-                FintechCard(onClick = { onNavigate(AppTab.ACCOUNTS) }) {
-                    Caption("GOAL")
-                    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RowTitle(goal.goal.name, Modifier.weight(1f))
-                        Text(
-                            "${DisplayFormatters.rupees(goal.goal.saved)} of ${DisplayFormatters.rupees(goal.goal.target)}",
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1
-                        )
-                    }
-                    ShareBar(goal.fraction)
-                }
+        item(key = "plan-tiles") {
+            val soon = state.reminders.count { it.daysFrom(today) <= REMINDER_SOON_DAYS }
+            val goal = state.goals.firstOrNull { !it.isReached }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PlanTile(
+                    "Goals",
+                    goal?.let { "${it.goal.name} · ${(it.fraction * 100).toInt()}%" } ?: state.goals.size.takeIf { it > 0 }?.let { "$it reached" } ?: "None yet"
+                ) { onIntent(Intent.OpenGoals) }
+                PlanTile(
+                    "Reminders",
+                    if (soon > 0) "$soon in the next week" else state.reminders.size.takeIf { it > 0 }?.let { "$it set" } ?: "None yet"
+                ) { onIntent(Intent.OpenReminders) }
             }
         }
 
@@ -365,12 +343,6 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item(key = "reminders") {
-            RemindersCard(
-                reminders = state.reminders, today = today,
-                onSave = { onIntent(Intent.SaveReminder(it)) }, onRemove = { onIntent(Intent.RemoveReminder(it)) }
-            )
-        }
         if (empty) {
             item(key = "empty") { PlainSection("Nothing due") { Caption("Nothing due") } }
         }
@@ -499,6 +471,26 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
         )
     }
 
+    if (state.showGoals) {
+        PlanSheet("Goals", { onIntent(Intent.CloseGoals) }) {
+            GoalsCard(
+                goals = state.goals,
+                onSave = { onIntent(Intent.SaveGoal(it)) },
+                onRemove = { onIntent(Intent.RemoveGoal(it)) },
+                onAdd = { id, amount -> onIntent(Intent.AddToGoal(id, amount)) }
+            )
+        }
+    }
+
+    if (state.showReminders) {
+        PlanSheet("Reminders", { onIntent(Intent.CloseReminders) }) {
+            RemindersCard(
+                reminders = state.reminders, today = LocalDate.ofInstant(state.now, ZoneId.systemDefault()),
+                onSave = { onIntent(Intent.SaveReminder(it)) }, onRemove = { onIntent(Intent.RemoveReminder(it)) }
+            )
+        }
+    }
+
     state.messages.firstOrNull { it.id == state.journeyMessageId }?.let { trip ->
         JourneySheet(
             message = trip,
@@ -595,7 +587,6 @@ internal const val CODE_WARN_FRACTION = 0.2f
 internal val CODE_GROUPABLE = 4..10 step 2
 private const val MAX_PLANS = 4
 private const val REMINDER_SOON_DAYS = 7L
-private const val MAX_REMINDERS_ON_HOME = 3
 private const val MAX_RECENT_ACTIVITY = 5
 
 /** A titled card with its rows. */
@@ -808,13 +799,9 @@ private fun shortDate(date: LocalDate): String = java.time.format.DateTimeFormat
 
 /** The one thing to read first, set apart by space and a single colour rather than a box of detail. */
 @Composable
-private fun FocusCard(text: String, urgent: Boolean, onOpen: () -> Unit) {
+private fun FocusCard(text: String, urgent: Boolean) {
     val accent = if (urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Column(
-        Modifier.fillMaxWidth()
-            .fullWidthClickable(onClickLabel = "Open details", onClick = onOpen)
-            .padding(vertical = 4.dp)
-    ) {
+    Column(Modifier.fillMaxWidth()) {
         Caption("FIRST THING", color = accent)
         Text(
             text,

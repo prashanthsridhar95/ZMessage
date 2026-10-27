@@ -46,7 +46,9 @@ class SettingsViewModel(
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-    private val wishlistRepository: WishlistRepository = NoWishlist
+    private val wishlistRepository: WishlistRepository = NoWishlist,
+    /** Called when the person asks for a sample code on Home. */
+    private val onSampleCode: () -> Unit = {}
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
         wishlist = wishlistRepository.items.value)
@@ -141,6 +143,10 @@ class SettingsViewModel(
                 cardRepository.remove(intent.id)
                 emitEffect(Effect.ShowMessage("Removed"))
             }
+            Intent.ShowSampleCode -> {
+                onSampleCode()
+                emitEffect(Effect.ShowMessage("A sample code is on Home"))
+            }
             Intent.AskReset -> reduce { copy(confirmingReset = true) }
             Intent.CancelReset -> reduce { copy(confirmingReset = false) }
             Intent.ConfirmReset -> {
@@ -215,14 +221,15 @@ class SettingsViewModel(
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-        private val wishlistRepository: WishlistRepository = NoWishlist
+        private val wishlistRepository: WishlistRepository = NoWishlist,
+        private val onSampleCode: () -> Unit = {}
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository, onSampleCode = onSampleCode
             ) as T
     }
 }

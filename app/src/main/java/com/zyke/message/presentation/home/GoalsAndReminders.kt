@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.heading
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -265,4 +267,31 @@ private fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remin
         }
     )
     if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
+}
+
+/** One line on Home for something planned ahead; it opens its own sheet. */
+@Composable
+internal fun PlanTile(title: String, summary: String, onOpen: () -> Unit) {
+    FintechCard(onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowTitle(title, Modifier.weight(1f))
+            Caption(summary)
+            Spacer(Modifier.width(8.dp))
+            Text("\u203A", color = mutedColor())
+        }
+    }
+}
+
+/** The sheet a plan tile opens: its card, with room round it. */
+@Composable
+internal fun PlanSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    com.zyke.message.presentation.common.AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(title, Modifier.padding(horizontal = 4.dp).heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            content()
+        }
+    }
 }

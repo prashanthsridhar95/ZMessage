@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
         HomeViewModel.Factory(
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
-            container.goals, container.reminders
+            container.goals, container.reminders, container.sampleCode
         )
     }
 
@@ -79,7 +79,8 @@ class MainActivity : ComponentActivity() {
             onDigestChanged = { DigestScheduler(this).apply(it) },
             onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
             planRepository = container.moneyPlan,
-            wishlistRepository = container.wishlist
+            wishlistRepository = container.wishlist,
+            onSampleCode = { container.sampleCode.value = System.currentTimeMillis() }
         )
     }
 

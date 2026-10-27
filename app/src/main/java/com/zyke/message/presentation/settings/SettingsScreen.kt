@@ -248,6 +248,14 @@ fun SettingsSheet(
                 )
             }
 
+            SectionCard("Try it", summary = "Sample code") {
+                AppButton(
+                    text = "Show a sample code on Home",
+                    onClick = { onIntent(Intent.ShowSampleCode) },
+                    style = ButtonStyle.OUTLINE
+                )
+            }
+
             SectionCard("About") {
                 Caption("Version $versionName")
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))

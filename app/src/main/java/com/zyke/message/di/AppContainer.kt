@@ -53,6 +53,8 @@ class AppContainer(context: Context) {
     val wishlist: WishlistRepository = WishlistRepositoryImpl(context)
     val splits: SplitRepository = SplitRepositoryImpl(context)
     val goals: GoalRepository = GoalRepositoryImpl(context)
+    /** When the person asked for a sample code on Home, to try the code card; not saved. */
+    val sampleCode = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
     val reminders: ReminderRepository = ReminderRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()

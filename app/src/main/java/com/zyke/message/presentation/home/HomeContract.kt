@@ -90,6 +90,10 @@ object HomeContract {
         /** The account whose sheet is open, and whether the list of codes is. */
         val openAccountKey: String? = null,
         val showCodes: Boolean = false,
+        val showGoals: Boolean = false,
+        val showReminders: Boolean = false,
+        /** When the person asked to see a sample code, so the code card can be tried without waiting for a real one. */
+        val sampleCodeAt: Long? = null,
         /** The trip whose scene is open. */
         val journeyMessageId: Long? = null,
         /** The payment being split with friends, while its dialog is open. */
@@ -130,6 +134,10 @@ object HomeContract {
         data class NameAccount(val key: String, val name: String) : Intent
         data class OpenJourney(val messageId: Long) : Intent
         data object CloseJourney : Intent
+        data object OpenGoals : Intent
+        data object CloseGoals : Intent
+        data object OpenReminders : Intent
+        data object CloseReminders : Intent
         data object OpenCodes : Intent
         data object CloseCodes : Intent
         data object OpenQuickAdds : Intent

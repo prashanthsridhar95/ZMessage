@@ -76,7 +76,8 @@ class HomeViewModel(
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val cardRepository: CardRepository = NoCards,
     private val goalRepository: GoalRepository = NoGoals,
-    private val reminderRepository: ReminderRepository = NoReminders
+    private val reminderRepository: ReminderRepository = NoReminders,
+    private val sampleCode: kotlinx.coroutines.flow.StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
@@ -97,6 +98,7 @@ class HomeViewModel(
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
         viewModelScope.launch { planRepository.plan.collect { plan -> reduceHome { copy(plan = plan) } } }
+        viewModelScope.launch { sampleCode.collect { at -> reduceHome { copy(sampleCodeAt = at) } } }
         viewModelScope.launch { goalRepository.goals.collect { goals -> reduceHome { copy(goalList = goals) } } }
         viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
@@ -150,6 +152,10 @@ class HomeViewModel(
             Intent.CloseAccount -> reduce { copy(openAccountKey = null) }
             is Intent.OpenJourney -> reduce { copy(journeyMessageId = intent.messageId) }
             Intent.CloseJourney -> reduce { copy(journeyMessageId = null) }
+            Intent.OpenGoals -> reduce { copy(showGoals = true) }
+            Intent.CloseGoals -> reduce { copy(showGoals = false) }
+            Intent.OpenReminders -> reduce { copy(showReminders = true) }
+            Intent.CloseReminders -> reduce { copy(showReminders = false) }
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
             Intent.CloseCodes -> reduce { copy(showCodes = false) }
             is Intent.NameAccount -> nameAccount(intent.key, intent.name)
@@ -277,7 +283,8 @@ class HomeViewModel(
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val cardRepository: CardRepository = NoCards,
         private val goalRepository: GoalRepository = NoGoals,
-        private val reminderRepository: ReminderRepository = NoReminders
+        private val reminderRepository: ReminderRepository = NoReminders,
+        private val sampleCode: kotlinx.coroutines.flow.StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -285,7 +292,7 @@ class HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
-                goalRepository = goalRepository, reminderRepository = reminderRepository
+                goalRepository = goalRepository, reminderRepository = reminderRepository, sampleCode = sampleCode
             ) as T
     }
 

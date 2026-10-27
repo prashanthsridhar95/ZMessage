@@ -56,6 +56,8 @@ object SettingsContract {
         data class RemoveWish(val id: String) : Intent
         data class SavePlanItem(val item: PlanItem) : Intent
         data class DeletePlanItem(val id: String) : Intent
+        /** Puts a made-up code on Home so the code card can be tried. */
+        data object ShowSampleCode : Intent
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent
