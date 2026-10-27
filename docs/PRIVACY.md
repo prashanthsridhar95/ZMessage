@@ -6,7 +6,7 @@
 |---|---|---|---|
 | SMS text, sender, time | Android SMS provider (`READ_SMS`) | No: read into memory, re-read on change | No |
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
-| Cards (last four digits, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
+| Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
 | Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage | No |

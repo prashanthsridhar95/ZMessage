@@ -33,7 +33,7 @@ class CardRepositoryImpl(context: Context) : CardRepository {
         cards.forEach {
             array.put(
                 JSONObject().put("id", it.id).put("type", it.type.name).put("last4", it.last4)
-                    .put("name", it.name).put("statementDay", it.statementDay ?: JSONObject.NULL)
+                    .put("name", it.name).put("bankName", it.bankName).put("statementDay", it.statementDay ?: JSONObject.NULL)
             )
         }
         prefs.edit().putString(KEY, array.toString()).apply()
@@ -49,6 +49,7 @@ class CardRepositoryImpl(context: Context) : CardRepository {
                 type = type,
                 last4 = o.getString("last4"),
                 name = o.optString("name"),
+                bankName = o.optString("bankName"),
                 statementDay = if (o.isNull("statementDay")) null else o.getInt("statementDay")
             )
         }

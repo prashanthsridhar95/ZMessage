@@ -25,7 +25,7 @@ import java.util.UUID
 private const val LAST_DIGITS = 4
 private const val MAX_DAY = 31
 
-/** Add or edit one card: only the last four digits are asked for, never the full number. */
+/** Add or edit one card or account: only the last four digits are asked for, never the full number. */
 @Composable
 internal fun CardDialog(
     initial: UserCard?,
@@ -35,15 +35,16 @@ internal fun CardDialog(
 ) {
     var type by rememberSaveable { mutableStateOf(initial?.type ?: CardType.CREDIT) }
     var last4 by rememberSaveable { mutableStateOf(initial?.last4.orEmpty()) }
+    var bank by rememberSaveable { mutableStateOf(initial?.bankName.orEmpty()) }
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var day by rememberSaveable { mutableStateOf(initial?.statementDay?.toString().orEmpty()) }
 
     val statementDay = day.toIntOrNull()?.takeIf { it in 1..MAX_DAY }
-    val valid = last4.length == LAST_DIGITS && (day.isEmpty() || statementDay != null)
+    val valid = last4.length == LAST_DIGITS && (type != CardType.ACCOUNT || bank.isNotBlank()) && (day.isEmpty() || statementDay != null)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add card" else "Edit card") },
+        title = { Text(if (initial == null) "Add card or account" else "Edit ${type.label.lowercase()}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -55,15 +56,22 @@ internal fun CardDialog(
                     value = last4,
                     onValueChange = { input -> last4 = input.filter(Char::isDigit).take(LAST_DIGITS) },
                     singleLine = true,
-                    label = { Text("Last 4 digits") },
+                    label = { Text(if (type == CardType.ACCOUNT) "Last 4 digits of account number" else "Last 4 digits of card") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+                OutlinedTextField(
+                    value = bank,
+                    onValueChange = { bank = it.take(MAX_NAME) },
+                    singleLine = true,
+                    label = { Text("Bank name") },
+                    placeholder = { Text("e.g. HDFC Bank") }
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(MAX_NAME) },
                     singleLine = true,
                     label = { Text("Name (optional)") },
-                    placeholder = { Text("e.g. HDFC Regalia") }
+                    placeholder = { Text(if (type == CardType.ACCOUNT) "e.g. Salary account" else "e.g. HDFC Regalia") }
                 )
                 if (type == CardType.CREDIT) {
                     OutlinedTextField(
@@ -88,6 +96,7 @@ internal fun CardDialog(
                             type = type,
                             last4 = last4,
                             name = name.trim(),
+                            bankName = bank.trim(),
                             statementDay = if (type == CardType.CREDIT) statementDay else null
                         )
                     )

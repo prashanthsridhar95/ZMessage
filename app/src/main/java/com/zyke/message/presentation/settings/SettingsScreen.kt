@@ -196,10 +196,11 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
     var editing by remember { mutableStateOf<UserCard?>(null) }
     var adding by remember { mutableStateOf(false) }
 
-    SectionCard("Your cards") {
+    SectionCard("Your cards & accounts") {
         Caption(
-            "Add the last four digits of your credit and debit cards so messages are matched to the right card. " +
-                "For a credit card, add its statement date to see spends and payments by billing cycle.",
+            "Add the last four digits of your credit cards, debit cards and bank accounts, with the bank name, so " +
+                "messages are matched to the right one. For a credit card, add its statement date to see spends " +
+                "and payments by billing cycle.",
             maxLines = 5
         )
         cards.forEach { card ->
@@ -210,14 +211,18 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
                 Column(Modifier.weight(1f)) {
                     RowTitle(card.label)
                     Caption(
-                        card.statementDay?.let { "${card.type.label} · statement on day $it" } ?: card.type.label
+                        listOfNotNull(
+                            card.type.label,
+                            card.bankName.takeIf { it.isNotBlank() && card.name.isNotBlank() },
+                            card.statementDay?.let { "statement on day $it" }
+                        ).joinToString(" · ")
                     )
                 }
                 AppButton("Edit", { editing = card }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
         AppButton(
-            text = "Add card",
+            text = "Add card or account",
             onClick = { adding = true },
             style = ButtonStyle.OUTLINE,
             modifier = Modifier.padding(top = 12.dp)

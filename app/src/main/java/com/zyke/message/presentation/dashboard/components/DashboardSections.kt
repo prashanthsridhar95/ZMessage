@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.R
 import com.zyke.message.domain.dashboard.BillEntry
 import com.zyke.message.domain.cards.CardCycles
+import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
@@ -770,15 +771,16 @@ private fun statementDate(bill: BillEntry): LocalDate =
 internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Modifier) {
     val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
     SectionCard(
-        title = "Card cycles",
+        title = "Cards & accounts",
         modifier = modifier,
-        subtitle = "Spent and paid by billing cycle"
+        subtitle = "Spent and received by billing cycle or month"
     ) {
         cards.forEachIndexed { index, entry ->
             if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
             val max = entry.cycles.maxOf { it.spent }.coerceAtLeast(BigDecimal.ONE)
             RowTitle(entry.card.label)
             Caption(entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
+            val inWord = if (entry.card.type == CardType.ACCOUNT) "received" else "paid"
             entry.cycles.forEach { cycle ->
                 Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -790,7 +792,7 @@ internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Mod
                             Caption(
                                 buildString {
                                     append(plural(cycle.spendCount, "payment", "payments"))
-                                    if (cycle.paid.signum() > 0) append(" · paid ${DisplayFormatters.rupees(cycle.paid)}")
+                                    if (cycle.paid.signum() > 0) append(" · $inWord ${DisplayFormatters.rupees(cycle.paid)}")
                                 }
                             )
                         }

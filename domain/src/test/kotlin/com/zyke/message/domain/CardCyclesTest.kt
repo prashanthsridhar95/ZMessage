@@ -57,4 +57,17 @@ class CardCyclesTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(cycles[2].spent))
         assertEquals(CardCycleBuilder.CYCLES_SHOWN, cycles.size)
     }
+
+    @Test
+    fun accountsAreMatchedByTheirLastDigits_andKeptApartFromCardsWithTheSameDigits() {
+        val account = UserCard("a1", CardType.ACCOUNT, "5765", "Salary", bankName = "HDFC Bank")
+        val sameDigitsCard = UserCard("c2", CardType.CREDIT, "5765", "Other card")
+        val debit = classifier.classify(
+            SmsMessage(1, "AD-HDFCBK", "Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 1", 1_700_000_000_000L, true)
+        )
+
+        assertEquals("a1", CardMatcher.match(debit, listOf(sameDigitsCard, account))?.id)
+        assertNull(CardMatcher.match(debit, listOf(sameDigitsCard)))
+        assertEquals("Salary A/c •• 5765", account.label)
+    }
 }
