@@ -1,5 +1,5 @@
 [versions]
-detekt = "1.23.7"
+detekt = "1.23.8"
 agp = "8.8.0"
 appcompat = "1.7.0"
 kotlin = "2.0.0"
