@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
@@ -328,51 +329,22 @@ private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
     return { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
 }
 
-/** Only shown once a picture has been chosen: the way back to the automatic one. */
+/**
+ * Takes a picture away from this sender: the one chosen, or a brand logo that turns out to be wrong. A hidden logo
+ * can be brought back from the same place.
+ */
 @Composable
 private fun RemovePicture(item: ClassifiedMessage) {
     val store = LocalImageStore.current ?: return
     val key = CategoryKey.of(item) ?: return
-    if (item.merchant.imageKey == null) return
-    AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-}
-
-/** A nickname for this sender / receiver, shown everywhere their name appears. */
-@Composable
-private fun RenameSender(item: ClassifiedMessage, shownName: String, actions: FeedActions) {
-    var renaming by remember { mutableStateOf(false) }
-    AppButton(
-        text = if (item.merchant.renamed) "Change nickname" else "Give a nickname",
-        onClick = { renaming = true },
-        modifier = Modifier.fillMaxWidth(),
-        style = ButtonStyle.TEXT,
-        size = ButtonSize.COMPACT
-    )
-    if (renaming) {
-        var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
-        AlertDialog(
-            onDismissRequest = { renaming = false },
-            title = { Text("Nickname for ${CategoryKey.label(item)}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nickname") })
-                    Caption("Shown wherever this name appears. Kept on this phone only.", maxLines = 2)
-                }
-            },
-            confirmButton = {
-                AppButton(
-                    "Save",
-                    { actions.onRename(item.id, name); renaming = false },
-                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank()
-                )
-            },
-            dismissButton = {
-                if (item.merchant.renamed) {
-                    AppButton("Use original", { actions.onRename(item.id, ""); renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                } else {
-                    AppButton("Cancel", { renaming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                }
-            }
-        )
+    val hidden by store.hiddenLogos.collectAsState()
+    val name = item.merchant.name
+    when {
+        item.merchant.imageKey != null ->
+            AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        store.hasLogo(name) && !store.isHidden(name) ->
+            AppButton("This logo is wrong", { store.hideLogo(name) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        store.isHidden(name) && hidden.isNotEmpty() ->
+            AppButton("Show the logo again", { store.showLogo(name) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }

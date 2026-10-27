@@ -1,5 +1,12 @@
 package com.zyke.message.presentation
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -117,18 +124,57 @@ fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, 
                 NavigationBarItem(
                     selected = tab == selected,
                     onClick = { onSelect(tab) },
-                    icon = {
-                        if (tab == AppTab.INBOX && inboxBadge > 0) {
-                            BadgedBox(badge = { Badge { Text(if (inboxBadge > 99) "99+" else inboxBadge.toString()) } }) {
-                                Icon(painterResource(tab.icon), contentDescription = null)
-                            }
-                        } else {
-                            Icon(painterResource(tab.icon), contentDescription = null)
-                        }
-                    },
+                    icon = { AnimatedTabIcon(tab, selected = tab == selected, badge = if (tab == AppTab.INBOX) inboxBadge else 0) },
                     label = { Text(tab.label) }
                 )
             }
         }
     }
 }
+
+/**
+ * A tab's icon, alive to being chosen: it springs up and tilts once as it is selected, settles a little larger and
+ * lifted, and eases back when another tab is chosen. With reduced motion it only changes size.
+ */
+@Composable
+private fun AnimatedTabIcon(tab: AppTab, selected: Boolean, badge: Int) {
+    val reduceMotion = rememberReduceMotion()
+    val scale by animateFloatAsState(
+        targetValue = if (selected) SELECTED_SCALE else 1f,
+        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "tab-scale"
+    )
+    val lift by animateFloatAsState(
+        targetValue = if (selected) -LIFT_DP else 0f,
+        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "tab-lift"
+    )
+    // One quick tilt each way when the tab becomes the chosen one.
+    val tilt = remember { Animatable(0f) }
+    LaunchedEffect(selected) {
+        if (selected && !reduceMotion) {
+            tilt.animateTo(-TILT_DEGREES, tween(90))
+            tilt.animateTo(TILT_DEGREES, tween(120))
+            tilt.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+        } else {
+            tilt.snapTo(0f)
+        }
+    }
+    val modifier = Modifier.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+        translationY = lift.dp.toPx()
+        rotationZ = tilt.value
+    }
+    if (badge > 0) {
+        BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else badge.toString()) } }, modifier = modifier) {
+            Icon(painterResource(tab.icon), contentDescription = null)
+        }
+    } else {
+        Icon(painterResource(tab.icon), contentDescription = null, modifier = modifier)
+    }
+}
+
+private const val SELECTED_SCALE = 1.18f
+private const val LIFT_DP = 2f
+private const val TILT_DEGREES = 12f

@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import kotlinx.coroutines.launch
+import com.zyke.message.presentation.common.LocalImageStore
+import com.zyke.message.domain.classification.MerchantResolver
+import androidx.compose.runtime.collectAsState
 import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -164,10 +168,8 @@ private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onO
     val asOf = account.balanceAsOf
     FintechCard(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (sample != null) {
-                MerchantChip(sample.merchant.logo, imageKey = sample.merchant.imageKey, name = sample.merchant.name, description = account.title, size = 44.dp)
-                Spacer(Modifier.width(12.dp))
-            }
+            AccountChip(account, 44.dp)
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 RowTitle(account.title)
                 Caption("${account.kind.label} •• ${account.last4}")
@@ -228,7 +230,6 @@ internal fun AccountSheet(
             tx.accountNumber.filter(Char::isDigit).takeLast(4) == account.last4 && tx.isCard == account.isCard
         }.take(ACTIVITY_SHOWN)
     }
-    val sample = state.messages.firstOrNull { it.id == account.sampleMessageId }
     val due = account.dueDate
     val asOf = account.balanceAsOf
     var naming by rememberSaveable { mutableStateOf(false) }
@@ -239,10 +240,9 @@ internal fun AccountSheet(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (sample != null) {
-                    MerchantChip(sample.merchant.logo, imageKey = sample.merchant.imageKey, name = sample.merchant.name, description = account.title, size = 48.dp)
-                    Spacer(Modifier.width(12.dp))
-                }
+                val pick = rememberAccountPicturePicker(account)
+                AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(onClickLabel = "Change picture", onClick = pick) else Modifier))
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(account.title, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
                     Caption("${account.kind.label} •• ${account.last4}")
@@ -268,6 +268,8 @@ internal fun AccountSheet(
                     maxLines = 2
                 )
             }
+
+            RemoveAccountPicture(account)
 
             account.paymentLink?.let { AppButton("Pay bill", { onPay(it) }, Modifier.fillMaxWidth()) }
 
@@ -371,3 +373,52 @@ internal fun freshCode(state: HomeContract.State, nowMillis: Long): ClassifiedMe
 internal const val CODE_LIFE_WINDOW_MS = 10 * 60 * 1000L
 private const val CODE_LIST_WINDOW_MS = 60 * 60 * 1000L
 private const val CODES_SHOWN = 5
+
+private const val ACCOUNT_PICTURE_PREFIX = "acct:"
+
+/**
+ * The account's own mark: the picture the person chose for it, else its bank's logo. It is the bank's, never the
+ * name of whoever was paid in the account's latest message.
+ */
+@Composable
+private fun AccountChip(account: AccountSummary, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val store = LocalImageStore.current
+    val keys by (store?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet())).collectAsState()
+    val key = ACCOUNT_PICTURE_PREFIX + account.key
+    val bank = remember(account.bankName) { MerchantResolver().resolve(account.bankName.displayString.ifEmpty { account.title }) }
+    MerchantChip(
+        bank.logo,
+        modifier = modifier,
+        imageKey = key.takeIf { it in keys },
+        name = bank.name,
+        description = account.title,
+        size = size
+    )
+}
+
+/** Choosing a picture for the account from the person's own photos; null where pictures are not available. */
+@Composable
+private fun rememberAccountPicturePicker(account: AccountSummary): (() -> Unit)? {
+    val store = LocalImageStore.current ?: return null
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                if (!store.saveChosen(ACCOUNT_PICTURE_PREFIX + account.key, uri)) {
+                    android.widget.Toast.makeText(context, "Couldn't use that image", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    return { launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+}
+
+/** The way back to the bank's logo, once a picture of the person's own has been chosen. */
+@Composable
+private fun RemoveAccountPicture(account: AccountSummary) {
+    val store = LocalImageStore.current ?: return
+    val keys by store.keysWithImage.collectAsState()
+    val key = ACCOUNT_PICTURE_PREFIX + account.key
+    if (key in keys) AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+}

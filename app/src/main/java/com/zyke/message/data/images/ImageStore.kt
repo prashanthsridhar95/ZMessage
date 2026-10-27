@@ -39,6 +39,10 @@ class ImageStore(
     private val _keys = MutableStateFlow(index.getStringSet(KEYS, emptySet()).orEmpty().toSet())
     override val keysWithImage: StateFlow<Set<String>> = _keys.asStateFlow()
 
+    /** Brand logos the person has turned off, by name, e.g. when a logo is wrong for what it is shown on. */
+    private val _hidden = MutableStateFlow(index.getStringSet(HIDDEN, emptySet()).orEmpty().toSet())
+    val hiddenLogos: StateFlow<Set<String>> = _hidden.asStateFlow()
+
     /** Bumped whenever a picture changes, so screens showing one reload it. */
     private val _version = MutableStateFlow(0)
     val version: StateFlow<Int> = _version.asStateFlow()
@@ -64,6 +68,7 @@ class ImageStore(
 
     /** The cached logo for a well-known [name]; downloads it first when allowed and not tried recently. */
     suspend fun loadLogo(name: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (isHidden(name)) return@withContext null
         val domain = KnownEntityDomains.domainFor(name) ?: return@withContext null
         cache.get(LOGO + domain)?.let { return@withContext it }
         val file = File(logoDir, fileName(domain))
@@ -85,6 +90,24 @@ class ImageStore(
             inFlight.remove(domain)
         }
     }
+
+    /** True when the name is one a brand logo can be found for. */
+    fun hasLogo(name: String): Boolean = KnownEntityDomains.domainFor(name) != null
+
+    fun isHidden(name: String): Boolean = norm(name) in _hidden.value
+
+    /** Shows the plain icon for this name instead of a brand logo. */
+    fun hideLogo(name: String) = setHidden(_hidden.value + norm(name))
+
+    fun showLogo(name: String) = setHidden(_hidden.value - norm(name))
+
+    private fun setHidden(names: Set<String>) {
+        index.edit().putStringSet(HIDDEN, names).apply()
+        _hidden.value = names
+        _version.value += 1
+    }
+
+    private fun norm(name: String) = name.trim().lowercase()
 
     /** Forgets every downloaded logo (for when the person turns the feature off). */
     fun clearLogos() {
@@ -124,6 +147,7 @@ class ImageStore(
 
     private companion object {
         const val KEYS = "keys"
+        const val HIDDEN = "hidden-logos"
         const val FAILED = "failed-"
         const val CHOSEN = "c:"
         const val LOGO = "l:"
