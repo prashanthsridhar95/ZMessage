@@ -79,6 +79,13 @@ object SpendAlerts {
 
     private fun label(payment: Payment) = (payment.message.content as MessageContent.Transaction).payee.trim()
 
-    private fun rupees(amount: BigDecimal) =
-        "₹" + NumberFormat.getNumberInstance(Locale.forLanguageTag("en-IN")).apply { maximumFractionDigits = 2 }.format(amount)
+    /** Whole amounts have no decimals; anything with paise always shows two digits after the point. */
+    private fun rupees(amount: BigDecimal): String {
+        val whole = amount.stripTrailingZeros().scale() <= 0
+        val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("en-IN")).apply {
+            maximumFractionDigits = 2
+            minimumFractionDigits = if (whole) 0 else 2
+        }
+        return "₹" + format.format(amount)
+    }
 }
