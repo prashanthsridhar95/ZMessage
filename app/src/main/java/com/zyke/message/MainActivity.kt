@@ -81,6 +81,9 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.zyke.message.datalayer.BankMessagesProcessor
 import com.zyke.message.datalayer.FastTagMessageProcessor
 import com.zyke.message.datalayer.MessagesHandler
+import com.zyke.message.datalayer.RcsMessageStore
+import androidx.core.app.NotificationManagerCompat
+import android.content.Intent
 import com.zyke.message.datalayer.NetworkCarrier
 import com.zyke.message.datalayer.ZCategory
 import com.zyke.message.datalayer.ZMessage
@@ -963,6 +966,14 @@ class MainActivity : AppCompatActivity() {
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.primary
                     )
+
+                    if (message.isRcs) {
+                        Text(
+                            text = "RCS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
 
                     if (displayText.second != ZCategory.OTHERS) {
                         CategoryDisplay(category = displayText.second)
@@ -1940,6 +1951,39 @@ class MainActivity : AppCompatActivity() {
     }
 
 
+    override fun onResume() {
+        super.onResume()
+        if (ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.READ_SMS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            loadMessages()
+        }
+    }
+
+    private fun loadMessages() {
+        MessagesHandler().getSmsMessages(this) {
+            messages.value = RcsMessageStore.mergeWith(this, it)
+        }
+        requestNotificationAccessIfNeeded()
+    }
+
+    // RCS isn't readable via the SMS provider; notification access lets us capture incoming RCS chats.
+    private fun requestNotificationAccessIfNeeded() {
+        if (NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)) return
+        val prefs = getPreferences(MODE_PRIVATE)
+        if (prefs.getBoolean("rcs_access_prompted", false)) return
+        prefs.edit().putBoolean("rcs_access_prompted", true).apply()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Show RCS messages")
+            .setMessage("To show RCS chat messages, allow notification access for this app. Only new incoming messages are captured.")
+            .setPositiveButton("Allow") { _, _ ->
+                startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            }
+            .setNegativeButton("Not now", null)
+            .show()
+    }
+
     private fun checkAndRequestSmsPermission() {
         if (ContextCompat.checkSelfPermission(
                 this, android.Manifest.permission.READ_SMS
@@ -1951,9 +1995,7 @@ class MainActivity : AppCompatActivity() {
             )
         } else {
             // Permission already granted, proceed with reading SMS
-            MessagesHandler().getSmsMessages(this) {
-                messages.value = it
-            }
+            loadMessages()
         }
     }
 
@@ -1964,9 +2006,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == REQUEST_CODE_READ_SMS) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission granted, proceed with reading SMS
-                MessagesHandler().getSmsMessages(this) {
-                    messages.value = it
-                }
+                loadMessages()
             } else {
                 // Permission denied, handle accordingly (e.g., show a message)
                 Log.e("SMS Permission", "Permission Denied")
