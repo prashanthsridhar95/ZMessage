@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.remember
@@ -276,7 +277,7 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
                     val current = item.category == category
                     Row(
                         Modifier.fillMaxWidth()
-                            .clickable(onClickLabel = "File under ${category.displayString}") {
+                            .fullWidthClickable(onClickLabel = "File under ${category.displayString}") {
                                 // Choosing the current one goes back to the automatic guess.
                                 val clear = item.categoryOverridden && current
                                 actions.onSetCategory(item.id, if (clear) null else category)

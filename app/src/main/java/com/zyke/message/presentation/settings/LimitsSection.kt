@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,7 +62,7 @@ internal fun LimitsSection(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(role = Role.Button, onClickLabel = "Edit limits for ${entry.category.displayString}") { editing = entry }
+                    .fullWidthClickable(role = Role.Button, onClickLabel = "Edit limits for ${entry.category.displayString}") { editing = entry }
                     .padding(top = 14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

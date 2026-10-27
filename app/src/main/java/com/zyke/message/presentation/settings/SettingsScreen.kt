@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
@@ -85,7 +86,7 @@ fun SettingsSheet(
     onIntent: (Intent) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
+    AppBottomSheet(onDismiss, contentInset = 16.dp) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -268,7 +269,7 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
         )
         cards.forEach { card ->
             Row(
-                Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Edit ${card.label}") { editing = card }.padding(top = 12.dp),
+                Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${card.label}") { editing = card }.padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {

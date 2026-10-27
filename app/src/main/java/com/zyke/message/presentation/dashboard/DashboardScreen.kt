@@ -216,7 +216,10 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
         // With no hero card (nothing in this view) the switch has nowhere else to live, so it stays above the list.
         if (dashboard.isEmpty) CollapsedHeroBar(dashboard, onDirection)
         Box(Modifier.weight(1f)) {
-            androidx.compose.runtime.CompositionLocalProvider(LocalSectionsAsSheets provides true) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalSectionsAsSheets provides true,
+                com.zyke.message.presentation.common.LocalContentInset provides 16.dp
+            ) {
                 DashboardList(state, dashboard, onIntent, listState)
             }
             HeroBarOverlay(collapsed && !dashboard.isEmpty, dashboard, onDirection, Modifier.align(Alignment.TopCenter))

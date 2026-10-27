@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -21,7 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     LaunchedEffect(sheetState) { sheetState.expand() }
     // Read here, in the app's window: the sheet's own window can report no insets. A full-height sheet then
@@ -31,6 +33,8 @@ fun AppBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() ->
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         modifier = Modifier.padding(top = topInset),
-        content = content
+        content = {
+            androidx.compose.runtime.CompositionLocalProvider(LocalContentInset provides contentInset) { content() }
+        }
     )
 }

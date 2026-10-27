@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -58,7 +59,7 @@ internal fun WishlistSection(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(role = Role.Button, onClickLabel = "Edit ${item.name}") { editing = item }
+                    .fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${item.name}") { editing = item }
                     .padding(top = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

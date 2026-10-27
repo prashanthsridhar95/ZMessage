@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,7 +78,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
     }
 
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open message") { actions.onOpenMessage(item.message.id) }
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open message") { actions.onOpenMessage(item.message.id) }
             .padding(start = inset, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.fullWidthClickable
+import com.zyke.message.presentation.common.LocalContentInset
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
@@ -203,6 +206,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
 
+    CompositionLocalProvider(LocalContentInset provides 24.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
@@ -253,6 +257,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             }
         }
     }
+    }
 }
 
 /** Everything due or owed, soonest first, on one plain list. */
@@ -261,6 +266,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     val empty = state.upcoming.isEmpty() && state.refunds.isEmpty() &&
         state.owed.isEmpty() && state.subscriptions.isEmpty()
 
+    CompositionLocalProvider(LocalContentInset provides 24.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
@@ -311,6 +317,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 }
             }
         }
+    }
     }
 }
 
@@ -515,7 +522,7 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
         if (percent == 0) "About the same as the same days last month"
         else "$percent% ${if (it >= 0) "more" else "less"} than the same days last month"
     }
-    Column(Modifier.fillMaxWidth().clickable(onClickLabel = "See where it went", onClick = onOpen)) {
+    Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "See where it went", onClick = onOpen)) {
         Caption("Spent in ${DisplayFormatters.monthName(java.time.YearMonth.from(month.range.start))}")
         Text(
             text = rememberAnimatedRupees(month.total),
@@ -535,7 +542,7 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
     val date = item.date
     val soon = date != null && date <= today.plusDays(2)
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         MerchantChip(
@@ -562,7 +569,7 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
 private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onPay: (String) -> Unit) {
     val urgent = DisplayFormatters.isUrgent(item.date, today)
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         MerchantChip(item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, description = item.title, size = 44.dp)
@@ -601,7 +608,7 @@ private fun BudgetLine(item: CategoryTotal, onOpen: () -> Unit) {
     }
     val remaining = item.remaining ?: budget
 
-    Column(Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             RowTitle(item.category.displayString, Modifier.weight(1f), color = MaterialTheme.colorScheme.secondary)
             Text(
@@ -624,7 +631,7 @@ private fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
     val tx = message.content as? MessageContent.Transaction ?: return
     val sign = if (tx.isReceived) "+" else "-"
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = message.merchant.name, size = 44.dp)
@@ -652,7 +659,7 @@ private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
         "Arrived " + shortDate(item.arrivedOn!!)
     }
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -667,7 +674,7 @@ private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
 @Composable
 private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -689,7 +696,7 @@ private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit)
 @Composable
 private fun SubscriptionRow(item: Subscription, today: LocalDate, onOpen: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -709,7 +716,7 @@ private fun FocusCard(text: String, urgent: Boolean, onOpen: () -> Unit) {
     val accent = if (urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     Column(
         Modifier.fillMaxWidth()
-            .clickable(onClickLabel = "Open details", onClick = onOpen)
+            .fullWidthClickable(onClickLabel = "Open details", onClick = onOpen)
             .padding(vertical = 4.dp)
     ) {
         Caption("FIRST THING", color = accent)

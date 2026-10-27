@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -190,7 +191,7 @@ private fun PlanRow(title: String, value: String, detail: String?, onClick: () -
     Row(
         modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClickLabel = "Edit $title", onClick = onClick)
+            .fullWidthClickable(role = Role.Button, onClickLabel = "Edit $title", onClick = onClick)
             .padding(top = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

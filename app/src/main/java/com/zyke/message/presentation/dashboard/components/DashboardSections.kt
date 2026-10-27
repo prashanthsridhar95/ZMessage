@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -138,7 +139,7 @@ internal fun SectionCard(
             Modifier
                 .fillMaxWidth()
                 .semantics { if (!asSheet) stateDescription = if (open) "Expanded" else "Collapsed" }
-                .clickable(role = Role.Button, onClickLabel = if (asSheet) "Open $title" else if (open) "Fold $title" else "Open $title") {
+                .fullWidthClickable(role = Role.Button, onClickLabel = if (asSheet) "Open $title" else if (open) "Fold $title" else "Open $title") {
                     open = !open
                 }
                 .padding(vertical = 18.dp),
@@ -483,7 +484,7 @@ internal fun CategoryRow(
     Column(
         modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = "Show ${item.category.displayString} payments", onClick = onClick)
+            .fullWidthClickable(onClickLabel = "Show ${item.category.displayString} payments", onClick = onClick)
             .padding(vertical = 10.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -589,7 +590,7 @@ internal fun VendorRow(
         modifier
             .fillMaxWidth()
             .animateContentSize()
-            .clickable(onClickLabel = if (expanded) "Hide payments" else "Show payments", onClick = onClick)
+            .fullWidthClickable(onClickLabel = if (expanded) "Hide payments" else "Show payments", onClick = onClick)
             .padding(vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -662,7 +663,7 @@ internal fun CardBillRow(
     Row(
         modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = "Open ${bills.label}", onClick = onOpen)
+            .fullWidthClickable(onClickLabel = "Open ${bills.label}", onClick = onOpen)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.Top
     ) {
