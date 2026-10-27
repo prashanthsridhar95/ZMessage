@@ -1,5 +1,10 @@
 package com.zyke.message.domain.usecase
 
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CoroutineScope
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -47,30 +52,30 @@ class ObserveMessagesUseCase(
     private val nicknameRepository: NicknameRepository = NoNicknames,
     private val classificationCache: ClassificationCache = NoClassificationCache,
     /** When given, marks for messages that have left the inbox are dropped each time the inbox is read. */
-    private val userState: UserMessageStateRepository? = null
+    private val userState: UserMessageStateRepository? = null,
+    /** When given, the result is shared by every screen that asks for it instead of being worked out again for each. */
+    private val scope: CoroutineScope? = null
 ) {
-    operator fun invoke(): Flow<List<ClassifiedMessage>> =
-        repository.observeInbox()
-            .map { inbox ->
-                val zone = ZoneId.systemDefault()
-                val remembered = classificationCache.load()
-                val fresh = ArrayList<ClassifiedMessage>()
+    private val progressive: ProgressiveInbox? by lazy {
+        if (repository.supportsWindows) {
+            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState)
+        } else {
+            null
+        }
+    }
 
-                val classified = inbox.sortedByDescending { it.date }
-                    .distinctBy { it.body to Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
-                    .map { sms -> remembered[sms.id]?.takeIf { sameText(it.message, sms) }?.withMessage(sms) ?: read(sms, fresh) }
+    /** How far a very large inbox has been read; always done for a small one. */
+    val progress: StateFlow<LoadProgress> get() = progressive?.progress ?: DONE
 
-                // Only what is new or changed is saved; what has gone from the inbox is forgotten.
-                if (fresh.isNotEmpty()) classificationCache.save(fresh)
-                if (inbox.isNotEmpty()) {
-                    // A message deleted in the messaging app is gone from here too, along with every trace of it.
-                    val present = inbox.mapTo(HashSet()) { it.id }
-                    classificationCache.retainOnly(present)
-                    userState?.retainOnly(present)
-                }
+    private val shared: Flow<List<ClassifiedMessage>>? by lazy {
+        scope?.let { pipeline().shareIn(it, SharingStarted.WhileSubscribed(SHARE_TIMEOUT_MS), replay = 1) }
+    }
 
-                if (modelParser.isAvailable) classified.map { upgrade(it) } else classified
-            }
+    /** The classified inbox: the newest month first, older months added behind it as they are read. */
+    operator fun invoke(): Flow<List<ClassifiedMessage>> = shared ?: pipeline()
+
+    private fun pipeline(): Flow<List<ClassifiedMessage>> =
+        (progressive?.messages() ?: whole())
             .combine(categoryOverrides.overrides) { classified, overrides ->
                 classified.map { CategoryKey.apply(it, overrides) }
             }
@@ -97,6 +102,35 @@ class ObserveMessagesUseCase(
             .map(CategorySuggester::annotate)
             .flowOn(dispatcher)
 
+    /** A small inbox, or a repository that cannot read by month: read all of it at once. */
+    private fun whole(): Flow<List<ClassifiedMessage>> =
+        repository.observeInbox().map { inbox ->
+            val classified = classifyBatch(inbox)
+            if (inbox.isNotEmpty()) {
+                // A message deleted in the messaging app is gone from here too, along with every trace of it.
+                val present = inbox.mapTo(HashSet()) { it.id }
+                classificationCache.retainOnly(present)
+                userState?.retainOnly(present)
+            }
+            classified
+        }
+
+    /** Reads [inbox] (all of it, or one month): from memory where a message is remembered, by the rules where it is new. */
+    private suspend fun classifyBatch(inbox: List<SmsMessage>): List<ClassifiedMessage> {
+        val zone = ZoneId.systemDefault()
+        val ordered = inbox.sortedByDescending { it.date }
+            .distinctBy { it.body to Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
+        val remembered = classificationCache.load(ordered.map { it.id })
+        val fresh = ArrayList<ClassifiedMessage>()
+
+        val classified = ordered.map { sms -> remembered[sms.id]?.takeIf { sameText(it.message, sms) }?.withMessage(sms) ?: read(sms, fresh) }
+
+        // Only what is new or changed is saved.
+        if (fresh.isNotEmpty()) classificationCache.save(fresh)
+
+        return if (modelParser.isAvailable) classified.map { upgrade(it) } else classified
+    }
+
     private fun read(sms: SmsMessage, fresh: MutableList<ClassifiedMessage>): ClassifiedMessage =
         classifier.classify(sms).also { fresh += it }
 
@@ -113,5 +147,10 @@ class ObserveMessagesUseCase(
         if (!GenericTransactionParser.mentionsMoney(body)) return message
         val transaction = modelParser.parse(body) ?: return message
         return classifier.fromTransaction(message.message, transaction)
+    }
+
+    private companion object {
+        const val SHARE_TIMEOUT_MS = 5_000L
+        val DONE: StateFlow<LoadProgress> = MutableStateFlow(LoadProgress())
     }
 }

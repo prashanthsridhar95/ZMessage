@@ -11,6 +11,9 @@ interface ClassificationCache {
     /** Everything remembered, by message id. May block; call it off the main thread. */
     fun load(): Map<Long, ClassifiedMessage>
 
+    /** Only the entries for [ids], so a month of a huge inbox can be read without loading all of it. */
+    fun load(ids: Collection<Long>): Map<Long, ClassifiedMessage> = load().filterKeys { it in ids }
+
     /** Adds or replaces entries. */
     fun save(messages: List<ClassifiedMessage>)
 
