@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import androidx.lifecycle.repeatOnLifecycle
 import com.zyke.message.presentation.common.UnderlineTabs
 import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.LocalImageStore
@@ -93,14 +94,22 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
     }
 }
 
-/** A running clock for screens that count down, ticking once a second. */
+/**
+ * A running clock for screens that count down. It ticks once a second while the app is on screen, stops while it is
+ * not, and reads the real time the instant the app comes back, so a countdown never shows the moment it was left at.
+ * What the countdown is measured against is always the clock on the phone, so time passes whether or not it is drawn.
+ */
 @Composable
 internal fun rememberNowMillis(): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            kotlinx.coroutines.delay(1_000L)
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                now = System.currentTimeMillis()
+                // Wake on the next second boundary, so the display changes exactly as the second does.
+                kotlinx.coroutines.delay(1_000L - now % 1_000L)
+            }
         }
     }
     return now
