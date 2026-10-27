@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages
 
+import com.zyke.message.domain.repository.NoMerges
+import com.zyke.message.domain.repository.MergeRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -36,7 +38,8 @@ class MessagesViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
-    private val nicknames: NicknameRepository = NoNicknames
+    private val nicknames: NicknameRepository = NoNicknames,
+    private val merges: MergeRepository = NoMerges
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
@@ -111,6 +114,14 @@ class MessagesViewModel(
                 intent.messageId,
                 intent.messageId !in currentState().userState.pinnedIds
             )
+            is Intent.RequestMerge -> if (intent.primaryId != intent.duplicateId) reduce { copy(mergeRequest = intent.primaryId to intent.duplicateId) }
+            Intent.SwapMerge -> reduce { copy(mergeRequest = mergeRequest?.let { (primary, duplicate) -> duplicate to primary }) }
+            Intent.ConfirmMerge -> {
+                currentState().mergeRequest?.let { (primary, duplicate) -> merges.merge(primary, duplicate) }
+                reduce { copy(mergeRequest = null, detailMessageId = null) }
+            }
+            Intent.CancelMerge -> reduce { copy(mergeRequest = null) }
+            is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
             is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let(CategoryKey::of)
                 ?.let { nicknames.set(it, intent.name) }
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
@@ -222,12 +233,13 @@ class MessagesViewModel(
         private val userStateRepository: UserMessageStateRepository,
         private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
         private val mutedSenders: MutedSenderRepository = NoMutedSenders,
-        private val nicknames: NicknameRepository = NoNicknames
+        private val nicknames: NicknameRepository = NoNicknames,
+        private val merges: MergeRepository = NoMerges
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             MessagesViewModel(
-                observeMessages, userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, nicknames = nicknames
+                observeMessages, userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, nicknames = nicknames, merges = merges
             ) as T
     }
 }

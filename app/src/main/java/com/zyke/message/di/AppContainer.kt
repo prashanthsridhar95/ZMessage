@@ -1,5 +1,7 @@
 package com.zyke.message.di
 
+import com.zyke.message.domain.repository.MergeRepository
+import com.zyke.message.data.repository.MergeRepositoryImpl
 import com.zyke.message.domain.repository.ReminderRepository
 import com.zyke.message.domain.repository.GoalRepository
 import com.zyke.message.data.repository.ReminderRepositoryImpl
@@ -58,6 +60,7 @@ class AppContainer(context: Context) {
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
     val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
+    val merges: MergeRepository = MergeRepositoryImpl(context)
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
@@ -70,7 +73,7 @@ class AppContainer(context: Context) {
 
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
-        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames,
+        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope
     )
 

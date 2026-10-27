@@ -259,6 +259,19 @@ fun MessagesScreen(
         }
 
 
+        state.mergeRequest?.let { (primaryId, duplicateId) ->
+            val primary = state.messages.firstOrNull { it.id == primaryId }
+            val duplicate = state.messages.firstOrNull { it.id == duplicateId }
+            if (primary != null && duplicate != null) {
+                com.zyke.message.presentation.messages.components.MergeSheet(
+                    primary, duplicate,
+                    onSwap = { onIntent(Intent.SwapMerge) },
+                    onConfirm = { onIntent(Intent.ConfirmMerge) },
+                    onCancel = { onIntent(Intent.CancelMerge) }
+                )
+            }
+        }
+
         state.detail?.let { detail ->
             MessageDetailSheet(
                 item = detail,
@@ -304,7 +317,9 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onOpenLink = { this(Intent.OpenLink(it)) },
     onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) },
     onToggleMute = { this(Intent.ToggleMute(it)) },
-    onRename = { id, name -> this(Intent.Rename(id, name)) }
+    onRename = { id, name -> this(Intent.Rename(id, name)) },
+    onRequestMerge = { primary, duplicate -> this(Intent.RequestMerge(primary, duplicate)) },
+    onUnmerge = { this(Intent.Unmerge(it)) }
 )
 
 /** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */

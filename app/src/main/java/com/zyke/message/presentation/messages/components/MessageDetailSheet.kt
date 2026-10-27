@@ -174,6 +174,8 @@ internal fun MessageDetailSheet(
                 if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = 8.dp))
             }
 
+            MergedMessages(item, actions.onUnmerge)
+
             if (content !is MessageContent.Otp) {
                 SettingsGroup("About $title") {
                     if (canTag) {

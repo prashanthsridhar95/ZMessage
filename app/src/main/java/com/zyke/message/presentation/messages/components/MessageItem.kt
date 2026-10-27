@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -26,18 +27,23 @@ internal fun MessageItem(
     val isArchived = item.id in state.userState.archivedIds
     val card: @Composable () -> Unit = { MessageCard(item, state, actions) }
 
-    if (state.isSearching) {
-        // No swiping while searching: archived matches are listed too, so the gesture would be ambiguous.
-        card()
-    } else {
-        SwipeActions(
-            isArchived = isArchived,
-            isPinned = isPinned,
-            onArchiveOrRestore = { if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id) },
-            onTogglePin = { actions.onTogglePin(item.id) },
-            modifier = modifier.animateContentSize(),
-            content = card
-        )
+    val mergeable = item.content is MessageContent.Transaction && !state.isSearching
+    val drag = LocalMergeDrag.current
+
+    Box(Modifier.mergeDraggable(item.id, drag, mergeable) { primary, duplicate -> actions.onRequestMerge(primary, duplicate) }) {
+        if (state.isSearching) {
+            // No swiping while searching: archived matches are listed too, so the gesture would be ambiguous.
+            card()
+        } else {
+            SwipeActions(
+                isArchived = isArchived,
+                isPinned = isPinned,
+                onArchiveOrRestore = { if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id) },
+                onTogglePin = { actions.onTogglePin(item.id) },
+                modifier = modifier.animateContentSize(),
+                content = card
+            )
+        }
     }
 }
 

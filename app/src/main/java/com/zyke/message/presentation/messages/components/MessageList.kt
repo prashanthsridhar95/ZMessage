@@ -15,6 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +50,30 @@ fun MessageList(
     val feed = state.feed
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
 
-    LazyColumn(modifier) {
+    val drag = remember { MergeDragState() }
+    val listState = rememberLazyListState()
+    var listBounds by remember { mutableStateOf(Rect.Zero) }
+
+    // Holding a payment near the top or bottom edge scrolls the list so it can be carried further.
+    LaunchedEffect(drag.draggingId) {
+        if (drag.draggingId == null) return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            val y = drag.pointer.y
+            val step = when {
+                y < listBounds.top + EDGE_PX -> -SCROLL_PX
+                y > listBounds.bottom - EDGE_PX -> SCROLL_PX
+                else -> 0f
+            }
+            if (step != 0f) {
+                listState.scrollBy(step)
+                drag.refreshHover()
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalMergeDrag provides drag) {
+    LazyColumn(modifier.onGloballyPositioned { listBounds = it.boundsInRoot() }, state = listState) {
         if (feed.attention.isNotEmpty()) {
             item(key = "attention", contentType = "attention") {
                 AttentionStrip(
@@ -84,7 +117,11 @@ fun MessageList(
             }
         }
     }
+    }
 }
+
+private const val EDGE_PX = 160f
+private const val SCROLL_PX = 28f
 
 /** One-time tip that makes the hidden gestures discoverable. */
 @Composable
@@ -98,7 +135,7 @@ private fun SwipeHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Text(
             modifier = Modifier.weight(1f),
-            text = "Tip: swipe a message right to archive, left to pin. Tap one to see everything from that sender.",
+            text = "Tip: swipe a message right to archive, left to pin. Hold a payment and drop it on its twin to merge them.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary
         )

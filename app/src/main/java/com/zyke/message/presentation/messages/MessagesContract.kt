@@ -42,6 +42,8 @@ object MessagesContract {
         // View state
         /** The message whose detail sheet is open. */
         val detailMessageId: Long? = null,
+        /** Two messages the person dropped one onto the other: (the one that stays, the one that joins it). */
+        val mergeRequest: Pair<Long, Long>? = null,
         val expandedGroups: Set<String> = emptySet(),
         val showSummarySheet: Boolean = false,
 
@@ -111,6 +113,11 @@ object MessagesContract {
         data class ArchiveMany(val ids: List<Long>) : Intent
         data class UnarchiveMany(val ids: List<Long>) : Intent
         /** File every message with this message's sender / receiver under [category]; null goes back to automatic. */
+        data class RequestMerge(val primaryId: Long, val duplicateId: Long) : Intent
+        data object SwapMerge : Intent
+        data object ConfirmMerge : Intent
+        data object CancelMerge : Intent
+        data class Unmerge(val duplicateId: Long) : Intent
         data class Rename(val messageId: Long, val name: String) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?, val announce: Boolean = true) : Intent
         data class DismissAttention(val key: String) : Intent

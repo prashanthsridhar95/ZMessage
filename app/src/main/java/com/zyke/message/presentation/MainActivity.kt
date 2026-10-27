@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     private val messagesViewModel: MessagesViewModel by viewModels {
         MessagesViewModel.Factory(
-            container.observeMessages, container.userMessageState, container.categoryOverrides, container.mutedSenders, container.nicknames
+            container.observeMessages, container.userMessageState, container.categoryOverrides, container.mutedSenders, container.nicknames, container.merges
         )
     }
 
