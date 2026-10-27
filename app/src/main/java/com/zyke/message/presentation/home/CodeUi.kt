@@ -59,8 +59,7 @@ private const val COPIED_FOR_MS = 1_800L
 private const val APPEAR_MS = 520
 
 /**
- * A one-time code: who sent it, each digit on its own tile, a ring that counts down the minutes it has left and a bar
- * that drains beneath, and one button that says "Copied" once it is. The digits arrive one after another. When the
+ * A one-time code: who sent it, each digit on its own tile, a ring that counts down the minutes it has left and one button that says "Copied" once it is. The digits arrive one after another. When the
  * time is up it dims and the button is switched off. No card round it; the card on Home and the list of codes add theirs.
  */
 @Composable
@@ -129,13 +128,6 @@ internal fun CodeCardContent(message: ClassifiedMessage, nowMillis: Long, onCopy
             }
         }
 
-        // The time left, draining.
-        Box(
-            Modifier.fillMaxWidth().padding(top = 14.dp).height(4.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(2.dp))
-        ) {
-            Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(4.dp).background(accent, RoundedCornerShape(2.dp)))
-        }
-
         otp.paymentAmount?.let {
             Caption("For a payment of ${DisplayFormatters.rupees(it)}" + (otp.cardNumber?.let { card -> " · card •• $card" } ?: ""), Modifier.padding(top = 10.dp), maxLines = 1)
         }
@@ -161,11 +153,11 @@ internal fun CodeCard(message: ClassifiedMessage, nowMillis: Long, onCopy: () ->
 }
 
 /**
- * Every code that is still good, on one card: swipe sideways between them, with dots under the card's content to say
- * how many there are, and the full list one tap away inside the same card.
+ * Every code that is still good, swipe sideways between them, with dots to say how many there are and the full list
+ * one tap away. It has no card of its own; Home puts it in the priority card.
  */
 @Composable
-internal fun CodePagerCard(
+internal fun CodePagerContent(
     codes: List<ClassifiedMessage>,
     nowMillis: Long,
     onCopy: (ClassifiedMessage, String) -> Unit,
@@ -173,7 +165,7 @@ internal fun CodePagerCard(
     modifier: Modifier = Modifier
 ) {
     val pager = rememberPagerState { codes.size }
-    FintechCard(modifier) {
+    Column(modifier.fillMaxWidth()) {
         HorizontalPager(pager, Modifier.fillMaxWidth(), pageSpacing = 24.dp, verticalAlignment = Alignment.Top, key = { codes[it].id }) { page ->
             val message = codes[page]
             val otp = message.content as MessageContent.Otp

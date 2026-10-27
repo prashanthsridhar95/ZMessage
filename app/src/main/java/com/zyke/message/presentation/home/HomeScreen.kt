@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.periodName
@@ -233,13 +234,23 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(daily) } }
         }
 
-        if (codes.isNotEmpty()) {
-            item(key = "code") {
-                CodePagerCard(
-                    codes, nowMillis,
-                    onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
-                    onAll = { onIntent(Intent.OpenCodes) }
-                )
+        // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
+        val attention = state.attention.filterNot { it is AttentionItem.FreshOtp }
+        if (codes.isNotEmpty() || attention.isNotEmpty()) {
+            item(key = "priority") {
+                FintechCard(movingOutline = true) {
+                    if (codes.isNotEmpty()) {
+                        CodePagerContent(
+                            codes, nowMillis,
+                            onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
+                            onAll = { onIntent(Intent.OpenCodes) }
+                        )
+                    }
+                    if (codes.isNotEmpty() && attention.isNotEmpty()) {
+                        HorizontalDivider(Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                    }
+                    if (attention.isNotEmpty()) AttentionStrip(attention, today, actions, inset = 0.dp, bordered = false)
+                }
             }
         }
 
@@ -248,13 +259,6 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
                 FintechCard(onClick = focus.messageId?.let { id -> { onIntent(Intent.OpenMessage(id)) } }) {
                     FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE)
                 }
-            }
-        }
-
-        if (state.attention.isNotEmpty()) {
-            item(key = "attention") {
-                // The one card that needs you wears the travelling outline itself.
-                FintechCard(movingOutline = true) { AttentionStrip(state.attention, today, actions, inset = 0.dp, bordered = false) }
             }
         }
 
