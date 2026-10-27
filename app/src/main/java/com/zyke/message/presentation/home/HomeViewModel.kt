@@ -8,6 +8,7 @@ import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.feed.AttentionBuilder
 import com.zyke.message.domain.home.UpcomingBuilder
+import com.zyke.message.domain.insights.SpendAlerts
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.repository.BudgetRepository
@@ -118,6 +119,7 @@ class HomeViewModel(
                     .filter { it.budget != null }
                     .sortedByDescending { it.usedFraction ?: 0.0 },
                 recent = live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT),
+                alerts = SpendAlerts.find(live, updated.now.toEpochMilli()),
                 unreadCount = live.count { !it.message.isRead && it.id !in updated.userState.readIds }
             )
         }

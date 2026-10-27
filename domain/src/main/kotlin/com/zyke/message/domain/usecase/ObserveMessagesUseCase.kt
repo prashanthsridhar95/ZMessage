@@ -3,7 +3,12 @@ package com.zyke.message.domain.usecase
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.ai.ModelTransactionParser
+import com.zyke.message.domain.ai.NoModel
 import com.zyke.message.domain.cards.CardMatcher
+import com.zyke.message.domain.classification.GenericTransactionParser
+import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.insights.CategorySuggester
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.NoCards
@@ -24,7 +29,8 @@ class ObserveMessagesUseCase(
     private val classifier: MessageClassifier,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
-    private val cardRepository: CardRepository = NoCards
+    private val cardRepository: CardRepository = NoCards,
+    private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel)
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
@@ -33,6 +39,7 @@ class ObserveMessagesUseCase(
                 inbox.sortedByDescending { it.date }
                     .distinctBy { it.body to Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
                     .map(classifier::classify)
+                    .let { classified -> if (modelParser.isAvailable) classified.map { upgrade(it) } else classified }
             }
             .combine(categoryOverrides.overrides) { classified, overrides ->
                 classified.map { CategoryKey.apply(it, overrides) }
@@ -40,5 +47,15 @@ class ObserveMessagesUseCase(
             .combine(cardRepository.cards) { classified, cards ->
                 if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }
             }
+            .map(CategorySuggester::annotate)
             .flowOn(dispatcher)
+
+    /** Money messages the rules left as plain text get a second read by the on-device model, if the phone has one. */
+    private suspend fun upgrade(message: ClassifiedMessage): ClassifiedMessage {
+        if (message.content != MessageContent.Generic || message.isPromotional) return message
+        val body = message.message.body
+        if (!GenericTransactionParser.mentionsMoney(body)) return message
+        val transaction = modelParser.parse(body) ?: return message
+        return classifier.fromTransaction(message.message, transaction)
+    }
 }

@@ -137,7 +137,9 @@ data class Feed(
     val counts: Map<SmartFilter, Int> = emptyMap(),
     /** Categories that actually occur, most frequent first. */
     val categories: List<Pair<MessageCategory, Int>> = emptyList(),
-    val visibleCount: Int = 0
+    val visibleCount: Int = 0,
+    /** How a search was understood, e.g. "Fuel Spends · Last 7 days"; null for plain text searches. */
+    val searchNote: String? = null
 ) {
     companion object {
         val EMPTY = Feed()

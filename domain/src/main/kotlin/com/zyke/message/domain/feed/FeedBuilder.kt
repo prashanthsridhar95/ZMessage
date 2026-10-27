@@ -25,10 +25,19 @@ object FeedBuilder {
         val archived = userState.archivedIds
         val live = messages.filter { it.id !in archived }
 
-        val visible = when {
-            searching -> messages.filter { matches(it, query) }
-            else -> messages.filter { passes(it, filter, userState, LocalDate.ofInstant(now, zone), zone) }
+        val today = LocalDate.ofInstant(now, zone)
+        val interpreted = if (searching) QueryInterpreter.interpret(query) else null
+        val smartResults = interpreted?.takeIf { it.hasFilters }?.let { found ->
+            messages.filter { passes(it, found.filter, userState, today, zone) && (found.text.isBlank() || matches(it, found.text)) }
         }
+
+        // "fuel this week" works as filters; when that finds nothing the words are searched as plain text.
+        val visible = when {
+            searching && !smartResults.isNullOrEmpty() -> smartResults
+            searching -> messages.filter { matches(it, query) }
+            else -> messages.filter { passes(it, filter, userState, today, zone) }
+        }
+        val searchNote = if (searching && !smartResults.isNullOrEmpty()) interpreted?.note else null
 
         val pinned = if (searching) emptyList() else visible.filter { it.id in userState.pinnedIds }
         val rest = visible - pinned.toSet()
@@ -57,7 +66,8 @@ object FeedBuilder {
             availableFilters = availableFilters(messages, userState),
             counts = counts(messages, userState),
             categories = categoryCounts(messages, userState),
-            visibleCount = visible.size
+            visibleCount = visible.size,
+            searchNote = searchNote
         )
     }
 

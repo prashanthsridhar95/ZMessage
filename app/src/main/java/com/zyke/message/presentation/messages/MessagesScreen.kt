@@ -39,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
 import com.zyke.message.domain.feed.MessageFilter
+import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.MessagesContract.Effect
 import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
@@ -164,6 +165,9 @@ fun MessagesScreen(
                         )
                         else -> ModeSummary(DisplayFormatters.count(state.feed.visibleCount, "result", "results"))
                     }
+                }
+                state.feed.searchNote?.takeIf { state.isSearching }?.let {
+                    Caption("Showing: $it", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), maxLines = 2)
                 }
                 if (state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
                     ActiveFilterBar(

@@ -13,7 +13,11 @@ data class ClassifiedMessage(
     /** True when [category] was chosen by the user for this sender / receiver rather than guessed. */
     val categoryOverridden: Boolean = false,
     /** The person's card this message is about, if they have told us about it. */
-    val cardId: String? = null
+    val cardId: String? = null,
+    /** What the on-device model thinks an uncategorised sender / receiver belongs under; never applied on its own. */
+    val suggestedCategory: MessageCategory? = null,
+    /** The amount and payee were read by the on-device model, then checked against the text. */
+    val isModelParsed: Boolean = false
 ) {
     val id: Long get() = message.id
 }

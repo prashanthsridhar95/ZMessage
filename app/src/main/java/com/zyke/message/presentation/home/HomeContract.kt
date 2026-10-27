@@ -4,6 +4,7 @@ import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
+import com.zyke.message.domain.insights.SpendAlert
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.UserMessageState
@@ -33,6 +34,8 @@ object HomeContract {
         val budgetStatus: List<CategoryTotal> = emptyList(),
         val recent: List<ClassifiedMessage> = emptyList(),
         val unreadCount: Int = 0,
+        /** Odd-looking payments from the last two weeks. */
+        val alerts: List<SpendAlert> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,

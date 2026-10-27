@@ -106,6 +106,10 @@ class MessageClassifier(
         }
     }
 
+    /** A message whose transaction was read by something other than the rules (the on-device model). */
+    fun fromTransaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage =
+        transaction(message, tx).copy(isModelParsed = true)
+
     private fun transaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
         val merchant = merchants.resolve(tx.payee)
         return ClassifiedMessage(

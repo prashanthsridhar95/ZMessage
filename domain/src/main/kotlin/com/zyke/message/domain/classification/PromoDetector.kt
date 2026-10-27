@@ -16,7 +16,7 @@ object PromoDetector {
     )
 
     fun isPromotional(sender: String, body: String): Boolean =
-        PROMOTIONAL_HEADER.matches(sender.trim()) || hasPromoHints(body)
+        PROMOTIONAL_HEADER.matches(sender.trim()) || hasPromoHints(body) || SpamScorer.isSpam(sender, body)
 
     fun hasPromoHints(body: String): Boolean = HINTS.any { body.contains(it, ignoreCase = true) }
 }

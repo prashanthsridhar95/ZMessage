@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.insights.SpendNarrative
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -193,6 +194,24 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             }
         }
 
+        if (state.alerts.isNotEmpty()) {
+            item(key = "alerts") {
+                PlainSection("Worth a look", subtitle = "Found on your phone from your own history") {
+                    state.alerts.forEachIndexed { index, alert ->
+                        if (index > 0) HorizontalDivider()
+                        Text(
+                            alert.text,
+                            Modifier.fillMaxWidth()
+                                .clickable(onClickLabel = "Open details") { onIntent(Intent.OpenMessage(alert.message.id)) }
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            }
+        }
+
         if (upcoming.isNotEmpty()) {
             item(key = "upcoming") {
                 PlainSection("Coming up", subtitle = "Next 30 days") {
@@ -338,6 +357,7 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
             Modifier.padding(top = 2.dp),
             maxLines = 2
         )
+        SpendNarrative.of(month)?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 3) }
     }
 }
 

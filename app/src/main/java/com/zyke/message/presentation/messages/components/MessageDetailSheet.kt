@@ -121,6 +121,10 @@ internal fun MessageDetailSheet(
 
             CategoryPicker(item, actions)
 
+            if (item.isModelParsed) {
+                Caption("The amount and name were read by on-device AI and checked against the message. Worth a glance.", maxLines = 3)
+            }
+
             // The one action that matters most for this kind of message.
             val billLink = (content as? MessageContent.CardBill)?.paymentLink
             when {
@@ -169,6 +173,18 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Caption("CATEGORY FOR ${CategoryKey.label(item).uppercase()}", maxLines = 2)
+        val suggestion = item.suggestedCategory
+        if (suggestion != null && !item.categoryOverridden) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Looks like ${suggestion.displayString}",
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                AppButton("Apply", { actions.onSetCategory(item.id, suggestion) }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+            }
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             MessageCategory.assignable.forEach { category ->
                 FilterChip(

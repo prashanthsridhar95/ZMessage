@@ -13,6 +13,8 @@
 | Settings (screenshot protection, theme) | User input | One boolean and one choice | No |
 | Parsing report (masked sample messages) | Created on request in Settings | A text file in the private cache until the next report | Only if the user shares it, through the system share sheet |
 
+Suggestions, spam scoring, search phrases, alerts and summaries are computed on the phone from messages already in memory; nothing is downloaded or sent. An on-device language model (Gemini Nano) is supported through a small interface but is only used when the phone provides one, and every answer it gives is checked against the message text.
+
 There is no account, no analytics and no crash reporter, and no network permission.
 
 ## Threats considered
