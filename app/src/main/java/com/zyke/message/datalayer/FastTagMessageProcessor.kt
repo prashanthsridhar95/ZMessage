@@ -16,11 +16,25 @@ object FastTagMessageProcessor {
 
         val matcher: Matcher = pattern.matcher(if(message.endsWith(".")) message else "${message}.")
 
-        return if(matcher.find()) {
-            ZFastTagMessage.ToppedUp(
+        if(matcher.find()) {
+            return ZFastTagMessage.ToppedUp(
                 matcher.group(1),
                 matcher.group(3),
                 matcher.group(5)
+            )
+        }
+
+        val creditedPattern = Pattern.compile(
+            "Recharge successful: .*? FASTag on (\\S+) credited with Rs\\.?\\s?([\\d,.]+) on .*?Avbl Bal: Rs\\.?\\s?([\\d,.]+)",
+            Pattern.CASE_INSENSITIVE or Pattern.DOTALL
+        )
+        val creditedMatcher = creditedPattern.matcher(message)
+
+        return if(creditedMatcher.find()) {
+            ZFastTagMessage.ToppedUp(
+                creditedMatcher.group(1),
+                creditedMatcher.group(2),
+                creditedMatcher.group(3)
             )
         }
         else
