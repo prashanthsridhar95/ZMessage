@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
@@ -133,24 +134,39 @@ internal fun MerchantChip(
 ) {
     val shape = RoundedCornerShape(size / 4)
     val picture = rememberSenderPicture(imageKey, name, wantsLogo = logo.isTinted)
+    // A brand logo sits on white so transparent icons read in both themes; a person's own photo fills the tile.
+    val isBrandLogo = picture != null && imageKey == null
+    val monogram = if (picture == null && logo == MerchantLogo.PERSON) monogramFor(name) else null
+    val tileColor = when {
+        isBrandLogo -> Color.White
+        monogram != null -> monogram.second
+        else -> MaterialTheme.colorScheme.tertiary
+    }
+
     Box(modifier.size(size)) {
         Box(
             Modifier
                 .matchParentSize()
                 .border(0.5.dp, MaterialTheme.colorScheme.tertiary, shape)
-                .background(MaterialTheme.colorScheme.tertiary, shape)
+                .background(tileColor, shape)
                 .clip(shape),
             contentAlignment = Alignment.Center
         ) {
-            if (picture != null) {
-                Image(
+            when {
+                picture != null -> Image(
                     bitmap = picture,
                     contentScale = if (imageKey != null) ContentScale.Crop else ContentScale.Fit,
                     modifier = if (imageKey != null) Modifier.matchParentSize() else Modifier.padding(size / 6),
                     contentDescription = description
                 )
-            } else {
-                Image(
+                monogram != null -> Text(
+                    text = monogram.first,
+                    color = Color.White,
+                    fontSize = (size.value * MONOGRAM_SCALE).sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.semantics { if (description != null) contentDescription = description }
+                )
+                else -> Image(
                     painter = painterResource(logo.drawableRes()),
                     colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
                     contentScale = ContentScale.Fit,
@@ -274,4 +290,21 @@ private fun rememberSenderPicture(imageKey: String?, name: String?, wantsLogo: B
         }
     }
     return bitmap
+}
+
+
+private const val MONOGRAM_SCALE = 0.42f
+
+/** Deep, evenly weighted colours that keep white letters readable. */
+private val MONOGRAM_COLORS = listOf(
+    Color(0xFF5B6ABF), Color(0xFF2E7D6B), Color(0xFFB0573B), Color(0xFF7B4F9E),
+    Color(0xFF3F7FA6), Color(0xFF9A6B1F), Color(0xFFA64466), Color(0xFF4F7A3A)
+)
+
+/** First letter of the name and a colour that stays the same for that name; null if it has no letter to show. */
+private fun monogramFor(name: String?): Pair<String, Color>? {
+    val clean = name?.trim().orEmpty()
+    val letter = clean.firstOrNull { it.isLetter() } ?: return null
+    val color = MONOGRAM_COLORS[(clean.lowercase().hashCode() and Int.MAX_VALUE) % MONOGRAM_COLORS.size]
+    return letter.uppercase() to color
 }

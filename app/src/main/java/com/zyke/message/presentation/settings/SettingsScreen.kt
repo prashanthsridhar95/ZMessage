@@ -120,9 +120,9 @@ fun SettingsSheet(
                 )
                 ToggleRow(
                     title = "Fetch brand logos from the internet",
-                    description = "Off by default. When on, the app asks a public icon service for the logo of well-known " +
-                        "names such as Swiggy or HDFC, once each, and keeps it. Only the brand's website name is sent, never " +
-                        "your messages. Turning it off deletes the downloaded logos.",
+                    description = "Looks up the logo of well-known names such as Swiggy or HDFC, once each, and keeps it " +
+                        "on this phone. Only the brand's website name is sent, never your messages. Turning it off " +
+                        "deletes the downloaded logos.",
                     checked = state.settings.fetchLogos,
                     onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
                     modifier = Modifier.padding(top = 12.dp)
@@ -136,7 +136,7 @@ fun SettingsSheet(
             SectionCard("Privacy") {
                 Caption(
                     "Messages are read and sorted on this phone only and are never uploaded. The only internet use is the " +
-                        "optional logo download below, and backups of the app's data are switched off.",
+                        "logo download below (you can turn it off), and backups of the app's data are switched off.",
                     maxLines = 5
                 )
                 ToggleRow(

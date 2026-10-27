@@ -33,7 +33,7 @@ class ManifestPolicyTest {
     }
 
     /**
-     * INTERNET exists for one optional, off-by-default feature. The promise "your messages never leave the phone"
+     * INTERNET exists for one feature (the brand-logo fetch, on by default, can be turned off). The promise "your messages never leave the phone"
      * is kept by making sure the network is reachable from exactly one file, which sends only a brand's website name.
      */
     @Test
@@ -47,6 +47,8 @@ class ManifestPolicyTest {
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
         assertEquals(setOf("www.google.com", "icons.duckduckgo.com"), hosts)
+        // The brand's own site is the third source, and the address is always built from the known-domain list.
+        assertTrue("https://{domain}/apple-touch-icon.png" in fetcher)
     }
 
     @Test

@@ -16,7 +16,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         AppSettings(
             screenProtection = prefs.getBoolean(SCREEN_PROTECTION, false),
             themeMode = ThemeMode.entries.firstOrNull { it.name == prefs.getString(THEME_MODE, null) } ?: ThemeMode.SYSTEM,
-            fetchLogos = prefs.getBoolean(FETCH_LOGOS, false)
+            fetchLogos = prefs.getBoolean(FETCH_LOGOS, true)
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()

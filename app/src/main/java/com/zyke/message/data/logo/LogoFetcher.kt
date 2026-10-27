@@ -46,11 +46,12 @@ internal class LogoFetcher {
     private companion object {
         const val TIMEOUT_MS = 6_000
         const val MAX_BYTES = 512 * 1024
-        const val MIN_SIDE = 32
+        const val MIN_SIDE = 48
         const val BUFFER = 8 * 1024
 
-        // Free favicon services, tried in order. Both are plain https GETs of one public site name.
+        // Tried in order, sharpest first. Each is a plain https GET for one public site name.
         val SOURCES = listOf(
+            "https://{domain}/apple-touch-icon.png",
             "https://www.google.com/s2/favicons?domain={domain}&sz=128",
             "https://icons.duckduckgo.com/ip3/{domain}.ico"
         )
