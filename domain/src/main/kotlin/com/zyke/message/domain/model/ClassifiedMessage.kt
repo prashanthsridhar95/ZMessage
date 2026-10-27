@@ -43,7 +43,7 @@ sealed interface MessageContent {
         val paymentLink: String? = null
     ) : MessageContent
 
-    /** An auto-debit that is about to happen, or a mandate that was just set up. Not yet money spent. */
+    /** An auto-debit that is about to happen, or a mandate that was set up, cancelled or asked for. Not yet money spent. */
     data class ScheduledPayment(
         val kind: ScheduledKind,
         val bankName: BankName,
@@ -68,6 +68,6 @@ sealed interface MessageContent {
     data object Generic : MessageContent
 }
 
-enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET }
+enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET, MANDATE_CANCELLED, MANDATE_REQUEST }
 
 enum class CourierStatus { ARRIVING_TODAY, DELIVERED, UPDATE }

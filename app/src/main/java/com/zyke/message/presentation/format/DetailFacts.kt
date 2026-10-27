@@ -45,7 +45,15 @@ private fun billFacts(c: MessageContent.CardBill, dates: DateTimeFormatter) = li
 )
 
 private fun scheduledFacts(c: MessageContent.ScheduledPayment, dates: DateTimeFormatter) = listOfNotNull(
-    DetailFact(if (c.kind == ScheduledKind.UPCOMING_DEBIT) "Will be debited" else "Autopay of", DisplayFormatters.rupees(c.amount)),
+    DetailFact(
+        when (c.kind) {
+            ScheduledKind.UPCOMING_DEBIT -> "Will be debited"
+            ScheduledKind.MANDATE_CANCELLED -> "Cancelled autopay of"
+            ScheduledKind.MANDATE_REQUEST -> "Requested"
+            ScheduledKind.MANDATE_SET -> "Autopay of"
+        },
+        DisplayFormatters.rupees(c.amount)
+    ),
     c.payee.takeIf { it.isNotEmpty() }?.let { DetailFact("For", it) },
     c.date?.let { DetailFact("On", dates.format(it)) },
     c.accountNumber.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isCard) "Card" else "Account", "•• $it") }

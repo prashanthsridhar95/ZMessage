@@ -34,6 +34,8 @@ internal fun ScheduledPaymentCard(
         ScheduledKind.UPCOMING_DEBIT ->
             content.date?.let { "Auto-debit · ${DisplayFormatters.dueLabel(it, today).replaceFirst("Due", "due")}" } ?: "Auto-debit"
         ScheduledKind.MANDATE_SET -> "Autopay set up"
+        ScheduledKind.MANDATE_CANCELLED -> "Autopay cancelled"
+        ScheduledKind.MANDATE_REQUEST -> "Autopay request · needs your approval"
     }
     val urgent = content.kind == ScheduledKind.UPCOMING_DEBIT && content.date?.let { DisplayFormatters.isUrgent(it, today) } == true
 
@@ -44,7 +46,7 @@ internal fun ScheduledPaymentCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(title.ifEmpty { "Auto-debit" })
             Caption(
-                listOfNotNull(what, account, time.takeIf { content.kind == ScheduledKind.MANDATE_SET }).joinToString(" · "),
+                listOfNotNull(what, account, time.takeIf { content.kind != ScheduledKind.UPCOMING_DEBIT }).joinToString(" · "),
                 color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
             )
         }

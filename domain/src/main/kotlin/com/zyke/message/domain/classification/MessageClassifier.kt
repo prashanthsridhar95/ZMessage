@@ -99,7 +99,8 @@ class MessageClassifier(
 
         return when (transaction.type) {
             BankTransactionType.CARD_BILL -> cardBill(message, transaction)
-            BankTransactionType.UPCOMING_DEBIT, BankTransactionType.MANDATE_SET -> scheduled(message, transaction)
+            BankTransactionType.UPCOMING_DEBIT, BankTransactionType.MANDATE_SET,
+            BankTransactionType.MANDATE_CANCELLED, BankTransactionType.MANDATE_REQUEST -> scheduled(message, transaction)
             else -> transaction(message, transaction)
         }
     }
@@ -128,7 +129,7 @@ class MessageClassifier(
             category = merchant.category,
             merchant = merchant,
             content = MessageContent.ScheduledPayment(
-                kind = if (tx.type == BankTransactionType.UPCOMING_DEBIT) ScheduledKind.UPCOMING_DEBIT else ScheduledKind.MANDATE_SET,
+                kind = scheduledKind(tx.type),
                 bankName = tx.bankName,
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 payee = tx.payee,
@@ -137,6 +138,13 @@ class MessageClassifier(
                 isCard = message.body.contains("Card", ignoreCase = true)
             )
         )
+    }
+
+    private fun scheduledKind(type: BankTransactionType) = when (type) {
+        BankTransactionType.UPCOMING_DEBIT -> ScheduledKind.UPCOMING_DEBIT
+        BankTransactionType.MANDATE_CANCELLED -> ScheduledKind.MANDATE_CANCELLED
+        BankTransactionType.MANDATE_REQUEST -> ScheduledKind.MANDATE_REQUEST
+        else -> ScheduledKind.MANDATE_SET
     }
 
     private fun cardBill(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {

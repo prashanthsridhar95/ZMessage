@@ -31,6 +31,8 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
                 val on = c.date?.let { ", ${DisplayFormatters.dueLabel(it, today).replaceFirst("Due", "due")}" }.orEmpty()
                 "Upcoming auto-debit of ${DisplayFormatters.rupees(c.amount)} for ${c.payee.ifEmpty { "a subscription" }}$on"
             }
+            ScheduledKind.MANDATE_CANCELLED -> "Autopay cancelled for ${c.payee.ifEmpty { "a subscription" }}, ${DisplayFormatters.rupees(c.amount)}"
+            ScheduledKind.MANDATE_REQUEST -> "Autopay request of ${DisplayFormatters.rupees(c.amount)} from ${c.payee.ifEmpty { "a merchant" }}. Needs your approval"
             ScheduledKind.MANDATE_SET -> "Autopay set up for ${c.payee.ifEmpty { "a subscription" }}, ${DisplayFormatters.rupees(c.amount)}"
         }
         is MessageContent.FastTag -> when (val e = c.event) {

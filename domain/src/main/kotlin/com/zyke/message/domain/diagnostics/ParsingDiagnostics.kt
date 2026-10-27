@@ -17,7 +17,7 @@ data class ParsingDiagnostics(
 }
 
 object DiagnosticsBuilder {
-    fun build(messages: List<ClassifiedMessage>, maxSamples: Int = 10): ParsingDiagnostics {
+    fun build(messages: List<ClassifiedMessage>, maxSamples: Int = 40): ParsingDiagnostics {
         val money = messages.filter { !it.isPromotional && GenericTransactionParser.mentionsMoney(it.message.body) }
         val unrecognised = money.filter { it.content is MessageContent.Generic }
 

@@ -19,7 +19,7 @@ class GenericTransactionParser {
         if (PromoDetector.hasPromoHints(message)) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
-        return parseScheduled(body) ?: parseBill(body) ?: parseMovement(body)
+        return parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
     }
 
     private fun parseMovement(body: String): BankTransaction? {
@@ -30,7 +30,7 @@ class GenericTransactionParser {
         return BankTransaction(
             bankName = bank(body),
             accountNumber = account(body).orEmpty(),
-            payee = payee(body, received).orEmpty(),
+            payee = payee(body, received) ?: ATM_PAYEE.takeIf { ATM.containsMatchIn(body) }.orEmpty(),
             amount = amount,
             type = if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
         )
@@ -39,8 +39,10 @@ class GenericTransactionParser {
     /** "INR 650 will be debited on 28/10/2026 ... for Google Play" or "Mandate Set Rs.499 For Google Play". */
     private fun parseScheduled(body: String): BankTransaction? {
         val type = when {
+            MANDATE_CANCELLED.containsMatchIn(body) -> BankTransactionType.MANDATE_CANCELLED
+            MANDATE_REQUEST.containsMatchIn(body) -> BankTransactionType.MANDATE_REQUEST
             UPCOMING.containsMatchIn(body) -> BankTransactionType.UPCOMING_DEBIT
-            MANDATE.containsMatchIn(body) -> BankTransactionType.MANDATE_SET
+            MANDATE.containsMatchIn(body) || MANDATE_CONFIRMED.containsMatchIn(body) -> BankTransactionType.MANDATE_SET
             else -> return null
         }
         val amount = AMOUNT.find(body)?.groupValues?.get(1)?.let(::clean) ?: return null
@@ -48,7 +50,7 @@ class GenericTransactionParser {
         return BankTransaction(
             bankName = bank(body),
             accountNumber = account(body).orEmpty(),
-            payee = FOR_PAYEE.find(body)?.groupValues?.get(1)?.let(::tidy).orEmpty(),
+            payee = scheduledPayee(body),
             amount = amount,
             type = type,
             dueDate = if (type == BankTransactionType.UPCOMING_DEBIT) {
@@ -56,6 +58,34 @@ class GenericTransactionParser {
             } else {
                 null
             }
+        )
+    }
+
+    private fun scheduledPayee(body: String): String =
+        (MANDATE_TO.find(body) ?: MANDATE_REQUEST.find(body) ?: MANDATE_CONFIRMED.find(body) ?: FOR_PAYEE.find(body))
+            ?.groupValues?.last()?.let(::tidy).orEmpty()
+
+    /** "we have processed Rs. 299 for your Airtel Mobile 98xxxxxx". */
+    private fun parseProcessed(body: String): BankTransaction? {
+        val match = PROCESSED.find(body) ?: return null
+        return BankTransaction(
+            bankName = bank(body),
+            accountNumber = "",
+            payee = tidy(match.groupValues[2]).orEmpty(),
+            amount = clean(match.groupValues[1]),
+            type = BankTransactionType.SENT
+        )
+    }
+
+    /** "Payment of Rs.500 towards ... On Some Trust successfully made ... - Razorpay". */
+    private fun parsePaymentMade(body: String): BankTransaction? {
+        val amount = PAYMENT_MADE.find(body)?.groupValues?.get(1) ?: return null
+        return BankTransaction(
+            bankName = bank(body),
+            accountNumber = account(body).orEmpty(),
+            payee = PAYMENT_MADE_PAYEE.find(body)?.groupValues?.get(1)?.let(::tidy).orEmpty(),
+            amount = clean(amount),
+            type = BankTransactionType.SENT
         )
     }
 
@@ -71,8 +101,15 @@ class GenericTransactionParser {
             type = BankTransactionType.CARD_BILL,
             dueDate = BILL_DUE.find(body)?.groupValues?.get(1)?.let(::parseDate),
             minimumDue = BILL_MIN.find(body)?.groupValues?.get(1),
-            paymentLink = LINK.find(body)?.value
+            paymentLink = paymentLink(body)
         )
+    }
+
+    /** The "Pay at" address when the message gives one (often without a scheme), else the first link. */
+    private fun paymentLink(body: String): String? {
+        val payAt = PAY_AT.find(body)?.groupValues?.get(1)?.trimEnd('.', ',')
+        if (payAt != null) return if (payAt.startsWith("http", ignoreCase = true)) payAt else "https://$payAt"
+        return LINK.find(body)?.value
     }
 
     /** The earliest debit / credit word and its position. */
@@ -147,6 +184,9 @@ class GenericTransactionParser {
         private const val BALANCE_LOOKBEHIND = 25
         private const val CURRENCY = "(?:INR\\.?|Rs\\.?|₹)"
         private const val NUMBER = "(\\d[\\d,]*(?:\\.\\d+)?)"
+        /** Axis writes "INR Dr. 1,234.00". */
+        private const val DR = "(?:Dr\\.?\\s*)?"
+        private const val ATM_PAYEE = "ATM cash"
 
         private val MONEY_HINT = Regex("(?i)\\bINR|\\bRs(?![a-z])|₹")
 
@@ -156,7 +196,7 @@ class GenericTransactionParser {
         private val CREDIT_WORDS = setOf("credited", "received", "deposited", "refund", "refunded")
 
         private val KEYWORDS = Regex(
-            "(?i)\\b(?:debited|spent|paid|sent|withdrawn|purchase|transferred|credited|received|deposited|refunded|refund)\\b"
+            "(?i)\\b(?:debited|spent|paid|sent|withdrawn|withdrawal|purchase|transferred|credited|received|deposited|refunded|refund)\\b"
         )
 
         private val AMOUNT = Regex("(?i)$CURRENCY\\s*$NUMBER")
@@ -181,7 +221,7 @@ class GenericTransactionParser {
         private val TO_PATTERNS = listOf(
             Regex("(?i)\\b(?:trf to|transfer to|paid to|sent to|towards|to vpa|to)\\s+$NAME$NAME_END"),
             Regex("(?i)\\binfo[:\\-]\\s*$NAME$NAME_END"),
-            Regex("(?i)\\bat\\s+$NAME$NAME_END")
+            Regex("(?i)\\bat(?:\\s+|\\s*:\\s*)$NAME$NAME_END")
         )
         private val FROM_PATTERNS = listOf(
             Regex("(?i)\\b(?:received from|from vpa|from)\\s+$NAME$NAME_END"),
@@ -189,6 +229,16 @@ class GenericTransactionParser {
             Regex("(?i)\\binfo[:\\-]\\s*$NAME$NAME_END")
         )
 
+        private val MANDATE_CANCELLED = Regex("(?i)\\bmandate\\b[^.]{0,80}?\\b(?:cancel(?:l)?ed|revoked)\\b")
+        private val MANDATE_TO = Regex("(?i)\\bmandate to\\s+(.+?)\\s+has been\\b")
+        private val MANDATE_REQUEST = Regex(
+            "(?i)\\bUPI request of\\s+$CURRENCY\\s*$NUMBER\\s+from\\s+(.+?)(?=\\s+(?:your|on|open|use|via)\\b|[.,;]|$)"
+        )
+        /** HDFC: "UPI-Mandate: For Rs. 199.00 To NETFLIX A/c x1234 Ref ...". */
+        private val MANDATE_CONFIRMED = Regex("(?i)\\bUPI[- ]Mandate:?\\s*For\\s+$CURRENCY\\s*$NUMBER\\s+To\\s+(.+?)\\s+A/c\\b")
+        private val PROCESSED = Regex("(?i)\\bprocessed\\s+$CURRENCY\\s*$NUMBER\\s+for your\\s+(.+?)(?=\\s+\\d{6,}|[.,]|$)")
+        private val PAYMENT_MADE = Regex("(?i)\\bpayment of\\s+$CURRENCY\\s*$NUMBER\\b.*?\\bsuccessfully made\\b")
+        private val PAYMENT_MADE_PAYEE = Regex("\\bOn\\s+([A-Za-z][A-Za-z0-9&.' ]{1,40}?)\\s+successfully made\\b")
         private val UPCOMING = Regex("(?i)\\bwill be (?:auto[- ]?)?debited")
         private val MANDATE = Regex("(?i)\\bmandate\\s+(?:set|created|registered|activated|successful|approved)")
         private val ON_DATE = Regex("(?i)\\bon\\s+(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
@@ -200,8 +250,14 @@ class GenericTransactionParser {
         private val REJECTED_PREFIXES = listOf("a/c", "ac ", "acct", "account", "your", "the ", "you", "card", "bank", "sbi", "hdfc")
 
         private val BILL_HINT = Regex("(?i)(?:statement|total (?:amt|amount) due|amount due|payment due|bill (?:is )?(?:generated|due))")
-        private val BILL_TOTAL = Regex("(?i)(?:total (?:amt|amount)?\\s*due|(?:amt|amount) due|total due|outstanding)\\W{0,12}(?:of )?$CURRENCY?\\s*$NUMBER")
-        private val BILL_MIN = Regex("(?i)min(?:imum)?(?: (?:amt|amount))?(?: due)?\\W{0,12}(?:of )?$CURRENCY?\\s*$NUMBER")
+        private val BILL_TOTAL = Regex(
+            "(?i)(?:total (?:(?:amt|amount|payment)(?: due)?|due)|(?:amt|amount) due|outstanding)\\W{0,12}(?:of )?$CURRENCY?\\s*$DR$NUMBER"
+        )
+        private val BILL_MIN = Regex(
+            "(?i)min(?:imum)?(?: (?:amt|amount|payment))?(?: due)?\\W{0,12}(?:of )?$CURRENCY?\\s*$DR$NUMBER"
+        )
+        private val PAY_AT = Regex("(?i)\\bpay at\\s+(\\S+)")
+        private val ATM = Regex("\\bATM\\b")
         private val BILL_DUE = Regex("(?i)due (?:date|by|on)?\\W{0,3}(\\d{1,2}[-/ ](?:\\d{1,2}|[A-Za-z]{3})[-/ ]\\d{2,4})")
         private val LINK = Regex("https?://\\S+")
 
