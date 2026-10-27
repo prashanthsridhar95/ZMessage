@@ -21,7 +21,9 @@ data class ClassifiedMessage(
     /** The amount and payee were read by the on-device model, then checked against the text. */
     val isModelParsed: Boolean = false,
     /** The person muted this sender; it is treated like marketing, kept out of the main views and the unread badge. */
-    val isMuted: Boolean = false
+    val isMuted: Boolean = false,
+    /** Other messages the person says are the same transaction as this one; they are left out of every list and total. */
+    val mergedMessages: List<SmsMessage> = emptyList()
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

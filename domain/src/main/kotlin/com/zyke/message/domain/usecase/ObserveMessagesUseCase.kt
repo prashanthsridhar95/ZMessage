@@ -1,5 +1,8 @@
 package com.zyke.message.domain.usecase
 
+import com.zyke.message.domain.repository.NoMerges
+import com.zyke.message.domain.repository.MergeRepository
+import com.zyke.message.domain.merge.Merges
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +53,7 @@ class ObserveMessagesUseCase(
     private val senderImages: SenderImageRepository = NoSenderImages,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
     private val nicknameRepository: NicknameRepository = NoNicknames,
+    private val mergeRepository: MergeRepository = NoMerges,
     private val classificationCache: ClassificationCache = NoClassificationCache,
     /** When given, marks for messages that have left the inbox are dropped each time the inbox is read. */
     private val userState: UserMessageStateRepository? = null,
@@ -99,6 +103,7 @@ class ObserveMessagesUseCase(
                     if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true)) else message
                 }
             }
+            .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
             .map(CategorySuggester::annotate)
             .flowOn(dispatcher)
 
