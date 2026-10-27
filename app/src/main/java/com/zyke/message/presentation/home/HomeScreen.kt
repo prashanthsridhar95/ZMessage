@@ -222,7 +222,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             item(key = "blank") {
                 FintechCard {
                     RowTitle("Nothing here yet")
-                    Caption("Your accounts, payments and bills show up here as soon as the bank messages arrive.", maxLines = 3)
+                    Caption("Nothing yet")
                 }
             }
         }
@@ -262,7 +262,10 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
         }
 
         if (state.attention.isNotEmpty()) {
-            item(key = "attention") { FintechCard { AttentionStrip(state.attention, today, actions) } }
+            item(key = "attention") {
+                // The one card that needs you wears the travelling outline itself.
+                FintechCard(movingOutline = true) { AttentionStrip(state.attention, today, actions, inset = 0.dp, bordered = false) }
+            }
         }
 
         if (next != null) {
@@ -369,7 +372,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
             )
         }
         if (empty) {
-            item(key = "empty") { PlainSection("Nothing due") { Caption("Bills and auto-debits show up here before they are due.", maxLines = 3) } }
+            item(key = "empty") { PlainSection("Nothing due") { Caption("Nothing due") } }
         }
         if (state.upcoming.isNotEmpty()) {
             item(key = "upcoming") {

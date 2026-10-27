@@ -43,11 +43,7 @@ internal fun CycleSection(
     val format = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
 
     SectionCard("Month starts", summary = plan.cycleMode.label) {
-        Caption(
-            "Choose where your month begins. Graphs, limits, the daily budget and the report card all follow it." +
-                (current?.let { " Right now: ${format.format(it.start)} – ${format.format(it.endInclusive)}." } ?: ""),
-            maxLines = 4
-        )
+        Caption(current?.let { "Now: ${format.format(it.start)} – ${format.format(it.endInclusive)}" } ?: "")
         CycleMode.entries.forEach { mode ->
             Row(
                 Modifier
@@ -61,7 +57,7 @@ internal fun CycleSection(
                     Text(mode.label)
                     if (mode == CycleMode.SALARY) {
                         val found = spotted?.typicalDay ?: plan.salaryDay
-                        Caption(if (found != null) "Your salary arrives around day $found" else "Add a salary and its day to use this", maxLines = 2)
+                        Caption(if (found != null) "Salary around day $found" else "Needs a salary and its day")
                     }
                 }
             }

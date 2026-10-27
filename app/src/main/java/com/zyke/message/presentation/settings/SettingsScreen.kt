@@ -137,14 +137,12 @@ fun SettingsSheet(
             GroupLabel("Messages")
             SectionCard("Pictures") {
                 Caption(
-                    "Choose a picture for any sender or receiver from its message sheet. Pictures stay on this phone.",
+                    "Pick one from any message sheet",
                     maxLines = 3
                 )
                 ToggleRow(
                     title = "Fetch brand logos from the internet",
-                    description = "Looks up the logo of well-known names such as Swiggy or HDFC, once each, and keeps it " +
-                        "on this phone. Only the brand's website name is sent, never your messages. Turning it off " +
-                        "deletes the downloaded logos.",
+                    description = "Looks up logos of well-known brands once each. Only the brand name is sent.",
                     checked = state.settings.fetchLogos,
                     onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
                     modifier = Modifier.padding(top = 12.dp)
@@ -183,13 +181,12 @@ fun SettingsSheet(
             GroupLabel("Privacy and alerts")
             SectionCard("Privacy", summary = if (state.settings.appLock) "App lock on" else "Private on this phone") {
                 Caption(
-                    "Messages are read and sorted on this phone only and are never uploaded. The only internet use is the " +
-                        "logo download below (you can turn it off), and backups of the app's data are switched off.",
+                    "Messages stay on this phone",
                     maxLines = 5
                 )
                 ToggleRow(
                     title = "Block screenshots",
-                    description = "Also hides the app's content in the recent-apps view",
+                    description = "Also hides the recent-apps view",
                     checked = state.settings.screenProtection,
                     onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
                     modifier = Modifier.padding(top = 12.dp)
@@ -212,7 +209,7 @@ fun SettingsSheet(
                     modifier = Modifier.padding(top = 12.dp)
                 )
                 Caption(
-                    "You can also add the \"Your day\" widget from your home screen's widget list.",
+                    "A \"Your day\" widget is in the widget list",
                     Modifier.padding(top = 12.dp),
                     maxLines = 2
                 )
@@ -240,8 +237,7 @@ fun SettingsSheet(
 
             SectionCard("Your data") {
                 Caption(
-                    "Clear what the app remembers: read, pinned and archived marks, dismissed tips and budgets. " +
-                        "Your messages are never touched.",
+                    "Clears marks and budgets, never your messages",
                     maxLines = 4
                 )
                 AppButton(
@@ -279,9 +275,7 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
 
     SectionCard("Your cards & accounts") {
         Caption(
-            "Add the last four digits of your credit cards, debit cards and bank accounts, with the bank name, so " +
-                "messages are matched to the right one. For a credit card, add its statement date to see spends " +
-                "and payments by billing cycle.",
+            "Last four digits, bank name and statement day",
             maxLines = 5
         )
         cards.forEach { card ->
@@ -333,9 +327,9 @@ private fun AppLockToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modifie
     ToggleRow(
         title = "Lock the app",
         description = if (hasScreenLock) {
-            "Ask for your fingerprint, face or screen lock when you come back after a short time away."
+            "Asks for your screen lock on return"
         } else {
-            "Set a screen lock on your phone first, then this can be switched on."
+            "Needs a screen lock on the phone"
         },
         checked = enabled && hasScreenLock,
         onCheckedChange = { if (hasScreenLock) onChange(it) },
@@ -350,7 +344,7 @@ private fun MorningDigestToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
     ToggleRow(
         title = "Morning digest",
-        description = "A short notification at about 8 AM with what is due and what is on today. Built on this phone.",
+        description = "A short summary at about 8 AM",
         checked = enabled,
         onCheckedChange = { wanted ->
             val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -380,8 +374,7 @@ private fun LiveAlertsToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modi
     }
     ToggleRow(
         title = "Copy-code and Pay buttons",
-        description = "As soon as a one-time code or card bill arrives, show a notification with a Copy code or Pay button. " +
-            "Your messaging app still shows its own notification, and nothing is stored or sent.",
+        description = "A Copy code or Pay button the moment one arrives",
         checked = enabled,
         onCheckedChange = { wanted ->
             val allowed = permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
@@ -401,8 +394,7 @@ private fun RcsSection() {
     val context = LocalContext.current
     SectionCard("RCS messages") {
         Caption(
-            "Chat (RCS) messages can't be read like SMS. If you allow notification access, new incoming " +
-                "chats from Google Messages and Samsung Messages are added to the inbox. They stay on this phone.",
+            "Adds new chats from Google and Samsung Messages",
             maxLines = 5
         )
         AppButton(

@@ -53,11 +53,7 @@ internal fun LimitsSection(
     var adding by remember { mutableStateOf(false) }
 
     SectionCard("Spending limits") {
-        Caption(
-            "Set a limit per day, per month, or both, for any category. You'll see what's available, or how far over " +
-                "you are, here and on the Money tab.",
-            maxLines = 4
-        )
+        Caption("Per day, per month, or both")
         limits.forEach { entry ->
             Column(
                 Modifier
@@ -73,7 +69,7 @@ internal fun LimitsSection(
                 entry.monthly?.let { LimitStatus(it, Modifier.padding(top = 8.dp)) }
                 entry.perDayLeft?.let {
                     Caption(
-                        "About ${DisplayFormatters.rupees(it)} a day for the rest of the month keeps you within the monthly limit.",
+                        "${DisplayFormatters.rupees(it)} a day keeps you within",
                         Modifier.padding(top = 6.dp),
                         maxLines = 3
                     )

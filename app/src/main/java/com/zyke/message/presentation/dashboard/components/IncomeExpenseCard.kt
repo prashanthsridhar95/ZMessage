@@ -110,7 +110,7 @@ internal fun IncomeExpenseCard(
                 Caption(dayFmt.format(dates.last()))
             }
         } else {
-            Caption("The lines appear once there are a few days of activity.", Modifier.padding(top = 16.dp), maxLines = 2)
+            Caption("Not enough days yet", Modifier.padding(top = 16.dp))
         }
     }
 }

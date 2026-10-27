@@ -48,12 +48,14 @@ internal fun AttentionStrip(
     actions: FeedActions,
     modifier: Modifier = Modifier,
     /** Side padding for the heading and rows, inside the border. */
-    inset: Dp = 16.dp
+    inset: Dp = 16.dp,
+    /** False when a card around the strip draws the border instead. */
+    bordered: Boolean = true
 ) {
     if (items.isEmpty()) return
 
     Column(
-        modifier.fillMaxWidth().movingBorder(MaterialTheme.colorScheme.primary).padding(vertical = 12.dp)
+        modifier.fillMaxWidth().then(if (bordered) Modifier.movingBorder(MaterialTheme.colorScheme.primary) else Modifier).padding(vertical = if (bordered) 12.dp else 0.dp)
     ) {
         Text(
             modifier = Modifier.padding(horizontal = inset, vertical = 2.dp),

@@ -90,9 +90,9 @@ internal fun TodayBudget(daily: DailyBudgetStatus, onOpen: () -> Unit) {
         ShareBar(used, color = color)
         Caption(
             if (daily.currentStreak > 0) {
-                "${DisplayFormatters.count(daily.currentStreak, "day", "days")} within budget in a row"
+                "${DisplayFormatters.count(daily.currentStreak, "day", "days")} streak"
             } else {
-                "Stay within budget today to start a streak"
+                "No streak yet"
             },
             Modifier.padding(top = 8.dp),
             color = if (daily.currentStreak > 0) UnderColor else mutedColor()
@@ -146,7 +146,7 @@ internal fun BudgetCalendarSheet(
             }
             Caption(
                 if (daily.currentStreak > 0) "within ${DisplayFormatters.rupees(daily.allowance)} a day · best ${daily.bestStreak}"
-                else "Stay within ${DisplayFormatters.rupees(daily.allowance)} today to start one · best ${daily.bestStreak}",
+                else "best ${daily.bestStreak}",
                 maxLines = 2
             )
 
@@ -208,7 +208,7 @@ internal fun BudgetCalendarSheet(
                         maxLines = 2
                     )
                 } else {
-                    Caption("Tap a day to see what was spent. Investments, savings, insurance, charity and card bills don't count.", maxLines = 3)
+                    Caption("Tap a day for its spending")
                 }
             }
 
@@ -295,7 +295,6 @@ internal fun QuickAddSheet(
     AppBottomSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text("Found in your messages", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-            Caption("Nothing is added until you tap Add. This is worked out on your phone.", Modifier.padding(bottom = 8.dp), maxLines = 2)
             if (items.isEmpty()) Caption("All done.", Modifier.padding(vertical = 16.dp))
             items.forEachIndexed { index, quick ->
                 if (index > 0) HorizontalDivider()

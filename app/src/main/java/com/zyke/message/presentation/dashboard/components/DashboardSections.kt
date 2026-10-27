@@ -798,7 +798,7 @@ internal fun CardBillSheet(
                     CardBillTrend(oldestFirst, dayFmt, Modifier.padding(top = 8.dp))
                 }
             } else {
-                Caption("The trend appears once there are two or more statements.")
+                Caption("Needs two statements")
             }
 
             if (bills.earlier.isNotEmpty()) {
@@ -891,7 +891,6 @@ internal fun CardCyclesSection(cards: List<CardCycles>, onOpen: (String) -> Unit
     SectionCard(
         title = "Cards & accounts",
         modifier = modifier,
-        subtitle = "Spent and received by billing cycle or month",
         summary = DisplayFormatters.count(cards.size, "card or account", "cards and accounts")
     ) {
         cards.forEachIndexed { index, entry ->
@@ -984,7 +983,7 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
                     )
                 }
             } else {
-                Caption("The trend appears once there are two or more cycles.")
+                Caption("Needs two cycles")
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1019,7 +1018,7 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
 internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modifier: Modifier = Modifier) {
     SectionCard(title = "Spending limits", modifier = modifier) {
         if (limits.isEmpty()) {
-            Caption("Set a daily or monthly limit for any category in Settings, and see here what is available.", maxLines = 3)
+            Caption("No limits set")
         } else {
             limits.take(MAX_LIMITS_SHOWN).forEachIndexed { index, entry ->
                 if (index > 0) HorizontalDivider(Modifier.padding(vertical = 10.dp))

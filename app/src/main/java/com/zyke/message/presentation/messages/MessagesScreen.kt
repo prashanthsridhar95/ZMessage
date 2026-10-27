@@ -322,10 +322,9 @@ private fun SourceStrip(moneyMessages: Int, onOpenSettings: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Caption("THE SOURCE OF YOUR MONEY SCREENS")
             Caption(
-                if (moneyMessages > 0) "$moneyMessages money messages read into Home, Accounts and Insights" else "Money messages are read into Home, Accounts and Insights",
-                maxLines = 2
+                if (moneyMessages > 0) "Source of your money screens · $moneyMessages money messages" else "Source of your money screens",
+                maxLines = 1
             )
         }
         Caption("How it's read")

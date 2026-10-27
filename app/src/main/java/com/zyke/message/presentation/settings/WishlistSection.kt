@@ -52,7 +52,7 @@ internal fun WishlistSection(
 
     SectionCard("Wishlist") {
         Caption(
-            "Things you'd like to buy. If the category is over its limit, you'll be nudged to let it wait until next month.",
+            "Things to buy; waits if the category is over",
             maxLines = 3
         )
         items.forEach { item ->

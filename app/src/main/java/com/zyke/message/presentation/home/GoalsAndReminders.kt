@@ -66,7 +66,7 @@ internal fun GoalsCard(
 
     FintechCard {
         RowTitle("Goals")
-        if (goals.isEmpty()) Caption("Save towards a trip, a gadget or a rainy-day fund and watch it fill up.", Modifier.padding(top = 2.dp), maxLines = 3)
+        if (goals.isEmpty()) Caption("Nothing yet", Modifier.padding(top = 2.dp))
         goals.forEachIndexed { index, progress ->
             if (index > 0) HorizontalDivider(Modifier.padding(top = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Edit ${progress.goal.name}") { editing = progress.goal.id }.padding(top = 14.dp)) {
@@ -81,9 +81,9 @@ internal fun GoalsCard(
                 Caption(
                     when {
                         progress.isReached -> "Reached"
-                        progress.isLate -> "Past ${progress.goal.targetDate?.let(DayFormat::format)} · ${DisplayFormatters.rupees(progress.remaining)} to go"
+                        progress.isLate -> "Past due · ${DisplayFormatters.rupees(progress.remaining)} to go"
                         progress.neededPerMonth != null ->
-                            "${DisplayFormatters.rupees(progress.neededPerMonth!!)} a month reaches it by ${progress.goal.targetDate?.let(DayFormat::format)}"
+                            "${DisplayFormatters.rupees(progress.neededPerMonth!!)} a month"
                         else -> "${DisplayFormatters.rupees(progress.remaining)} to go"
                     },
                     Modifier.padding(top = 6.dp), maxLines = 2,
@@ -195,7 +195,7 @@ internal fun RemindersCard(
 
     FintechCard {
         RowTitle("Reminders")
-        if (reminders.isEmpty()) Caption("Rent, a premium, a friend to pay: add it once and it is on your Bills and in your morning summary.", Modifier.padding(top = 2.dp), maxLines = 3)
+        if (reminders.isEmpty()) Caption("Nothing yet", Modifier.padding(top = 2.dp))
         reminders.forEachIndexed { index, due ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             Row(

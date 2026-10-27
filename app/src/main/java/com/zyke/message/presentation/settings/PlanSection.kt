@@ -63,11 +63,7 @@ internal fun PlanSection(
     val colors = limitColors()
 
     SectionCard("Money plan") {
-        Caption(
-            "Roughly what comes in and goes out each month. The Money tab uses it to show what is yours to spend, " +
-                "and checks it against what actually happens.",
-            maxLines = 4
-        )
+        Caption("Roughly what comes in and goes out each month")
 
         // Salary: the messages come first; what is entered here is the fallback.
         if (spotted != null) {
@@ -105,7 +101,7 @@ internal fun PlanSection(
             }
             if (items.isEmpty()) {
                 Caption(
-                    if (kind == PlanItemKind.OUTFLOW) "Money you send every month: parents, charity, rent, a loan." else "A SIP, a recurring deposit, a policy.",
+                    if (kind == PlanItemKind.OUTFLOW) "Parents, charity, rent, a loan" else "A SIP, a deposit, a policy",
                     Modifier.padding(top = 4.dp),
                     maxLines = 2
                 )
@@ -284,7 +280,7 @@ private fun PlanItemDialog(
                     label = { Text("Usual day of the month (optional)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
-                Caption("The name helps the app spot the payment in your messages.", maxLines = 2)
+                Caption("Used to spot the payment")
             }
         },
         confirmButton = {

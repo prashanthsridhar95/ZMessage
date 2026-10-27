@@ -154,7 +154,7 @@ internal fun MessageDetailSheet(
             RemovePicture(item)
 
             if (item.isModelParsed) {
-                Caption("The amount and name were read by on-device AI and checked against the message. Worth a glance.", maxLines = 3)
+                Caption("Read by on-device AI")
             }
 
             // The one action that matters most for this kind of message.
@@ -219,7 +219,6 @@ internal fun MessageDetailSheet(
                     size = ButtonSize.COMPACT
                 )
                 if (!item.isMuted) {
-                    Caption("Muted senders move to Promos and stay out of Home, the unread badge and the digest.", maxLines = 3)
                 }
             }
 
@@ -266,8 +265,8 @@ private fun CategoryPicker(item: ClassifiedMessage, actions: FeedActions) {
             }
         }
         Caption(
-            if (item.categoryOverridden) "Chosen by you for every message with ${CategoryKey.label(item)}."
-            else "Picked automatically. Changing it applies to every message with ${CategoryKey.label(item)}.",
+            if (item.categoryOverridden) "Chosen by you"
+            else "Picked automatically",
             maxLines = 2
         )
     }

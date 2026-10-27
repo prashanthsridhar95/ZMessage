@@ -114,7 +114,7 @@ internal fun JourneySheet(message: ClassifiedMessage, onOpenMessage: () -> Unit,
             }
 
             JourneyScene(journey.mode, shown, onScrub = { scrub = it }, Modifier.fillMaxWidth().height(SCENE_HEIGHT))
-            Caption("Drag across the scene to see the trip at any point. Tap the ${journey.mode.label.lowercase()} to make it hop.", maxLines = 2)
+            Caption("Drag to scrub · tap to hop")
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val dateText = life.date?.let { date ->

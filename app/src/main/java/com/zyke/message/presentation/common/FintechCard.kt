@@ -16,7 +16,13 @@ import androidx.compose.ui.unit.dp
 
 /** The surface everything on the money screens sits on: a soft, rounded panel with room inside. */
 @Composable
-fun FintechCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun FintechCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    /** A light that travels round the card's edge, for the one card that needs the person now. */
+    movingOutline: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
     val shape = RoundedCornerShape(24.dp)
     // The card is the tap target, so the rows in it do not stretch past its edge.
     CompositionLocalProvider(LocalContentInset provides 0.dp) {
@@ -25,6 +31,7 @@ fun FintechCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, co
                 .fillMaxWidth()
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                .then(if (movingOutline) Modifier.movingBorder(MaterialTheme.colorScheme.primary, corner = 24.dp) else Modifier)
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(20.dp),
             content = content

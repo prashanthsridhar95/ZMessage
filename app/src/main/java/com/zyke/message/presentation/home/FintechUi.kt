@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.UnderlineTabs
 import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.LocalImageStore
 import com.zyke.message.domain.classification.MerchantResolver
@@ -81,13 +82,13 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
                 maxLines = 1
             )
             Caption(
-                "across ${DisplayFormatters.count(overview.countedBalances, "bank account", "bank accounts")} · from their latest messages",
+                DisplayFormatters.count(overview.countedBalances, "bank account", "bank accounts"),
                 Modifier.padding(top = 2.dp),
                 maxLines = 2
             )
         } else {
             Text("Your accounts", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-            Caption("Balances show up once your bank's messages mention them", Modifier.padding(top = 2.dp), maxLines = 2)
+            Caption("No balances yet", Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -113,6 +114,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val banks = overview.accounts.filter { !it.isCard }
     val cards = overview.accounts.filter { it.isCard }
     val byId = remember(state.messages) { state.messages.associateBy { it.id } }
+    var tab by rememberSaveable { mutableStateOf(0) }
+    val shown = if (tab == 0) banks else cards
 
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
@@ -121,33 +124,34 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     ) {
         item(key = "total") { BalanceHero(overview, onOpen = {}) }
 
-        if (overview.accounts.isEmpty()) {
-            item(key = "empty") {
-                FintechCard {
-                    RowTitle("No accounts yet")
-                    Caption("Bank accounts and cards appear here as soon as their messages arrive.", maxLines = 3)
-                }
-            }
-        }
-        if (banks.isNotEmpty()) {
-            item(key = "banks-title") { SectionLabel("Bank accounts") }
-            banks.forEach { account ->
-                item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
-            }
-        }
-        if (cards.isNotEmpty()) {
-            item(key = "cards-title") { SectionLabel("Cards") }
-            cards.forEach { account ->
-                item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
-            }
-        }
-        item(key = "goals") {
-            GoalsCard(
-                goals = state.goals,
-                onSave = { onIntent(HomeContract.Intent.SaveGoal(it)) },
-                onRemove = { onIntent(HomeContract.Intent.RemoveGoal(it)) },
-                onAdd = { id, amount -> onIntent(HomeContract.Intent.AddToGoal(id, amount)) }
+        item(key = "tabs") {
+            UnderlineTabs(
+                labels = listOf("Accounts", "Cards"),
+                counts = listOf(banks.size, cards.size),
+                selectedIndex = tab,
+                onSelect = { tab = it },
+                showDivider = false
             )
+        }
+
+        if (shown.isEmpty()) {
+            item(key = "empty") {
+                FintechCard { Caption(if (tab == 0) "No accounts yet" else "No cards yet") }
+            }
+        }
+        shown.forEach { account ->
+            item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
+        }
+
+        if (tab == 0) {
+            item(key = "goals") {
+                GoalsCard(
+                    goals = state.goals,
+                    onSave = { onIntent(HomeContract.Intent.SaveGoal(it)) },
+                    onRemove = { onIntent(HomeContract.Intent.RemoveGoal(it)) },
+                    onAdd = { id, amount -> onIntent(HomeContract.Intent.AddToGoal(id, amount)) }
+                )
+            }
         }
     }
 }
@@ -262,8 +266,8 @@ internal fun AccountSheet(
                     when {
                         account.isCard && due != null ->
                             "due ${dayFormat.format(due)}" + (account.minimumDue?.let { " · minimum ${DisplayFormatters.rupees(it)}" } ?: "")
-                        asOf != null -> "as of ${dayFormat.format(asOf)}, from its latest message"
-                        else -> "Its messages do not state a balance"
+                        asOf != null -> "as of ${dayFormat.format(asOf)}"
+                        else -> "Balance not stated"
                     },
                     maxLines = 2
                 )
@@ -315,7 +319,6 @@ internal fun AccountSheet(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
-                    Caption("For example \"Salary account\" or \"Travel card\". Kept on this phone only.", maxLines = 2)
                 }
             },
             confirmButton = {
