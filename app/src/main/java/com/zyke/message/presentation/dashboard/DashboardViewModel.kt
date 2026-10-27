@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.cards.CardCycleBuilder
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.ReportCardBuilder
 import com.zyke.message.domain.repository.BudgetRepository
+import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
@@ -23,14 +26,20 @@ import kotlinx.coroutines.launch
 class DashboardViewModel(
     private val observeMessages: ObserveMessagesUseCase,
     private val budgetRepository: BudgetRepository,
-    private val clock: Clock = Clock.systemDefaultZone()
-) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), budgets = budgetRepository.budgets.value)) {
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val cardRepository: CardRepository = NoCards
+) : MviViewModel<State, Intent, Effect>(
+    State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value)
+) {
 
     private var observeJob: Job? = null
 
     init {
         viewModelScope.launch {
             budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
+        }
+        viewModelScope.launch {
+            cardRepository.cards.collect { cards -> reduceDashboard { copy(cards = cards) } }
         }
     }
 
@@ -96,17 +105,19 @@ class DashboardViewModel(
             updated.copy(
                 dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets),
                 reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
-                cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone))
+                cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
+                cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone)
             )
         }
     }
 
     class Factory(
         private val observeMessages: ObserveMessagesUseCase,
-        private val budgetRepository: BudgetRepository
+        private val budgetRepository: BudgetRepository,
+        private val cardRepository: CardRepository = NoCards
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            DashboardViewModel(observeMessages, budgetRepository) as T
+            DashboardViewModel(observeMessages, budgetRepository, cardRepository = cardRepository) as T
     }
 }

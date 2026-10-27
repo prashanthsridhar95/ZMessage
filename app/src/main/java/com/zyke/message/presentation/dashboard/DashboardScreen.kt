@@ -50,6 +50,7 @@ import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.presentation.dashboard.components.BudgetDialog
 import com.zyke.message.presentation.dashboard.components.CardBillRow
+import com.zyke.message.presentation.dashboard.components.CardCyclesSection
 import com.zyke.message.presentation.dashboard.components.CardBillSheet
 import com.zyke.message.presentation.dashboard.components.CategoryRow
 import com.zyke.message.presentation.dashboard.components.ChartColors
@@ -271,6 +272,10 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                     }
                 }
             }
+        }
+
+        if (state.cardCycles.isNotEmpty()) {
+            item(key = "card-cycles") { CardCyclesSection(state.cardCycles) }
         }
 
         val reportCard = state.reportCard

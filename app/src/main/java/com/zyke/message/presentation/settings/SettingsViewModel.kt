@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.diagnostics.DiagnosticsBuilder
 import com.zyke.message.domain.repository.BudgetRepository
+import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -26,14 +28,20 @@ class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val userStateRepository: UserMessageStateRepository,
     private val budgetRepository: BudgetRepository,
-    private val clock: Clock = Clock.systemDefaultZone()
-) : MviViewModel<State, Intent, Effect>(State(settings = settingsRepository.settings.value)) {
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val cardRepository: CardRepository = NoCards
+) : MviViewModel<State, Intent, Effect>(
+    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value)
+) {
 
     private var observeJob: Job? = null
 
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
+        }
+        viewModelScope.launch {
+            cardRepository.cards.collect { cards -> reduce { copy(cards = cards) } }
         }
     }
 
@@ -42,6 +50,11 @@ class SettingsViewModel(
             is Intent.ScreenStarted -> if (intent.permissionGranted) startObserving()
             is Intent.SetScreenProtection -> settingsRepository.setScreenProtection(intent.enabled)
             is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
+            is Intent.SaveCard -> {
+                val card = intent.card
+                if (card.last4.length == LAST_DIGITS && card.last4.all { it.isDigit() }) cardRepository.save(card)
+            }
+            is Intent.DeleteCard -> cardRepository.remove(intent.id)
             Intent.AskReset -> reduce { copy(confirmingReset = true) }
             Intent.CancelReset -> reduce { copy(confirmingReset = false) }
             Intent.ConfirmReset -> {
@@ -83,14 +96,21 @@ class SettingsViewModel(
         emitEffect(Effect.ShareReport("zyke-parsing-report-$stamp.txt", report))
     }
 
+    private companion object {
+        const val LAST_DIGITS = 4
+    }
+
     class Factory(
         private val observeMessages: ObserveMessagesUseCase,
         private val settingsRepository: SettingsRepository,
         private val userStateRepository: UserMessageStateRepository,
-        private val budgetRepository: BudgetRepository
+        private val budgetRepository: BudgetRepository,
+        private val cardRepository: CardRepository = NoCards
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            SettingsViewModel(observeMessages, settingsRepository, userStateRepository, budgetRepository) as T
+            SettingsViewModel(
+                observeMessages, settingsRepository, userStateRepository, budgetRepository, cardRepository = cardRepository
+            ) as T
     }
 }

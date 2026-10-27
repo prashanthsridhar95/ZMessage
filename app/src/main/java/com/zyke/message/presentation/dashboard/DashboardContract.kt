@@ -1,6 +1,8 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.domain.cards.CardCycles
 import com.zyke.message.domain.dashboard.CardBills
+import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.DashboardQuery
@@ -40,7 +42,10 @@ object DashboardContract {
         val reportCard: ReportCard? = null,
         /** Credit card statements by card; independent of the selected period. */
         val cardBills: List<CardBills> = emptyList(),
-        val expandedCard: String? = null
+        val expandedCard: String? = null,
+        /** The cards the person added in Settings, and their billing cycles. */
+        val cards: List<UserCard> = emptyList(),
+        val cardCycles: List<CardCycles> = emptyList()
     ) {
         val query get() = DashboardQuery(period, direction, category)
 

@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
 import com.zyke.message.domain.dashboard.BillEntry
+import com.zyke.message.domain.cards.CardCycles
 import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
@@ -763,3 +764,42 @@ private fun EarlierBill(bill: BillEntry, dayFmt: DateTimeFormatter) {
 
 private fun statementDate(bill: BillEntry): LocalDate =
     Instant.ofEpochMilli(bill.epochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+
+/** Spends and payments for each card by billing cycle, newest first. */
+@Composable
+internal fun CardCyclesSection(cards: List<CardCycles>, modifier: Modifier = Modifier) {
+    val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    SectionCard(
+        title = "Card cycles",
+        modifier = modifier,
+        subtitle = "Spent and paid by billing cycle"
+    ) {
+        cards.forEachIndexed { index, entry ->
+            if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            val max = entry.cycles.maxOf { it.spent }.coerceAtLeast(BigDecimal.ONE)
+            RowTitle(entry.card.label)
+            Caption(entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
+            entry.cycles.forEach { cycle ->
+                Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            RowTitle(
+                                "${dayFmt.format(cycle.start)} – ${dayFmt.format(cycle.end)}" + if (cycle.isCurrent) " · now" else "",
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            Caption(
+                                buildString {
+                                    append(plural(cycle.spendCount, "payment", "payments"))
+                                    if (cycle.paid.signum() > 0) append(" · paid ${DisplayFormatters.rupees(cycle.paid)}")
+                                }
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        MoneyText(cycle.spent, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.primary)
+                    }
+                    ShareBar(cycle.spent.fractionOf(max))
+                }
+            }
+        }
+    }
+}

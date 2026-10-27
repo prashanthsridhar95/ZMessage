@@ -7,6 +7,7 @@ import com.zyke.message.presentation.common.ButtonStyle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
+import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.ShareBar
@@ -106,6 +111,8 @@ fun SettingsSheet(
                     }
                 }
             }
+
+            CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
             RcsSection()
 
@@ -179,6 +186,53 @@ fun SettingsSheet(
             text = { Text("This clears read, pinned and archived marks, dismissed tips and all budgets. It can't be undone.") },
             confirmButton = { AppButton("Reset", { onIntent(Intent.ConfirmReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
             dismissButton = { AppButton("Cancel", { onIntent(Intent.CancelReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
+    }
+}
+
+/** The person's cards: with their last four digits, messages are matched to the right card and grouped by cycle. */
+@Composable
+private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDelete: (String) -> Unit) {
+    var editing by remember { mutableStateOf<UserCard?>(null) }
+    var adding by remember { mutableStateOf(false) }
+
+    SectionCard("Your cards") {
+        Caption(
+            "Add the last four digits of your credit and debit cards so messages are matched to the right card. " +
+                "For a credit card, add its statement date to see spends and payments by billing cycle.",
+            maxLines = 5
+        )
+        cards.forEach { card ->
+            Row(
+                Modifier.fillMaxWidth().clickable { editing = card }.padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    RowTitle(card.label)
+                    Caption(
+                        card.statementDay?.let { "${card.type.label} · statement on day $it" } ?: card.type.label
+                    )
+                }
+                AppButton("Edit", { editing = card }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
+        }
+        AppButton(
+            text = "Add card",
+            onClick = { adding = true },
+            style = ButtonStyle.OUTLINE,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+    }
+
+    if (adding) {
+        CardDialog(initial = null, onSave = { onSave(it); adding = false }, onDelete = null, onDismiss = { adding = false })
+    }
+    editing?.let { card ->
+        CardDialog(
+            initial = card,
+            onSave = { onSave(it); editing = null },
+            onDelete = { onDelete(card.id); editing = null },
+            onDismiss = { editing = null }
         )
     }
 }

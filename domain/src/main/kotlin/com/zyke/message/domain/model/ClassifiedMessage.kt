@@ -11,7 +11,9 @@ data class ClassifiedMessage(
     /** Marketing noise; only ever set on [MessageContent.Generic] messages. */
     val isPromotional: Boolean = false,
     /** True when [category] was chosen by the user for this sender / receiver rather than guessed. */
-    val categoryOverridden: Boolean = false
+    val categoryOverridden: Boolean = false,
+    /** The person's card this message is about, if they have told us about it. */
+    val cardId: String? = null
 ) {
     val id: Long get() = message.id
 }

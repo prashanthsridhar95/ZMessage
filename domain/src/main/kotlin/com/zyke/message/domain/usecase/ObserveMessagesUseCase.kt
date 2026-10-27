@@ -3,7 +3,10 @@ package com.zyke.message.domain.usecase
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.cards.CardMatcher
+import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.SmsRepository
 import java.time.Instant
@@ -20,7 +23,8 @@ class ObserveMessagesUseCase(
     private val repository: SmsRepository,
     private val classifier: MessageClassifier,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
+    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
+    private val cardRepository: CardRepository = NoCards
 ) {
     operator fun invoke(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox()
@@ -32,6 +36,9 @@ class ObserveMessagesUseCase(
             }
             .combine(categoryOverrides.overrides) { classified, overrides ->
                 classified.map { CategoryKey.apply(it, overrides) }
+            }
+            .combine(cardRepository.cards) { classified, cards ->
+                if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }
             }
             .flowOn(dispatcher)
 }

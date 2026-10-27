@@ -2,6 +2,7 @@ package com.zyke.message.di
 
 import android.content.Context
 import com.zyke.message.data.repository.BudgetRepositoryImpl
+import com.zyke.message.data.repository.CardRepositoryImpl
 import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
@@ -10,6 +11,7 @@ import com.zyke.message.data.sms.RcsMessageStore
 import com.zyke.message.data.sms.SmsDataSource
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.repository.BudgetRepository
+import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.SmsRepository
@@ -25,7 +27,8 @@ class AppContainer(context: Context) {
     val userMessageState: UserMessageStateRepository = UserMessageStateRepositoryImpl(context)
     val budgets: BudgetRepository = BudgetRepositoryImpl(context)
     val categoryOverrides: CategoryOverrideRepository = CategoryOverrideRepositoryImpl(context)
+    val cards: CardRepository = CardRepositoryImpl(context)
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
     val messageClassifier = MessageClassifier()
-    val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier, categoryOverrides = categoryOverrides)
+    val observeMessages = ObserveMessagesUseCase(smsRepository, messageClassifier, categoryOverrides = categoryOverrides, cardRepository = cards)
 }

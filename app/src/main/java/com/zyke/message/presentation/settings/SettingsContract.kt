@@ -3,6 +3,7 @@ package com.zyke.message.presentation.settings
 import com.zyke.message.domain.diagnostics.ParsingDiagnostics
 import com.zyke.message.domain.model.AppSettings
 import com.zyke.message.domain.model.ThemeMode
+import com.zyke.message.domain.model.UserCard
 
 object SettingsContract {
 
@@ -10,7 +11,8 @@ object SettingsContract {
         val settings: AppSettings = AppSettings(),
         /** Null until the inbox has been read (or when SMS access is missing). */
         val diagnostics: ParsingDiagnostics? = null,
-        val confirmingReset: Boolean = false
+        val confirmingReset: Boolean = false,
+        val cards: List<UserCard> = emptyList()
     )
 
     sealed interface Intent {
@@ -18,6 +20,8 @@ object SettingsContract {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SetScreenProtection(val enabled: Boolean) : Intent
         data class SetThemeMode(val mode: ThemeMode) : Intent
+        data class SaveCard(val card: UserCard) : Intent
+        data class DeleteCard(val id: String) : Intent
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent
