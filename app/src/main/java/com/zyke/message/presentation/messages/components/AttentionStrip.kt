@@ -76,7 +76,11 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
         is AttentionItem.FreshOtp -> false
     }
 
-    Row(Modifier.fillMaxWidth().padding(start = inset, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open message") { actions.onOpenMessage(item.message.id) }
+            .padding(start = inset, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         if (urgent) {
             Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
             Spacer(Modifier.width(10.dp))

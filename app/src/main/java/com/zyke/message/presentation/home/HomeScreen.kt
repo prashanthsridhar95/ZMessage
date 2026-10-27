@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -65,6 +66,7 @@ import com.zyke.message.presentation.messages.components.AttentionStrip
 import com.zyke.message.presentation.messages.components.AmountText
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.FeedActions
+import com.zyke.message.presentation.messages.components.MessageDetailSheet
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import com.zyke.message.presentation.messages.components.RowTitle
@@ -151,7 +153,12 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
         FeedActions.None.copy(
             onCopyOtp = { id, code -> onIntent(Intent.CopyOtp(id, code)) },
             onDismissAttention = { onIntent(Intent.DismissAttention(it)) },
-            onOpenLink = { onIntent(Intent.OpenLink(it)) }
+            onOpenLink = { onIntent(Intent.OpenLink(it)) },
+            onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
+            onTogglePin = { onIntent(Intent.TogglePin(it)) },
+            onArchive = { onIntent(Intent.Archive(it)) },
+            onUnarchive = { onIntent(Intent.Unarchive(it)) },
+            onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) }
         )
     }
 
@@ -160,6 +167,8 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
     val upcoming = state.upcoming.filter { it.message.id !in attentionIds }
     // Budgets only speak up when one is getting close; the rest are a tap away in Money.
     val budgets = state.budgetStatus.filter { (it.usedFraction ?: 0.0) >= BUDGET_WARNING }.take(MAX_BUDGETS)
+
+    HomeSheets(state, actions, onIntent, onNavigate)
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -189,7 +198,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                 PlainSection("Coming up", subtitle = "Next 30 days") {
                     upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        UpcomingRow(item, today) { onIntent(Intent.OpenLink(it)) }
+                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }) { onIntent(Intent.OpenLink(it)) }
                     }
                 }
             }
@@ -200,7 +209,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                 PlainSection("Budgets to watch", subtitle = "This month") {
                     budgets.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        BudgetLine(item)
+                        BudgetLine(item, onOpen = { onIntent(Intent.OpenBudget(item.category)) })
                     }
                     LinkButton("All budgets", { onNavigate(AppTab.MONEY) })
                 }
@@ -212,7 +221,7 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                 PlainSection("Recent payments") {
                     state.recent.take(MAX_RECENT).forEachIndexed { index, message ->
                         if (index > 0) HorizontalDivider()
-                        RecentRow(message)
+                        RecentRow(message, onOpen = { onIntent(Intent.OpenMessage(message.id)) })
                     }
                     LinkButton(
                         text = if (state.unreadCount > 0) "Open inbox · ${state.unreadCount} unread" else "Open inbox",
@@ -220,6 +229,73 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
                     )
                 }
             }
+        }
+    }
+}
+
+/** Opened by tapping any item: the message in full, or a budget's detail. */
+@Composable
+private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
+    state.detail?.let { detail ->
+        MessageDetailSheet(
+            item = detail,
+            isPinned = detail.id in state.userState.pinnedIds,
+            isArchived = detail.id in state.userState.archivedIds,
+            inConversation = false,
+            actions = actions,
+            onMoreFromSender = {
+                onIntent(Intent.CloseMessage)
+                onNavigate(AppTab.INBOX)
+            },
+            onDismiss = { onIntent(Intent.CloseMessage) }
+        )
+    }
+
+    state.budgetDetail?.let { category ->
+        val item = state.budgetStatus.firstOrNull { it.category == category }
+        if (item != null) {
+            BudgetSheet(
+                item = item,
+                onOpenMoney = {
+                    onIntent(Intent.CloseBudget)
+                    onNavigate(AppTab.MONEY)
+                },
+                onDismiss = { onIntent(Intent.CloseBudget) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BudgetSheet(item: CategoryTotal, onOpenMoney: () -> Unit, onDismiss: () -> Unit) {
+    val budget = item.budget ?: return
+    val used = item.usedFraction ?: 0.0
+    val over = used > 1.0
+    val remaining = item.remaining ?: budget
+
+    AppBottomSheet(onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(item.category.displayString, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Caption("Monthly budget")
+            Text(
+                "${DisplayFormatters.rupees(item.total)} of ${DisplayFormatters.rupees(budget)}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            ShareBar(
+                used.toFloat(),
+                color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+            Caption(
+                (if (over) "${DisplayFormatters.rupees(remaining.negate())} over budget" else "${DisplayFormatters.rupees(remaining)} left") +
+                    " · ${DisplayFormatters.count(item.count, "payment", "payments")} this month",
+                color = if (over) MaterialTheme.colorScheme.error else mutedColor()
+            )
+            AppButton("See where it went", onOpenMoney, Modifier.fillMaxWidth())
         }
     }
 }
@@ -266,9 +342,12 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onPay: (String) -> Unit) {
+private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onPay: (String) -> Unit) {
     val urgent = DisplayFormatters.isUrgent(item.date, today)
-    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         MerchantChip(item.message.merchant.logo, description = item.title, size = 44.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -294,7 +373,7 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onPay: (String) ->
 }
 
 @Composable
-private fun BudgetLine(item: CategoryTotal) {
+private fun BudgetLine(item: CategoryTotal, onOpen: () -> Unit) {
     val budget = item.budget ?: return
     val used = item.usedFraction ?: 0.0
     val over = used > 1.0
@@ -305,7 +384,7 @@ private fun BudgetLine(item: CategoryTotal) {
     }
     val remaining = item.remaining ?: budget
 
-    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             RowTitle(item.category.displayString, Modifier.weight(1f), color = MaterialTheme.colorScheme.secondary)
             Text(
@@ -324,10 +403,13 @@ private fun BudgetLine(item: CategoryTotal) {
 }
 
 @Composable
-private fun RecentRow(message: ClassifiedMessage) {
+private fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
     val tx = message.content as? MessageContent.Transaction ?: return
     val sign = if (tx.isReceived) "+" else "-"
-    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         MerchantChip(message.merchant.logo, description = message.merchant.name, size = 44.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

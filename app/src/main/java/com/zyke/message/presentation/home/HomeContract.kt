@@ -32,8 +32,14 @@ object HomeContract {
         /** Budgeted categories, the most used first. */
         val budgetStatus: List<CategoryTotal> = emptyList(),
         val recent: List<ClassifiedMessage> = emptyList(),
-        val unreadCount: Int = 0
+        val unreadCount: Int = 0,
+
+        /** The message whose sheet is open, and the budgeted category whose sheet is open. */
+        val detailMessageId: Long? = null,
+        val budgetDetail: MessageCategory? = null
     ) {
+        val detail: ClassifiedMessage? get() = detailMessageId?.let { id -> messages.firstOrNull { it.id == id } }
+
         /** Nothing money-related has been seen yet. */
         val isBlank: Boolean
             get() = hasLoaded && attention.isEmpty() && upcoming.isEmpty() && recent.isEmpty() && thisMonth?.isEmpty != false
@@ -44,6 +50,14 @@ object HomeContract {
         data class CopyOtp(val messageId: Long, val code: String) : Intent
         data class DismissAttention(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
+        data class OpenMessage(val messageId: Long) : Intent
+        data object CloseMessage : Intent
+        data class OpenBudget(val category: MessageCategory) : Intent
+        data object CloseBudget : Intent
+        data class TogglePin(val messageId: Long) : Intent
+        data class Archive(val messageId: Long) : Intent
+        data class Unarchive(val messageId: Long) : Intent
+        data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
         /** Try again after the inbox could not be read. */
         data object Retry : Intent
     }

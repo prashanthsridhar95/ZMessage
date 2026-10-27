@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val homeViewModel: HomeViewModel by viewModels {
-        HomeViewModel.Factory(container.observeMessages, container.userMessageState, container.budgets)
+        HomeViewModel.Factory(container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides)
     }
 
     private val settingsViewModel: SettingsViewModel by viewModels {

@@ -9,7 +9,10 @@ import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.feed.AttentionBuilder
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.repository.BudgetRepository
+import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.home.HomeContract.Effect
@@ -27,7 +30,8 @@ class HomeViewModel(
     private val observeMessages: ObserveMessagesUseCase,
     private val userStateRepository: UserMessageStateRepository,
     private val budgetRepository: BudgetRepository,
-    private val clock: Clock = Clock.systemDefaultZone()
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value)
 ) {
@@ -53,6 +57,25 @@ class HomeViewModel(
             }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
+            is Intent.OpenMessage -> {
+                userStateRepository.markRead(intent.messageId)
+                reduce { copy(detailMessageId = intent.messageId) }
+            }
+            Intent.CloseMessage -> reduce { copy(detailMessageId = null) }
+            is Intent.OpenBudget -> reduce { copy(budgetDetail = intent.category) }
+            Intent.CloseBudget -> reduce { copy(budgetDetail = null) }
+            is Intent.TogglePin -> userStateRepository.setPinned(
+                intent.messageId,
+                intent.messageId !in currentState().userState.pinnedIds
+            )
+            is Intent.Archive -> {
+                reduce { copy(detailMessageId = null) }
+                userStateRepository.setArchived(intent.messageId, true)
+            }
+            is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
+                ?.let(CategoryKey::of)
+                ?.let { categoryOverrides.set(it, intent.category) }
             Intent.Retry -> {
                 reduce { copy(hasError = false, isLoading = true) }
                 startObserving()
@@ -103,11 +126,14 @@ class HomeViewModel(
     class Factory(
         private val observeMessages: ObserveMessagesUseCase,
         private val userStateRepository: UserMessageStateRepository,
-        private val budgetRepository: BudgetRepository
+        private val budgetRepository: BudgetRepository,
+        private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            HomeViewModel(observeMessages, userStateRepository, budgetRepository) as T
+            HomeViewModel(
+                observeMessages, userStateRepository, budgetRepository, categoryOverrides = categoryOverrides
+            ) as T
     }
 
     private companion object {
