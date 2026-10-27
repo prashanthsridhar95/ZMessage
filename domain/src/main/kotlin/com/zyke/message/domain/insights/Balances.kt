@@ -27,7 +27,14 @@ object BalanceReader {
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
     /** The newest balance seen for each account. */
-    fun latest(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> {
+    fun latest(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> =
+        readings(messages, zone).groupBy { it.account }.map { (_, balances) -> balances.maxWith(compareBy({ it.asOf }, { it.messageId })) }
+
+    /** Every balance an account's messages stated, oldest first, keyed by the account's last digits. */
+    fun history(messages: List<ClassifiedMessage>, zone: ZoneId): Map<String, List<AccountBalance>> =
+        readings(messages, zone).groupBy { it.account }.mapValues { (_, list) -> list.sortedWith(compareBy({ it.asOf }, { it.messageId })) }
+
+    private fun readings(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> {
         val all = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
             // A card's "available balance" is credit left, not money in an account.
@@ -44,7 +51,7 @@ object BalanceReader {
                 Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id
             )
         }
-        return all.groupBy { it.account }.map { (_, balances) -> balances.maxWith(compareBy({ it.asOf }, { it.messageId })) }
+        return all
     }
 }
 
