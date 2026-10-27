@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
+import com.zyke.message.presentation.common.LocalOpenSettings
 import com.zyke.message.presentation.common.Motion
 import com.zyke.message.presentation.common.rememberReduceMotion
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -66,6 +68,7 @@ fun AppRoot(
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
+    CompositionLocalProvider(LocalOpenSettings provides { showSettings = true }) {
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -88,6 +91,7 @@ fun AppRoot(
             }
         }
         if (showSettings) settings { showSettings = false }
+    }
     }
 }
 

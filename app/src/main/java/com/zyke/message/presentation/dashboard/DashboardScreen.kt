@@ -43,6 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
+import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.LocalOpenSettings
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
 import com.zyke.message.presentation.dashboard.DashboardContract.State
@@ -257,6 +261,23 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         } else {
             item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
+        }
+
+        if (state.showCardsPrompt) {
+            item(key = "cards-prompt") {
+                val openSettings = LocalOpenSettings.current
+                SectionCard("Track your cards and accounts") {
+                    Caption(
+                        "Add the last four digits of a card or bank account in Settings to see its spends and payments by " +
+                            "billing cycle, and to group its messages together.",
+                        maxLines = 4
+                    )
+                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppButton("Add in Settings", openSettings, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+                        AppButton("Not now", { onIntent(Intent.DismissTip(DashboardContract.CARDS_TIP)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                    }
+                }
+            }
         }
 
         if (state.cardBills.isNotEmpty()) {

@@ -12,6 +12,7 @@ import com.zyke.message.domain.dashboard.ReportCardBuilder
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.NoCards
+import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
 import com.zyke.message.presentation.dashboard.DashboardContract.Intent
@@ -27,7 +28,8 @@ class DashboardViewModel(
     private val observeMessages: ObserveMessagesUseCase,
     private val budgetRepository: BudgetRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
-    private val cardRepository: CardRepository = NoCards
+    private val cardRepository: CardRepository = NoCards,
+    private val userStateRepository: UserMessageStateRepository? = null
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value)
 ) {
@@ -37,6 +39,11 @@ class DashboardViewModel(
     init {
         viewModelScope.launch {
             budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
+        }
+        userStateRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.state.collect { userState -> reduce { copy(dismissedTips = userState.dismissedAttention) } }
+            }
         }
         viewModelScope.launch {
             cardRepository.cards.collect { cards -> reduceDashboard { copy(cards = cards) } }
@@ -72,6 +79,7 @@ class DashboardViewModel(
             }
             Intent.ToggleShowAllVendors -> reduce { copy(showAllVendors = !showAllVendors) }
             is Intent.ToggleCard -> reduce { copy(expandedCard = if (expandedCard == intent.key) null else intent.key) }
+            is Intent.DismissTip -> userStateRepository?.dismissAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
 
             is Intent.EditBudget -> reduce { copy(editingBudget = intent.category) }
@@ -114,10 +122,13 @@ class DashboardViewModel(
     class Factory(
         private val observeMessages: ObserveMessagesUseCase,
         private val budgetRepository: BudgetRepository,
-        private val cardRepository: CardRepository = NoCards
+        private val cardRepository: CardRepository = NoCards,
+        private val userStateRepository: UserMessageStateRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
-            DashboardViewModel(observeMessages, budgetRepository, cardRepository = cardRepository) as T
+            DashboardViewModel(
+                observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository
+            ) as T
     }
 }

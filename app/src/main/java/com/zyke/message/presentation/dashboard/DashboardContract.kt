@@ -14,6 +14,7 @@ import java.math.BigDecimal
 import java.time.Instant
 
 object DashboardContract {
+    const val CARDS_TIP = "tip-cards"
 
     data class State(
         val isLoading: Boolean = true,
@@ -45,8 +46,13 @@ object DashboardContract {
         val expandedCard: String? = null,
         /** The cards the person added in Settings, and their billing cycles. */
         val cards: List<UserCard> = emptyList(),
-        val cardCycles: List<CardCycles> = emptyList()
+        val cardCycles: List<CardCycles> = emptyList(),
+        /** Tips the person has waved away. */
+        val dismissedTips: Set<String> = emptySet()
     ) {
+        /** Nudge towards Settings until they add a card or say not now. */
+        val showCardsPrompt: Boolean get() = hasLoaded && cards.isEmpty() && CARDS_TIP !in dismissedTips
+
         val query get() = DashboardQuery(period, direction, category)
 
         /** Period and category live in the filter sheet; the direction has its own switch on screen. */
@@ -72,6 +78,7 @@ object DashboardContract {
         /** Try again after the inbox could not be read. */
         data object Retry : Intent
         data class ToggleCard(val key: String) : Intent
+        data class DismissTip(val key: String) : Intent
         data class OpenLink(val url: String) : Intent
         data class EditBudget(val category: MessageCategory?) : Intent
         /** [text] is whatever the user typed; blank removes the budget. */

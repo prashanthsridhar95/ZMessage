@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val dashboardViewModel: DashboardViewModel by viewModels {
-        DashboardViewModel.Factory(container.observeMessages, container.budgets, container.cards)
+        DashboardViewModel.Factory(container.observeMessages, container.budgets, container.cards, container.userMessageState)
     }
 
     private val homeViewModel: HomeViewModel by viewModels {
