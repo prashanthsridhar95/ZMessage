@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zyke.message.R
@@ -34,10 +34,9 @@ import com.zyke.message.presentation.format.DisplayFormatters
 import java.time.LocalDate
 
 /**
- * The few things that need you right now, as one calm card.
+ * The few things that need you right now, as a plain list with no box or fill of its own.
  *
- * Colour is handled in one place: the whole card is a single container colour and every piece of text
- * and every icon uses the matching "on" colour, so contrast is guaranteed by the theme. Urgency is never
+ * Text and icons use the normal text colour, so contrast is guaranteed by the theme. Urgency is never
  * colour alone: it is said in words ("Due today") and marked with a dot.
  */
 @Composable
@@ -45,42 +44,36 @@ internal fun AttentionStrip(
     items: List<AttentionItem>,
     today: LocalDate,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Side padding for the heading and rows; zero where the page already has its own. */
+    inset: Dp = 16.dp
 ) {
     if (items.isEmpty()) return
 
-    val onContainer = MaterialTheme.colorScheme.onSecondaryContainer
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(top = 14.dp, bottom = 4.dp)
-    ) {
+    Column(modifier.fillMaxWidth()) {
         Text(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            text = "NEEDS YOUR ATTENTION",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = onContainer.copy(alpha = 0.8f)
+            modifier = Modifier.padding(horizontal = inset, vertical = 2.dp),
+            text = "Needs your attention",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
         )
         items.forEachIndexed { index, item ->
-            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = onContainer.copy(alpha = 0.15f))
-            AttentionRow(item, today, actions)
+            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = inset), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            AttentionRow(item, today, actions, inset)
         }
     }
 }
 
 @Composable
-private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedActions) {
-    val onContainer = MaterialTheme.colorScheme.onSecondaryContainer
+private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedActions, inset: Dp) {
+    val onContainer = MaterialTheme.colorScheme.onSurface
     val urgent = when (item) {
         is AttentionItem.LowFastTag -> true
         is AttentionItem.BillDue -> item.dueDate?.let { DisplayFormatters.isUrgent(it, today) } ?: false
         is AttentionItem.FreshOtp -> false
     }
 
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = inset, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (urgent) {
             Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
             Spacer(Modifier.width(10.dp))

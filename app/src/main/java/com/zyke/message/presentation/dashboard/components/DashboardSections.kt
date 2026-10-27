@@ -221,13 +221,13 @@ internal fun HeroCard(
         DashboardPeriod.LAST_3_MONTHS -> "than the previous 3 months"
         DashboardPeriod.ALL_TIME -> null
     }
-    val onHero = MaterialTheme.colorScheme.onPrimaryContainer
+    val onHero = MaterialTheme.colorScheme.onSurface
 
     Column(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             .padding(20.dp)
     ) {
         Text(
@@ -243,7 +243,7 @@ internal fun HeroCard(
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            color = onHero
+            color = MaterialTheme.colorScheme.primary
         )
 
         val change = dashboard.changePercent
@@ -285,7 +285,7 @@ private fun FlowTotal(
     modifier: Modifier,
     onClick: () -> Unit
 ) {
-    val onHero = MaterialTheme.colorScheme.onPrimaryContainer
+    val onHero = MaterialTheme.colorScheme.onSurface
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
