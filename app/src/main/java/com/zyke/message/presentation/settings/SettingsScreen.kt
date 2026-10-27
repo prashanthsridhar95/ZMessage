@@ -132,6 +132,14 @@ fun SettingsSheet(
                 )
             }
 
+            PlanSection(
+                plan = state.plan,
+                onSalary = { amount, day -> onIntent(Intent.SetSalary(amount, day)) },
+                onSavingsGoal = { onIntent(Intent.SetSavingsGoal(it)) },
+                onSaveItem = { onIntent(Intent.SavePlanItem(it)) },
+                onDeleteItem = { onIntent(Intent.DeletePlanItem(it)) }
+            )
+
             LimitsSection(
                 limits = state.limits,
                 onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },

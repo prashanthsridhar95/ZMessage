@@ -53,6 +53,7 @@ import com.zyke.message.presentation.dashboard.DashboardContract.State
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.presentation.dashboard.components.LimitsCard
+import com.zyke.message.presentation.dashboard.components.PlanCard
 import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CardCyclesSection
 import com.zyke.message.presentation.dashboard.components.CardBillSheet
@@ -250,6 +251,10 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         } else {
             item(key = "hero") { HeroCard(dashboard, state.period, onDirection = { onIntent(Intent.SelectDirection(it)) }) }
+        }
+
+        item(key = "plan") {
+            PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
         }
 
         item(key = "limits") {

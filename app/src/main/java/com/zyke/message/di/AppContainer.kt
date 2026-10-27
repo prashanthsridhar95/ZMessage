@@ -6,6 +6,7 @@ import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
 import com.zyke.message.data.repository.CardRepositoryImpl
 import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
+import com.zyke.message.data.repository.MoneyPlanRepositoryImpl
 import com.zyke.message.data.repository.MutedSenderRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
 import com.zyke.message.data.repository.SmsRepositoryImpl
@@ -17,6 +18,7 @@ import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.ClassificationCache
 import com.zyke.message.domain.repository.CategoryOverrideRepository
+import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.SmsRepository
@@ -33,6 +35,7 @@ class AppContainer(context: Context) {
     val budgets: BudgetRepository = BudgetRepositoryImpl(context)
     val categoryOverrides: CategoryOverrideRepository = CategoryOverrideRepositoryImpl(context)
     val cards: CardRepository = CardRepositoryImpl(context)
+    val moneyPlan: MoneyPlanRepository = MoneyPlanRepositoryImpl(context)
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()

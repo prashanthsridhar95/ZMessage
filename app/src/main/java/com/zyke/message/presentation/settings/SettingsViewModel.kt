@@ -10,6 +10,8 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import java.math.BigDecimal
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.repository.MoneyPlanRepository
+import com.zyke.message.domain.repository.NoMoneyPlan
 import com.zyke.message.domain.repository.NoCards
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
@@ -38,9 +40,10 @@ class SettingsViewModel(
     /** Called when the morning digest is switched on or off, so its alarm can be set or cancelled. */
     private val onDigestChanged: (Boolean) -> Unit = {},
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
-    private val onLiveAlertsChanged: (Boolean) -> Unit = {}
+    private val onLiveAlertsChanged: (Boolean) -> Unit = {},
+    private val planRepository: MoneyPlanRepository = NoMoneyPlan
 ) : MviViewModel<State, Intent, Effect>(
-    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value)
+    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
 
     private var observeJob: Job? = null
@@ -49,6 +52,9 @@ class SettingsViewModel(
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
+        }
+        viewModelScope.launch {
+            planRepository.plan.collect { plan -> reduce { copy(plan = plan) } }
         }
         viewModelScope.launch {
             budgetRepository.budgets.collect { monthly -> reduce { copy(monthlyLimits = monthly) }; recomputeLimits() }
@@ -90,6 +96,24 @@ class SettingsViewModel(
                 budgetRepository.setDailyBudget(intent.category, amountOf(intent.daily))
                 budgetRepository.setBudget(intent.category, amountOf(intent.monthly))
                 emitEffect(Effect.ShowMessage("Limits saved for ${intent.category.displayString}"))
+            }
+            is Intent.SetSalary -> planRepository.save(
+                planRepository.plan.value.copy(
+                    salary = amountOf(intent.amount),
+                    salaryDay = intent.day.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAY }
+                )
+            )
+            is Intent.SetSavingsGoal -> planRepository.save(planRepository.plan.value.copy(savingsGoal = amountOf(intent.amount)))
+            is Intent.SavePlanItem -> {
+                val plan = planRepository.plan.value
+                val exists = plan.items.any { it.id == intent.item.id }
+                planRepository.save(
+                    plan.copy(items = if (exists) plan.items.map { if (it.id == intent.item.id) intent.item else it } else plan.items + intent.item)
+                )
+            }
+            is Intent.DeletePlanItem -> {
+                val plan = planRepository.plan.value
+                planRepository.save(plan.copy(items = plan.items.filter { it.id != intent.id }))
             }
             is Intent.RemoveLimits -> {
                 budgetRepository.setDailyBudget(intent.category, null)
@@ -158,6 +182,7 @@ class SettingsViewModel(
 
     private companion object {
         const val LAST_DIGITS = 4
+        const val MAX_DAY = 31
     }
 
     class Factory(
@@ -168,14 +193,15 @@ class SettingsViewModel(
         private val cardRepository: CardRepository = NoCards,
         private val onLogosTurnedOff: () -> Unit = {},
         private val onDigestChanged: (Boolean) -> Unit = {},
-        private val onLiveAlertsChanged: (Boolean) -> Unit = {}
+        private val onLiveAlertsChanged: (Boolean) -> Unit = {},
+        private val planRepository: MoneyPlanRepository = NoMoneyPlan
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository
             ) as T
     }
 }

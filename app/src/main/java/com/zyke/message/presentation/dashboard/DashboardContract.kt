@@ -3,6 +3,8 @@ package com.zyke.message.presentation.dashboard
 import com.zyke.message.domain.cards.CardCycles
 import com.zyke.message.domain.dashboard.CardBills
 import com.zyke.message.domain.dashboard.CategoryLimits
+import com.zyke.message.domain.plan.MoneyPlan
+import com.zyke.message.domain.plan.PlanInsights
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
@@ -50,6 +52,9 @@ object DashboardContract {
         val cardCycles: List<CardCycles> = emptyList(),
         /** Daily limits; the monthly ones are [budgets]. */
         val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        /** The person's money plan, and how this month is going against it; null insights when no plan is filled in. */
+        val plan: MoneyPlan = MoneyPlan(),
+        val planInsights: PlanInsights? = null,
         /** Where each category with a limit stands today and this month. */
         val limits: List<CategoryLimits> = emptyList(),
         /** Tips the person has waved away. */

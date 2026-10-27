@@ -12,7 +12,10 @@ import com.zyke.message.domain.dashboard.ReportCardBuilder
 import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.plan.PlanInsightsBuilder
+import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.NoCards
+import com.zyke.message.domain.repository.NoMoneyPlan
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 import com.zyke.message.presentation.dashboard.DashboardContract.Effect
@@ -30,9 +33,10 @@ class DashboardViewModel(
     private val budgetRepository: BudgetRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val cardRepository: CardRepository = NoCards,
-    private val userStateRepository: UserMessageStateRepository? = null
+    private val userStateRepository: UserMessageStateRepository? = null,
+    private val planRepository: MoneyPlanRepository = NoMoneyPlan
 ) : MviViewModel<State, Intent, Effect>(
-    State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value)
+    State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
 
     private var observeJob: Job? = null
@@ -40,6 +44,9 @@ class DashboardViewModel(
     init {
         viewModelScope.launch {
             budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
+        }
+        viewModelScope.launch {
+            planRepository.plan.collect { plan -> reduceDashboard { copy(plan = plan) } }
         }
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduceDashboard { copy(dailyBudgets = daily) } }
@@ -119,7 +126,8 @@ class DashboardViewModel(
                 reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
-                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone)
+                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone),
+                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone)
             )
         }
     }
@@ -128,12 +136,14 @@ class DashboardViewModel(
         private val observeMessages: ObserveMessagesUseCase,
         private val budgetRepository: BudgetRepository,
         private val cardRepository: CardRepository = NoCards,
-        private val userStateRepository: UserMessageStateRepository? = null
+        private val userStateRepository: UserMessageStateRepository? = null,
+        private val planRepository: MoneyPlanRepository = NoMoneyPlan
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             DashboardViewModel(
-                observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository
+                observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository,
+                planRepository = planRepository
             ) as T
     }
 }

@@ -55,7 +55,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private val dashboardViewModel: DashboardViewModel by viewModels {
-        DashboardViewModel.Factory(container.observeMessages, container.budgets, container.cards, container.userMessageState)
+        DashboardViewModel.Factory(
+            container.observeMessages, container.budgets, container.cards, container.userMessageState, container.moneyPlan
+        )
     }
 
     private val homeViewModel: HomeViewModel by viewModels {
@@ -69,7 +71,8 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards,
             onLogosTurnedOff = container.imageStore::clearLogos,
             onDigestChanged = { DigestScheduler(this).apply(it) },
-            onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) }
+            onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
+            planRepository = container.moneyPlan
         )
     }
 

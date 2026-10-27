@@ -6,6 +6,8 @@ import com.zyke.message.domain.model.AppSettings
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.domain.model.UserCard
+import com.zyke.message.domain.plan.MoneyPlan
+import com.zyke.message.domain.plan.PlanItem
 import java.math.BigDecimal
 
 object SettingsContract {
@@ -19,7 +21,9 @@ object SettingsContract {
         /** Categories with a daily and / or monthly limit, and where they stand today and this month. */
         val limits: List<CategoryLimits> = emptyList(),
         val dailyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
-        val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap()
+        val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
+        /** What the person has told the app about their month. */
+        val plan: MoneyPlan = MoneyPlan()
     )
 
     sealed interface Intent {
@@ -36,6 +40,11 @@ object SettingsContract {
         /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */
         data class SetLimits(val category: MessageCategory, val daily: String, val monthly: String) : Intent
         data class RemoveLimits(val category: MessageCategory) : Intent
+        /** The usual monthly salary and the day it arrives; a blank amount clears it. */
+        data class SetSalary(val amount: String, val day: String) : Intent
+        data class SetSavingsGoal(val amount: String) : Intent
+        data class SavePlanItem(val item: PlanItem) : Intent
+        data class DeletePlanItem(val id: String) : Intent
         data object AskReset : Intent
         data object CancelReset : Intent
         data object ConfirmReset : Intent

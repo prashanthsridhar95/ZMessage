@@ -13,6 +13,8 @@
 | Budgets | User input | Category and amount, private SharedPreferences | No |
 | Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage | No |
 | New texts as they arrive (live alerts, off until chosen) | The phone's `SMS_RECEIVED` broadcast, `RECEIVE_SMS` | No: read in memory to spot a code or card bill, then dropped | No |
+| Money plan (rough salary and its day, regular outflows such as parents or charity, investments, savings goal) | User input in Settings | Names and amounts in private SharedPreferences | No |
+| Daily and monthly spending limits | User input in Settings | Category and amount in private SharedPreferences | No |
 | Muted senders | User action | Sender names, private SharedPreferences | No |
 | Settings (screenshot protection, theme, app lock, morning digest) | User input | Booleans and one choice | No |
 | Morning digest and widget (off until chosen) | Built on the phone from the inbox | A notification text shown on the lock screen only as a private notification; the widget draws the same lines on the home screen | No |
