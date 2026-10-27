@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.dashboard.components.periodName
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.LocalContentInset
 import androidx.compose.runtime.CompositionLocalProvider
@@ -551,7 +552,7 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
         else "$percent% ${if (it >= 0) "more" else "less"} than the same days last month"
     }
     Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "See where it went", onClick = onOpen)) {
-        Caption("Spent in ${DisplayFormatters.monthName(java.time.YearMonth.from(month.range.start))}")
+        Caption("Spent · ${periodName(month.range)}")
         Text(
             text = rememberAnimatedRupees(month.total),
             style = MaterialTheme.typography.displayMedium,
