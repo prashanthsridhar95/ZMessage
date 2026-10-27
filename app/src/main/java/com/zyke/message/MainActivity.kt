@@ -47,6 +47,11 @@ import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
 import androidx.compose.material.ripple
 import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
+import com.zyke.message.ui.theme.ThemeMode
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -107,6 +112,9 @@ class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_READ_SMS = 123
     private val messages = mutableStateOf(listOf<ZMessage>())
 
+    private val themeMode = mutableStateOf(ThemeMode.SYSTEM)
+    private val showSettings = mutableStateOf(false)
+
     private val showFilters = mutableStateOf(false)
     private val selectedFilter = mutableStateOf<ZCategory?>(null)
 
@@ -116,6 +124,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        themeMode.value = ThemeMode.load(this)
         checkAndRequestSmsPermission()
 
         val filteredList = arrayListOf<ZMessage>()
@@ -123,7 +132,16 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val scrollState = rememberLazyListState()
 
-            ZykeMessageTheme {
+            ZykeMessageTheme(
+                darkTheme = when (themeMode.value) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            ) {
+                if (showSettings.value) {
+                    ThemeSettingsDialog()
+                }
                 Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
                     TopNavigationBar()
                 }, bottomBar = {
@@ -740,6 +758,20 @@ class MainActivity : AppCompatActivity() {
                     contentDescription = ""
                 )
 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    modifier = Modifier
+                        .clickable(
+                            indication = ripple,
+                            interactionSource = interactionSource,
+                            onClick = { showSettings.value = true })
+                        .height(36.dp)
+                        .padding(horizontal = 16.dp),
+                    painter = painterResource(id = R.drawable.baseline_settings_24),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.secondary),
+                    contentDescription = "Settings"
+                )
+
                 Image(
                     modifier = Modifier
                         .clickable(
@@ -759,6 +791,7 @@ class MainActivity : AppCompatActivity() {
                     ),
                     contentDescription = "Filter"
                 )
+                }
             }
 
             HorizontalDivider(
@@ -769,6 +802,36 @@ class MainActivity : AppCompatActivity() {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
             )
         }
+    }
+
+    @Composable
+    fun ThemeSettingsDialog() {
+        AlertDialog(
+            onDismissRequest = { showSettings.value = false },
+            title = { Text("Theme") },
+            text = {
+                Column {
+                    ThemeMode.entries.forEach { mode ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    themeMode.value = mode
+                                    ThemeMode.save(this@MainActivity, mode)
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = themeMode.value == mode, onClick = null)
+                            Text(mode.label, Modifier.padding(start = 12.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSettings.value = false }) { Text("Done") }
+            }
+        )
     }
 
     @Composable
