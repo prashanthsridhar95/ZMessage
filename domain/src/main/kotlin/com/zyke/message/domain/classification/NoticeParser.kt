@@ -5,6 +5,7 @@ import com.zyke.message.domain.model.NoticeKind
 /** Spots informational messages that mention money but are not a payment, so they are not reported as unparsed. */
 object NoticeParser {
     private val RULES: List<Pair<Regex, NoticeKind>> = listOf(
+        Regex("(?i)\\btransaction of\\b.*\\bconverted into EMI\\b") to NoticeKind.EMI_CONVERTED,
         Regex("(?i)\\bAutopay Failed") to NoticeKind.AUTOPAY_FAILED,
         Regex("(?i)\\brefund\\b.*\\b(?:initiated|processed|approved|will be credited|being processed|in process|raised|issued)\\b") to NoticeKind.REFUND_PENDING,
         Regex("(?i)\\bRedeem your .*?(?:Miles|Points|Reward)") to NoticeKind.REWARD_REDEMPTION,
@@ -16,7 +17,7 @@ object NoticeParser {
         Regex("(?i)\\bannual pass issued on FASTag") to NoticeKind.FASTAG_PASS,
         Regex("(?i)\\bAutoPay \\(E-mandate\\) Modified") to NoticeKind.MANDATE_MODIFIED,
         Regex("(?i)\\binstructed to unblock\\b") to NoticeKind.FUNDS_UNBLOCKED,
-        Regex("(?i)\\b(?:transfer|txn) limit\\b") to NoticeKind.LIMIT_CHANGE,
+        Regex("(?i)\\b(?:transfer|txn)\\.?\\s+limit\\b") to NoticeKind.LIMIT_CHANGE,
         Regex("(?i)\\bdues of\\b.*?\\blegal action\\b") to NoticeKind.DUES_REMINDER,
         Regex("(?i)\\bonce in every \\d+ days to be eligible for insurance") to NoticeKind.ADVISORY,
         Regex("(?i)\\bSIM or telecom service through fraud") to NoticeKind.ADVISORY

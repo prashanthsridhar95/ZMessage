@@ -28,6 +28,32 @@ class GenericTransactionParser {
     /** Fixed-format messages (autopay, SIPs, netbanking, ATM, ...) that carry no debit / credit keyword. */
     @Suppress("CyclomaticComplexMethod", "ReturnCount")
     private fun parseTemplate(body: String): BankTransaction? {
+        NACH_DEBIT.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[3], it.groupValues[1].let(::tidy).orEmpty(), clean(it.groupValues[2]), BankTransactionType.SENT
+            )
+        }
+        ACH_DEBIT.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[2], it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.SENT
+            )
+        }
+        ACCOUNT_DEBITED_TOWARDS.find(body)?.let {
+            return BankTransaction(
+                bank(body), "", it.groupValues[1].let(::tidy).orEmpty(), clean(it.groupValues[2]), BankTransactionType.SENT
+            )
+        }
+        EMI_DUE.find(body)?.let {
+            return BankTransaction(
+                bank(body), "", it.groupValues[2].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT,
+                dueDate = parseDate(it.groupValues[3])
+            )
+        }
+        MANDATE_AS_PRESENTED.find(body)?.let {
+            return BankTransaction(
+                bank(body), "", it.groupValues[1].let(::tidy).orEmpty(), clean(it.groupValues[2]), BankTransactionType.MANDATE_SET
+            )
+        }
         SIP_PROCESSED.find(body)?.let {
             return BankTransaction(BankName.MUTUAL_FUND, "", it.groupValues[1], clean(it.groupValues[2]), BankTransactionType.SENT)
         }
@@ -332,6 +358,24 @@ class GenericTransactionParser {
             "(?i)\\bfor\\s+([A-Za-z0-9][A-Za-z0-9&.' ]{1,40}?)(?=\\s+-\\s|\\s+ID:|\\.\\.|\\s+Act:|\\s+from\\b|\\.?$)"
         )
 
+        /** "NACH debit towards X for INR 1,234 with UMRN ... successfully processed in A/c no. XX1234". */
+        private val NACH_DEBIT = Regex(
+            "(?i)\\bNACH debit towards\\s+(.+?)\\s+for\\s+$CURRENCY\\s*$NUMBER\\b.*?\\bA/c(?: no\\.?)?\\s*[xX*]*(\\d+)"
+        )
+        /** "Debit INR 1,234 Axis Bank A/c XX1234 10-10-26 10:00:00 ACH-DR-PAYEE ...". */
+        private val ACH_DEBIT = Regex(
+            "(?i)^\\s*Debit\\s+$CURRENCY\\s*$NUMBER\\b.*?\\bA/c\\s*[xX*]*(\\d+)\\b.*?\\bACH-DR-(.+?)(?=\\s+(?:WhatsApp|Not You|Avl|Bal)\\b|$)"
+        )
+        /** "Your A/c has been debited towards X for INR 123 on 10-10-26." */
+        private val ACCOUNT_DEBITED_TOWARDS = Regex("(?i)\\bA/c has been debited towards\\s+(.+?)\\s+for\\s+$CURRENCY\\s*$NUMBER\\b")
+        /** "EMI of Rs. 1234 towards LOAN is due on 05/11/2026." */
+        private val EMI_DUE = Regex(
+            "(?i)\\bEMI of\\s+$CURRENCY\\s*$NUMBER\\s+towards\\s+(.+?)\\s+is due on\\s+(\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})"
+        )
+        /** "UPI ASPRESENTED mandate has been successfully created towards X from 10-10-26 to 10-10-27 for INR 1234". */
+        private val MANDATE_AS_PRESENTED = Regex(
+            "(?i)\\bmandate has been successfully created towards\\s+(.+?)\\s+from\\s+.*?\\bfor\\s+$CURRENCY\\s*$NUMBER\\b"
+        )
         private val SIP_PROCESSED = Regex("(?i)\\bSIP (?:in \\d+|under folio \\S+) in (.+?) for $CURRENCY\\s*$NUMBER is processed")
         private val SIP_DUE = Regex("(?i)\\bSIP instal?ment\\b.*?for $CURRENCY\\s*$NUMBER is due for debit.*? on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
         private val AUTOPAY_SUCCESS = Regex(
