@@ -22,7 +22,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /** How far across the row a swipe must go before it takes effect. */
-private const val SWIPE_COMMIT_FRACTION = 0.5f
+private const val SWIPE_COMMIT_FRACTION = 0.75f
+
+/** How strong the background is before the swipe has gone far enough to count. */
+private const val PENDING_ALPHA = 0.55f
 
 /**
  * Swipe right to archive (or restore), swipe left to pin. The row always snaps back;
@@ -42,7 +45,7 @@ internal fun SwipeActions(
     val togglePin by rememberUpdatedState(onTogglePin)
 
     val state = rememberSwipeToDismissBoxState(
-        // A swipe only counts once it has been dragged past half the row, so a brush or a slip does nothing.
+        // The action shows from the first pixel, but only counts once the row is dragged three quarters across.
         positionalThreshold = { totalDistance -> totalDistance * SWIPE_COMMIT_FRACTION },
         confirmValueChange = { value ->
             when (value) {
@@ -67,13 +70,16 @@ internal fun SwipeActions(
         },
         enableDismissFromEndToStart = !isArchived,
         backgroundContent = {
-            val (label, color, alignment) = when (state.targetValue) {
+            // Follows the finger from the start; it firms up once letting go would apply the action.
+            val committed = state.targetValue != SwipeToDismissBoxValue.Settled
+            val (label, base, alignment) = when (state.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd ->
                     Triple(archiveLabel, MaterialTheme.colorScheme.primaryContainer, Alignment.CenterStart)
                 SwipeToDismissBoxValue.EndToStart ->
                     Triple(pinLabel, MaterialTheme.colorScheme.tertiaryContainer, Alignment.CenterEnd)
                 SwipeToDismissBoxValue.Settled -> Triple("", Color.Transparent, Alignment.Center)
             }
+            val color = if (committed) base else base.copy(alpha = PENDING_ALPHA)
             Box(
                 Modifier.fillMaxSize().background(color).padding(horizontal = 24.dp),
                 contentAlignment = alignment
