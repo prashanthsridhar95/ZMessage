@@ -4,7 +4,12 @@ import com.zyke.message.domain.dashboard.CategoryTotal
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.home.UpcomingItem
+import com.zyke.message.domain.budget.DailyBudgetStatus
 import com.zyke.message.domain.insights.Nudge
+import com.zyke.message.domain.plan.MoneyPlan
+import com.zyke.message.domain.plan.QuickAdd
+import com.zyke.message.domain.model.UserCard
+import java.time.YearMonth
 import com.zyke.message.domain.insights.RefundItem
 import com.zyke.message.domain.insights.SpendAlert
 import com.zyke.message.domain.insights.Subscription
@@ -31,6 +36,8 @@ object HomeContract {
         val userState: UserMessageState = UserMessageState(),
         val budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
         val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        val plan: MoneyPlan = MoneyPlan(),
+        val cards: List<UserCard> = emptyList(),
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
         val now: Instant = Instant.EPOCH,
@@ -54,12 +61,19 @@ object HomeContract {
         val owed: List<SplitShare> = emptyList(),
         /** Payments that repeat monthly, soonest due first. */
         val subscriptions: List<Subscription> = emptyList(),
+        /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
+        val daily: DailyBudgetStatus? = null,
+        /** Things the messages show that the person has not entered yet. */
+        val quickAdds: List<QuickAdd> = emptyList(),
         /** Appointments, trips and renewals in the next two weeks, and orders on their way. */
         val agenda: List<AgendaItem> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,
         val budgetDetail: MessageCategory? = null,
+        /** The month shown in the budget calendar while it is open, and whether the quick-add sheet is open. */
+        val calendarMonth: YearMonth? = null,
+        val showQuickAdds: Boolean = false,
         /** The payment being split with friends, while its dialog is open. */
         val splittingMessageId: Long? = null
     ) {
@@ -85,6 +99,13 @@ object HomeContract {
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
         data class Rename(val messageId: Long, val name: String) : Intent
+        data object OpenCalendar : Intent
+        data object CloseCalendar : Intent
+        data class ShiftCalendar(val months: Int) : Intent
+        data object OpenQuickAdds : Intent
+        data object CloseQuickAdds : Intent
+        data class AddQuick(val quick: QuickAdd) : Intent
+        data class DismissQuick(val key: String) : Intent
         data class StartSplit(val messageId: Long) : Intent
         data object CancelSplit : Intent
         data class SaveSplit(val split: Split) : Intent

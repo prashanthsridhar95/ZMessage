@@ -221,8 +221,17 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             }
         }
 
+        state.daily?.let { daily ->
+            item(key = "today") { TodayBudget(daily) { onIntent(Intent.OpenCalendar) } }
+        }
+
+        // With a daily budget the month is a line of context; without one it is the headline.
         state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
             item(key = "month") { MonthHeadline(month) { onNavigate(AppTab.MONEY) } }
+        }
+
+        if (state.quickAdds.isNotEmpty()) {
+            item(key = "quickadds") { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } }
         }
 
         if (focus != null) {
@@ -429,6 +438,24 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
                 onNavigate(AppTab.INBOX)
             },
             onDismiss = { onIntent(Intent.CloseMessage) }
+        )
+    }
+
+    val calendarMonth = state.calendarMonth
+    val daily = state.daily
+    if (calendarMonth != null && daily != null) {
+        BudgetCalendarSheet(
+            messages = state.messages, daily = daily, month = calendarMonth, now = state.now,
+            onShift = { onIntent(Intent.ShiftCalendar(it)) }, onDismiss = { onIntent(Intent.CloseCalendar) }
+        )
+    }
+
+    if (state.showQuickAdds) {
+        QuickAddSheet(
+            items = state.quickAdds,
+            onAdd = { onIntent(Intent.AddQuick(it)) },
+            onDismissItem = { onIntent(Intent.DismissQuick(it)) },
+            onDismiss = { onIntent(Intent.CloseQuickAdds) }
         )
     }
 

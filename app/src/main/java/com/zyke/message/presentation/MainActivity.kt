@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModel.Factory(
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
-            container.wishlist, container.splits, container.nicknames
+            container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards
         )
     }
 

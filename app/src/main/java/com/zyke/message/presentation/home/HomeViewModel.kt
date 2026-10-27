@@ -9,7 +9,16 @@ import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.feed.AttentionBuilder
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.dashboard.SpendingLimits
+import com.zyke.message.domain.budget.DailyBudgets
 import com.zyke.message.domain.insights.BalanceReader
+import com.zyke.message.domain.plan.PlanInsightsBuilder
+import com.zyke.message.domain.plan.QuickAdd
+import com.zyke.message.domain.plan.QuickAdds
+import com.zyke.message.domain.repository.CardRepository
+import com.zyke.message.domain.repository.MoneyPlanRepository
+import com.zyke.message.domain.repository.NoCards
+import com.zyke.message.domain.repository.NoMoneyPlan
+import java.time.YearMonth
 import com.zyke.message.domain.insights.LowBalance
 import com.zyke.message.domain.insights.PaceNudges
 import com.zyke.message.domain.insights.RefundTracker
@@ -53,10 +62,13 @@ class HomeViewModel(
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
     private val wishlist: WishlistRepository = NoWishlist,
     private val splitRepository: SplitRepository = NoSplits,
-    private val nicknames: NicknameRepository = NoNicknames
+    private val nicknames: NicknameRepository = NoNicknames,
+    private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+    private val cardRepository: CardRepository = NoCards
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
-        dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value)
+        dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
+        plan = planRepository.plan.value, cards = cardRepository.cards.value)
 ) {
 
     private var observeJob: Job? = null
@@ -71,6 +83,8 @@ class HomeViewModel(
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
+        viewModelScope.launch { planRepository.plan.collect { plan -> reduceHome { copy(plan = plan) } } }
+        viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
     }
@@ -107,6 +121,13 @@ class HomeViewModel(
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
                 ?.let(CategoryKey::of)
                 ?.let { categoryOverrides.set(it, intent.category) }
+            Intent.OpenCalendar -> reduce { copy(calendarMonth = YearMonth.from(java.time.LocalDate.ofInstant(now, clock.zone))) }
+            Intent.CloseCalendar -> reduce { copy(calendarMonth = null) }
+            is Intent.ShiftCalendar -> reduce { copy(calendarMonth = calendarMonth?.plusMonths(intent.months.toLong())) }
+            Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
+            Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
+            is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
+            is Intent.AddQuick -> addQuick(intent.quick)
             is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let(CategoryKey::of)
                 ?.let { nicknames.set(it, intent.name) }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
@@ -125,6 +146,15 @@ class HomeViewModel(
                 reduce { copy(hasError = false, isLoading = true) }
                 startObserving()
             }
+        }
+    }
+
+    private fun addQuick(quick: QuickAdd) {
+        val plan = planRepository.plan.value
+        when (quick) {
+            is QuickAdd.Salary -> planRepository.save(plan.copy(salary = quick.amount, salaryDay = quick.day))
+            is QuickAdd.Item -> planRepository.save(plan.copy(items = plan.items + quick.item))
+            is QuickAdd.Account -> cardRepository.save(quick.card)
         }
     }
 
@@ -156,7 +186,12 @@ class HomeViewModel(
             val limits = SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, updated.now, zone)
             val balances = BalanceReader.latest(live, zone)
 
+            val insights = PlanInsightsBuilder.build(updated.plan, live, updated.now, zone)
+            val allowance = DailyBudgets.allowance(insights, today)
+
             updated.copy(
+                daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
+                quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone) + LowBalance.warnings(live, balances, today))
                     .take(MAX_NUDGES),
                 refunds = RefundTracker.build(live, updated.now, zone),
@@ -186,13 +221,16 @@ class HomeViewModel(
         private val mutedSenders: MutedSenderRepository = NoMutedSenders,
         private val wishlist: WishlistRepository = NoWishlist,
         private val splits: SplitRepository = NoSplits,
-        private val nicknames: NicknameRepository = NoNicknames
+        private val nicknames: NicknameRepository = NoNicknames,
+        private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+        private val cardRepository: CardRepository = NoCards
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
-                categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames
+                categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
+                planRepository = planRepository, cardRepository = cardRepository
             ) as T
     }
 
