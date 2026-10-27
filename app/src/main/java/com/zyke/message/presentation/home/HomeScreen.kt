@@ -1,7 +1,6 @@
 package com.zyke.message.presentation.home
 
 import com.zyke.message.presentation.common.heading
-import com.zyke.message.domain.insights.SpendNarrative
 import com.zyke.message.domain.insights.NudgeKind
 import com.zyke.message.domain.insights.RefundItem
 import com.zyke.message.domain.insights.Subscription
@@ -44,8 +43,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -197,123 +199,105 @@ private fun HomeContent(state: State, onIntent: (Intent) -> Unit, onNavigate: (A
             item(key = "month") { MonthHeadline(month) { onNavigate(AppTab.MONEY) } }
         }
 
-        if (state.attention.isNotEmpty()) {
-            item(key = "attention") {
-                AttentionStrip(state.attention, today, actions)
-            }
-        }
-
-        if (state.nudges.isNotEmpty() || state.alerts.isNotEmpty()) {
-            item(key = "alerts") {
-                PlainSection("Worth a look", subtitle = "Found on your phone from your own history") {
-                    state.nudges.forEachIndexed { index, nudge ->
-                        if (index > 0) HorizontalDivider()
-                        val open = nudge.messageId
-                        Text(
-                            nudge.text,
-                            Modifier.fillMaxWidth()
-                                .then(if (open != null) Modifier.clickable(onClickLabel = "Open details") { onIntent(Intent.OpenMessage(open)) } else Modifier)
-                                .padding(vertical = 12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (nudge.kind == NudgeKind.PACE) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    if (state.nudges.isNotEmpty() && state.alerts.isNotEmpty()) HorizontalDivider()
-                    state.alerts.forEachIndexed { index, alert ->
-                        if (index > 0) HorizontalDivider()
-                        Text(
-                            alert.text,
-                            Modifier.fillMaxWidth()
-                                .clickable(onClickLabel = "Open details") { onIntent(Intent.OpenMessage(alert.message.id)) }
-                                .padding(vertical = 12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
+        // One thing to look at first: the most pressing heads-up, or the first item that needs attention.
+        val focus = state.nudges.firstOrNull()
+        if (focus != null) {
+            item(key = "focus") {
+                FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE) {
+                    focus.messageId?.let { onIntent(Intent.OpenMessage(it)) }
                 }
             }
+        } else if (state.attention.isNotEmpty()) {
+            item(key = "attention") { AttentionStrip(state.attention.take(1), today, actions) }
         }
 
-        if (state.agenda.isNotEmpty()) {
-            item(key = "agenda") {
-                PlainSection("Your days ahead", subtitle = "Trips, appointments, renewals and orders on the way") {
-                    state.agenda.forEachIndexed { index, agendaItem ->
-                        if (index > 0) HorizontalDivider()
-                        AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+        // Everything else is folded: a title and one short summary each, opened only when wanted.
+        val moreAttention = if (focus != null) state.attention else state.attention.drop(1)
+        val moreHeadsUps = state.nudges.drop(1).map { it.text to it.messageId } + state.alerts.map { it.text to it.message.id }
+
+        item(key = "folds") {
+            Column(Modifier.fillMaxWidth()) {
+                if (moreAttention.isNotEmpty()) {
+                    FoldSection("Needs you", DisplayFormatters.count(moreAttention.size, "thing", "things")) {
+                        AttentionStrip(moreAttention, today, actions)
                     }
                 }
-            }
-        }
-
-        if (state.refunds.isNotEmpty()) {
-            item(key = "refunds") {
-                PlainSection("Refunds", subtitle = "Tracked from your messages") {
-                    state.refunds.forEachIndexed { index, refund ->
-                        if (index > 0) HorizontalDivider()
-                        RefundRow(refund) { onIntent(Intent.OpenMessage(refund.message.id)) }
-                    }
-                }
-            }
-        }
-
-        if (state.owed.isNotEmpty()) {
-            item(key = "owed") {
-                PlainSection("Friends owe you", subtitle = "Shares of payments you split") {
-                    state.owed.forEachIndexed { index, share ->
-                        if (index > 0) HorizontalDivider()
-                        OwedRow(share, onSettle = { onIntent(Intent.SettleShare(share.split.id, share.person.name)) }) {
-                            onIntent(Intent.OpenMessage(share.split.messageId))
+                if (moreHeadsUps.isNotEmpty()) {
+                    FoldSection("Worth a look", DisplayFormatters.count(moreHeadsUps.size, "note", "notes")) {
+                        moreHeadsUps.forEachIndexed { index, (text, id) ->
+                            if (index > 0) HorizontalDivider()
+                            Text(
+                                text,
+                                Modifier.fillMaxWidth()
+                                    .then(if (id != null) Modifier.clickable(onClickLabel = "Open details") { onIntent(Intent.OpenMessage(id)) } else Modifier)
+                                    .padding(vertical = 12.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
                         }
                     }
                 }
-            }
-        }
-
-        if (state.subscriptions.isNotEmpty()) {
-            item(key = "subscriptions") {
-                PlainSection("Repeats every month", subtitle = "Spotted from your payments; you pay these yourself") {
-                    state.subscriptions.forEachIndexed { index, subscription ->
-                        if (index > 0) HorizontalDivider()
-                        SubscriptionRow(subscription, today) { onIntent(Intent.OpenMessage(subscription.messageId)) }
+                if (upcoming.isNotEmpty()) {
+                    FoldSection("Coming up", upcoming.size.let { DisplayFormatters.count(it, "payment", "payments") } + " · next 30 days") {
+                        upcoming.forEachIndexed { index, item ->
+                            if (index > 0) HorizontalDivider()
+                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }) { onIntent(Intent.OpenLink(it)) }
+                        }
                     }
                 }
-            }
-        }
-
-        if (upcoming.isNotEmpty()) {
-            item(key = "upcoming") {
-                PlainSection("Coming up", subtitle = "Next 30 days") {
-                    upcoming.forEachIndexed { index, item ->
-                        if (index > 0) HorizontalDivider()
-                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }) { onIntent(Intent.OpenLink(it)) }
+                if (state.agenda.isNotEmpty()) {
+                    FoldSection("Days ahead", DisplayFormatters.count(state.agenda.size, "plan", "plans")) {
+                        state.agenda.forEachIndexed { index, agendaItem ->
+                            if (index > 0) HorizontalDivider()
+                            AgendaRow(agendaItem, today) { onIntent(Intent.OpenMessage(agendaItem.message.id)) }
+                        }
                     }
                 }
-            }
-        }
-
-        if (budgets.isNotEmpty()) {
-            item(key = "budgets") {
-                PlainSection("Budgets to watch", subtitle = "This month") {
-                    budgets.forEachIndexed { index, item ->
-                        if (index > 0) HorizontalDivider()
-                        BudgetLine(item, onOpen = { onIntent(Intent.OpenBudget(item.category)) })
+                if (budgets.isNotEmpty()) {
+                    FoldSection("Budgets", "${budgets.size} close to the limit") {
+                        budgets.forEachIndexed { index, item ->
+                            if (index > 0) HorizontalDivider()
+                            BudgetLine(item, onOpen = { onIntent(Intent.OpenBudget(item.category)) })
+                        }
+                        LinkButton("All budgets", { onNavigate(AppTab.MONEY) })
                     }
-                    LinkButton("All budgets", { onNavigate(AppTab.MONEY) })
                 }
-            }
-        }
-
-        if (state.recent.isNotEmpty()) {
-            item(key = "recent") {
-                PlainSection("Recent payments") {
-                    state.recent.take(MAX_RECENT).forEachIndexed { index, message ->
-                        if (index > 0) HorizontalDivider()
-                        RecentRow(message, onOpen = { onIntent(Intent.OpenMessage(message.id)) })
+                if (state.refunds.isNotEmpty()) {
+                    val waiting = state.refunds.count { it.isPending }
+                    FoldSection("Refunds", if (waiting > 0) "$waiting on the way" else "Arrived") {
+                        state.refunds.forEachIndexed { index, refund ->
+                            if (index > 0) HorizontalDivider()
+                            RefundRow(refund) { onIntent(Intent.OpenMessage(refund.message.id)) }
+                        }
                     }
-                    LinkButton(
-                        text = if (state.unreadCount > 0) "Open inbox · ${state.unreadCount} unread" else "Open inbox",
-                        onClick = { onNavigate(AppTab.INBOX) }
-                    )
+                }
+                if (state.owed.isNotEmpty()) {
+                    val total = state.owed.fold(java.math.BigDecimal.ZERO) { sum, share -> sum + share.person.share }
+                    FoldSection("Friends owe you", DisplayFormatters.rupees(total)) {
+                        state.owed.forEachIndexed { index, share ->
+                            if (index > 0) HorizontalDivider()
+                            OwedRow(share, onSettle = { onIntent(Intent.SettleShare(share.split.id, share.person.name)) }) {
+                                onIntent(Intent.OpenMessage(share.split.messageId))
+                            }
+                        }
+                    }
+                }
+                if (state.subscriptions.isNotEmpty()) {
+                    FoldSection("Repeats monthly", DisplayFormatters.count(state.subscriptions.size, "payment", "payments")) {
+                        state.subscriptions.forEachIndexed { index, subscription ->
+                            if (index > 0) HorizontalDivider()
+                            SubscriptionRow(subscription, today) { onIntent(Intent.OpenMessage(subscription.messageId)) }
+                        }
+                    }
+                }
+                if (state.recent.isNotEmpty()) {
+                    FoldSection("Recent payments", if (state.unreadCount > 0) "${state.unreadCount} unread" else "Latest ${minOf(state.recent.size, MAX_RECENT)}") {
+                        state.recent.take(MAX_RECENT).forEachIndexed { index, message ->
+                            if (index > 0) HorizontalDivider()
+                            RecentRow(message, onOpen = { onIntent(Intent.OpenMessage(message.id)) })
+                        }
+                        LinkButton("Open inbox", onClick = { onNavigate(AppTab.INBOX) })
+                    }
                 }
             }
         }
@@ -397,6 +381,7 @@ private fun BudgetSheet(item: CategoryTotal, onOpenMoney: () -> Unit, onDismiss:
 
 private const val BUDGET_WARNING = 0.8
 private const val MAX_BUDGETS = 3
+
 private const val MAX_RECENT = 3
 
 /** A heading and its rows on the plain page: no box, no fill. */
@@ -428,12 +413,7 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
             color = MaterialTheme.colorScheme.primary,
             maxLines = 1
         )
-        Caption(
-            listOfNotNull(note, "Received ${DisplayFormatters.rupees(month.receivedTotal)}").joinToString(" · "),
-            Modifier.padding(top = 2.dp),
-            maxLines = 2
-        )
-        SpendNarrative.of(month)?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 3) }
+        note?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 2) }
     }
 }
 
@@ -611,3 +591,47 @@ private fun SubscriptionRow(item: Subscription, today: LocalDate, onOpen: () -> 
 }
 
 private fun shortDate(date: LocalDate): String = java.time.format.DateTimeFormatter.ofPattern("d MMM").format(date)
+
+/** The one thing to read first, set apart by space and a single colour rather than a box of detail. */
+@Composable
+private fun FocusCard(text: String, urgent: Boolean, onOpen: () -> Unit) {
+    val accent = if (urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Column(
+        Modifier.fillMaxWidth()
+            .clickable(onClickLabel = "Open details", onClick = onOpen)
+            .padding(vertical = 4.dp)
+    ) {
+        Caption("FIRST THING", color = accent)
+        Text(
+            text,
+            Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+/** A title and a short summary on one line. Tap to unfold the rows; folded again by default. */
+@Composable
+private fun FoldSection(title: String, summary: String, content: @Composable ColumnScope.() -> Unit) {
+    var open by androidx.compose.runtime.saveable.rememberSaveable(title) { androidx.compose.runtime.mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        Row(
+            Modifier.fillMaxWidth()
+                .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (open) "Fold $title" else "Open $title") { open = !open }
+                .padding(vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Caption(summary)
+            Spacer(Modifier.width(8.dp))
+            Text(if (open) "⌃" else "⌄", color = mutedColor())
+        }
+        androidx.compose.animation.AnimatedVisibility(open) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), content = content)
+        }
+    }
+}
