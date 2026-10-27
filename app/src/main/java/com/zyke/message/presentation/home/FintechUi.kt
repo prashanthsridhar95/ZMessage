@@ -345,16 +345,10 @@ internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Uni
             }
             codes.forEach { message ->
                 val otp = message.content as MessageContent.Otp
-                val left = (message.message.date + CODE_LIFE_WINDOW_MS - now).coerceAtLeast(0)
-                CodeRow(
-                    sender = otp.senderName.ifEmpty { message.merchant.name },
-                    code = otp.code,
-                    note = otp.paymentAmount?.let { "Payment of ${DisplayFormatters.rupees(it)}" },
-                    fractionLeft = left.toFloat() / CODE_LIFE_WINDOW_MS,
-                    secondsLeft = (left / 1000).toInt(),
-                    onCopy = { onCopy(message.id, otp.code) }
+                CodeCard(
+                    message, now, onCopy = { onCopy(message.id, otp.code) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
-                HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             }
         }
     }

@@ -235,17 +235,8 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
 
         if (code != null) {
             item(key = "code") {
-                val otp = code.content as MessageContent.Otp
-                val left = (code.message.date + CODE_LIFE_WINDOW_MS - nowMillis).coerceAtLeast(0)
-                FintechCard {
-                    CodeRow(
-                        sender = otp.senderName.ifEmpty { code.merchant.name },
-                        code = otp.code,
-                        note = null,
-                        fractionLeft = left.toFloat() / CODE_LIFE_WINDOW_MS,
-                        secondsLeft = (left / 1000).toInt(),
-                        onCopy = { onIntent(Intent.CopyOtp(code.id, otp.code)) }
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    CodeCard(code, nowMillis, onCopy = { onIntent(Intent.CopyOtp(code.id, (code.content as MessageContent.Otp).code)) })
                     LinkButton("All codes", { onIntent(Intent.OpenCodes) })
                 }
             }
@@ -392,54 +383,6 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     }
 }
 
-/**
- * A code laid out like an authenticator app: the code in large grouped digits, the sender above it and a ring on
- * the right that empties as the code runs out. Tap to copy. A code is treated as live for ten minutes, which is how
- * long most services accept one.
- */
-@Composable
-internal fun CodeRow(sender: String, code: String, note: String?, fractionLeft: Float, secondsLeft: Int, onCopy: () -> Unit) {
-    val expired = secondsLeft == 0
-    val running = if (fractionLeft > CODE_WARN_FRACTION) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-    val spoken = if (expired) "expired" else "${secondsLeft / SECONDS_PER_MINUTE} minutes ${secondsLeft % SECONDS_PER_MINUTE} seconds left"
-    // Digits are grouped in threes and fours so a code can be read at a glance and typed in without losing the place.
-    val grouped = if (code.length in CODE_GROUPABLE) code.chunked(code.length / 2).joinToString(" ") else code
-
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable(onClickLabel = "Copy code", onClick = onCopy)
-            .semantics(mergeDescendants = true) { contentDescription = "$sender code $code, $spoken" }
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Caption(sender)
-            Text(
-                grouped,
-                Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                color = if (expired) mutedColor() else MaterialTheme.colorScheme.primary,
-                maxLines = 1
-            )
-            if (note != null) Caption(note, Modifier.padding(top = 2.dp))
-        }
-        Spacer(Modifier.width(16.dp))
-        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-            val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                drawArc(track, 0f, 360f, false, style = stroke)
-                if (!expired) drawArc(running, -90f, 360f * fractionLeft, false, style = stroke)
-            }
-            Text(
-                if (expired) "\u2013" else "${(secondsLeft + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE}m",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (expired) mutedColor() else running
-            )
-        }
-    }
-}
 
 /** Opened by tapping any item: the message in full, or a budget's detail. */
 @Composable
