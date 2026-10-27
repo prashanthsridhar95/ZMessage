@@ -70,8 +70,6 @@ internal fun IncomeExpenseCard(
     expense: List<TrendPoint>,
     income: List<TrendPoint>,
     period: DashboardPeriod,
-    direction: FlowDirection,
-    onDirection: (FlowDirection) -> Unit,
     /** Moves to the pay cycle before (-1) or after (1); null where the chart cannot be moved. */
     onShift: ((Int) -> Unit)? = null,
     canGoForward: Boolean = false,
@@ -97,8 +95,8 @@ internal fun IncomeExpenseCard(
             if (onShift != null) AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = canGoForward)
         }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Total("Spent", dashboard.spentTotal, ExpenseColor, direction == FlowDirection.SPENT) { onDirection(FlowDirection.SPENT) }
-            Total("Received", dashboard.receivedTotal, IncomeColor, direction == FlowDirection.RECEIVED) { onDirection(FlowDirection.RECEIVED) }
+            Total("Spent", dashboard.spentTotal, ExpenseColor)
+            Total("Received", dashboard.receivedTotal, IncomeColor)
         }
 
         if (dates.size >= 2) {
@@ -199,9 +197,10 @@ private const val ZOOM_STEP = 1.6f
 private const val DOT_SPAN = 14f
 private const val GRID_LINES = 3
 
+/** One of the two lines of the chart, named, coloured as it is drawn, with what it adds up to. */
 @Composable
-private fun Total(label: String, amount: BigDecimal, color: Color, selected: Boolean, onClick: () -> Unit) {
-    Column(Modifier.clickable(role = Role.Tab, onClickLabel = "Show $label below", onClick = onClick)) {
+private fun Total(label: String, amount: BigDecimal, color: Color) {
+    Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).background(color, CircleShape))
             Spacer(Modifier.width(6.dp))
@@ -210,8 +209,8 @@ private fun Total(label: String, amount: BigDecimal, color: Color, selected: Boo
         Text(
             text = rememberAnimatedRupees(amount),
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
             maxLines = 1
         )
     }

@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.dashboard.components.DirectionSwitch
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.CardCycleSheet
@@ -212,6 +213,80 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
+    Column(modifier.fillMaxSize()) {
+        val dashboard = state.dashboard
+        val stage = when {
+            state.permissionMissing -> Stage.PERMISSION
+            state.hasError -> Stage.ERROR
+            state.isLoading || dashboard == null -> Stage.LOADING
+            else -> Stage.CONTENT
+        }
+        // The skeleton fades into the real content instead of being swapped for it.
+        Crossfade(stage, Modifier.weight(1f), animationSpec = tween(Motion.STANDARD_MS), label = "dashboard-stage") { shown ->
+            when {
+                shown == Stage.PERMISSION -> PermissionGate(onGrant = onRequestPermission)
+                shown == Stage.ERROR -> ErrorState(
+                    title = stringResource(R.string.messages_error),
+                    hint = stringResource(R.string.error_hint),
+                    onRetry = { onIntent(Intent.Retry) }
+                )
+                shown == Stage.CONTENT && dashboard != null -> DashboardContent(state, dashboard, onIntent)
+                else -> MessageListSkeleton()
+            }
+        }
+    }
+
+    val dashboardForSheet = state.dashboard
+    if (state.showFilterSheet && dashboardForSheet != null) {
+        DashboardFilterSheet(
+            period = state.period,
+            customRange = state.customRange,
+            category = state.category,
+            dashboard = dashboardForSheet,
+            canReset = state.activeFilterCount > 0,
+            onPeriod = { onIntent(Intent.SelectPeriod(it)) },
+            onCustomRange = { start, end -> onIntent(Intent.SelectCustomRange(start, end)) },
+            onCategory = { onIntent(Intent.SetCategory(it)) },
+            onReset = { onIntent(Intent.ResetFilters) },
+            onDismiss = { onIntent(Intent.CloseFilters) }
+        )
+    }
+
+    val categoryForSheet = state.openCategory
+    val detailForSheet = state.categoryDetail
+    if (categoryForSheet != null && detailForSheet != null) {
+        CategorySheet(
+            category = categoryForSheet,
+            detail = detailForSheet,
+            direction = state.direction,
+            expandedVendor = state.expandedVendor,
+            onVendor = { onIntent(Intent.ToggleVendor(it)) },
+            onDismiss = { onIntent(Intent.CloseCategory) }
+        )
+    }
+
+    val reportCardForSheet = state.reportCard
+    if (state.showReportCard && reportCardForSheet != null) {
+        ReportCardSheet(reportCardForSheet, onDismiss = { onIntent(Intent.CloseReportCard) })
+    }
+
+    state.cardCycles.firstOrNull { it.card.id == state.expandedCardCycle }?.let { entry ->
+        CardCycleSheet(entry = entry, onDismiss = { onIntent(Intent.ToggleCardCycle(entry.card.id)) })
+    }
+
+    state.cardBills.firstOrNull { it.key == state.expandedCard }?.let { bills ->
+        CardBillSheet(
+            bills = bills,
+            today = LocalDate.ofInstant(state.now, ZoneId.systemDefault()),
+            onPay = { onIntent(Intent.OpenLink(it)) },
+            onDismiss = { onIntent(Intent.ToggleCard(bills.key)) }
+        )
+    }
+}
+
+@Composable
+private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState()
     val collapseAt = with(LocalDensity.current) { COLLAPSE_AT.toPx() }
     // The hero card carries the switch; once it has scrolled away the compact bar takes over.
     val collapsed by remember(listState, collapseAt) {
@@ -223,8 +298,6 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
     val onDirection = { direction: FlowDirection -> onIntent(Intent.SelectDirection(direction)) }
 
     Column(modifier.fillMaxSize()) {
-        // With no hero card (nothing in this view) the switch has nowhere else to live, so it stays above the list.
-        if (dashboard.isEmpty) CollapsedHeroBar(dashboard, onDirection)
         Box(Modifier.weight(1f)) {
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalSectionsAsSheets provides true,
@@ -232,7 +305,6 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
             ) {
                 DashboardList(state, dashboard, onIntent, listState)
             }
-            HeroBarOverlay(collapsed && !dashboard.isEmpty, dashboard, onDirection, Modifier.align(Alignment.TopCenter))
         }
     }
 }
@@ -287,14 +359,14 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                     startOpen = true
                 ) {
                     Caption(stringResource(R.string.dashboard_empty_hint), maxLines = 3)
+                    DirectionSwitch(state.direction, { onIntent(Intent.SelectDirection(it)) }, Modifier.padding(top = 12.dp))
                 }
             }
         } else {
             item(key = "hero") {
                 FintechCard {
                     IncomeExpenseCard(
-                        dashboard, state.expenseTrend, state.incomeTrend, state.period, state.direction,
-                        onDirection = { onIntent(Intent.SelectDirection(it)) },
+                        dashboard, state.expenseTrend, state.incomeTrend, state.period,
                         onShift = { onIntent(Intent.ShiftCycle(it)) },
                         canGoForward = state.cycleOffset < 0 || state.period != DashboardPeriod.THIS_MONTH
                     )
@@ -308,7 +380,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         if (!dashboard.isEmpty) {
-            item(key = "label-spending") { GroupLabel("Spending") }
+            item(key = "label-spending") {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GroupLabel(if (received) "Income" else "Spending", Modifier.weight(1f))
+                    DirectionSwitch(state.direction, { onIntent(Intent.SelectDirection(it)) })
+                }
+            }
 
             item(key = "categories") {
                 SectionCard(
@@ -366,7 +443,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         }
 
-        item(key = "label-planning") { GroupLabel("Planning") }
+        item(key = "label-planning") { GroupLabel("Planning", Modifier.padding(top = 8.dp)) }
 
         item(key = "plan") {
             PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
@@ -418,10 +495,10 @@ private fun CategorySheet(
 
 /** A small heading over a group of tiles. */
 @Composable
-private fun GroupLabel(text: String) {
+private fun GroupLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        Modifier.padding(start = 4.dp, top = 12.dp).heading(),
+        modifier.padding(start = 4.dp).heading(),
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.secondary
