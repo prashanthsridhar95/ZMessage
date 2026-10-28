@@ -76,11 +76,12 @@ class HomeViewModel(
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val cardRepository: CardRepository = NoCards,
     private val goalRepository: GoalRepository = NoGoals,
-    private val reminderRepository: ReminderRepository = NoReminders
+    private val reminderRepository: ReminderRepository = NoReminders,
+    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
-        plan = planRepository.plan.value, cards = cardRepository.cards.value,
+        plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value,
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value)
 ) {
 
@@ -100,6 +101,7 @@ class HomeViewModel(
         viewModelScope.launch { goalRepository.goals.collect { goals -> reduceHome { copy(goalList = goals) } } }
         viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
+        viewModelScope.launch { hiddenAccounts.hidden.collect { keys -> reduceHome { copy(hiddenAccounts = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
     }
@@ -157,6 +159,11 @@ class HomeViewModel(
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
             Intent.CloseCodes -> reduce { copy(showCodes = false) }
             is Intent.NameAccount -> nameAccount(intent.key, intent.name)
+            is Intent.SetStatementDay -> setStatementDay(intent.key, intent.day)
+            is Intent.RemoveAccount -> {
+                hiddenAccounts.hide(intent.key)
+                reduce { copy(openAccountKey = null) }
+            }
             Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
@@ -180,6 +187,17 @@ class HomeViewModel(
                 startObserving()
             }
         }
+    }
+
+    private fun setStatementDay(key: String, day: Int?) {
+        val account = currentState().accounts.accounts.firstOrNull { it.key == key } ?: return
+        val existing = account.userCard
+        cardRepository.save(
+            UserCard(
+                id = existing?.id ?: "named-$key", type = existing?.type ?: CardType.CREDIT, last4 = account.last4,
+                name = existing?.name.orEmpty(), statementDay = day, bankName = existing?.bankName ?: account.bankName.displayString
+            )
+        )
     }
 
     private fun nameAccount(key: String, name: String) {
@@ -246,7 +264,7 @@ class HomeViewModel(
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
                 goals = Goals.all(updated.goalList, today),
                 reminders = Reminders.upcoming(updated.reminderList, today),
-                accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle),
+                accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle, updated.hiddenAccounts),
                 quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))
                     .take(MAX_NUDGES),
@@ -281,7 +299,8 @@ class HomeViewModel(
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val cardRepository: CardRepository = NoCards,
         private val goalRepository: GoalRepository = NoGoals,
-        private val reminderRepository: ReminderRepository = NoReminders
+        private val reminderRepository: ReminderRepository = NoReminders,
+        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -289,7 +308,7 @@ class HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
-                goalRepository = goalRepository, reminderRepository = reminderRepository
+                goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts
             ) as T
     }
 

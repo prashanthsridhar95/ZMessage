@@ -409,6 +409,8 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             state = state,
             onPay = { onIntent(Intent.OpenLink(it)) },
             onName = { onIntent(Intent.NameAccount(account.key, it)) },
+            onStatementDay = { onIntent(Intent.SetStatementDay(account.key, it)) },
+            onRemove = { onIntent(Intent.RemoveAccount(account.key)) },
             onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
             onDismiss = { onIntent(Intent.CloseAccount) }
         )

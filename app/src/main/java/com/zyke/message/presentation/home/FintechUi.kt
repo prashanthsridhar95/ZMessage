@@ -224,6 +224,8 @@ internal fun AccountSheet(
     state: HomeContract.State,
     onPay: (String) -> Unit,
     onName: (String) -> Unit,
+    onStatementDay: (Int?) -> Unit,
+    onRemove: () -> Unit,
     onOpenMessage: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -239,6 +241,8 @@ internal fun AccountSheet(
     val due = account.dueDate
     val asOf = account.balanceAsOf
     var naming by rememberSaveable { mutableStateOf(false) }
+    var editingCycle by rememberSaveable { mutableStateOf(false) }
+    var removing by rememberSaveable { mutableStateOf(false) }
 
     AppBottomSheet(onDismiss) {
         Column(
@@ -292,6 +296,22 @@ internal fun AccountSheet(
                 }
             }
 
+            if (account.kind == AccountKind.CREDIT_CARD) {
+                FintechCard(onClick = { editingCycle = true }) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Caption("BILLING CYCLE")
+                            Text(
+                                account.userCard?.statementDay?.let { "Statement on day $it" } ?: "Calendar months",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text("Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+                    }
+                }
+            }
+
             FintechCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Stat("Spent", DisplayFormatters.rupees(account.spent))
@@ -310,7 +330,50 @@ internal fun AccountSheet(
                     }
                 }
             }
+
+            AppButton(
+                "Not my ${if (account.isCard) "card" else "account"} — remove",
+                { removing = true },
+                Modifier.fillMaxWidth(),
+                style = ButtonStyle.TONAL
+            )
         }
+    }
+
+    if (editingCycle) {
+        var day by rememberSaveable { mutableStateOf(account.userCard?.statementDay?.toString().orEmpty()) }
+        val parsed = day.toIntOrNull()?.takeIf { it in 1..31 }
+        AlertDialog(
+            onDismissRequest = { editingCycle = false },
+            title = { Text("Billing cycle") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = day,
+                        onValueChange = { day = it.filter(Char::isDigit).take(2) },
+                        singleLine = true,
+                        isError = day.isNotEmpty() && parsed == null,
+                        label = { Text("Statement day of the month (1-31)") },
+                        supportingText = { Text("Leave empty to use calendar months") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                AppButton("Save", { onStatementDay(parsed); editingCycle = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = day.isEmpty() || parsed != null)
+            },
+            dismissButton = { AppButton("Cancel", { editingCycle = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
+    }
+
+    if (removing) {
+        AlertDialog(
+            onDismissRequest = { removing = false },
+            title = { Text("Remove ${account.title}?") },
+            text = { Text("It will be left out of your accounts. Its messages stay in your inbox.") },
+            confirmButton = { AppButton("Remove", { removing = false; onRemove() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            dismissButton = { AppButton("Cancel", { removing = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
     }
 
     if (naming) {

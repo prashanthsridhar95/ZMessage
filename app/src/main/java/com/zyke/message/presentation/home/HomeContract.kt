@@ -44,6 +44,7 @@ object HomeContract {
         val goalList: List<Goal> = emptyList(),
         val reminderList: List<Reminder> = emptyList(),
         val cards: List<UserCard> = emptyList(),
+        val hiddenAccounts: Set<String> = emptySet(),
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
         val now: Instant = Instant.EPOCH,
@@ -130,6 +131,8 @@ object HomeContract {
         data class OpenAccount(val key: String) : Intent
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent
+        data class SetStatementDay(val key: String, val day: Int?) : Intent
+        data class RemoveAccount(val key: String) : Intent
         data class OpenJourney(val messageId: Long) : Intent
         data object CloseJourney : Intent
         data object OpenGoals : Intent

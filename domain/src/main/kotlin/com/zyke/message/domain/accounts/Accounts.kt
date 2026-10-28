@@ -59,7 +59,8 @@ object Accounts {
         userCards: List<UserCard>,
         now: Instant,
         zone: ZoneId,
-        cycle: CycleRule = CycleRule.CALENDAR
+        cycle: CycleRule = CycleRule.CALENDAR,
+        hidden: Set<String> = emptySet()
     ): AccountsOverview {
         val today = LocalDate.ofInstant(now, zone)
         val range = cycle.containing(today)
@@ -120,7 +121,7 @@ object Accounts {
                 sampleMessageId = newest.message.id,
                 userCard = card
             )
-        }.sortedWith(
+        }.filter { it.key !in hidden }.sortedWith(
             // Accounts first, then cards; the busiest first within each.
             compareBy<AccountSummary> { it.isCard }.thenByDescending { it.lastActivity }
         )

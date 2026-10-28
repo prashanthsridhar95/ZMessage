@@ -61,6 +61,7 @@ class AppContainer(context: Context) {
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
     val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
     val merges: MergeRepository = MergeRepositoryImpl(context)
+    val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
