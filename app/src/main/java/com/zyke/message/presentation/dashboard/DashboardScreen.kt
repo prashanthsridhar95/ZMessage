@@ -290,6 +290,11 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
+        // Right under the headline numbers: where this is all heading is the first thing worth knowing.
+        state.forecast?.let { forecast ->
+            item(key = "forecast") { ForecastCard(forecast) }
+        }
+
         if (!dashboard.isEmpty) {
             item(key = "label-spending") {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -355,10 +360,6 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         item(key = "label-planning") { GroupLabel("Planning", Modifier.padding(top = 8.dp)) }
-
-        state.forecast?.let { forecast ->
-            item(key = "forecast") { ForecastCard(forecast) }
-        }
 
         item(key = "plan") {
             PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)

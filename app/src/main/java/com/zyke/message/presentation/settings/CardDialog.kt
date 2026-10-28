@@ -18,6 +18,11 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.FormSheet
+import com.zyke.message.presentation.common.FormGroup
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.Chips
+import com.zyke.message.presentation.common.ChipOption
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import java.util.UUID
@@ -43,80 +48,62 @@ internal fun CardDialog(
     val statementDay = day.toIntOrNull()?.takeIf { it in 1..MAX_DAY }
     val valid = last4.length == LAST_DIGITS && (type != CardType.ACCOUNT || bank.isNotBlank()) && (day.isEmpty() || statementDay != null)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add card or account" else "Edit ${type.label.lowercase()}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CardType.entries.forEach {
-                        FilterChip(selected = type == it, onClick = { type = it }, label = { Text(it.label) })
-                    }
-                }
-                OutlinedTextField(
-                    value = last4,
-                    onValueChange = { input -> last4 = input.filter(Char::isDigit).take(LAST_DIGITS) },
-                    singleLine = true,
-                    label = { Text(if (type == CardType.ACCOUNT) "Last 4 digits of account number" else "Last 4 digits of card") },
-                    isError = last4.isNotEmpty() && last4.length < LAST_DIGITS,
-                    supportingText = { if (last4.length < LAST_DIGITS) Text("Exactly 4 digits. Never enter the full number.") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+    val types = CardType.entries
+    FormSheet(
+        title = if (initial == null) "Add a card or account" else "Edit ${type.label.lowercase()}",
+        onDismiss = onDismiss,
+        primaryLabel = "Save",
+        primaryEnabled = valid,
+        onPrimary = {
+            onSave(
+                UserCard(
+                    id = initial?.id ?: UUID.randomUUID().toString(),
+                    type = type,
+                    last4 = last4,
+                    name = name.trim(),
+                    bankName = bank.trim(),
+                    statementDay = if (type == CardType.CREDIT) statementDay else null
                 )
-                OutlinedTextField(
-                    value = bank,
-                    onValueChange = { bank = it.take(MAX_NAME) },
-                    singleLine = true,
-                    label = { Text(if (type == CardType.ACCOUNT) "Bank name (required)" else "Bank name (optional)") },
-                    placeholder = { Text("e.g. HDFC Bank") }
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(MAX_NAME) },
-                    singleLine = true,
-                    label = { Text("Name (optional)") },
-                    placeholder = { Text(if (type == CardType.ACCOUNT) "e.g. Salary account" else "e.g. HDFC Regalia") }
-                )
-                if (type == CardType.CREDIT) {
-                    OutlinedTextField(
-                        value = day,
-                        onValueChange = { input -> day = input.filter(Char::isDigit).take(2) },
-                        singleLine = true,
-                        isError = day.isNotEmpty() && statementDay == null,
-                        label = { Text("Statement date (day of month)") },
-                        supportingText = { Text("The cycle runs from the day after it to the next one. Leave blank for calendar months.") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                {
-                    onSave(
-                        UserCard(
-                            id = initial?.id ?: UUID.randomUUID().toString(),
-                            type = type,
-                            last4 = last4,
-                            name = name.trim(),
-                            bankName = bank.trim(),
-                            statementDay = if (type == CardType.CREDIT) statementDay else null
-                        )
-                    )
-                },
-                style = ButtonStyle.TEXT,
-                size = ButtonSize.COMPACT,
-                enabled = valid
             )
         },
-        dismissButton = {
-            if (onDelete != null) {
-                AppButton("Remove", { confirmingRemove = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            } else {
-                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
+        secondaryLabel = if (onDelete != null) "Remove" else null,
+        onSecondary = if (onDelete != null) ({ confirmingRemove = true }) else null
+    ) {
+        FormGroup("What is it?") {
+            Chips(types.map { ChipOption(it.label, type == it) }, onSelect = { type = types[it] })
         }
-    )
+        FormField(
+            label = if (type == CardType.ACCOUNT) "Last 4 digits of the account number" else "Last 4 digits of the card",
+            value = last4,
+            onChange = { input -> last4 = input.filter(Char::isDigit).take(LAST_DIGITS) },
+            placeholder = "1234",
+            supporting = "Only the last four. Never the full number.",
+            keyboardType = KeyboardType.NumberPassword,
+            large = true
+        )
+        FormField(
+            label = if (type == CardType.ACCOUNT) "Bank" else "Bank (optional)",
+            value = bank,
+            onChange = { bank = it.take(MAX_NAME) },
+            placeholder = "e.g. HDFC Bank"
+        )
+        FormField(
+            label = "Your name for it (optional)",
+            value = name,
+            onChange = { name = it.take(MAX_NAME) },
+            placeholder = if (type == CardType.ACCOUNT) "e.g. Salary account" else "e.g. HDFC Regalia"
+        )
+        if (type == CardType.CREDIT) {
+            FormField(
+                label = "Statement day (optional)",
+                value = day,
+                onChange = { input -> day = input.filter(Char::isDigit).take(2) },
+                placeholder = "e.g. 12",
+                supporting = if (day.isNotEmpty() && statementDay == null) "A day from 1 to 31" else "The day of the month the bill is made. Leave blank for calendar months.",
+                keyboardType = KeyboardType.Number
+            )
+        }
+    }
 
     if (confirmingRemove && onDelete != null) {
         AlertDialog(

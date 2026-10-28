@@ -36,6 +36,12 @@ data class DigestSummary(val title: String, val items: List<DigestItem>, val spe
     /** Plain lines, for places with no room to lay things out. */
     val lines: List<String> get() = items.map { it.text }
 
+    /** What is about to leave: card bills and auto-debits in the digest, added up. */
+    val dueTotal: BigDecimal
+        get() = items.filter { it.kind == DigestKind.BILL || it.kind == DigestKind.DEBIT }.mapNotNull { it.amount }.fold(BigDecimal.ZERO, BigDecimal::add)
+
+    val dueCount: Int get() = items.count { it.kind == DigestKind.BILL || it.kind == DigestKind.DEBIT }
+
     /** One-line text for places with room for little, such as a collapsed notification. */
     val short: String get() = lines.firstOrNull() ?: "Nothing due or on today"
 }

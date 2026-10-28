@@ -40,6 +40,15 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.zyke.message.presentation.common.SheetHostLayer
+import com.zyke.message.presentation.common.SheetHost
+import com.zyke.message.presentation.common.LocalSheetHost
+import com.zyke.message.presentation.common.LocalAppSnackbar
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,10 +99,16 @@ fun AppRoot(
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
+    val sheetHost = remember { SheetHost() }
+    val snackbar = remember { SnackbarHostState() }
+
     CompositionLocalProvider(
+        LocalSheetHost provides sheetHost,
+        LocalAppSnackbar provides snackbar,
         LocalOpenSettings provides { showSettings = true },
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -121,12 +136,17 @@ fun AppRoot(
         }
         }
         if (showSettings) settings { showSettings = false }
-        if (web.isOpen) {
-            if (web.minimised) MinimisedLink(web, Modifier.padding(padding)) else LinkSheet(web)
-        }
+        if (web.isOpen && !web.minimised) LinkSheet(web)
+    }
+    // Drawn after the screens, so over them; the minimised page and the snackbar are drawn after the sheets, so over those.
+    SheetHostLayer(sheetHost)
+    if (web.isOpen && web.minimised) MinimisedLink(web, Modifier.statusBarsPadding().navigationBarsPadding())
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))
     }
     }
 }
+
+private val SNACKBAR_LIFT = 80.dp
 
 @Composable
 fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, modifier: Modifier = Modifier) {

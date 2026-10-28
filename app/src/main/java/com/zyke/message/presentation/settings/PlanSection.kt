@@ -30,6 +30,9 @@ import com.zyke.message.domain.plan.PlanItem
 import com.zyke.message.domain.plan.PlanItemKind
 import com.zyke.message.domain.plan.SalaryPattern
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.FormSheet
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.AmountField
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.limitColors
@@ -205,43 +208,40 @@ private fun SalaryDialog(amount: BigDecimal?, day: Int?, onSave: (String, String
     var dayText by rememberSaveable { mutableStateOf(day?.toString().orEmpty()) }
     val dayValid = dayText.isBlank() || dayText.toIntOrNull() in 1..MAX_DAY
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Monthly salary") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MoneyField(amountText, { amountText = it }, "Amount credited, roughly")
-                OutlinedTextField(
-                    value = dayText,
-                    onValueChange = { dayText = it.filter(Char::isDigit).take(2) },
-                    singleLine = true,
-                    isError = !dayValid,
-                    label = { Text("Day of the month it arrives (optional)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                Caption("Leave the amount blank to clear it.", maxLines = 2)
-            }
-        },
-        confirmButton = { AppButton("Save", { onSave(amountText, dayText) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = dayValid) },
-        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-    )
+    FormSheet(
+        title = "Monthly salary",
+        onDismiss = onDismiss,
+        primaryLabel = "Save salary",
+        primaryEnabled = dayValid,
+        onPrimary = { onSave(amountText, dayText) }
+    ) {
+        AmountField(
+            "Amount that reaches your account, roughly", amountText, { amountText = it },
+            supporting = "Leave blank to clear it", quickAdds = listOf(5000, 10000, 25000)
+        )
+        FormField(
+            label = "Day it arrives (optional)",
+            value = dayText,
+            onChange = { dayText = it.filter(Char::isDigit).take(2) },
+            placeholder = "e.g. 1",
+            supporting = if (dayValid) "Your months can start from this day" else "A day from 1 to 31",
+            keyboardType = KeyboardType.Number
+        )
+    }
 }
 
 @Composable
 private fun AmountDialog(title: String, label: String, initial: BigDecimal?, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var text by rememberSaveable { mutableStateOf(initial?.stripTrailingZeros()?.toPlainString().orEmpty()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MoneyField(text, { text = it }, label)
-                Caption("Leave it blank to clear it.", maxLines = 2)
-            }
-        },
-        confirmButton = { AppButton("Save", { onSave(text) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-    )
+    FormSheet(
+        title = title,
+        onDismiss = onDismiss,
+        primaryLabel = "Save",
+        primaryEnabled = true,
+        onPrimary = { onSave(text) }
+    ) {
+        AmountField(label, text, { text = it }, supporting = "Leave blank to clear it", quickAdds = listOf(1000, 5000, 10000))
+    }
 }
 
 @Composable
@@ -259,61 +259,31 @@ private fun PlanItemDialog(
     val dayValue = day.toIntOrNull()?.takeIf { it in 1..MAX_DAY }
     val dayValid = day.isBlank() || dayValue != null
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add ${kind.label.lowercase()}" else kind.label) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(MAX_NAME) },
-                    singleLine = true,
-                    label = { Text("Name") },
-                    placeholder = { Text(if (kind == PlanItemKind.OUTFLOW) "e.g. Parents, Charity" else "e.g. Index fund SIP") }
-                )
-                MoneyField(amount, { amount = it }, "Amount each month")
-                OutlinedTextField(
-                    value = day,
-                    onValueChange = { day = it.filter(Char::isDigit).take(2) },
-                    singleLine = true,
-                    isError = !dayValid,
-                    label = { Text("Usual day of the month (optional)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                Caption("Used to spot the payment")
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                {
-                    onSave(PlanItem(initial?.id ?: UUID.randomUUID().toString(), kind, name.trim(), parsed!!, dayValue))
-                },
-                style = ButtonStyle.TEXT,
-                size = ButtonSize.COMPACT,
-                enabled = name.isNotBlank() && parsed != null && dayValid
-            )
-        },
-        dismissButton = {
-            if (onDelete != null) {
-                AppButton("Remove", onDelete, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            } else {
-                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
-        }
-    )
-}
-
-@Composable
-private fun MoneyField(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { input -> onChange(input.filter { it.isDigit() || it == '.' }) },
-        singleLine = true,
-        prefix = { Text("₹") },
-        label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-    )
+    FormSheet(
+        title = if (initial == null) "Add ${kind.label.lowercase()}" else kind.label,
+        onDismiss = onDismiss,
+        primaryLabel = "Save",
+        primaryEnabled = name.isNotBlank() && parsed != null && dayValid,
+        onPrimary = { onSave(PlanItem(initial?.id ?: UUID.randomUUID().toString(), kind, name.trim(), parsed!!, dayValue)) },
+        secondaryLabel = if (onDelete != null) "Remove" else null,
+        onSecondary = onDelete
+    ) {
+        FormField(
+            label = "Name",
+            value = name,
+            onChange = { name = it.take(MAX_NAME) },
+            placeholder = if (kind == PlanItemKind.OUTFLOW) "e.g. Parents, Charity" else "e.g. Index fund SIP"
+        )
+        AmountField("Amount each month", amount, { amount = it }, quickAdds = listOf(500, 1000, 5000))
+        FormField(
+            label = "Usual day of the month (optional)",
+            value = day,
+            onChange = { day = it.filter(Char::isDigit).take(2) },
+            placeholder = "e.g. 5",
+            supporting = if (dayValid) "Helps spot the payment when it happens" else "A day from 1 to 31",
+            keyboardType = KeyboardType.Number
+        )
+    }
 }
 
 private const val MAX_NAME = 30

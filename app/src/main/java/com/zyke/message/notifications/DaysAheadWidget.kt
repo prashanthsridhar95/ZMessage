@@ -43,8 +43,10 @@ class DaysAheadWidget : AppWidgetProvider() {
                 val canRead = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
                 val digest = if (canRead) DigestProvider.load(context) else null
                 ids.forEach { id ->
-                    val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-                    manager.updateAppWidget(id, views(context, digest, canRead, rowsFor(height)))
+                    val options = manager.getAppWidgetOptions(id)
+                    val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+                    val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+                    manager.updateAppWidget(id, views(context, digest, canRead, rowsFor(height), showHero = width <= 0 || width >= NARROW_DP))
                 }
             } finally {
                 pending.finish()
@@ -60,11 +62,25 @@ class DaysAheadWidget : AppWidgetProvider() {
         else -> MAX_ROWS
     }
 
-    private fun views(context: Context, digest: DigestSummary?, canRead: Boolean, rows: Int): RemoteViews {
+    private fun views(context: Context, digest: DigestSummary?, canRead: Boolean, rows: Int, showHero: Boolean): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_days_ahead)
-        views.setTextViewText(R.id.widget_date, DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault()).format(LocalDate.now()))
+        val today = LocalDate.now()
+        views.setTextViewText(R.id.widget_date, DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(today))
 
         val items = digest?.items.orEmpty()
+
+        // The headline on the left: what is about to leave, or today's date on a day with nothing due.
+        views.setViewVisibility(R.id.widget_hero, if (showHero) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_divider, if (showHero) View.VISIBLE else View.GONE)
+        if (digest != null && digest.dueTotal.signum() > 0) {
+            views.setTextViewText(R.id.widget_hero_label, "Due soon")
+            views.setTextViewText(R.id.widget_hero_value, DisplayFormatters.rupees(digest.dueTotal))
+            views.setTextViewText(R.id.widget_hero_caption, DisplayFormatters.count(digest.dueCount, "payment", "payments"))
+        } else {
+            views.setTextViewText(R.id.widget_hero_label, "Today")
+            views.setTextViewText(R.id.widget_hero_value, today.dayOfMonth.toString())
+            views.setTextViewText(R.id.widget_hero_caption, DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()).format(today))
+        }
         val shown = items.take(rows)
         ROWS.forEachIndexed { index, row ->
             val item = shown.getOrNull(index)
@@ -119,6 +135,7 @@ class DaysAheadWidget : AppWidgetProvider() {
         private const val MAX_ROWS = 4
         private const val SHORT_DP = 110
         private const val MEDIUM_DP = 170
+        private const val NARROW_DP = 200
 
         private val ROWS = listOf(
             Row(R.id.widget_row_1, R.id.widget_dot_1, R.id.widget_title_1, R.id.widget_detail_1, R.id.widget_amount_1),

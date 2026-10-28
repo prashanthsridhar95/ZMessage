@@ -4,6 +4,7 @@ import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,6 +84,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
         is AttentionItem.FreshOtp -> false
     }
 
+    Column(Modifier.fillMaxWidth()) {
     Row(
         Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open message") { actions.onOpenMessage(item.message.id) }
             .padding(start = inset, top = 6.dp, bottom = 6.dp),
@@ -122,7 +124,6 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
         when {
             item is AttentionItem.FreshOtp ->
                 AppButton("Copy", { actions.onCopyOtp(item.message.id, item.code) }, size = ButtonSize.COMPACT)
-            item is AttentionItem.BillDue -> BillActions(payLink, onPay = { payLink?.let(actions.onOpenLink) }, onMarkPaid = { actions.onDismissAttention(item.key) })
         }
 
         Box(
@@ -137,42 +138,22 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
             )
         }
     }
-}
 
-/**
- * One pill: "Pay" on the left, a divider, and a chevron on the right that opens a menu with "Mark as paid", for a bill
- * that was settled another way. A bill with no pay link gets a plain "Mark as paid" button.
- */
-@Composable
-private fun BillActions(payLink: String?, onPay: () -> Unit, onMarkPaid: () -> Unit) {
-    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-    val container = MaterialTheme.colorScheme.primary
-    val content = MaterialTheme.colorScheme.onPrimary
-    if (payLink == null) {
-        AppButton("Mark as paid", onMarkPaid, size = ButtonSize.COMPACT)
-        return
-    }
-    Box {
+    // Two buttons of one width, side by side under the text; a bill with no link just has the second.
+    val bill = item as? AttentionItem.BillDue
+    if (bill != null) {
         Row(
-            Modifier.height(36.dp).clip(shape).background(container),
-            verticalAlignment = Alignment.CenterVertically
+            Modifier.fillMaxWidth().padding(start = inset, end = inset, bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Box(
-                Modifier.fillMaxHeight().clickable(onClickLabel = "Pay the bill", onClick = onPay).padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("Pay", color = content, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
-            Box(Modifier.width(1.dp).fillMaxHeight(0.55f).background(content.copy(alpha = 0.35f)))
-            Box(
-                Modifier.fillMaxHeight().clickable(onClickLabel = "More bill options") { open = true }.padding(horizontal = 10.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("\u2304", color = content, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
-        }
-        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            androidx.compose.material3.DropdownMenuItem(
-                text = { Text("Mark as paid") },
-                onClick = { open = false; onMarkPaid() }
+            bill.paymentLink?.let { link ->
+                AppButton("Pay", { actions.onOpenLink(link) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
+            }
+            AppButton(
+                "Mark as paid", { actions.onDismissAttention(bill.key) }, Modifier.weight(1f),
+                style = ButtonStyle.TONAL, size = ButtonSize.COMPACT
             )
         }
+    }
     }
 }

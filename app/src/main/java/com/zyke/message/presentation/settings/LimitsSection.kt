@@ -30,6 +30,11 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.dashboard.CategoryLimits
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.FormSheet
+import com.zyke.message.presentation.common.FormGroup
+import com.zyke.message.presentation.common.Chips
+import com.zyke.message.presentation.common.ChipOption
+import com.zyke.message.presentation.common.AmountField
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LimitStatus
@@ -106,8 +111,7 @@ internal fun LimitsSection(
     }
 }
 
-/** Pick a category (when adding), then a daily limit, a monthly limit, or both. A blank field means no limit. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Pick a category (when adding), then a monthly limit, a daily limit, or both. A blank field means no limit. */
 @Composable
 private fun LimitDialog(
     category: MessageCategory?,
@@ -121,56 +125,30 @@ private fun LimitDialog(
     var dailyText by rememberSaveable { mutableStateOf(daily?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     var monthlyText by rememberSaveable { mutableStateOf(monthly?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     val hasAmount = dailyText.isNotBlank() || monthlyText.isNotBlank()
+    val categories = MessageCategory.assignable
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(category?.let { "Limits · ${it.displayString}" } ?: "Add a limit") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (category == null) {
-                    Text("Category", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        MessageCategory.assignable.forEach {
-                            FilterChip(selected = chosen == it, onClick = { chosen = it }, label = { Text(it.displayString) })
-                        }
-                    }
-                }
-                AmountField(dailyText, { dailyText = it }, "Per day")
-                AmountField(monthlyText, { monthlyText = it }, "Per month")
-                Text(
-                    "Leave one blank to set only the other. You'll see green while there's room and red once you're over.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                { chosen?.let { onSave(it, dailyText, monthlyText) } },
-                style = ButtonStyle.TEXT,
-                size = ButtonSize.COMPACT,
-                enabled = chosen != null && hasAmount
-            )
-        },
-        dismissButton = {
-            if (onRemove != null) {
-                AppButton("Remove both", onRemove, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            } else {
-                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+    FormSheet(
+        title = category?.let { "Limits · ${it.displayString}" } ?: "Add a spending limit",
+        onDismiss = onDismiss,
+        primaryLabel = "Save limit",
+        primaryEnabled = chosen != null && hasAmount,
+        onPrimary = { chosen?.let { onSave(it, dailyText, monthlyText) } },
+        secondaryLabel = if (onRemove != null) "Remove limits" else null,
+        onSecondary = onRemove
+    ) {
+        if (category == null) {
+            FormGroup("What is it for?") {
+                Chips(categories.map { ChipOption(it.displayString, chosen == it) }, onSelect = { chosen = categories[it] })
             }
         }
-    )
-}
-
-@Composable
-private fun AmountField(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { input -> onChange(input.filter { it.isDigit() || it == '.' }) },
-        singleLine = true,
-        prefix = { Text("₹") },
-        label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-    )
+        AmountField(
+            "Each month", monthlyText, { monthlyText = it },
+            supporting = "Leave blank for no monthly limit", quickAdds = listOf(500, 1000, 5000)
+        )
+        AmountField(
+            "Each day", dailyText, { dailyText = it },
+            supporting = "Leave blank for no daily limit. You'll see green while there's room and red once you're over.",
+            quickAdds = listOf(100, 500)
+        )
+    }
 }

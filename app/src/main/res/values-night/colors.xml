@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_surface">#FF1E1912</color>
+    <color name="widget_surface_end">#FF14110C</color>
+    <color name="widget_stroke">#33E8C98A</color>
+    <color name="widget_gold">#FFE8C98A</color>
+    <color name="widget_text">#FFF4EEE2</color>
+    <color name="widget_muted">#FFA89F8F</color>
+    <color name="widget_divider">#1FFFFFFF</color>
+    <color name="widget_urgent">#FFFF7A70</color>
+    <color name="widget_due">#FFE8C98A</color>
+    <color name="widget_event">#FF7AB8FF</color>
+    <color name="widget_info">#FF5ED6A1</color>
+</resources>

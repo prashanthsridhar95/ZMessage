@@ -8,11 +8,15 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="zyke_accent">#FFC9A24B</color>
-    <color name="widget_gold">#FFE8C98A</color>
-    <color name="widget_text">#FFF4EEE2</color>
-    <color name="widget_muted">#FFA89F8F</color>
-    <color name="widget_urgent">#FFFF7A70</color>
-    <color name="widget_due">#FFE8C98A</color>
-    <color name="widget_event">#FF7AB8FF</color>
-    <color name="widget_info">#FF5ED6A1</color>
+    <color name="widget_surface">#FFFBF8F1</color>
+    <color name="widget_surface_end">#FFF3EEE2</color>
+    <color name="widget_stroke">#1F000000</color>
+    <color name="widget_gold">#FF8A6A12</color>
+    <color name="widget_text">#FF1D1A14</color>
+    <color name="widget_muted">#FF6F685A</color>
+    <color name="widget_divider">#1A000000</color>
+    <color name="widget_urgent">#FFC62828</color>
+    <color name="widget_due">#FFB07D0E</color>
+    <color name="widget_event">#FF1E6FD0</color>
+    <color name="widget_info">#FF0B7A55</color>
 </resources>

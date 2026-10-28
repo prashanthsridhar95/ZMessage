@@ -186,7 +186,7 @@ internal fun BudgetCalendarSheet(
                                     isToday = day.date == today,
                                     inStreak = day.date in streakDays,
                                     isSelected = day.date == selected,
-                                    onClick = { selected = if (selected == day.date) null else day.date }
+                                    onClick = { selected = day.date }
                                 )
                             }
                         }
@@ -194,26 +194,7 @@ internal fun BudgetCalendarSheet(
                 }
             }
 
-            val chosen = days.firstOrNull { it.date == selected }
-            Column(Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 44.dp)) {
-                if (chosen != null) {
-                    Text(
-                        DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(chosen.date),
-                        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary
-                    )
-                    Caption(
-                        when (chosen.status) {
-                            DayStatus.UNDER -> "${DisplayFormatters.rupees(chosen.spent)} of ${DisplayFormatters.rupees(daily.allowance)} · within budget"
-                            DayStatus.OVER -> "${DisplayFormatters.rupees(chosen.spent)} of ${DisplayFormatters.rupees(daily.allowance)} · over by ${DisplayFormatters.rupees(chosen.spent - daily.allowance)}"
-                            DayStatus.NONE -> "No data for this day"
-                        },
-                        maxLines = 2
-                    )
-                } else {
-                    Caption("Tap a day for its spending")
-                }
-            }
-            if (chosen != null) DayDetails(messages, chosen.date, zone)
+            Caption("Tap a day to see what was spent and received", Modifier.padding(top = 16.dp), maxLines = 2)
 
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 Legend(UnderColor, "Within budget")
@@ -221,29 +202,39 @@ internal fun BudgetCalendarSheet(
             }
         }
     }
+
+    // A tapped day opens its own sheet straight away, over this one.
+    days.firstOrNull { it.date == selected }?.let { day ->
+        DaySheet(messages, day, daily.allowance, zone) { selected = null }
+    }
 }
 
-/** A button under the chosen day that opens a sheet of what was spent and received on it. */
+/** The sheet for a tapped day: what was spent and received on it. Closing it clears the day. */
 @Composable
-private fun DayDetails(messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId) {
-    var open by rememberSaveable(date) { mutableStateOf(false) }
-    AppButton(
-        "See spends and income for the day",
-        { open = true },
-        Modifier.fillMaxWidth().padding(top = 8.dp),
-        style = ButtonStyle.TONAL
-    )
-    if (open) {
-        AppBottomSheet({ open = false }) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-                Text(
-                    DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(date),
-                    Modifier.heading(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                DayBreakdownList(messages, date, zone)
-            }
+private fun DaySheet(
+    messages: List<ClassifiedMessage>,
+    day: BudgetDay,
+    allowance: java.math.BigDecimal,
+    zone: java.time.ZoneId,
+    onDismiss: () -> Unit
+) {
+    AppBottomSheet(onDismiss) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text(
+                DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(day.date),
+                Modifier.heading(),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Caption(
+                when (day.status) {
+                    DayStatus.UNDER -> "${DisplayFormatters.rupees(day.spent)} of ${DisplayFormatters.rupees(allowance)} · within budget"
+                    DayStatus.OVER -> "${DisplayFormatters.rupees(day.spent)} of ${DisplayFormatters.rupees(allowance)} · over by ${DisplayFormatters.rupees(day.spent - allowance)}"
+                    DayStatus.NONE -> "Nothing counted against the budget"
+                },
+                Modifier.padding(top = 2.dp), maxLines = 2
+            )
+            DayBreakdownList(messages, day.date, zone)
         }
     }
 }

@@ -28,6 +28,12 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.wishlist.WishItem
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.FormSheet
+import com.zyke.message.presentation.common.FormGroup
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.Chips
+import com.zyke.message.presentation.common.ChipOption
+import com.zyke.message.presentation.common.AmountField
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.dashboard.components.SectionCard
@@ -81,55 +87,27 @@ internal fun WishlistSection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WishDialog(item: WishItem?, onSave: (WishItem) -> Unit, onRemove: (() -> Unit)?, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf(item?.name.orEmpty()) }
     var price by rememberSaveable { mutableStateOf(item?.price?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     var category by rememberSaveable { mutableStateOf(item?.category) }
     val amount = price.toBigDecimalOrNull()
+    val categories = MessageCategory.assignable
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (item == null) "Add a wish" else "Edit wish") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("What") })
-                OutlinedTextField(
-                    value = price,
-                    onValueChange = { input -> price = input.filter { it.isDigit() || it == '.' } },
-                    singleLine = true,
-                    prefix = { Text("₹") },
-                    label = { Text("Price") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                Text("Would be spent under")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    MessageCategory.assignable.forEach {
-                        FilterChip(
-                            selected = category == it,
-                            onClick = { category = if (category == it) null else it },
-                            label = { Text(it.displayString) }
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                { onSave(WishItem(item?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, category)) },
-                style = ButtonStyle.TEXT,
-                size = ButtonSize.COMPACT,
-                enabled = name.isNotBlank() && amount != null && amount.signum() > 0
-            )
-        },
-        dismissButton = {
-            if (onRemove != null) {
-                AppButton("Remove", onRemove, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            } else {
-                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
+    FormSheet(
+        title = if (item == null) "Add a wish" else "Edit wish",
+        onDismiss = onDismiss,
+        primaryLabel = "Save",
+        primaryEnabled = name.isNotBlank() && amount != null && amount.signum() > 0,
+        onPrimary = { onSave(WishItem(item?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, category)) },
+        secondaryLabel = if (onRemove != null) "Remove" else null,
+        onSecondary = onRemove
+    ) {
+        FormField(label = "What do you want?", value = name, onChange = { name = it }, placeholder = "e.g. Air fryer")
+        AmountField("Price", price, { price = it }, quickAdds = listOf(1000, 5000, 10000))
+        FormGroup("Would be spent under") {
+            Chips(categories.map { ChipOption(it.displayString, category == it) }, onSelect = { category = if (category == categories[it]) null else categories[it] })
         }
-    )
+    }
 }

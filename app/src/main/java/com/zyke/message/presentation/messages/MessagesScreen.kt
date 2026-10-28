@@ -82,7 +82,7 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -295,7 +295,6 @@ fun MessagesScreen(
             )
         }
 
-        SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 
