@@ -38,7 +38,7 @@ fun UnderlineTabs(
     ScrollableTabRow(
         selectedTabIndex = selectedIndex.coerceIn(0, labels.lastIndex),
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         edgePadding = 8.dp,
         divider = { if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
     ) {

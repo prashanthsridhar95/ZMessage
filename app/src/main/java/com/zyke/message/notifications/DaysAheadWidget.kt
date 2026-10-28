@@ -46,12 +46,25 @@ class DaysAheadWidget : AppWidgetProvider() {
                     val options = manager.getAppWidgetOptions(id)
                     val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
                     val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-                    manager.updateAppWidget(id, views(context, digest, canRead, rowsFor(height), showHero = width <= 0 || width >= NARROW_DP))
+                    // A layout problem must not leave the widget saying it could not load: fall back to the plain one.
+                    val views = runCatching { views(context, digest, canRead, rowsFor(height), showHero = width <= 0 || width >= NARROW_DP) }
+                        .getOrElse { fallback(context) }
+                    manager.updateAppWidget(id, views)
                 }
             } finally {
                 pending.finish()
             }
         }
+    }
+
+    private fun fallback(context: Context): RemoteViews = RemoteViews(context.packageName, R.layout.widget_days_ahead).apply {
+        setOnClickPendingIntent(
+            R.id.widget_root,
+            PendingIntent.getActivity(
+                context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        )
     }
 
     /** How many rows fit: two in a short widget, up to four in a tall one. */

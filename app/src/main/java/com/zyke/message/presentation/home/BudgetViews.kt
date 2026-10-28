@@ -39,6 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.budget.BudgetDay
+import com.zyke.message.presentation.dashboard.components.DirectionSwitch
+import com.zyke.message.presentation.common.UnderlineTabs
+import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.budget.DayBreakdown
 import com.zyke.message.domain.budget.DayBreakdowns
 import com.zyke.message.domain.budget.DailyBudgetStatus
@@ -239,28 +242,42 @@ private fun DaySheet(
     }
 }
 
-/** What was spent and received on the chosen day, by category or item by item, with a switch for each. */
+/** What was spent and received on the chosen day: the same switch as the Money tab, then categories and items as tabs. */
 @Composable
 private fun DayBreakdownList(messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId) {
     val breakdown = remember(messages, date) { DayBreakdowns.build(messages, date, zone) }
-    var showReceived by rememberSaveable(date) { mutableStateOf(false) }
-    var byItem by rememberSaveable { mutableStateOf(false) }
-    val items = if (showReceived) breakdown.received else breakdown.spent
+    var direction by rememberSaveable(date) { mutableStateOf(FlowDirection.SPENT) }
+    var tab by rememberSaveable { mutableStateOf(0) }
+    val received = direction == FlowDirection.RECEIVED
+    val items = if (received) breakdown.received else breakdown.spent
+    val categories = remember(items) { DayBreakdown.categories(items) }
+    val total = items.sumOf { it.amount }
     val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
 
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppButton("Spent (${breakdown.spent.size})", { showReceived = false }, style = if (!showReceived) ButtonStyle.TONAL else ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            AppButton("Received (${breakdown.received.size})", { showReceived = true }, style = if (showReceived) ButtonStyle.TONAL else ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-        }
-        Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppButton("By category", { byItem = false }, style = if (!byItem) ButtonStyle.TONAL else ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            AppButton("By item", { byItem = true }, style = if (byItem) ButtonStyle.TONAL else ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        DirectionSwitch(direction, { direction = it })
+
+        Column(Modifier.padding(top = 14.dp)) {
+            Caption(if (received) "RECEIVED" else "SPENT")
+            Text(
+                DisplayFormatters.rupees(total),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
+        UnderlineTabs(
+            labels = listOf("Categories", "Items"),
+            counts = listOf(categories.size, items.size),
+            selectedIndex = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
         if (items.isEmpty()) {
-            Caption(if (showReceived) "Nothing received this day" else "Nothing spent this day", Modifier.padding(top = 12.dp))
-        } else if (byItem) {
+            Caption(if (received) "Nothing received this day" else "Nothing spent this day", Modifier.padding(top = 16.dp))
+        } else if (tab == 1) {
             items.forEachIndexed { index, item ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -275,13 +292,16 @@ private fun DayBreakdownList(messages: List<ClassifiedMessage>, date: java.time.
                 }
             }
         } else {
-            val total = items.sumOf { it.amount }
-            DayBreakdown.categories(items).forEachIndexed { index, row ->
+            categories.forEachIndexed { index, row ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         RowTitle(row.category.displayString)
-                        Caption(DisplayFormatters.count(row.count, "payment", "payments") + " · " + (row.total.multiply(java.math.BigDecimal(100)).divide(total, 0, java.math.RoundingMode.HALF_UP)).toString() + "%", maxLines = 1)
+                        Caption(
+                            DisplayFormatters.count(row.count, "payment", "payments") + " · " +
+                                row.total.multiply(java.math.BigDecimal(100)).divide(total, 0, java.math.RoundingMode.HALF_UP).toString() + "%",
+                            maxLines = 1
+                        )
                     }
                     Text(
                         DisplayFormatters.rupees(row.total),
@@ -291,11 +311,11 @@ private fun DayBreakdownList(messages: List<ClassifiedMessage>, date: java.time.
             }
         }
 
-        if (!showReceived && breakdown.setAside.isNotEmpty()) {
+        if (!received && breakdown.setAside.isNotEmpty()) {
             Caption(
                 "Not counted against the daily budget: " + DisplayFormatters.rupees(breakdown.setAside.sumOf { it.amount }) +
                     " set aside (" + breakdown.setAside.joinToString { it.title }.take(60) + ")",
-                Modifier.padding(top = 10.dp), maxLines = 3
+                Modifier.padding(top = 12.dp), maxLines = 3
             )
         }
     }
