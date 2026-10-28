@@ -142,7 +142,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         item(key = "tabs") {
             UnderlineTabs(
                 labels = listOf("Accounts", "Cards", "Savings"),
-                counts = listOf(banks.size, cards.size, funds.size + if (pf != null) 1 else 0),
+                counts = listOf(banks.size, cards.size, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
