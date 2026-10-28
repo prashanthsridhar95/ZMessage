@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.budget.BudgetDay
-import com.zyke.message.presentation.dashboard.components.DirectionSwitch
+import com.zyke.message.presentation.common.IconPillSwitch
 import com.zyke.message.presentation.common.UnderlineTabs
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.budget.DayBreakdown
@@ -258,10 +258,27 @@ private fun DayBreakdownList(
     val total = items.sumOf { it.amount }
     val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
 
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        DirectionSwitch(direction, { direction = it })
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        // One line: the tabs on the left, and on the right the switch between spent and received, as symbols.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            UnderlineTabs(
+                labels = listOf("Categories", "Items"),
+                counts = listOf(categories.size, items.size),
+                selectedIndex = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.weight(1f),
+                showDivider = false
+            )
+            IconPillSwitch(
+                glyphs = listOf("\u2197", "\u2199"),
+                descriptions = listOf("Spent", "Received"),
+                selected = if (received) 1 else 0,
+                onSelect = { direction = if (it == 1) FlowDirection.RECEIVED else FlowDirection.SPENT }
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
 
-        Column(Modifier.padding(top = 14.dp)) {
+        Column(Modifier.padding(top = 12.dp)) {
             Caption(if (received) "RECEIVED" else "SPENT")
             Text(
                 DisplayFormatters.rupees(total),
@@ -270,14 +287,6 @@ private fun DayBreakdownList(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-
-        UnderlineTabs(
-            labels = listOf("Categories", "Items"),
-            counts = listOf(categories.size, items.size),
-            selectedIndex = tab,
-            onSelect = { tab = it },
-            modifier = Modifier.padding(top = 8.dp)
-        )
 
         if (items.isEmpty()) {
             Caption(if (received) "Nothing received this day" else "Nothing spent this day", Modifier.padding(top = 16.dp))

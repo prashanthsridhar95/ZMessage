@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -35,6 +37,33 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/** The same switch with a symbol for each side, for where there is room for little; each still has a spoken name. */
+@Composable
+fun IconPillSwitch(glyphs: List<String>, descriptions: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        glyphs.forEachIndexed { index, glyph ->
+            val on = index == selected
+            Text(
+                glyph,
+                Modifier
+                    .clip(shape)
+                    .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(index) })
+                    .semantics { contentDescription = descriptions[index] }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
                 maxLines = 1
             )
