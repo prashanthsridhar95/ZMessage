@@ -101,8 +101,13 @@ class MainActivity : ComponentActivity() {
         lockedState.value = container.settings.settings.value.appLock &&
             getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
-        val versionName = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
-            .getOrNull().orEmpty()
+        // The install time rides along with the version, so it is plain which build is on the phone.
+        val versionName = runCatching {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            val installed = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm")
+                .format(java.time.Instant.ofEpochMilli(info.lastUpdateTime).atZone(java.time.ZoneId.systemDefault()))
+            "${info.versionName} (installed $installed)"
+        }.getOrNull().orEmpty()
 
         setContent {
             val appSettings by container.settings.settings.collectAsStateWithLifecycle()
