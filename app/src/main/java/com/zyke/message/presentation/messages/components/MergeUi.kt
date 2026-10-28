@@ -253,3 +253,27 @@ internal fun MergedMessages(item: ClassifiedMessage, onUnmerge: (Long) -> Unit) 
         }
     }
 }
+
+/** "Looks like the same payment": other messages with the same amount around the same time, each one tap from merging. */
+@Composable
+internal fun MergeSuggestions(item: ClassifiedMessage, candidates: List<ClassifiedMessage>, onMerge: (primaryId: Long, duplicateId: Long) -> Unit) {
+    if (candidates.isEmpty()) return
+    FintechCard {
+        Caption("MAYBE THE SAME PAYMENT")
+        candidates.forEach { other ->
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        other.message.sender,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Caption(DateFormatters.dayHeader(java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(other.message.date), java.time.ZoneId.systemDefault()), java.time.LocalDate.now()) + " · " + DisplayFormatters.time(other.message.date), maxLines = 1)
+                }
+                AppButton("Merge", { onMerge(item.id, other.id) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
+        }
+    }
+}

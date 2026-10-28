@@ -84,7 +84,9 @@ internal fun MessageDetailSheet(
     inConversation: Boolean,
     actions: FeedActions,
     onMoreFromSender: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Other messages that look like the same payment, offered for merging. */
+    mergeCandidates: List<ClassifiedMessage> = emptyList()
 ) {
     val message = item.message
     val content = item.content
@@ -188,6 +190,7 @@ internal fun MessageDetailSheet(
             }
 
             MergedMessages(item, actions.onUnmerge)
+            MergeSuggestions(item, mergeCandidates, actions.onRequestMerge)
 
             if (content !is MessageContent.Otp) {
                 SettingsGroup("About $title") {

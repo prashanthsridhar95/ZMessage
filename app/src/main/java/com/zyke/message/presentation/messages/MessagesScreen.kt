@@ -273,7 +273,8 @@ fun MessagesScreen(
                 inConversation = state.thread != null,
                 actions = actions,
                 onMoreFromSender = { onIntent(Intent.OpenThreadFor(detail.id)) },
-                onDismiss = { onIntent(Intent.CloseDetail) }
+                onDismiss = { onIntent(Intent.CloseDetail) },
+                mergeCandidates = remember(detail.id, state.messages) { com.zyke.message.domain.merge.MergeCandidates.find(detail, state.messages) }
             )
         }
 
