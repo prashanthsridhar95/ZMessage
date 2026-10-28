@@ -95,3 +95,29 @@ class PfAccountTest {
     }
 }
 
+
+class StatedBalanceTest {
+    private val zone = ZoneId.of("UTC")
+    private val c = MessageClassifier()
+
+    @Test
+    fun aPlainBalanceMessage_isReadAndTheNewestWins() {
+        val old = c.classify(SmsMessage(1, "AD-FEDBNK", "Rs 500.00 debited from your Federal Bank A/c XX6438 on 20-10-26. Avl Bal Rs 1,000.00", 1_000L * 86_400_000L, true))
+        val today = c.classify(SmsMessage(2, "AD-FEDBNK", "Dear Customer, the balance in your Federal Bank A/c XX6438 is Rs. 12,345.67 as on 28-10-2026.", 1_010L * 86_400_000L, true))
+        val latest = BalanceReader.latest(listOf(old, today), zone).single()
+        assertEquals(0, latest.amount.compareTo(java.math.BigDecimal("12345.67")))
+    }
+
+    @Test
+    fun aMarkedFundAccount_takesThePassbookBalance() {
+        val passbook = c.classify(SmsMessage(1, "AD-EPFOHO", "Dear XXXXXXXX4705, your passbook balance against TBTAM******8804 is Rs. 9,99,999/-. Contribution of Rs. 23,400/- for due month Jun-26 has been received.", 1_000_000_000L, true))
+        val card = com.zyke.message.domain.model.UserCard("u", com.zyke.message.domain.model.CardType.ACCOUNT, "1111", "", null, "Some Bank")
+        val overview = com.zyke.message.domain.accounts.Accounts.build(
+            listOf(passbook), listOf(card), java.time.Instant.ofEpochMilli(2_000_000_000L), zone,
+            providentFunds = setOf("bank_account-1111")
+        )
+        val fund = overview.accounts.single()
+        assertEquals("1111", fund.last4)
+        assertEquals(0, fund.balance!!.compareTo(java.math.BigDecimal("999999")))
+    }
+}

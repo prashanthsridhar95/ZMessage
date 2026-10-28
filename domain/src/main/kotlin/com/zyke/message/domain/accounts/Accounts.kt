@@ -72,6 +72,9 @@ object Accounts {
         val today = LocalDate.ofInstant(now, zone)
         val range = cycle.containing(today)
         val balances = BalanceReader.latest(messages, zone).associateBy { it.account }
+        // What the newest EPF passbook message says the fund holds, for a fund account that states no balance of its own.
+        val passbook = messages.filter { isPassbook(it) }.flatMap { BalanceReader.noticeBalances(it, zone) }
+            .maxWithOrNull(compareBy({ it.asOf }, { it.messageId }))
 
         val hits = messages.flatMap { message ->
             when (val c = message.content) {
@@ -113,7 +116,10 @@ object Accounts {
                 if (tx.isReceived) received += amount else spent += amount
             }
 
-            val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) balances[last4] else null
+            val markedFund = "${kind.name.lowercase()}-$last4" in providentFunds
+            val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) {
+                balances[last4] ?: passbook.takeIf { markedFund }
+            } else null
             AccountSummary(
                 key = "${kind.name.lowercase()}-$last4",
                 kind = kind,
@@ -150,7 +156,7 @@ object Accounts {
                     CardType.DEBIT -> AccountKind.DEBIT_CARD
                     CardType.ACCOUNT -> AccountKind.BANK_ACCOUNT
                 }
-                val balance = if (kind == AccountKind.BANK_ACCOUNT) balances[card.last4] else null
+                val balance = if (kind == AccountKind.BANK_ACCOUNT) balances[card.last4] ?: passbook.takeIf { "${kind.name.lowercase()}-${card.last4}" in providentFunds } else null
                 AccountSummary(
                     key = "${kind.name.lowercase()}-${card.last4}", kind = kind, bankName = BankName.OTHERS, last4 = card.last4,
                     title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },
@@ -160,7 +166,8 @@ object Accounts {
                     isProvidentFund = "${kind.name.lowercase()}-${card.last4}" in providentFunds
                 )
             }
-        }.filter { it.key !in hidden }.sortedWith(
+        }.let { all -> if (all.any { it.isProvidentFund && !it.fromPassbook }) all.filter { !it.fromPassbook } else all }
+         .filter { it.key !in hidden }.sortedWith(
             // Accounts first, then cards; the busiest first within each.
             compareBy<AccountSummary> { it.isCard }.thenByDescending { it.lastActivity }
         )

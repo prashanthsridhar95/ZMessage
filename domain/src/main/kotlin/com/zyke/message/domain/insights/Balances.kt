@@ -26,6 +26,7 @@ object BalanceReader {
     )
     private val NOTICE_BALANCE = Regex("(?i)\\b[A-Z]{0,4}[xX*\u2022]*\\d*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val PF_BALANCE = Regex("(?i)\\bagainst\\s+[A-Z0-9*\u2022]*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
+    private val STATED_BALANCE = Regex("(?i)\\bbal(?:ance)?\\b.{0,60}?\\b(?:is|of|:|-|=)\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|total due|min(?:imum)? due)\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
@@ -54,7 +55,17 @@ object BalanceReader {
                 Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id
             )
         }
-        return all + messages.flatMap { noticeBalances(it, zone) }
+        return all + messages.flatMap { noticeBalances(it, zone) } + messages.mapNotNull { statedBalance(it, zone) }
+    }
+
+    /** A plain message that just states what an account holds ("balance in your A/c XX1234 is Rs. 5,000"), not a payment. */
+    private fun statedBalance(message: ClassifiedMessage, zone: ZoneId): AccountBalance? {
+        if (message.content != MessageContent.Generic || message.isPromotional) return null
+        val body = message.message.body.replace('\u00a0', ' ')
+        if (NOT_A_BALANCE.containsMatchIn(body)) return null
+        val amount = STATED_BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull() ?: return null
+        val account = ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1) ?: return null
+        return AccountBalance(account, "", amount, Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id)
     }
 
     /** The balances a bank's "available balance for a/c no(s) X is INR 1, Y is INR 2" message states, one per account. */
