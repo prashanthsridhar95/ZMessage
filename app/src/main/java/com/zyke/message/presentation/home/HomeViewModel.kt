@@ -137,6 +137,7 @@ class HomeViewModel(
             is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
             }
+            is Intent.SetMessageCategory -> categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
                 ?.let(CategoryKey::of)
                 ?.let { categoryOverrides.set(it, intent.category) }

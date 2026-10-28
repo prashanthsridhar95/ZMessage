@@ -270,6 +270,13 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismiss: () -> Unit) {
     val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
+    // A payment with no named receiver is filed by its bank, so a choice would spread to every message from that bank:
+    // the salary and the spending in one account must not share a category. Those start as "only this message".
+    val bankOnly = CategoryKey.of(item) == CategoryKey.normalise(item.message.sender)
+    var onlyThis by remember { mutableStateOf(bankOnly) }
+    val set: (MessageCategory?) -> Unit = { category ->
+        if (onlyThis) actions.onSetMessageCategory(item.id, category) else actions.onSetCategory(item.id, category)
+    }
     AppBottomSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(
@@ -278,9 +285,24 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismi
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
+            Row(
+                Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Only this message") { onlyThis = !onlyThis }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Only this message", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        if (onlyThis) "Others from ${CategoryKey.label(item)} keep their category" else "Every message from ${CategoryKey.label(item)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+                Switch(checked = onlyThis, onCheckedChange = null)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             suggestion?.let {
                 CategoryRow("Looks like ${it.displayString}", current = false) {
-                    actions.onSetCategory(item.id, it)
+                    set(it)
                     onDismiss()
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
@@ -290,7 +312,7 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismi
                 CategoryRow(category.displayString, current) {
                     // Choosing the current one goes back to the automatic guess.
                     val clear = item.categoryOverridden && current
-                    actions.onSetCategory(item.id, if (clear) null else category)
+                    set(if (clear) null else category)
                     onDismiss()
                 }
             }

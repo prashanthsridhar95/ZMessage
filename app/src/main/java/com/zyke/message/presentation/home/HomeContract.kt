@@ -153,6 +153,7 @@ object HomeContract {
         data class SaveSplit(val split: Split) : Intent
         data class SettleShare(val splitId: String, val person: String) : Intent
         data class RemoveSplit(val id: String) : Intent
+        data class SetMessageCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class ToggleMute(val messageId: Long) : Intent
         /** Try again after the inbox could not be read. */

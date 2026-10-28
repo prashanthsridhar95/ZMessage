@@ -20,6 +20,9 @@ object CategoryKey {
     fun of(message: ClassifiedMessage): String? =
         normalise(payee(message).ifBlank { message.message.sender }).ifEmpty { null }
 
+    /** The key for one message on its own, for a choice that should not spread to everything else from the same sender. */
+    fun messageKey(id: Long): String = "msg:$id"
+
     /** What to call the key on screen. */
     fun label(message: ClassifiedMessage): String =
         payee(message).ifBlank { SenderKey.displayAddress(message.message.sender) }.trim()
@@ -29,7 +32,8 @@ object CategoryKey {
     /** Applies the user's choices; messages without a key or a choice are returned untouched. */
     fun apply(message: ClassifiedMessage, overrides: Map<String, MessageCategory>): ClassifiedMessage {
         if (overrides.isEmpty()) return message
-        val category = of(message)?.let(overrides::get) ?: return message
+        // A choice made for this one message beats one made for everything from its sender or receiver.
+        val category = overrides[messageKey(message.id)] ?: of(message)?.let(overrides::get) ?: return message
         return message.copy(
             category = category,
             merchant = message.merchant.copy(category = category),

@@ -310,6 +310,7 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onOpenSummary = { this(Intent.OpenSummary) },
     onOpenLink = { this(Intent.OpenLink(it)) },
     onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) },
+    onSetMessageCategory = { id, category -> this(Intent.SetMessageCategory(id, category)) },
     onToggleMute = { this(Intent.ToggleMute(it)) },
     onRename = { id, name -> this(Intent.Rename(id, name)) },
     onRequestMerge = { primary, duplicate -> this(Intent.RequestMerge(primary, duplicate)) },

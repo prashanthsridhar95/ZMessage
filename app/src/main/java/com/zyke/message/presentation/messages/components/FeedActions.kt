@@ -17,6 +17,8 @@ data class FeedActions(
     val onOpenSummary: () -> Unit,
     val onOpenLink: (String) -> Unit,
     val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit,
+    /** File just this one message under a category, leaving the rest from its sender alone; null goes back to the sender's. */
+    val onSetMessageCategory: (messageId: Long, category: MessageCategory?) -> Unit = { _, _ -> },
     /** Mute or unmute the sender of this message. */
     val onToggleMute: (messageId: Long) -> Unit = {},
     /** Give this message's sender / receiver a nickname; blank removes it. */

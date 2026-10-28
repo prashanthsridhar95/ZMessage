@@ -124,6 +124,7 @@ class MessagesViewModel(
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
             is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let(CategoryKey::of)
                 ?.let { nicknames.set(it, intent.name) }
+            is Intent.SetMessageCategory -> categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 val key = CategoryKey.of(message) ?: return@let
                 val previous = message.category.takeIf { message.categoryOverridden }
