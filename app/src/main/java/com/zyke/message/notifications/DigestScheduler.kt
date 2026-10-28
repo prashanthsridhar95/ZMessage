@@ -9,8 +9,9 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Sets or cancels the once-a-day alarm for the morning digest. The alarm is inexact on purpose: Android may
- * move it a little to save battery, which is fine for "good morning", and no exact-alarm permission is needed.
+ * Sets or cancels the alarm for the next morning digest. The alarm is inexact on purpose: Android may
+ * move it a little to save battery, which is fine for "good morning", and no exact-alarm permission is needed. It does
+ * wake the phone, or it would wait until the screen was next on.
  */
 class DigestScheduler(context: Context) {
     private val appContext = context.applicationContext
@@ -26,7 +27,9 @@ class DigestScheduler(context: Context) {
         var first = now.toLocalDate().atTime(LocalTime.of(DIGEST_HOUR, 0))
         if (!first.isAfter(now)) first = first.plusDays(1)
         val at = first.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        alarms.setInexactRepeating(AlarmManager.RTC, at, AlarmManager.INTERVAL_DAY, pending)
+        // A one-shot that wakes the phone and may run while it dozes; the receiver sets tomorrow's when it fires.
+        alarms.cancel(pending)
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
     }
 
     private fun pendingIntent(): PendingIntent = PendingIntent.getBroadcast(

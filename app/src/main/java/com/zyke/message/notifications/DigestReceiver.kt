@@ -24,8 +24,14 @@ class DigestReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                val digest = DigestProvider.load(context)
-                if (digest != null && canNotify(context)) post(context, digest)
+                // Tomorrow's alarm first, so a failure below cannot end the mornings.
+                val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+                if (!container.settings.settings.value.morningDigest) return@launch
+                DigestScheduler(context).apply(true)
+
+                // A quiet day still gets its line, so a missing notification means something is wrong, not that nothing is due.
+                val digest = DigestProvider.load(context) ?: DigestSummary("Your day", listOf("Nothing due or on today"))
+                if (canNotify(context)) post(context, digest)
             } finally {
                 pending.finish()
             }
