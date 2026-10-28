@@ -24,7 +24,7 @@ object BalanceReader {
     private val BALANCE = Regex(
         "(?i)(?:avl\\.?\\s*bal(?:ance)?|available\\s+bal(?:ance)?|a/?c\\s*bal(?:ance)?|bal(?:ance)?)\\s*(?:is|:|-|=)?\\s*(?:INR\\.?|Rs\\.?|₹)\\s*([\\d,]+(?:\\.\\d+)?)"
     )
-    private val NOTICE_ACCOUNT = Regex("(?i)a/?c\\s*no\\(?s?\\)?\\s*[A-Z]*[xX*•]*(\\d{4})\\b")
+    private val NOTICE_BALANCE = Regex("(?i)\\b[A-Z]{0,4}[xX*\u2022]*\\d*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|total due|min(?:imum)? due)\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
@@ -38,15 +38,6 @@ object BalanceReader {
 
     private fun readings(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> {
         val all = messages.mapNotNull { message ->
-            (message.content as? MessageContent.Notice)?.takeIf { it.kind == NoticeKind.BALANCE_UPDATE }?.let { notice ->
-                val body = message.message.body
-                val amount = notice.amount?.toBigDecimalOrNull() ?: return@mapNotNull null
-                val account = NOTICE_ACCOUNT.find(body)?.groupValues?.get(1).orEmpty()
-                if (account.isEmpty()) return@mapNotNull null
-                return@mapNotNull AccountBalance(
-                    account, "", amount, Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id
-                )
-            }
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
             // A card's "available balance" is credit left, not money in an account.
             if (tx.isCard) return@mapNotNull null
@@ -62,7 +53,18 @@ object BalanceReader {
                 Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id
             )
         }
-        return all
+        return all + messages.flatMap { noticeBalances(it, zone) }
+    }
+
+    /** The balances a bank's "available balance for a/c no(s) X is INR 1, Y is INR 2" message states, one per account. */
+    fun noticeBalances(message: ClassifiedMessage, zone: ZoneId): List<AccountBalance> {
+        val notice = message.content as? MessageContent.Notice ?: return emptyList()
+        if (notice.kind != NoticeKind.BALANCE_UPDATE) return emptyList()
+        val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
+        return NOTICE_BALANCE.findAll(message.message.body).mapNotNull { match ->
+            val amount = match.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
+            AccountBalance(match.groupValues[1], "", amount, date, message.id)
+        }.toList()
     }
 }
 

@@ -53,3 +53,20 @@ class PfAndBalanceTest {
         assertEquals(0, pf.latest.added!!.compareTo(java.math.BigDecimal("23400")))
     }
 }
+
+class FederalBalanceAccountsTest {
+    private val zone = ZoneId.of("UTC")
+
+    @Test
+    fun twoAccountsInOneMessage_areBothReadAndListed() {
+        val m = MessageClassifier().classify(
+            SmsMessage(1, "AD-FEDBNK", "Your available balance for a/c no(s) SBA6438 is INR 0,SBA7198 is INR 23 .For detailed statement download FedMobile https://fedmobile.federalbank.co.in/download-fedmobile/ - Federal Bank", 1_000_000_000L, true)
+        )
+        val balances = BalanceReader.latest(listOf(m), zone).associateBy { it.account }
+        assertEquals(0, balances.getValue("6438").amount.compareTo(java.math.BigDecimal.ZERO))
+        assertEquals(0, balances.getValue("7198").amount.compareTo(java.math.BigDecimal("23")))
+
+        val overview = com.zyke.message.domain.accounts.Accounts.build(listOf(m), emptyList(), java.time.Instant.ofEpochMilli(2_000_000_000L), zone)
+        assertEquals(setOf("6438", "7198"), overview.accounts.map { it.last4 }.toSet())
+    }
+}

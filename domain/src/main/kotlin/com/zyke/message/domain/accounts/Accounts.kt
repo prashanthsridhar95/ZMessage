@@ -71,12 +71,17 @@ object Accounts {
         val range = cycle.containing(today)
         val balances = BalanceReader.latest(messages, zone).associateBy { it.account }
 
-        val hits = messages.mapNotNull { message ->
+        val hits = messages.flatMap { message ->
             when (val c = message.content) {
-                is MessageContent.Transaction -> hit(message, c.accountNumber, c.isCard, c.bankName)
-                is MessageContent.ScheduledPayment -> hit(message, c.accountNumber, c.isCard, c.bankName)
-                is MessageContent.CardBill -> hit(message, c.accountNumber, true, c.bankName)
-                else -> null
+                is MessageContent.Transaction -> listOfNotNull(hit(message, c.accountNumber, c.isCard, c.bankName))
+                is MessageContent.ScheduledPayment -> listOfNotNull(hit(message, c.accountNumber, c.isCard, c.bankName))
+                is MessageContent.CardBill -> listOfNotNull(hit(message, c.accountNumber, true, c.bankName))
+                // A balance message names accounts without any payment; that is enough for them to be listed.
+                is MessageContent.Notice -> BalanceReader.noticeBalances(message, zone).mapNotNull {
+                    val bank = if (message.message.body.contains("Federal", ignoreCase = true)) BankName.FEDERAL_BANK else BankName.OTHERS
+                    hit(message, it.account, false, bank)
+                }
+                else -> emptyList()
             }
         }
 
