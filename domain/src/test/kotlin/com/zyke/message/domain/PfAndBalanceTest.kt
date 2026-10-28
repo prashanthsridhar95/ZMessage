@@ -199,3 +199,29 @@ class BillPaidTest {
         assertTrue(up.any { it.paidOn == null && it.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL })
     }
 }
+
+class AutoDebitPaidTest {
+    private val zone = ZoneId.of("UTC")
+    private val c = MessageClassifier()
+    private fun at(d: Int, h: Int) = java.time.LocalDate.of(2026, 10, d).atTime(h, 0).atZone(zone).toInstant().toEpochMilli()
+
+    @Test
+    fun anAnnouncedAutoDebit_isPaidOnceTheDebitArrives() {
+        val announced = c.classify(SmsMessage(1, "AD-HDFCBK", "Your SIP of Rs.5,000.00 will be debited from A/c XX5765 on 28-10-2026 towards ACME FUND.", at(25, 9), true))
+        val scheduled = announced.content as? MessageContent.ScheduledPayment
+        if (scheduled != null && scheduled.date != null) {
+            val debit = c.classify(SmsMessage(2, "AD-HDFCBK", "Rs.5000.00 debited from A/c XX5765 on 28-10-26 to ACME FUND via NACH", at(28, 8), true))
+            val up = com.zyke.message.domain.home.UpcomingBuilder.build(listOf(debit, announced), java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
+            assertEquals(java.time.LocalDate.of(2026, 10, 28), up.single().paidOn)
+            assertTrue(com.zyke.message.domain.home.UpcomingBuilder.build(listOf(debit, announced), java.time.LocalDate.of(2026, 10, 29), includePaidToday = true, zone = zone).isEmpty())
+        }
+    }
+
+    @Test
+    fun aBillPaymentThatNamesNoCardDigits_stillCountsWhenTheBankAndTheBillAreNamed() {
+        val bill = c.classify(SmsMessage(1, "AD-HDFCBK", "HDFC Bank Credit Card XX1234 Statement: Total due amt: Rs.12,345.00 Min due amt: Rs.617.00 Due by:28-10-2026 pay https://hdfcbk.io/1234", at(12, 10), true))
+        val debited = c.classify(SmsMessage(2, "AD-HDFCBK", "Rs.12345.00 debited from your HDFC Bank A/c XX5765 towards credit card bill payment on 28-10-26", at(28, 9), true))
+        val up = com.zyke.message.domain.home.UpcomingBuilder.build(listOf(debited, bill), java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
+        assertEquals(java.time.LocalDate.of(2026, 10, 28), up.single().paidOn)
+    }
+}

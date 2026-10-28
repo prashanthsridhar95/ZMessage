@@ -16,6 +16,12 @@ object BillPayments {
     private val NOT_YET = Regex("(?i)\\b(?:will be|to be|scheduled|upcoming|reminder|due (?:on|by)|pay (?:before|by)|please pay|failed|declined|unsuccessful)\\b")
     private val SPEND = Regex("(?i)\\b(?:spent|purchase|txn|transaction of)\\b.*\\b(?:at|on|to)\\b")
     private val TOLERANCE = BigDecimal.ONE
+    private val CARD_BILL_WORDS = Regex("(?i)\\b(?:credit\\s*card|card)\\b.*\\b(?:bill|dues?|outstanding|payment)\\b|\\b(?:bill|dues?|outstanding|payment)\\b.*\\b(?:credit\\s*card|card)\\b")
+
+    private fun bankNamed(bill: MessageContent.CardBill, body: String): Boolean {
+        val name = bill.bankName.displayString.takeIf { it.isNotBlank() }?.substringBefore(' ') ?: return false
+        return body.contains(name, ignoreCase = true)
+    }
 
     /**
      * The first message after the bill that says it was paid: it names the card's last digits, speaks of a payment that
@@ -39,10 +45,14 @@ object BillPayments {
             .firstNotNullOfOrNull { message ->
                 val body = message.message.body.replace(Regex("[\\s\\u00a0]+"), " ")
                 val tx = message.content as? MessageContent.Transaction
-                val onThisCard = mentionsCard.containsMatchIn(body) || (tx != null && tx.isCard && tx.accountNumber.endsWith(last4))
+                val onThisCard = mentionsCard.containsMatchIn(body) || (tx != null && tx.isCard && tx.accountNumber.endsWith(last4)) ||
+                    // A bank's note that a card bill was debited often leaves the card's digits out: the card's bank and the
+                    // words "card" and "bill" or "payment" then have to carry it.
+                    (CARD_BILL_WORDS.containsMatchIn(body) && bankNamed(bill, body))
                 if (!onThisCard || !PAID_WORDS.containsMatchIn(body) || NOT_YET.containsMatchIn(body)) return@firstNotNullOfOrNull null
                 // Spending on the card is not paying it, however much it was.
-                if (tx != null && tx.isCard && !tx.isReceived || SPEND.containsMatchIn(body) && tx?.isReceived != true) return@firstNotNullOfOrNull null
+                val billWords = CARD_BILL_WORDS.containsMatchIn(body)
+                if (tx != null && tx.isCard && !tx.isReceived && tx.payee.isNotBlank() && !billWords || SPEND.containsMatchIn(body) && tx?.isReceived != true) return@firstNotNullOfOrNull null
                 val amount = AMOUNT.findAll(body).mapNotNull { it.groupValues[1].replace(",", "").trimEnd('.').toBigDecimalOrNull() }
                     .firstOrNull { it >= minimum - TOLERANCE && it <= total + TOLERANCE } ?: return@firstNotNullOfOrNull null
                 BillPayment(Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), amount, message.id)

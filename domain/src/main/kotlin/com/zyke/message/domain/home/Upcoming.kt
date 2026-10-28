@@ -63,13 +63,17 @@ object UpcomingBuilder {
             if (scheduled.kind != ScheduledKind.UPCOMING_DEBIT) return@mapNotNull null
             val date = scheduled.date ?: return@mapNotNull null
             val amount = scheduled.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return@mapNotNull null
+            val paid = DebitPayments.find(message, scheduled.payee, amount, date, messages, zone)
+            if (paid != null && !(includePaidToday && paid.date == today)) return@mapNotNull null
             UpcomingItem(
                 key = "debit-${scheduled.payee.lowercase()}-$date-$amount",
                 kind = UpcomingKind.AUTO_DEBIT,
                 title = scheduled.payee.ifEmpty { "Auto-debit" },
                 amount = amount,
                 date = date,
-                message = message
+                message = message,
+                paidOn = paid?.date,
+                paidAmount = paid?.amount
             )
         }.distinctBy { it.key }
 
