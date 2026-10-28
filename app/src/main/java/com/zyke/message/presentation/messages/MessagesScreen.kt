@@ -7,7 +7,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +89,7 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.onIntent(Intent.PermissionResult(granted)) }
 
+    val openLink = com.zyke.message.presentation.common.LocalOpenLink.current
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
@@ -114,14 +114,7 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     Toast.makeText(context, R.string.otp_copied, Toast.LENGTH_SHORT).show()
                 }
-                is Effect.OpenLink -> runCatching {
-                    context.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(effect.url))
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }.onFailure {
-                    Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show()
-                }
+                is Effect.OpenLink -> openLink(effect.url)
                 is Effect.ManyArchived -> scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     val result = snackbarHostState.showSnackbar(

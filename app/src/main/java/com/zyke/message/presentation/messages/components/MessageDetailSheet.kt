@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.linksIn
+import com.zyke.message.presentation.common.LocalOpenLink
+import android.net.Uri
 import com.zyke.message.presentation.common.FormField
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.FintechCard
@@ -138,11 +141,12 @@ internal fun MessageDetailSheet(
 
             // The one action that matters most for this kind of message.
             val billLink = (content as? MessageContent.CardBill)?.paymentLink
+            val openLink = LocalOpenLink.current
             when {
                 content is MessageContent.Otp && content.code.isNotEmpty() ->
                     AppButton("Copy code", { actions.onCopyOtp(item.id, content.code) }, Modifier.fillMaxWidth())
                 billLink != null ->
-                    AppButton("View / pay bill", { actions.onOpenLink(billLink) }, Modifier.fillMaxWidth())
+                    AppButton("View / pay bill", { openLink(billLink) }, Modifier.fillMaxWidth())
                 content is MessageContent.Life && content.date != null && !content.isDone -> {
                     val context = LocalContext.current
                     AppButton(
@@ -155,6 +159,15 @@ internal fun MessageDetailSheet(
                         Modifier.fillMaxWidth()
                     )
                 }
+            }
+            val links = remember(message.body) { linksIn(message.body).filter { it != billLink }.take(3) }
+            links.forEach { link ->
+                AppButton(
+                    "Open ${Uri.parse(link).host?.removePrefix("www.") ?: "link"}",
+                    { openLink(link) },
+                    Modifier.fillMaxWidth(),
+                    style = ButtonStyle.TONAL
+                )
             }
             val split = actions.onSplit
             if (split != null && content is MessageContent.Transaction && !content.isReceived) {

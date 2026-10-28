@@ -19,7 +19,6 @@ import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.common.LinkButton
 import android.Manifest
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -108,6 +107,7 @@ fun DashboardRoute(viewModel: DashboardViewModel, onRequestPermission: () -> Uni
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    val openLink = com.zyke.message.presentation.common.LocalOpenLink.current
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
@@ -117,14 +117,7 @@ fun DashboardRoute(viewModel: DashboardViewModel, onRequestPermission: () -> Uni
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is Effect.OpenLink -> runCatching {
-                    context.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(effect.url))
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }.onFailure {
-                    Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show()
-                }
+                is Effect.OpenLink -> openLink(effect.url)
             }
         }
     }

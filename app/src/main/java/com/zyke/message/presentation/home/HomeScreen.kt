@@ -29,7 +29,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.Manifest
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -112,6 +111,7 @@ fun HomeRoute(
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    val openLink = com.zyke.message.presentation.common.LocalOpenLink.current
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
@@ -126,12 +126,7 @@ fun HomeRoute(
                     clipboard.setPrimaryClip(ClipData.newPlainText(effect.label, effect.text))
                     Toast.makeText(context, R.string.otp_copied, Toast.LENGTH_SHORT).show()
                 }
-                is Effect.OpenLink -> runCatching {
-                    context.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(effect.url))
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }.onFailure { Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show() }
+                is Effect.OpenLink -> openLink(effect.url)
             }
         }
     }
