@@ -1,6 +1,6 @@
 [versions]
 detekt = "1.23.7"
-agp = "8.8.0"
+agp = "9.4.1"
 appcompat = "1.7.0"
 kotlin = "2.0.0"
 coreKtx = "1.15.0"
