@@ -43,7 +43,9 @@ data class AccountSummary(
     val paymentLink: String?,
     /** A message that carries this account's logo and opens its sheet. */
     val sampleMessageId: Long,
-    val userCard: UserCard?
+    val userCard: UserCard?,
+    /** The statement day the card's bills point to, when the person has not set one. */
+    val suggestedStatementDay: Int? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -119,7 +121,13 @@ object Accounts {
                 minimumDue = bill?.minimumDue?.toBigDecimalOrNull(),
                 paymentLink = bill?.paymentLink,
                 sampleMessageId = newest.message.id,
-                userCard = card
+                userCard = card,
+                suggestedStatementDay = if (kind == AccountKind.CREDIT_CARD && card?.statementDay == null) {
+                    StatementDays.suggest(
+                        rows.filter { it.message.content is MessageContent.CardBill }
+                            .map { Instant.ofEpochMilli(it.message.message.date).atZone(zone).toLocalDate() }
+                    )
+                } else null
             )
         }.filter { it.key !in hidden }.sortedWith(
             // Accounts first, then cards; the busiest first within each.

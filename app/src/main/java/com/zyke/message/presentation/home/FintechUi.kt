@@ -307,7 +307,13 @@ internal fun AccountSheet(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Text("Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+                        Text(if (account.userCard?.statementDay == null && account.suggestedStatementDay != null) "Set" else "Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+                    }
+                    account.suggestedStatementDay?.let { day ->
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Caption("Your bills arrive around day $day. Use it as the statement day?", Modifier.weight(1f), maxLines = 3)
+                            AppButton("Use day $day", { onStatementDay(day) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                        }
                     }
                 }
             }
