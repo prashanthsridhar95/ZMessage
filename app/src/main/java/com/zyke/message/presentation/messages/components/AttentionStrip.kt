@@ -118,8 +118,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
         when {
             item is AttentionItem.FreshOtp ->
                 AppButton("Copy", { actions.onCopyOtp(item.message.id, item.code) }, size = ButtonSize.COMPACT)
-            payLink != null ->
-                AppButton("Pay", { actions.onOpenLink(payLink) }, size = ButtonSize.COMPACT)
+            item is AttentionItem.BillDue -> BillActions(payLink, onPay = { payLink?.let(actions.onOpenLink) }, onMarkPaid = { actions.onDismissAttention(item.key) })
         }
 
         Box(
@@ -131,6 +130,29 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
                 painter = painterResource(R.drawable.baseline_close_24),
                 colorFilter = ColorFilter.tint(onContainer.copy(alpha = 0.8f)),
                 contentDescription = "Dismiss"
+            )
+        }
+    }
+}
+
+/** "Pay" with a small drop-down beside it: for a bill that was settled another way, "Mark as paid" clears it. */
+@Composable
+private fun BillActions(payLink: String?, onPay: () -> Unit, onMarkPaid: () -> Unit) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (payLink != null) AppButton("Pay", onPay, size = ButtonSize.COMPACT)
+            Box(
+                Modifier.size(width = 36.dp, height = 48.dp).clip(CircleShape).clickable(onClickLabel = "More bill options") { open = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("\u25BE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Mark as paid") },
+                onClick = { open = false; onMarkPaid() }
             )
         }
     }
