@@ -144,3 +144,24 @@ class EstimatedBalanceTest {
         assertEquals(0, after.totalBalance!!.compareTo(o.totalBalance))
     }
 }
+
+class CardUnbilledTest {
+    private val zone = ZoneId.of("UTC")
+    private val c = MessageClassifier()
+    private fun at(y: Int, m: Int, d: Int) = java.time.LocalDate.of(y, m, d).atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+
+    @Test
+    fun spendAfterTheStatementDay_isUnbilled_andTheBillIsKept() {
+        val bill = c.classify(SmsMessage(1, "AD-HDFCBK", "HDFC Bank Credit Card XX1234 Statement: Total due amt: Rs.12,345.00 Min due amt: Rs.617.00 Due by:05-11-2026 pay https://hdfcbk.io/1234", at(2026, 10, 12), true))
+        val before = c.classify(SmsMessage(2, "AD-HDFCBK", "Rs.900.00 spent on HDFC Bank Credit Card XX1234 at SWIGGY on 10-10-26", at(2026, 10, 10), true))
+        val after1 = c.classify(SmsMessage(3, "AD-HDFCBK", "Rs.400.00 spent on HDFC Bank Credit Card XX1234 at SWIGGY on 15-10-26", at(2026, 10, 15), true))
+        val after2 = c.classify(SmsMessage(4, "AD-HDFCBK", "Rs.600.00 spent on HDFC Bank Credit Card XX1234 at AMAZON on 20-10-26", at(2026, 10, 20), true))
+        val card = com.zyke.message.domain.model.UserCard("c", com.zyke.message.domain.model.CardType.CREDIT, "1234", "", 12, "HDFC Bank")
+
+        val o = com.zyke.message.domain.accounts.Accounts.build(listOf(bill, before, after1, after2), listOf(card), java.time.Instant.ofEpochMilli(at(2026, 10, 25)), zone)
+        val a = o.accounts.single { it.last4 == "1234" }
+        assertEquals(java.time.LocalDate.of(2026, 10, 12), a.statementOn)
+        assertEquals(0, a.unbilled!!.compareTo(java.math.BigDecimal("1000")))
+        assertEquals(0, a.dueAmount!!.compareTo(java.math.BigDecimal("12345")))
+    }
+}

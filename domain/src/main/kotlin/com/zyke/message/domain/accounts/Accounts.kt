@@ -53,7 +53,15 @@ data class AccountSummary(
     /** The message the balance was read from, so the person can check it. */
     val balanceMessageId: Long? = null,
     /** What came in and went out since the stated balance, already included in [balance]; null when nothing did. */
-    val balanceAdjustment: BigDecimal? = null
+    val balanceAdjustment: BigDecimal? = null,
+    /** The day the card's last statement was made; spending after it is not billed yet. */
+    val statementOn: LocalDate? = null,
+    /** What has been spent on the card since [statementOn], not yet on a bill. */
+    val unbilled: BigDecimal? = null,
+    /** The day the latest bill arrived. */
+    val billedOn: LocalDate? = null,
+    /** Payments credited to the card since that bill. */
+    val paidSinceBill: BigDecimal? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -126,6 +134,33 @@ object Accounts {
                 if (tx.isReceived) received += amount else spent += amount
             }
 
+            // Where the card's cycle stands: the statement day (set, or read from the bills), else the day the last bill came.
+            val billDates = rows.filter { it.message.content is MessageContent.CardBill }
+                .map { Instant.ofEpochMilli(it.message.message.date).atZone(zone).toLocalDate() }
+            val suggested = if (kind == AccountKind.CREDIT_CARD && card?.statementDay == null) StatementDays.suggest(billDates) else null
+            val billedOn = billDates.maxOrNull()
+            val statementOn = if (kind != AccountKind.CREDIT_CARD) null else (card?.statementDay ?: suggested)?.let { lastStatement(today, it) } ?: billedOn
+            var unbilled: BigDecimal? = null
+            var paidSinceBill: BigDecimal? = null
+            if (kind == AccountKind.CREDIT_CARD) {
+                unbilled = statementOn?.let { since ->
+                    rows.fold(BigDecimal.ZERO) { sum, row ->
+                        val tx = row.message.content as? MessageContent.Transaction ?: return@fold sum
+                        val amount = tx.amount.toBigDecimalOrNull() ?: return@fold sum
+                        val date = Instant.ofEpochMilli(row.message.message.date).atZone(zone).toLocalDate()
+                        if (tx.isReceived || tx.isCardPayment || !date.isAfter(since) || date.isAfter(today)) sum else sum + amount
+                    }
+                }
+                paidSinceBill = billedOn?.let { from ->
+                    rows.fold(BigDecimal.ZERO) { sum, row ->
+                        val tx = row.message.content as? MessageContent.Transaction ?: return@fold sum
+                        val amount = tx.amount.toBigDecimalOrNull() ?: return@fold sum
+                        val date = Instant.ofEpochMilli(row.message.message.date).atZone(zone).toLocalDate()
+                        if (tx.isReceived && !date.isBefore(from)) sum + amount else sum
+                    }
+                }?.takeIf { it.signum() > 0 }
+            }
+
             val markedFund = "${kind.name.lowercase()}-$last4" in providentFunds
             val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) {
                 current(last4) ?: passbook.takeIf { markedFund }
@@ -153,12 +188,11 @@ object Accounts {
                 isProvidentFund = "${kind.name.lowercase()}-$last4" in providentFunds ||
                     (kind == AccountKind.BANK_ACCOUNT && rows.all { isPassbook(it.message) }),
                 fromPassbook = rows.all { isPassbook(it.message) },
-                suggestedStatementDay = if (kind == AccountKind.CREDIT_CARD && card?.statementDay == null) {
-                    StatementDays.suggest(
-                        rows.filter { it.message.content is MessageContent.CardBill }
-                            .map { Instant.ofEpochMilli(it.message.message.date).atZone(zone).toLocalDate() }
-                    )
-                } else null
+                suggestedStatementDay = suggested,
+                statementOn = statementOn,
+                unbilled = unbilled,
+                billedOn = billedOn,
+                paidSinceBill = paidSinceBill
             )
         }.let { fromMessages ->
             // An account or card the person added is listed even before a message mentions it.
@@ -186,6 +220,14 @@ object Accounts {
 
         val known = accounts.filter { !it.isProvidentFund }.mapNotNull { it.balance }
         return AccountsOverview(accounts, known.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO, BigDecimal::add), known.size)
+    }
+
+    /** The latest date up to [today] that falls on [day] of the month (a short month's last day stands in for 31). */
+    private fun lastStatement(today: LocalDate, day: Int): LocalDate {
+        val thisMonth = today.withDayOfMonth(minOf(day, today.lengthOfMonth()))
+        if (!thisMonth.isAfter(today)) return thisMonth
+        val previous = today.minusMonths(1)
+        return previous.withDayOfMonth(minOf(day, previous.lengthOfMonth()))
     }
 
     private fun isPassbook(message: ClassifiedMessage) = (message.content as? MessageContent.Notice)?.kind == com.zyke.message.domain.model.NoticeKind.PF_UPDATE

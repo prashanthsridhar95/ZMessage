@@ -42,6 +42,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.accounts.AccountKind
+import com.zyke.message.presentation.common.PillSwitch
+import com.zyke.message.domain.accounts.AccountActivities
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.domain.accounts.AccountsOverview
 import com.zyke.message.domain.insights.BalanceReader
@@ -308,11 +310,19 @@ internal fun AccountSheet(
     val zone = ZoneId.systemDefault()
     val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
     val history = remember(state.messages, account.last4) { BalanceReader.history(state.messages, zone)[account.last4].orEmpty() }
-    val activity = remember(state.messages, account.key) {
-        state.messages.filter {
-            val tx = it.content as? MessageContent.Transaction ?: return@filter false
-            tx.accountNumber.filter(Char::isDigit).takeLast(4) == account.last4 && tx.isCard == account.isCard
-        }.take(ACTIVITY_SHOWN)
+    // Activity can be read for the calendar month, or for the card's own cycle (its statement) or the pay cycle.
+    var period by rememberSaveable { mutableStateOf(0) }
+    val today = remember(state.now) { java.time.LocalDate.ofInstant(state.now, zone) }
+    val cycleLabel = if (account.kind == AccountKind.CREDIT_CARD && account.statementOn != null) "Card cycle" else "Pay cycle"
+    val periodStart = remember(period, today, account.statementOn, state.cycle) {
+        when {
+            period == 0 -> today.withDayOfMonth(1)
+            account.kind == AccountKind.CREDIT_CARD && account.statementOn != null -> account.statementOn!!.plusDays(1)
+            else -> state.cycle.containing(today).start
+        }
+    }
+    val activity = remember(state.messages, account.key, periodStart, today) {
+        AccountActivities.build(state.messages, account.last4, account.isCard, periodStart, today, zone)
     }
     val due = account.dueDate
     val asOf = account.balanceAsOf
@@ -337,15 +347,24 @@ internal fun AccountSheet(
             }
 
             Column {
-                Caption(if (account.isCard) "LATEST BILL" else "BALANCE")
+                Caption(
+                    when {
+                        account.kind == AccountKind.CREDIT_CARD && account.unbilled != null -> "UNBILLED SPEND"
+                        account.isCard -> "LATEST BILL"
+                        else -> "BALANCE"
+                    }
+                )
                 Text(
-                    (if (account.isCard) account.dueAmount else account.balance)?.let { DisplayFormatters.rupees(it) } ?: "—",
+                    (if (account.kind == AccountKind.CREDIT_CARD && account.unbilled != null) account.unbilled else if (account.isCard) account.dueAmount else account.balance)
+                        ?.let { DisplayFormatters.rupees(it) } ?: "—",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Caption(
                     when {
+                        account.kind == AccountKind.CREDIT_CARD && account.unbilled != null ->
+                            "spent since the ${dayFormat.format(account.statementOn!!)} statement"
                         account.isCard && due != null ->
                             "due ${dayFormat.format(due)}" + (account.minimumDue?.let { " · minimum ${DisplayFormatters.rupees(it)}" } ?: "")
                         asOf != null && account.balanceAdjustment != null ->
@@ -400,21 +419,51 @@ internal fun AccountSheet(
                 }
             }
 
-            FintechCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Stat("Spent", DisplayFormatters.rupees(account.spent))
-                    Stat("Received", DisplayFormatters.rupees(account.received))
-                    Stat("Payments", account.activityCount.toString())
+            // The card's bill, next to what is not billed yet.
+            if (account.kind == AccountKind.CREDIT_CARD && (account.dueAmount != null || account.unbilled != null)) {
+                FintechCard {
+                    Caption("THE BILL")
+                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Stat("Billed", account.dueAmount?.let { DisplayFormatters.rupees(it) } ?: "—")
+                        Stat("Due", due?.let { dayFormat.format(it) } ?: "—")
+                        Stat("Minimum", account.minimumDue?.let { DisplayFormatters.rupees(it) } ?: "—")
+                    }
+                    account.paidSinceBill?.let {
+                        Caption("${DisplayFormatters.rupees(it)} paid since the bill came", Modifier.padding(top = 10.dp), maxLines = 2)
+                    }
+                    account.unbilled?.let {
+                        HorizontalDivider(Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Unbilled so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+                            Text(DisplayFormatters.rupees(it), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
-                Caption("This pay cycle", Modifier.padding(top = 10.dp))
             }
 
-            if (activity.isNotEmpty()) {
-                Column {
-                    RowTitle("Recent activity")
-                    activity.forEachIndexed { index, message ->
-                        if (index > 0) HorizontalDivider()
-                        RecentRow(message, onOpen = { onOpenMessage(message.id) })
+            // Activity for this month, or for the cycle, with its totals.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PillSwitch(listOf("This month", cycleLabel), period, { period = it })
+                FintechCard {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Stat("Spent", DisplayFormatters.rupees(activity.spent))
+                        Stat(if (account.isCard) "Credited" else "Received", DisplayFormatters.rupees(activity.received))
+                        Stat("Payments", activity.messages.size.toString())
+                    }
+                    Caption(
+                        "${dayFormat.format(periodStart)} – ${dayFormat.format(today)}",
+                        Modifier.padding(top = 10.dp)
+                    )
+                }
+                if (activity.messages.isEmpty()) {
+                    Caption("Nothing in this period yet")
+                } else {
+                    Column {
+                        RowTitle("Activity")
+                        activity.messages.forEachIndexed { index, message ->
+                            if (index > 0) HorizontalDivider()
+                            RecentRow(message, onOpen = { onOpenMessage(message.id) })
+                        }
                     }
                 }
             }
@@ -494,7 +543,6 @@ internal fun AccountSheet(
     }
 }
 
-private const val ACTIVITY_SHOWN = 6
 
 // ---- codes
 
