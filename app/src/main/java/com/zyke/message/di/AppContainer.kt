@@ -81,6 +81,6 @@ class AppContainer(context: Context) {
 
     private fun cacheTag(context: Context): String {
         val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
-        return "${info?.versionName}-${info?.longVersionCode}-${info?.lastUpdateTime}"
+        return "${info?.versionName}-${info?.longVersionCode}-${info?.lastUpdateTime}-r${com.zyke.message.domain.classification.MessageClassifier.RULES_VERSION}"
     }
 }
