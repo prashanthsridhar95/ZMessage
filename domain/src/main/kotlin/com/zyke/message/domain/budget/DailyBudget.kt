@@ -6,6 +6,8 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.plan.PlanInsights
+import com.zyke.message.domain.plan.PlanItem
+import com.zyke.message.domain.plan.PlanMatching
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
@@ -51,11 +53,13 @@ object DailyBudgets {
     }
 
     /** What was spent on each day: money sent, apart from what the plan has already set aside. */
-    fun spendByDay(messages: List<ClassifiedMessage>, zone: ZoneId): Map<LocalDate, BigDecimal> {
+    fun spendByDay(messages: List<ClassifiedMessage>, zone: ZoneId, planned: List<PlanItem> = emptyList()): Map<LocalDate, BigDecimal> {
         val byDay = HashMap<LocalDate, BigDecimal>()
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
             if (tx.isReceived || message.category in COMMITTED) return@forEach
+            // A regular outgoing the plan already set aside (a subscription, a SIP) is not spending from the day's allowance.
+            if (PlanMatching.isPlanned(message, planned)) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
             val day = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             byDay[day] = (byDay[day] ?: BigDecimal.ZERO) + amount
@@ -63,9 +67,11 @@ object DailyBudgets {
         return byDay
     }
 
-    fun status(messages: List<ClassifiedMessage>, allowance: BigDecimal, now: Instant, zone: ZoneId): DailyBudgetStatus {
+    fun status(
+        messages: List<ClassifiedMessage>, allowance: BigDecimal, now: Instant, zone: ZoneId, planned: List<PlanItem> = emptyList()
+    ): DailyBudgetStatus {
         val today = LocalDate.ofInstant(now, zone)
-        val spend = spendByDay(messages, zone)
+        val spend = spendByDay(messages, zone, planned)
         val first = spend.keys.minOrNull()
         val spentToday = spend[today] ?: BigDecimal.ZERO
 
@@ -85,9 +91,11 @@ object DailyBudgets {
     }
 
     /** Every day of [range] (a pay cycle) with what was spent and whether it was within the budget. */
-    fun days(messages: List<ClassifiedMessage>, allowance: BigDecimal, range: DateRange, now: Instant, zone: ZoneId): List<BudgetDay> {
+    fun days(
+        messages: List<ClassifiedMessage>, allowance: BigDecimal, range: DateRange, now: Instant, zone: ZoneId, planned: List<PlanItem> = emptyList()
+    ): List<BudgetDay> {
         val today = LocalDate.ofInstant(now, zone)
-        val spend = spendByDay(messages, zone)
+        val spend = spendByDay(messages, zone, planned)
         val first = spend.keys.minOrNull()
         val count = java.time.temporal.ChronoUnit.DAYS.between(range.start, range.endInclusive).toInt() + 1
         return (0 until count).map { offset ->

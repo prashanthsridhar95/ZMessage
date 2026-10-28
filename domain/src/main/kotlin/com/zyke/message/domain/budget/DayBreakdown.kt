@@ -29,7 +29,7 @@ object DayBreakdowns {
         MessageCategory.CHARITY, MessageCategory.CREDIT_CARDS
     )
 
-    fun build(messages: List<ClassifiedMessage>, date: LocalDate, zone: ZoneId): DayBreakdown {
+    fun build(messages: List<ClassifiedMessage>, date: LocalDate, zone: ZoneId, planned: List<com.zyke.message.domain.plan.PlanItem> = emptyList()): DayBreakdown {
         val spent = ArrayList<DayItem>()
         val setAside = ArrayList<DayItem>()
         val received = ArrayList<DayItem>()
@@ -44,7 +44,7 @@ object DayBreakdowns {
             )
             when {
                 tx.isReceived -> received += item
-                message.category in SET_ASIDE -> setAside += item
+                message.category in SET_ASIDE || com.zyke.message.domain.plan.PlanMatching.isPlanned(message, planned) -> setAside += item
                 else -> spent += item
             }
         }

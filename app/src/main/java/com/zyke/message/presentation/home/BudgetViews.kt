@@ -115,6 +115,7 @@ internal fun BudgetCalendarSheet(
     messages: List<ClassifiedMessage>,
     daily: DailyBudgetStatus,
     cycle: CycleRule,
+    planned: List<com.zyke.message.domain.plan.PlanItem>,
     offset: Int,
     now: Instant,
     onShift: (Int) -> Unit,
@@ -123,7 +124,7 @@ internal fun BudgetCalendarSheet(
     val zone = ZoneId.systemDefault()
     val today = java.time.LocalDate.ofInstant(now, zone)
     val range = remember(cycle, offset, today) { cycle.shifted(today, offset) }
-    val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone) }
+    val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone, planned) }
     val streakDays = remember(daily.currentStreak, today) { (0 until daily.currentStreak).map { today.minusDays(it.toLong()) }.toSet() }
     var selected by rememberSaveable(range.start) { mutableStateOf<java.time.LocalDate?>(null) }
     val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
@@ -208,7 +209,7 @@ internal fun BudgetCalendarSheet(
 
     // A tapped day opens its own sheet straight away, over this one.
     days.firstOrNull { it.date == selected }?.let { day ->
-        DaySheet(messages, day, daily.allowance, zone) { selected = null }
+        DaySheet(messages, day, daily.allowance, zone, planned) { selected = null }
     }
 }
 
@@ -219,6 +220,7 @@ private fun DaySheet(
     day: BudgetDay,
     allowance: java.math.BigDecimal,
     zone: java.time.ZoneId,
+    planned: List<com.zyke.message.domain.plan.PlanItem>,
     onDismiss: () -> Unit
 ) {
     AppBottomSheet(onDismiss) {
@@ -237,15 +239,17 @@ private fun DaySheet(
                 },
                 Modifier.padding(top = 2.dp), maxLines = 2
             )
-            DayBreakdownList(messages, day.date, zone)
+            DayBreakdownList(messages, day.date, zone, planned)
         }
     }
 }
 
 /** What was spent and received on the chosen day: the same switch as the Money tab, then categories and items as tabs. */
 @Composable
-private fun DayBreakdownList(messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId) {
-    val breakdown = remember(messages, date) { DayBreakdowns.build(messages, date, zone) }
+private fun DayBreakdownList(
+    messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId, planned: List<com.zyke.message.domain.plan.PlanItem>
+) {
+    val breakdown = remember(messages, date, planned) { DayBreakdowns.build(messages, date, zone, planned) }
     var direction by rememberSaveable(date) { mutableStateOf(FlowDirection.SPENT) }
     var tab by rememberSaveable { mutableStateOf(0) }
     val received = direction == FlowDirection.RECEIVED

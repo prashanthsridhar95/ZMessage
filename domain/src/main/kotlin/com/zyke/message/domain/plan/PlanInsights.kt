@@ -65,12 +65,6 @@ enum class IncomeSource {
 }
 
 object PlanInsightsBuilder {
-    /** A payment to the item's name counts as it when within this share of the planned amount... */
-    private val AMOUNT_TOLERANCE = BigDecimal("0.15")
-
-    /** ...and a payment to anyone counts when it is within this much of it. */
-    private val STRICT_TOLERANCE = BigDecimal("0.02")
-
     /** A credit this large is taken to be the salary. */
     private val SALARY_SHARE = BigDecimal("0.7")
 
@@ -169,18 +163,40 @@ object PlanInsightsBuilder {
     }
 
     private fun status(item: PlanItem, sent: List<Move>): PlanItemStatus {
-        val words = item.name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= MIN_WORD }
-        val match = sent.filter { move ->
-            val named = words.any { it in move.who }
-            val gap = (move.amount - item.amount).abs()
-            // To the right name, an amount near the plan is enough; otherwise it has to be almost exactly the plan.
-            (named && gap <= item.amount.multiply(AMOUNT_TOLERANCE)) || gap <= item.amount.multiply(STRICT_TOLERANCE)
-        }.maxByOrNull { it.date }
+        val match = sent.filter { move -> PlanMatching.matches(item, move.who, move.amount) }.maxByOrNull { it.date }
         return PlanItemStatus(item, match?.amount, match?.date)
     }
 
     private class Move(val date: LocalDate, val amount: BigDecimal, val received: Boolean, val who: String)
 
-    private const val MIN_WORD = 3
     private const val LATE_AFTER_DAYS = 3
+}
+
+/** Whether a payment is one the plan already counts, such as a subscription the person listed as a regular outgoing. */
+object PlanMatching {
+    /** A payment to the item's name counts as it when within this share of the planned amount... */
+    private val AMOUNT_TOLERANCE = BigDecimal("0.15")
+
+    /** ...and a payment to anyone counts when it is within this much of it. */
+    private val STRICT_TOLERANCE = BigDecimal("0.02")
+    private const val MIN_WORD = 3
+
+    /** @param who the payee and merchant names, lower case */
+    fun matches(item: PlanItem, who: String, amount: BigDecimal): Boolean {
+        val words = item.name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= MIN_WORD }
+        val named = words.any { it in who }
+        val gap = (amount - item.amount).abs()
+        // To the right name, an amount near the plan is enough; otherwise it has to be almost exactly the plan.
+        return (named && gap <= item.amount.multiply(AMOUNT_TOLERANCE)) || gap <= item.amount.multiply(STRICT_TOLERANCE)
+    }
+
+    /** True when the message is a payment one of [items] accounts for. */
+    fun isPlanned(message: ClassifiedMessage, items: List<PlanItem>): Boolean {
+        if (items.isEmpty()) return false
+        val tx = message.content as? MessageContent.Transaction ?: return false
+        if (tx.isReceived) return false
+        val amount = tx.amount.toBigDecimalOrNull() ?: return false
+        val who = "${tx.payee} ${message.merchant.name}".lowercase()
+        return items.any { matches(it, who, amount) }
+    }
 }

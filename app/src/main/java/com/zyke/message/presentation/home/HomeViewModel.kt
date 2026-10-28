@@ -265,7 +265,7 @@ class HomeViewModel(
 
             updated.copy(
                 cycle = cycle,
-                daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
+                daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone, updated.plan.items) },
                 goals = Goals.all(updated.goalList, today),
                 reminders = Reminders.upcoming(updated.reminderList, today),
                 providentFund = com.zyke.message.domain.pf.ProvidentFunds.find(live, zone),
