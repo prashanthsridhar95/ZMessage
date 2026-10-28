@@ -8,7 +8,14 @@ import com.zyke.message.domain.classification.UpiLiteNotification
 
 /** Captures incoming chat (RCS) messages from the default messaging apps' notifications. */
 class RcsNotificationListener : NotificationListenerService() {
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
+    /** Notifications already in the shade when access is switched on, or the app is updated, would otherwise be missed. */
+    override fun onListenerConnected() {
+        runCatching { activeNotifications?.forEach { handle(it) } }
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) = handle(sbn)
+
+    private fun handle(sbn: StatusBarNotification) {
         if (sbn.packageName == GOOGLE_PAY) {
             keepUpiLiteTopUp(sbn)
             return

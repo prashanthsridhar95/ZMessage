@@ -17,6 +17,14 @@ class UpiLiteNotificationTest {
     }
 
     @Test
+    fun anAutopayPaymentToUpiLite_isATopUp() {
+        assertEquals(
+            "200.00",
+            UpiLiteNotification.amount("Payment to UPI Lite was successful", "Payment for Autopay of \u20b9200.00 to UPI Lite was successful. Tap to view.")
+        )
+    }
+
+    @Test
     fun aPaymentOrAFailure_isNotATopUp() {
         assertNull(UpiLiteNotification.amount("Paid ₹120", "Paid to Chai Point using UPI Lite"))
         assertNull(UpiLiteNotification.amount("UPI Lite top-up failed", "₹500 could not be added to UPI Lite"))
