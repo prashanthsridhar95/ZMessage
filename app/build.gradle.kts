@@ -20,6 +20,14 @@ android {
 
     // Release signing comes from the environment (CI secrets); without it the build is unsigned.
     signingConfigs {
+        // One debug key shared by every build, CI and local alike. Without it each machine signs with its own key and
+        // Android refuses to update an installed build with one signed by another. It protects nothing: debug only.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         System.getenv("RELEASE_KEYSTORE_PATH")?.let { keystore ->
             create("release") {
                 storeFile = file(keystore)
