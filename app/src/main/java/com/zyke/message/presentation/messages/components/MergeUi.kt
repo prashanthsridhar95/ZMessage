@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.common.AppBottomSheet
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -254,25 +258,59 @@ internal fun MergedMessages(item: ClassifiedMessage, onUnmerge: (Long) -> Unit) 
     }
 }
 
-/** "Looks like the same payment": other messages with the same amount around the same time, each one tap from merging. */
+/**
+ * A button that opens a sheet of the messages that look like this payment, each one tap from merging. Hidden when
+ * nothing looks like it.
+ */
 @Composable
 internal fun MergeSuggestions(item: ClassifiedMessage, candidates: List<ClassifiedMessage>, onMerge: (primaryId: Long, duplicateId: Long) -> Unit) {
     if (candidates.isEmpty()) return
-    FintechCard {
-        Caption("MAYBE THE SAME PAYMENT")
-        candidates.forEach { other ->
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        other.message.sender,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Caption(DateFormatters.dayHeader(java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(other.message.date), java.time.ZoneId.systemDefault()), java.time.LocalDate.now()) + " · " + DisplayFormatters.time(other.message.date), maxLines = 1)
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    AppButton(
+        "Merge similar messages (${candidates.size})",
+        { open = true },
+        Modifier.fillMaxWidth(),
+        style = ButtonStyle.TONAL
+    )
+    if (open) {
+        AppBottomSheet({ open = false }) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Similar messages", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Caption("Same amount, close in time. Merge the ones that are the same payment so it is counted once.", maxLines = 3)
+                candidates.forEach { other ->
+                    val tx = other.content as? MessageContent.Transaction
+                    FintechCard {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    tx?.amount?.let { DisplayFormatters.rupees(it) } ?: other.message.sender,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Caption(
+                                    other.message.sender + " · " + DateFormatters.dayHeader(
+                                        java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(other.message.date), java.time.ZoneId.systemDefault())
+                                    ) + " · " + DisplayFormatters.time(other.message.date),
+                                    maxLines = 2
+                                )
+                                Text(
+                                    other.message.body,
+                                    Modifier.padding(top = 4.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            AppButton("Merge", { open = false; onMerge(item.id, other.id) }, size = ButtonSize.COMPACT)
+                        }
+                    }
                 }
-                AppButton("Merge", { onMerge(item.id, other.id) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
     }
