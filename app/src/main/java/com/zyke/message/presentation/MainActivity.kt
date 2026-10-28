@@ -91,7 +91,46 @@ class MainActivity : ComponentActivity() {
             homeViewModel.onIntent(HomeContract.Intent.ScreenStarted(true))
             dashboardViewModel.onIntent(DashboardContract.Intent.ScreenStarted(true))
         }
+        askNextPermission()
     }
+
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { askNextPermission() }
+
+    // ---- asking for what the app needs, once each time it is opened
+
+    private var permissionStage = -1
+    private val showAccessPrompt = mutableStateOf(false)
+
+    /**
+     * On opening, whatever has not been allowed is asked for, one at a time: SMS access, then permission to show
+     * notifications, then notification access (which Android only lets the person grant on its own settings page, so
+     * it is explained first). Something already allowed is skipped, and it is asked only once per opening.
+     */
+    private fun startPermissionFlow() {
+        if (permissionStage != -1) return
+        permissionStage = 0
+        askNextPermission()
+    }
+
+    private fun askNextPermission() {
+        // Only while the opening flow is running, so a prompt from a button elsewhere does not start it.
+        if (permissionStage < 0 || permissionStage > LAST_STAGE) return
+        when (permissionStage++) {
+            0 -> if (!has(Manifest.permission.READ_SMS)) smsPermission.launch(Manifest.permission.READ_SMS) else askNextPermission()
+            1 -> if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && !has(Manifest.permission.POST_NOTIFICATIONS)) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                askNextPermission()
+            }
+            2 -> if (!hasNotificationAccess()) showAccessPrompt.value = true
+        }
+    }
+
+    private fun has(permission: String) =
+        androidx.core.content.ContextCompat.checkSelfPermission(this, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    private fun hasNotificationAccess() =
+        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,6 +167,19 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalImageStore provides container.imageStore) {
             ZykeMessageTheme(darkTheme = darkTheme) {
                 val locked by lockedState
+                // Behind the lock screen nothing is asked; once it is open, the permissions are.
+                androidx.compose.runtime.LaunchedEffect(locked) { if (!locked) startPermissionFlow() }
+                if (showAccessPrompt.value && !locked) {
+                    NotificationAccessPrompt(
+                        onOpenSettings = {
+                            showAccessPrompt.value = false
+                            runCatching {
+                                startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                            }
+                        },
+                        onLater = { showAccessPrompt.value = false }
+                    )
+                }
                 if (locked) {
                     LockScreen(onUnlock = ::requestUnlock)
                 } else {
@@ -294,3 +346,35 @@ private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
     query = query,
     filterCount = filter.extraCount
 )
+
+private const val LAST_STAGE = 2
+
+/** Why notification access is asked for, in plain words, before the phone's own settings page is opened. */
+@androidx.compose.runtime.Composable
+private fun NotificationAccessPrompt(onOpenSettings: () -> Unit, onLater: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onLater,
+        title = { androidx.compose.material3.Text("Allow notification access") },
+        text = {
+            androidx.compose.material3.Text(
+                "Zyke Message can read notifications from your messaging app and Google Pay, so chats and UPI Lite top-ups " +
+                    "are counted too. It only reads those, and nothing leaves your phone. Android asks you to allow this on " +
+                    "its own settings page: switch Zyke Message on there."
+            )
+        },
+        confirmButton = {
+            com.zyke.message.presentation.common.AppButton(
+                "Open settings", onOpenSettings,
+                style = com.zyke.message.presentation.common.ButtonStyle.TEXT,
+                size = com.zyke.message.presentation.common.ButtonSize.COMPACT
+            )
+        },
+        dismissButton = {
+            com.zyke.message.presentation.common.AppButton(
+                "Not now", onLater,
+                style = com.zyke.message.presentation.common.ButtonStyle.TEXT,
+                size = com.zyke.message.presentation.common.ButtonSize.COMPACT
+            )
+        }
+    )
+}
