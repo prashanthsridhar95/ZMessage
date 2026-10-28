@@ -38,10 +38,11 @@ class AccountsTest {
 
         assertEquals("5765", account.last4)
         assertEquals(AccountKind.BANK_ACCOUNT, account.kind)
-        assertEquals(0, BigDecimal("2100").compareTo(account.balance!!))
+        // The credit after the last stated balance is added to it.
+        assertEquals(0, BigDecimal("3100").compareTo(account.balance!!))
         assertEquals(0, BigDecimal("800").compareTo(account.spent))
         assertEquals(0, BigDecimal("1000").compareTo(account.received))
-        assertEquals(0, BigDecimal("2100").compareTo(overview.totalBalance!!))
+        assertEquals(0, BigDecimal("3100").compareTo(overview.totalBalance!!))
     }
 
     @Test

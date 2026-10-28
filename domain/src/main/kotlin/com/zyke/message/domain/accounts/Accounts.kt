@@ -51,7 +51,9 @@ data class AccountSummary(
     /** The member id's last four digits came from an EPF passbook message, so this is a provident fund without being told. */
     val fromPassbook: Boolean = false,
     /** The message the balance was read from, so the person can check it. */
-    val balanceMessageId: Long? = null
+    val balanceMessageId: Long? = null,
+    /** What came in and went out since the stated balance, already included in [balance]; null when nothing did. */
+    val balanceAdjustment: BigDecimal? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -74,6 +76,12 @@ object Accounts {
         val today = LocalDate.ofInstant(now, zone)
         val range = cycle.containing(today)
         val balances = BalanceReader.latest(messages, zone).associateBy { it.account }
+        // The stated balance plus whatever has moved since it was stated, so a balance is not stale between messages.
+        val moved = balances.mapValues { (_, reading) -> BalanceReader.movedSince(messages, reading) }
+        fun current(last4: String): AccountBalance? = balances[last4]?.let { reading ->
+            val (net, _) = moved.getValue(last4)
+            if (net.signum() == 0) reading else reading.copy(amount = reading.amount + net)
+        }
         // What the newest EPF passbook message says the fund holds, for a fund account that states no balance of its own.
         val passbook = messages.filter { isPassbook(it) }.flatMap { BalanceReader.noticeBalances(it, zone) }
             .maxWithOrNull(compareBy({ it.asOf }, { it.messageId }))
@@ -120,7 +128,7 @@ object Accounts {
 
             val markedFund = "${kind.name.lowercase()}-$last4" in providentFunds
             val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) {
-                balances[last4] ?: passbook.takeIf { markedFund }
+                current(last4) ?: passbook.takeIf { markedFund }
             } else null
             AccountSummary(
                 key = "${kind.name.lowercase()}-$last4",
@@ -131,6 +139,7 @@ object Accounts {
                 balance = balance?.amount,
                 balanceAsOf = balance?.asOf,
                 balanceMessageId = balance?.messageId,
+                balanceAdjustment = moved[last4]?.first?.takeIf { it.signum() != 0 && balance != null && balances[last4] != null && kind == AccountKind.BANK_ACCOUNT && !markedFund },
                 spent = spent,
                 received = received,
                 activityCount = count,
@@ -159,7 +168,7 @@ object Accounts {
                     CardType.DEBIT -> AccountKind.DEBIT_CARD
                     CardType.ACCOUNT -> AccountKind.BANK_ACCOUNT
                 }
-                val balance = if (kind == AccountKind.BANK_ACCOUNT) balances[card.last4] ?: passbook.takeIf { "${kind.name.lowercase()}-${card.last4}" in providentFunds } else null
+                val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4) ?: passbook.takeIf { "${kind.name.lowercase()}-${card.last4}" in providentFunds } else null
                 AccountSummary(
                     key = "${kind.name.lowercase()}-${card.last4}", kind = kind, bankName = BankName.OTHERS, last4 = card.last4,
                     title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },

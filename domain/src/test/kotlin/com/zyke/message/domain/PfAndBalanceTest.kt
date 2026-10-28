@@ -121,3 +121,26 @@ class StatedBalanceTest {
         assertEquals(0, fund.balance!!.compareTo(java.math.BigDecimal("999999")))
     }
 }
+
+class EstimatedBalanceTest {
+    private val zone = ZoneId.of("UTC")
+    private val c = MessageClassifier()
+    private val day = 86_400_000L
+
+    @Test
+    fun laterMovements_adjustTheStatedBalance_andOlderOnesNever() {
+        val salary = c.classify(SmsMessage(1, "AD-FEDBNK", "Rs 50000.00 credited to your Federal Bank A/c XX6438 on 30-09-26 by NEFT ACME PVT LTD", 1_000L * day, true))
+        val stated = c.classify(SmsMessage(2, "AD-FEDBNK", "Your available balance for a/c no(s) SBA6438 is INR 10,000 .For detailed statement download FedMobile https://x.co - Federal Bank", 1_020L * day, true))
+        val spend = c.classify(SmsMessage(3, "AD-FEDBNK", "Rs 600.00 debited from your Federal Bank A/c XX6438 on 28-10-26 to VPA cafe@fbl. Ref 99", 1_021L * day, true))
+
+        val o = com.zyke.message.domain.accounts.Accounts.build(listOf(salary, stated, spend), emptyList(), java.time.Instant.ofEpochMilli(1_022L * day), zone)
+        val account = o.accounts.single { it.last4 == "6438" }
+        assertEquals(0, account.balance!!.compareTo(java.math.BigDecimal("9400")))
+        assertEquals(0, o.totalBalance!!.compareTo(java.math.BigDecimal("9400")))
+
+        // Filing the old credit as salary changes nothing about the balance.
+        val filed = salary.copy(category = com.zyke.message.domain.model.MessageCategory.SALARY, categoryOverridden = true)
+        val after = com.zyke.message.domain.accounts.Accounts.build(listOf(filed, stated, spend), emptyList(), java.time.Instant.ofEpochMilli(1_022L * day), zone)
+        assertEquals(0, after.totalBalance!!.compareTo(o.totalBalance))
+    }
+}

@@ -268,6 +268,7 @@ private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onO
                     when {
                         account.isCard && due != null -> "due ${dayFormat.format(due)}"
                         account.isCard -> "latest bill"
+                        asOf != null && account.balanceAdjustment != null -> "stated ${dayFormat.format(asOf)}, plus later payments"
                         asOf != null -> "as of ${dayFormat.format(asOf)}"
                         else -> "balance not stated"
                     }
@@ -347,6 +348,8 @@ internal fun AccountSheet(
                     when {
                         account.isCard && due != null ->
                             "due ${dayFormat.format(due)}" + (account.minimumDue?.let { " · minimum ${DisplayFormatters.rupees(it)}" } ?: "")
+                        asOf != null && account.balanceAdjustment != null ->
+                            "stated ${dayFormat.format(asOf)}, ${DisplayFormatters.rupees(account.balanceAdjustment!!.abs())} ${if (account.balanceAdjustment!!.signum() > 0) "in" else "out"} since"
                         asOf != null -> "as of ${dayFormat.format(asOf)}"
                         else -> "Balance not stated"
                     },

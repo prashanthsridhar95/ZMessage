@@ -16,7 +16,9 @@ data class AccountBalance(
     val bank: String,
     val amount: BigDecimal,
     val asOf: LocalDate,
-    val messageId: Long
+    val messageId: Long,
+    /** When the message that stated it arrived, in epoch millis. */
+    val at: Long = 0L
 )
 
 /** Reads the "Avl Bal" that banks put at the end of debit and credit messages. */
@@ -52,10 +54,34 @@ object BalanceReader {
             if (account.isEmpty()) return@mapNotNull null
             AccountBalance(
                 account, tx.bankName.displayString, amount,
-                Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id
+                Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id, message.message.date
             )
         }
         return all + messages.flatMap { noticeBalances(it, zone) } + messages.mapNotNull { statedBalance(it, zone) }
+    }
+
+    /**
+     * What came in and went out of [reading]'s account after the message that stated it, from messages that did not
+     * state a balance themselves. Added to the stated balance this is the best guess at what the account holds now.
+     * Nothing dated before the reading is touched, so an older credit (a salary, however it is filed) never moves it.
+     */
+    fun movedSince(messages: List<ClassifiedMessage>, reading: AccountBalance): Pair<BigDecimal, Int> {
+        var net = BigDecimal.ZERO
+        var count = 0
+        messages.forEach { message ->
+            if (message.message.date <= reading.at) return@forEach
+            val tx = message.content as? MessageContent.Transaction ?: return@forEach
+            if (tx.isCard || tx.isCardPayment) return@forEach
+            val body = message.message.body
+            // A message that states its own balance would be a newer reading, never an adjustment.
+            if (BALANCE.containsMatchIn(body) && !NOT_A_BALANCE.containsMatchIn(body)) return@forEach
+            val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1).orEmpty() }
+            if (account != reading.account) return@forEach
+            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
+            net += if (tx.isReceived) amount else amount.negate()
+            count++
+        }
+        return net to count
     }
 
     /** A plain message that just states what an account holds ("balance in your A/c XX1234 is Rs. 5,000"), not a payment. */
@@ -65,7 +91,7 @@ object BalanceReader {
         if (NOT_A_BALANCE.containsMatchIn(body)) return null
         val amount = STATED_BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull() ?: return null
         val account = ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1) ?: return null
-        return AccountBalance(account, "", amount, Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id)
+        return AccountBalance(account, "", amount, Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id, message.message.date)
     }
 
     /** The balances a bank's "available balance for a/c no(s) X is INR 1, Y is INR 2" message states, one per account. */
@@ -80,7 +106,7 @@ object BalanceReader {
         val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
         return pattern.findAll(message.message.body.replace('\u00a0', ' ')).mapNotNull { match ->
             val amount = match.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
-            AccountBalance(match.groupValues[1], "", amount, date, message.id)
+            AccountBalance(match.groupValues[1], "", amount, date, message.id, message.message.date)
         }.toList()
     }
 }
