@@ -15,6 +15,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import android.widget.Toast
+import com.zyke.message.notifications.DigestNotifier
+import com.zyke.message.notifications.DigestScheduler
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -356,6 +359,31 @@ private fun MorningDigestToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
             }
         }
     )
+    if (enabled) {
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppButton(
+                "Show it now",
+                {
+                    scope.launch {
+                        val shown = DigestNotifier.show(context)
+                        Toast.makeText(context, if (shown) "Sent. Pull down the notifications to read it." else "Allow notifications for this app first", Toast.LENGTH_LONG).show()
+                    }
+                },
+                style = ButtonStyle.OUTLINE,
+                size = ButtonSize.COMPACT
+            )
+            AppButton(
+                "Test the alarm (1 min)",
+                {
+                    DigestScheduler(context).testIn(1)
+                    Toast.makeText(context, "It will arrive in about a minute, even if you lock the phone", Toast.LENGTH_LONG).show()
+                },
+                style = ButtonStyle.OUTLINE,
+                size = ButtonSize.COMPACT
+            )
+        }
+    }
 }
 
 /**

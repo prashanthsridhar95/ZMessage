@@ -32,6 +32,17 @@ class DigestScheduler(context: Context) {
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
     }
 
+    /** For trying it out: the same alarm path as the morning one, due in [minutes], that does not touch the real schedule. */
+    fun testIn(minutes: Int) {
+        val pending = PendingIntent.getBroadcast(
+            appContext,
+            TEST_REQUEST_CODE,
+            Intent(appContext, DigestReceiver::class.java).putExtra(DigestReceiver.EXTRA_TEST, true),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + minutes * 60_000L, pending)
+    }
+
     private fun pendingIntent(): PendingIntent = PendingIntent.getBroadcast(
         appContext,
         REQUEST_CODE,
@@ -42,5 +53,6 @@ class DigestScheduler(context: Context) {
     private companion object {
         const val DIGEST_HOUR = 8
         const val REQUEST_CODE = 801
+        const val TEST_REQUEST_CODE = 803
     }
 }
