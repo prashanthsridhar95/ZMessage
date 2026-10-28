@@ -6,6 +6,7 @@ import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.ScheduledKind
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.ZoneId
 
 enum class UpcomingKind { CARD_BILL, AUTO_DEBIT }
 
@@ -17,20 +18,32 @@ data class UpcomingItem(
     val amount: BigDecimal,
     val date: LocalDate,
     val message: ClassifiedMessage,
-    val paymentLink: String? = null
+    val paymentLink: String? = null,
+    /** The day the bill was paid, for a bill that has been; such a bill is kept for that day only. */
+    val paidOn: LocalDate? = null,
+    val paidAmount: BigDecimal? = null
 )
 
 object UpcomingBuilder {
     private const val HORIZON_DAYS = 30L
 
     /** Soonest first, within the next 30 days, today included. */
-    fun build(messages: List<ClassifiedMessage>, today: LocalDate): List<UpcomingItem> {
+    fun build(
+        messages: List<ClassifiedMessage>,
+        today: LocalDate,
+        /** Keep a bill that was paid today, marked as paid, so the day shows it done; it goes tomorrow. */
+        includePaidToday: Boolean = false,
+        zone: ZoneId = ZoneId.systemDefault()
+    ): List<UpcomingItem> {
         val horizon = today.plusDays(HORIZON_DAYS)
         val byId = messages.associateBy { it.id }
 
         val bills = CardBillsBuilder.build(messages, today).mapNotNull { card ->
             val due = card.latest.dueDate ?: return@mapNotNull null
             val message = byId[card.latest.messageId] ?: return@mapNotNull null
+            val paid = (message.content as? MessageContent.CardBill)?.let { BillPayments.find(message, it, messages, zone) }
+            // Paid before today: done and gone. Paid today: shown as paid, for today only.
+            if (paid != null && !(includePaidToday && paid.date == today)) return@mapNotNull null
             UpcomingItem(
                 key = "bill-${card.key}",
                 kind = UpcomingKind.CARD_BILL,
@@ -38,7 +51,9 @@ object UpcomingBuilder {
                 amount = card.latest.amount,
                 date = due,
                 message = message,
-                paymentLink = card.latest.paymentLink
+                paymentLink = card.latest.paymentLink.takeIf { paid == null },
+                paidOn = paid?.date,
+                paidAmount = paid?.amount
             )
         }
 
@@ -59,7 +74,7 @@ object UpcomingBuilder {
         }.distinctBy { it.key }
 
         return (bills + autoDebits)
-            .filter { !it.date.isBefore(today) && !it.date.isAfter(horizon) }
+            .filter { it.paidOn != null || (!it.date.isBefore(today) && !it.date.isAfter(horizon)) }
             .sortedBy { it.date }
     }
 }

@@ -1,5 +1,6 @@
 package com.zyke.message.domain.feed
 
+import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
 import com.zyke.message.domain.model.MessageContent
@@ -24,7 +25,7 @@ object AttentionBuilder {
         zone: ZoneId
     ): List<AttentionItem> {
         val today = LocalDate.ofInstant(now, zone)
-        val items = listOfNotNull(freshOtp(messages, now)) + bills(messages, now, today) + lowFastTags(messages)
+        val items = listOfNotNull(freshOtp(messages, now)) + bills(messages, now, today, zone) + lowFastTags(messages)
         return items.filter { it.key !in dismissed }.take(MAX_ITEMS)
     }
 
@@ -35,7 +36,7 @@ object AttentionBuilder {
         return AttentionItem.FreshOtp(newest, otp.code, otp.senderName)
     }
 
-    private fun bills(messages: List<ClassifiedMessage>, now: Instant, today: LocalDate): List<AttentionItem> =
+    private fun bills(messages: List<ClassifiedMessage>, now: Instant, today: LocalDate, zone: ZoneId): List<AttentionItem> =
         messages
             .filter { it.content is MessageContent.CardBill }
             .distinctBy {
@@ -43,6 +44,8 @@ object AttentionBuilder {
                 bill.bankName to bill.accountNumber
             }
             .filter { isStillRelevant(it, it.content as MessageContent.CardBill, now, today) }
+            // Once the provider says it was paid, the bill no longer needs attention.
+            .filter { BillPayments.find(it, it.content as MessageContent.CardBill, messages, zone) == null }
             .map {
                 val bill = it.content as MessageContent.CardBill
                 val bank = bill.bankName

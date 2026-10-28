@@ -165,3 +165,37 @@ class CardUnbilledTest {
         assertEquals(0, a.dueAmount!!.compareTo(java.math.BigDecimal("12345")))
     }
 }
+
+class BillPaidTest {
+    private val zone = ZoneId.of("UTC")
+    private val c = MessageClassifier()
+    private fun at(m: Int, d: Int, h: Int = 10) = java.time.LocalDate.of(2026, m, d).atTime(h, 0).atZone(zone).toInstant().toEpochMilli()
+    private val bill = c.classify(SmsMessage(1, "AD-HDFCBK", "HDFC Bank Credit Card XX1234 Statement: Total due amt: Rs.12,345.00 Min due amt: Rs.617.00 Due by:05-11-2026 pay https://hdfcbk.io/1234", at(10, 12), true))
+
+    @Test
+    fun aPaymentMessage_marksTheBillPaid_forTheDayItHappens_thenItGoes() {
+        val paid = c.classify(SmsMessage(2, "AD-HDFCBK", "Payment of Rs.12,345.00 received towards your HDFC Bank Credit Card XX1234 on 28-10-2026. Thank you.", at(10, 28), true))
+        val messages = listOf(paid, bill)
+
+        val today = com.zyke.message.domain.home.UpcomingBuilder.build(messages, java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
+        assertEquals(java.time.LocalDate.of(2026, 10, 28), today.single().paidOn)
+        assertTrue(today.single().paymentLink == null)
+
+        val tomorrow = com.zyke.message.domain.home.UpcomingBuilder.build(messages, java.time.LocalDate.of(2026, 10, 29), includePaidToday = true, zone = zone)
+        assertTrue(tomorrow.isEmpty())
+    }
+
+    @Test
+    fun anUnpaidBill_staysUp_andSpendingOnTheCardDoesNotPayIt() {
+        val spend = c.classify(SmsMessage(3, "AD-HDFCBK", "Rs.12345.00 spent on HDFC Bank Credit Card XX1234 at AMAZON on 20-10-26", at(10, 20), true))
+        val up = com.zyke.message.domain.home.UpcomingBuilder.build(listOf(spend, bill), java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
+        assertEquals(null, up.single().paidOn)
+    }
+
+    @Test
+    fun anAnnouncedAutoDebit_isNotAPaymentYet() {
+        val announced = c.classify(SmsMessage(4, "AD-HDFCBK", "Your HDFC Bank Credit Card XX1234 bill of Rs.12,345.00 will be auto debited on 05-11-2026.", at(10, 20), true))
+        val up = com.zyke.message.domain.home.UpcomingBuilder.build(listOf(announced, bill), java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
+        assertTrue(up.any { it.paidOn == null && it.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL })
+    }
+}

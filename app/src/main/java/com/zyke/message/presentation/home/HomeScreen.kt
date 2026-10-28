@@ -601,7 +601,9 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
 
 @Composable
 private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onPay: (String) -> Unit) {
-    val urgent = DisplayFormatters.isUrgent(item.date, today)
+    val paid = item.paidOn != null
+    val urgent = !paid && DisplayFormatters.isUrgent(item.date, today)
+    val good = com.zyke.message.presentation.common.limitColors().good
     Row(
         Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -610,12 +612,26 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             RowTitle(item.title)
-            Caption(
-                (if (item.kind == UpcomingKind.CARD_BILL) "Bill · " else "Auto-debit · ") + DisplayFormatters.dueLabel(item.date, today),
-                color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
-            )
+            if (paid) {
+                // Paid today: the day shows it done. Tomorrow the row is gone.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("\u2713", color = good, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Paid today",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = good
+                    )
+                }
+            } else {
+                Caption(
+                    (if (item.kind == UpcomingKind.CARD_BILL) "Bill · " else "Auto-debit · ") + DisplayFormatters.dueLabel(item.date, today),
+                    color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
+                )
+            }
             val link = item.paymentLink
-            if (link != null) {
+            if (link != null && !paid) {
                 AppButton(
                     text = "Pay bill",
                     onClick = { onPay(link) },
@@ -626,7 +642,7 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit
             }
         }
         Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
+        AmountText(DisplayFormatters.rupees(item.paidAmount ?: item.amount), if (paid) good else MaterialTheme.colorScheme.secondary)
     }
 }
 
