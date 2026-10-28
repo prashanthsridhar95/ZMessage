@@ -116,10 +116,10 @@ class WebSession(private val context: android.content.Context) {
         settings.allowContentAccess = false
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         webViewClient = object : WebViewClient() {
-            override fun onPageStarted(view: WebView, u: String?, favicon: Bitmap?) { loading = true }
+            override fun onPageStarted(view: WebView, u: String?, favicon: Bitmap?) { this@WebSession.loading = true }
             override fun onPageFinished(view: WebView, u: String?) {
-                loading = false
-                Uri.parse(u).host?.let { host = it }
+                this@WebSession.loading = false
+                Uri.parse(u).host?.let { this@WebSession.host = it }
             }
 
             // Pages that hand off to an app (UPI, a bank app) open it; plain web pages stay here.
@@ -131,7 +131,7 @@ class WebSession(private val context: android.content.Context) {
             }
         }
         webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
+            override fun onProgressChanged(view: WebView, newProgress: Int) { this@WebSession.progress = newProgress / 100f }
         }
     }.also { view = it }
 }
