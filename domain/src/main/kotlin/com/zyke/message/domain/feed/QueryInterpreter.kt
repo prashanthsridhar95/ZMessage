@@ -27,7 +27,7 @@ object QueryInterpreter {
         "utilities" to MessageCategory.UTILITIES, "investment" to MessageCategory.INVESTMENTS,
         "investments" to MessageCategory.INVESTMENTS, "savings" to MessageCategory.SAVINGS, "insurance" to MessageCategory.INSURANCE,
         "charity" to MessageCategory.CHARITY, "donation" to MessageCategory.CHARITY, "education" to MessageCategory.EDUCATION,
-        "family" to MessageCategory.FAMILY, "fastag" to MessageCategory.FASTAG, "courier" to MessageCategory.COURIER
+        "family" to MessageCategory.FAMILY, "salary" to MessageCategory.SALARY, "fastag" to MessageCategory.FASTAG, "courier" to MessageCategory.COURIER
     )
     private val SMART_WORDS: Map<String, SmartFilter> = mapOf(
         "otp" to SmartFilter.OTP, "otps" to SmartFilter.OTP, "bill" to SmartFilter.BILLS, "bills" to SmartFilter.BILLS,

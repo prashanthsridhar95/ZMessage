@@ -23,6 +23,7 @@ enum class MessageCategory(val displayString: String) {
     CHARITY("Charity"),
     EDUCATION("Education"),
     FAMILY("Family & gifts"),
+    SALARY("Salary"),
     OTHERS("Others");
 
     companion object {

@@ -1,6 +1,7 @@
 package com.zyke.message.domain.plan
 
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -52,7 +53,7 @@ object SalaryDetector {
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             val month = YearMonth.from(date)
             if (month < earliest || date.isAfter(today)) return@mapNotNull null
-            val salaryWord = SALARY_WORDS.containsMatchIn(message.message.body)
+            val salaryWord = message.category == MessageCategory.SALARY || SALARY_WORDS.containsMatchIn(message.message.body)
             Credit(month, date.dayOfMonth, amount, if (salaryWord) SALARY_KEY else payerKey(tx.payee), salaryWord)
         }.filter { it.payer.isNotEmpty() }
 
