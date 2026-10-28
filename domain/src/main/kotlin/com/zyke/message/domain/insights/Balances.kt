@@ -25,6 +25,7 @@ object BalanceReader {
         "(?i)(?:avl\\.?\\s*bal(?:ance)?|available\\s+bal(?:ance)?|a/?c\\s*bal(?:ance)?|bal(?:ance)?)\\s*(?:is|:|-|=)?\\s*(?:INR\\.?|Rs\\.?|₹)\\s*([\\d,]+(?:\\.\\d+)?)"
     )
     private val NOTICE_BALANCE = Regex("(?i)\\b[A-Z]{0,4}[xX*\u2022]*\\d*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
+    private val PF_BALANCE = Regex("(?i)\\bagainst\\s+[A-Z0-9*\u2022]*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|total due|min(?:imum)? due)\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
@@ -59,9 +60,14 @@ object BalanceReader {
     /** The balances a bank's "available balance for a/c no(s) X is INR 1, Y is INR 2" message states, one per account. */
     fun noticeBalances(message: ClassifiedMessage, zone: ZoneId): List<AccountBalance> {
         val notice = message.content as? MessageContent.Notice ?: return emptyList()
-        if (notice.kind != NoticeKind.BALANCE_UPDATE) return emptyList()
+        val pattern = when (notice.kind) {
+            NoticeKind.BALANCE_UPDATE -> NOTICE_BALANCE
+            // A passbook says "your passbook balance against <member id> is Rs. X"; the id's last digits name the fund.
+            NoticeKind.PF_UPDATE -> PF_BALANCE
+            else -> return emptyList()
+        }
         val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
-        return NOTICE_BALANCE.findAll(message.message.body).mapNotNull { match ->
+        return pattern.findAll(message.message.body.replace('\u00a0', ' ')).mapNotNull { match ->
             val amount = match.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
             AccountBalance(match.groupValues[1], "", amount, date, message.id)
         }.toList()

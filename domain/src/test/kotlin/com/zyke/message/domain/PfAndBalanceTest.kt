@@ -70,3 +70,28 @@ class FederalBalanceAccountsTest {
         assertEquals(setOf("6438", "7198"), overview.accounts.map { it.last4 }.toSet())
     }
 }
+
+class PfAccountTest {
+    private val zone = ZoneId.of("UTC")
+
+    @Test
+    fun passbookMemberId_becomesAFundAccountWithItsBalance() {
+        val m = MessageClassifier().classify(
+            SmsMessage(1, "AD-EPFOHO", "Dear XXXXXXXX4705, your passbook balance against TBTAM******8804 is Rs. 9,99,999/-. Contribution of Rs. 23,400/- for due month Jun-26 has been received.", 1_000_000_000L, true)
+        )
+        val overview = com.zyke.message.domain.accounts.Accounts.build(listOf(m), emptyList(), java.time.Instant.ofEpochMilli(2_000_000_000L), zone)
+        val fund = overview.accounts.single()
+        assertEquals("8804", fund.last4)
+        assertTrue(fund.isProvidentFund)
+        assertEquals(0, fund.balance!!.compareTo(java.math.BigDecimal("999999")))
+        assertTrue(overview.totalBalance == null)
+    }
+
+    @Test
+    fun anAccountTheyAddedIsListedWithoutMessages() {
+        val card = com.zyke.message.domain.model.UserCard("u", com.zyke.message.domain.model.CardType.ACCOUNT, "6438", "", null, "Federal Bank")
+        val overview = com.zyke.message.domain.accounts.Accounts.build(emptyList(), listOf(card), java.time.Instant.ofEpochMilli(2_000_000_000L), zone)
+        assertEquals("6438", overview.accounts.single().last4)
+    }
+}
+

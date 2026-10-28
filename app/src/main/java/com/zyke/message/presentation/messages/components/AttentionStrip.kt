@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -137,18 +139,36 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
     }
 }
 
-/** "Pay" with a small drop-down beside it: for a bill that was settled another way, "Mark as paid" clears it. */
+/**
+ * One pill: "Pay" on the left, a divider, and a chevron on the right that opens a menu with "Mark as paid", for a bill
+ * that was settled another way. A bill with no pay link is just the "Mark as paid" half.
+ */
 @Composable
 private fun BillActions(payLink: String?, onPay: () -> Unit, onMarkPaid: () -> Unit) {
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    val container = MaterialTheme.colorScheme.primary
+    val content = MaterialTheme.colorScheme.onPrimary
     Box {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (payLink != null) AppButton("Pay", onPay, size = ButtonSize.COMPACT)
-            Box(
-                Modifier.size(width = 36.dp, height = 48.dp).clip(CircleShape).clickable(onClickLabel = "More bill options") { open = true },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("\u25BE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Row(
+            Modifier.height(36.dp).clip(shape).background(container),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (payLink != null) {
+                Box(
+                    Modifier.fillMaxHeight().clickable(onClickLabel = "Pay the bill", onClick = onPay).padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("Pay", color = content, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
+                Box(Modifier.width(1.dp).fillMaxHeight(0.55f).background(content.copy(alpha = 0.35f)))
+                Box(
+                    Modifier.fillMaxHeight().clickable(onClickLabel = "More bill options") { open = true }.padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("\u2304", color = content, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
+            } else {
+                Box(
+                    Modifier.fillMaxHeight().clickable(onClickLabel = "Mark the bill as paid", onClick = onMarkPaid).padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("Mark as paid", color = content, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
             }
         }
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

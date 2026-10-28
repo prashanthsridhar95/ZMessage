@@ -157,9 +157,9 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                     }
                 }
             }
-            if (pf != null) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
+            if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
             funds.forEach { fund ->
-                item(key = fund.key) { FundTile(fund) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
+                item(key = fund.key) { FundTile(fund, pf) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
             }
         } else if (shown.isEmpty()) {
             item(key = "empty") {
@@ -175,7 +175,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
 /** An account marked as a provident fund: a calmer tile that leads with what has been put in, not spending. */
 @Composable
-private fun FundTile(fund: AccountSummary, onOpen: () -> Unit) {
+private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onOpen: () -> Unit) {
     val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
     val asOf = fund.balanceAsOf
     FintechCard(onClick = onOpen) {
@@ -190,9 +190,15 @@ private fun FundTile(fund: AccountSummary, onOpen: () -> Unit) {
         Caption(if (asOf != null) "balance as of ${dayFormat.format(asOf)}" else "balance not stated", maxLines = 2)
         HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("Added this cycle", DisplayFormatters.rupees(fund.received))
-            Stat("Taken out", DisplayFormatters.rupees(fund.spent))
-            Stat("Entries", fund.activityCount.toString())
+            if (fund.fromPassbook && pf != null) {
+                Stat("Last added", pf.latest.added?.let { DisplayFormatters.rupees(it) } ?: "—")
+                Stat("Updated", DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()).format(pf.latest.date))
+                Stat("Updates", pf.updates.size.toString())
+            } else {
+                Stat("Added this cycle", DisplayFormatters.rupees(fund.received))
+                Stat("Taken out", DisplayFormatters.rupees(fund.spent))
+                Stat("Entries", fund.activityCount.toString())
+            }
         }
     }
 }

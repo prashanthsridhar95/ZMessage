@@ -47,7 +47,9 @@ data class AccountSummary(
     /** The statement day the card's bills point to, when the person has not set one. */
     val suggestedStatementDay: Int? = null,
     /** The person marked this as a provident fund; it is shown under Savings and kept out of the bank total. */
-    val isProvidentFund: Boolean = false
+    val isProvidentFund: Boolean = false,
+    /** The member id's last four digits came from an EPF passbook message, so this is a provident fund without being told. */
+    val fromPassbook: Boolean = false
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -130,7 +132,9 @@ object Accounts {
                 paymentLink = bill?.paymentLink,
                 sampleMessageId = newest.message.id,
                 userCard = card,
-                isProvidentFund = "${kind.name.lowercase()}-$last4" in providentFunds,
+                isProvidentFund = "${kind.name.lowercase()}-$last4" in providentFunds ||
+                    (kind == AccountKind.BANK_ACCOUNT && rows.all { isPassbook(it.message) }),
+                fromPassbook = rows.all { isPassbook(it.message) },
                 suggestedStatementDay = if (kind == AccountKind.CREDIT_CARD && card?.statementDay == null) {
                     StatementDays.suggest(
                         rows.filter { it.message.content is MessageContent.CardBill }
@@ -138,6 +142,24 @@ object Accounts {
                     )
                 } else null
             )
+        }.let { fromMessages ->
+            // An account or card the person added is listed even before a message mentions it.
+            fromMessages + userCards.filter { card -> fromMessages.none { it.last4 == card.last4 && it.isCard == (card.type != CardType.ACCOUNT) } }.map { card ->
+                val kind = when (card.type) {
+                    CardType.CREDIT -> AccountKind.CREDIT_CARD
+                    CardType.DEBIT -> AccountKind.DEBIT_CARD
+                    CardType.ACCOUNT -> AccountKind.BANK_ACCOUNT
+                }
+                val balance = if (kind == AccountKind.BANK_ACCOUNT) balances[card.last4] else null
+                AccountSummary(
+                    key = "${kind.name.lowercase()}-${card.last4}", kind = kind, bankName = BankName.OTHERS, last4 = card.last4,
+                    title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },
+                    balance = balance?.amount, balanceAsOf = balance?.asOf,
+                    spent = BigDecimal.ZERO, received = BigDecimal.ZERO, activityCount = 0, lastActivity = 0L,
+                    dueAmount = null, dueDate = null, minimumDue = null, paymentLink = null, sampleMessageId = 0L, userCard = card,
+                    isProvidentFund = "${kind.name.lowercase()}-${card.last4}" in providentFunds
+                )
+            }
         }.filter { it.key !in hidden }.sortedWith(
             // Accounts first, then cards; the busiest first within each.
             compareBy<AccountSummary> { it.isCard }.thenByDescending { it.lastActivity }
@@ -146,6 +168,8 @@ object Accounts {
         val known = accounts.filter { !it.isProvidentFund }.mapNotNull { it.balance }
         return AccountsOverview(accounts, known.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO, BigDecimal::add), known.size)
     }
+
+    private fun isPassbook(message: ClassifiedMessage) = (message.content as? MessageContent.Notice)?.kind == com.zyke.message.domain.model.NoticeKind.PF_UPDATE
 
     private fun hit(message: ClassifiedMessage, accountNumber: String, isCard: Boolean, bank: BankName): Hit? {
         val digits = accountNumber.filter { it.isDigit() }.takeLast(LAST_DIGITS)
