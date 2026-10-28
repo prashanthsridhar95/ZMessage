@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.categories.CategoryKey
+import com.zyke.message.domain.categories.CategoryOptions
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -307,7 +308,8 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismi
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             }
-            MessageCategory.assignable.forEach { category ->
+            Caption(CategoryOptions.natureOf(item.content).label, Modifier.padding(top = 8.dp, bottom = 2.dp))
+            CategoryOptions.forMessage(item).forEach { category ->
                 val current = item.category == category
                 CategoryRow(category.displayString, current) {
                     // Choosing the current one goes back to the automatic guess.
