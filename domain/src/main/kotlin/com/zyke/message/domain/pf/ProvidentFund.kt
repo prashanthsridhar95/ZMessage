@@ -23,7 +23,7 @@ data class ProvidentFund(
 
 object ProvidentFunds {
     private const val AMOUNT = "(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)"
-    private val BALANCE = Regex("(?i)(?:total\\s+)?(?:balance|corpus)\\b[^\\d\u20b9]{0,40}?$AMOUNT")
+    private val BALANCE = Regex("(?i)(?:balance|corpus)\\b[^\u20b9]{0,60}?\\bis\\s*$AMOUNT|(?:total\\s+)?(?:balance|corpus)\\b[^\\d\u20b9]{0,40}?$AMOUNT")
     private val ADDED = Regex("(?i)(?:updated with|contribution of|credited|deposit(?:ed)? of|amount of)\\b[^\\d\u20b9]{0,25}?$AMOUNT")
     private val ANY = Regex("(?i)$AMOUNT")
 
@@ -46,5 +46,5 @@ object ProvidentFunds {
     }
 
     private fun number(regex: Regex, text: String): BigDecimal? =
-        regex.find(text)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull()
+        regex.find(text)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull()
 }

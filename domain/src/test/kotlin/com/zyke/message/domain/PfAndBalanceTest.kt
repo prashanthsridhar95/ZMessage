@@ -43,4 +43,13 @@ class PfAndBalanceTest {
         assertTrue(pf.balance == null)
         assertEquals(0, pf.latest.added!!.compareTo(java.math.BigDecimal("2100")))
     }
+
+    @Test
+    fun uanPassbookBalanceMessage_isRead() {
+        val m = sms(4, "Dear XXXXXXXX4705, your passbook balance against TBTAM******8804 is Rs. 9,99,999/-. Contribution of Rs. 23,400/- for due month Jun-26 has been received.")
+        assertEquals(NoticeKind.PF_UPDATE, (m.content as MessageContent.Notice).kind)
+        val pf = ProvidentFunds.find(listOf(m), zone)!!
+        assertEquals(0, pf.balance!!.compareTo(java.math.BigDecimal("999999")))
+        assertEquals(0, pf.latest.added!!.compareTo(java.math.BigDecimal("23400")))
+    }
 }
