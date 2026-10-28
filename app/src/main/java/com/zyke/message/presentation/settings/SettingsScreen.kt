@@ -132,11 +132,7 @@ fun SettingsSheet(
                 onRemove = { onIntent(Intent.RemoveWish(it)) }
             )
 
-            CardsSection(
-                state.cards, state.hiddenAccounts,
-                onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) },
-                onRestore = { onIntent(Intent.RestoreAccount(it)) }
-            )
+            CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
             GroupLabel("Messages")
             SectionCard("Pictures") {
@@ -273,13 +269,7 @@ fun SettingsSheet(
 
 /** The person's cards: with their last four digits, messages are matched to the right card and grouped by cycle. */
 @Composable
-private fun CardsSection(
-    cards: List<UserCard>,
-    hidden: Set<String>,
-    onSave: (UserCard) -> Unit,
-    onDelete: (String) -> Unit,
-    onRestore: (String) -> Unit
-) {
+private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDelete: (String) -> Unit) {
     var editing by remember { mutableStateOf<UserCard?>(null) }
     var adding by remember { mutableStateOf(false) }
 
@@ -312,16 +302,6 @@ private fun CardsSection(
             style = ButtonStyle.OUTLINE,
             modifier = Modifier.padding(top = 12.dp)
         )
-        if (hidden.isNotEmpty()) {
-            Caption("REMOVED FROM YOUR ACCOUNTS", Modifier.padding(top = 20.dp))
-            hidden.sorted().forEach { key ->
-                val kind = key.substringBefore('-').replace('_', ' ').replaceFirstChar { it.uppercase() }
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RowTitle("$kind •• ${key.substringAfter('-')}", Modifier.weight(1f))
-                    AppButton("Bring back", { onRestore(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                }
-            }
-        }
     }
 
     if (adding) {

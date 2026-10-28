@@ -46,10 +46,9 @@ class SettingsViewModel(
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-    private val wishlistRepository: WishlistRepository = NoWishlist,
-    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
+    private val wishlistRepository: WishlistRepository = NoWishlist
 ) : MviViewModel<State, Intent, Effect>(
-    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, plan = planRepository.plan.value,
+    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
         wishlist = wishlistRepository.items.value)
 ) {
 
@@ -72,7 +71,6 @@ class SettingsViewModel(
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduce { copy(dailyLimits = daily) }; recomputeLimits() }
         }
-        viewModelScope.launch { hiddenAccounts.hidden.collect { keys -> reduce { copy(hiddenAccounts = keys) } } }
         viewModelScope.launch {
             cardRepository.cards.collect { cards -> reduce { copy(cards = cards) } }
         }
@@ -139,7 +137,6 @@ class SettingsViewModel(
                 budgetRepository.setBudget(intent.category, null)
                 emitEffect(Effect.ShowMessage("Limits removed"))
             }
-            is Intent.RestoreAccount -> hiddenAccounts.show(intent.key)
             is Intent.DeleteCard -> {
                 cardRepository.remove(intent.id)
                 emitEffect(Effect.ShowMessage("Removed"))
@@ -218,16 +215,14 @@ class SettingsViewModel(
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-        private val wishlistRepository: WishlistRepository = NoWishlist,
-        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
+        private val wishlistRepository: WishlistRepository = NoWishlist
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository,
-                hiddenAccounts = hiddenAccounts
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository
             ) as T
     }
 }

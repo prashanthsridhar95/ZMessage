@@ -20,7 +20,6 @@ object SettingsContract {
         val diagnostics: ParsingDiagnostics? = null,
         val confirmingReset: Boolean = false,
         val cards: List<UserCard> = emptyList(),
-        val hiddenAccounts: Set<String> = emptySet(),
         /** Categories with a daily and / or monthly limit, and where they stand today and this month. */
         val limits: List<CategoryLimits> = emptyList(),
         val dailyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
@@ -45,7 +44,6 @@ object SettingsContract {
         data class SetLiveAlerts(val enabled: Boolean) : Intent
         data class SaveCard(val card: UserCard) : Intent
         data class DeleteCard(val id: String) : Intent
-        data class RestoreAccount(val key: String) : Intent
         /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */
         data class SetLimits(val category: MessageCategory, val daily: String, val monthly: String) : Intent
         data class RemoveLimits(val category: MessageCategory) : Intent

@@ -63,6 +63,7 @@ class MessageClassifier(
         return when {
             OtpParser.isOtp(body) -> otp(message)
             body.contains("Bank Tag", true) || body.contains("Fastag", true) -> fastTag(message)
+            NoticeParser.isProvidentFund(body) -> notice(message) ?: generic(message)
             GenericTransactionParser.mentionsMoney(body) -> bank(message)
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
@@ -220,7 +221,7 @@ class MessageClassifier(
         val merchant = merchants.resolve("${message.sender} ${message.body}")
         return ClassifiedMessage(
             message = message,
-            category = merchant.category,
+            category = if (kind == NoticeKind.PF_UPDATE) MessageCategory.SAVINGS else merchant.category,
             merchant = merchant,
             content = MessageContent.Notice(kind, amount)
         )

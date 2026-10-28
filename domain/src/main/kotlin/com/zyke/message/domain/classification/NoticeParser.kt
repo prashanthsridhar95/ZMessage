@@ -5,6 +5,8 @@ import com.zyke.message.domain.model.NoticeKind
 /** Spots informational messages that mention money but are not a payment, so they are not reported as unparsed. */
 object NoticeParser {
     private val RULES: List<Pair<Regex, NoticeKind>> = listOf(
+        Regex("(?i)\\b(?:EPFO?|PF|provident fund)\\b.*\\bpassbook\\b|\\bpassbook\\b.*\\b(?:EPFO?|PF|provident fund|UAN|member id)\\b") to NoticeKind.PF_UPDATE,
+        Regex("(?i)\\bavailable balance for a/?c\\b") to NoticeKind.BALANCE_UPDATE,
         Regex("(?i)\\btransaction of\\b.*\\bconverted into EMI\\b") to NoticeKind.EMI_CONVERTED,
         Regex("(?i)\\bAutopay Failed") to NoticeKind.AUTOPAY_FAILED,
         Regex("(?i)\\brefund\\b.*\\b(?:initiated|processed|approved|will be credited|being processed|in process|raised|issued)\\b") to NoticeKind.REFUND_PENDING,
@@ -24,6 +26,9 @@ object NoticeParser {
     )
 
     private val AMOUNT = Regex("(?i)(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
+
+    /** An EPF / PF passbook message, which says what went in and often the balance. */
+    fun isProvidentFund(body: String) = RULES.first().first.containsMatchIn(body.replace(Regex("\\s+"), " "))
 
     fun detect(body: String): Pair<NoticeKind, String?>? {
         val flat = body.replace(Regex("\\s+"), " ")

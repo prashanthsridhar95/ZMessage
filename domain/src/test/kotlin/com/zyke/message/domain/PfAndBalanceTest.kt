@@ -1,0 +1,46 @@
+package com.zyke.message.domain
+
+import com.zyke.message.domain.classification.MessageClassifier
+import com.zyke.message.domain.insights.BalanceReader
+import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.model.NoticeKind
+import com.zyke.message.domain.model.SmsMessage
+import com.zyke.message.domain.pf.ProvidentFunds
+import java.time.ZoneId
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PfAndBalanceTest {
+    private val classifier = MessageClassifier()
+    private val zone = ZoneId.of("UTC")
+    private fun sms(id: Long, body: String, sender: String = "AD-EPFOHO") = classifier.classify(SmsMessage(id, sender, body, id * 86_400_000L, true))
+
+    @Test
+    fun federalBalanceMessage_isABalanceNotice_andReadAsABalance() {
+        val m = sms(1, "Your available balance for a/c no(s) SBA9999 is INR 9,999 .For detailed statement download FedMobile https://x.co - Federal Bank", "AD-FEDBNK")
+        assertEquals(NoticeKind.BALANCE_UPDATE, (m.content as MessageContent.Notice).kind)
+        val balance = BalanceReader.latest(listOf(m), zone).single()
+        assertEquals("9999", balance.account)
+        assertEquals(0, balance.amount.compareTo(java.math.BigDecimal("9999")))
+    }
+
+    @Test
+    fun passbookMessage_isPfUpdate_withAmountAndBalance() {
+        val m = sms(2, "Dear Member, your EPF passbook has been updated with Rs. 3,500 for wage month Sep-2026. Your total balance is Rs. 1,25,000.")
+        assertEquals(NoticeKind.PF_UPDATE, (m.content as MessageContent.Notice).kind)
+        val pf = ProvidentFunds.find(listOf(m), zone)
+        assertNotNull(pf)
+        assertEquals(0, pf!!.balance!!.compareTo(java.math.BigDecimal("125000")))
+        assertEquals(0, pf.latest.added!!.compareTo(java.math.BigDecimal("3500")))
+    }
+
+    @Test
+    fun passbookMessage_withoutBalance_showsTheAmountOnly() {
+        val m = sms(3, "Your PF passbook has been updated with Rs.2,100.")
+        val pf = ProvidentFunds.find(listOf(m), zone)!!
+        assertTrue(pf.balance == null)
+        assertEquals(0, pf.latest.added!!.compareTo(java.math.BigDecimal("2100")))
+    }
+}

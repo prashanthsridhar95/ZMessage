@@ -79,8 +79,7 @@ class MainActivity : ComponentActivity() {
             onDigestChanged = { DigestScheduler(this).apply(it) },
             onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
             planRepository = container.moneyPlan,
-            wishlistRepository = container.wishlist,
-            hiddenAccounts = container.hiddenAccounts
+            wishlistRepository = container.wishlist
         )
     }
 

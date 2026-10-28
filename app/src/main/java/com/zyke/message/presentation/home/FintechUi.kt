@@ -126,8 +126,10 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     var tab by rememberSaveable { mutableStateOf(0) }
     val shown = when (tab) {
         0 -> banks
-        else -> cards
+        1 -> cards
+        else -> emptyList()
     }
+    val pf = state.providentFund
 
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
@@ -138,15 +140,23 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         item(key = "tabs") {
             UnderlineTabs(
-                labels = listOf("Accounts", "Cards"),
-                counts = listOf(banks.size, cards.size),
+                labels = listOf("Accounts", "Cards", "Savings"),
+                counts = listOf(banks.size, cards.size, if (pf != null) 1 else 0),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
             )
         }
 
-        if (shown.isEmpty()) {
+        if (tab == 2) {
+            item(key = "pf") {
+                if (pf == null) {
+                    FintechCard { Caption("No provident fund yet. Passbook messages from EPFO show up here.", maxLines = 3) }
+                } else {
+                    PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) }
+                }
+            }
+        } else if (shown.isEmpty()) {
             item(key = "empty") {
                 FintechCard { Caption(if (tab == 0) "No accounts yet" else "No cards yet") }
             }
@@ -155,6 +165,35 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
         }
 
+    }
+}
+
+/** The provident fund: its balance when a passbook message states one, else what the latest update added. */
+@Composable
+private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onOpen: () -> Unit) {
+    val dayFormat = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+    val latest = pf.latest
+    val asOf = pf.balanceAsOf
+    FintechCard(onClick = onOpen) {
+        Caption("PROVIDENT FUND (EPF)")
+        Text(
+            (pf.balance ?: latest.added)?.let { DisplayFormatters.rupees(it) } ?: "—",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Caption(
+            if (pf.balance != null && asOf != null) "balance as of ${dayFormat.format(asOf)}"
+            else "latest passbook update, ${dayFormat.format(latest.date)}. No balance stated yet.",
+            maxLines = 2
+        )
+        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("Last added", latest.added?.let { DisplayFormatters.rupees(it) } ?: "—")
+            Stat("Updated", dayFormat.format(latest.date))
+            Stat("Updates", pf.updates.size.toString())
+        }
     }
 }
 

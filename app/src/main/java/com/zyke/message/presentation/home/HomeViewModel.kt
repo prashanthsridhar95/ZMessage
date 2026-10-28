@@ -264,6 +264,7 @@ class HomeViewModel(
                 daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone) },
                 goals = Goals.all(updated.goalList, today),
                 reminders = Reminders.upcoming(updated.reminderList, today),
+                providentFund = com.zyke.message.domain.pf.ProvidentFunds.find(live, zone),
                 accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle, updated.hiddenAccounts),
                 quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
                 nudges = (PaceNudges.build(limits, updated.wishlist, updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))

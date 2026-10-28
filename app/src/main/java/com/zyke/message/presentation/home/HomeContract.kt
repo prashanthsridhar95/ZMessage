@@ -45,6 +45,7 @@ object HomeContract {
         val reminderList: List<Reminder> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val hiddenAccounts: Set<String> = emptySet(),
+        val providentFund: com.zyke.message.domain.pf.ProvidentFund? = null,
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
         val now: Instant = Instant.EPOCH,
