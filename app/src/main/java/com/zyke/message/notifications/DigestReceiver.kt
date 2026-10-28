@@ -22,25 +22,18 @@ import kotlinx.coroutines.launch
 /** Posts the morning digest. It reads the inbox on the phone and shows one notification; nothing is sent anywhere. */
 class DigestReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val isTest = intent.getBooleanExtra(EXTRA_TEST, false)
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                if (!isTest) {
-                    // Tomorrow's alarm first, so a failure below cannot end the mornings.
-                    val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
-                    if (!container.settings.settings.value.morningDigest) return@launch
-                    DigestScheduler(context).apply(true)
-                }
+                // Tomorrow's alarm first, so a failure below cannot end the mornings.
+                val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+                if (!container.settings.settings.value.morningDigest) return@launch
+                DigestScheduler(context).apply(true)
                 DigestNotifier.show(context)
             } finally {
                 pending.finish()
             }
         }
-    }
-
-    companion object {
-        const val EXTRA_TEST = "test"
     }
 }
 
