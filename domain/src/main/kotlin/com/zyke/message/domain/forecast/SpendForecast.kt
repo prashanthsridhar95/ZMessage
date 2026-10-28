@@ -69,7 +69,7 @@ object SpendForecasts {
     )
 
     /** Categories a person can choose to spend less on. Rent-like and fixed costs are left alone. */
-    private val FLEXIBLE = setOf(
+    internal val FLEXIBLE = setOf(
         MessageCategory.ENTERTAINMENT, MessageCategory.FOOD, MessageCategory.SHOPPING, MessageCategory.TRAVEL,
         MessageCategory.UPI_PAYMENT, MessageCategory.OTHERS, MessageCategory.FUEL, MessageCategory.GROCERIES, MessageCategory.FAMILY
     )

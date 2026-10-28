@@ -143,6 +143,7 @@ class DashboardViewModel(
         } else {
             val flowQuery = updated.query.copy(category = null)
             val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, clock.zone)
+            val planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
             updated.copy(
                 cycle = cycle,
                 categoryDetail = updated.openCategory?.let { open ->
@@ -161,7 +162,10 @@ class DashboardViewModel(
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
                 limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),
-                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle),
+                planInsights = planInsights,
+                limitSuggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(
+                    updated.messages, updated.budgets, planInsights?.spendable, updated.now, clock.zone, cycle
+                ),
                 forecast = com.zyke.message.domain.forecast.SpendForecasts.build(
                     updated.messages,
                     // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.

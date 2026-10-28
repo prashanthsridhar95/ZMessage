@@ -69,6 +69,7 @@ import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.presentation.dashboard.components.LimitsCard
 import com.zyke.message.presentation.dashboard.components.ForecastCard
+import com.zyke.message.presentation.dashboard.components.LimitSuggestionsCard
 import com.zyke.message.presentation.dashboard.components.PlanCard
 import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CardCyclesSection
@@ -365,6 +366,15 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
         item(key = "limits") {
             LimitsCard(state.limits, onManage = LocalOpenSettings.current)
+        }
+
+        if (state.limitSuggestions.isNotEmpty()) {
+            item(key = "limit-suggestions") {
+                LimitSuggestionsCard(
+                    state.limitSuggestions,
+                    onSet = { category, amount -> onIntent(Intent.SaveBudget(category, amount.toPlainString())) }
+                )
+            }
         }
     }
 }
