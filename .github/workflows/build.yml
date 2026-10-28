@@ -1,13 +1,27 @@
 name: Build Android APK
 
+# Builds a debug APK on every push to the main branch, or on demand from the Actions tab.
+# CI (ci.yml) covers pull requests, lint and static analysis; this one is for getting an installable APK.
 on:
   push:
     branches: [ "main", "master" ]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   workflow_dispatch: # Allows you to manually trigger the build
+
+permissions:
+  contents: read
+
+# A newer push replaces a build that is still running for the same branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Code
@@ -18,16 +32,43 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      # Caches the Gradle wrapper, dependencies and build cache between runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # The runner image ships with an Android SDK; this makes sure the platform and build tools the app needs are
+      # there and that their licences are accepted, so Gradle never stops to ask.
+      - name: Prepare Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      # Fail fast: the business rules are pure Kotlin and run in seconds.
+      - name: Domain tests
+        run: ./gradlew :domain:test --stacktrace
+
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: zyke-message-debug-apk-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Test and build reports, kept when something fails so the cause can be read.
+      - name: Upload Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports-${{ github.sha }}
+          path: |
+            domain/build/reports/
+            app/build/reports/
+          if-no-files-found: ignore
