@@ -354,6 +354,10 @@ internal fun AccountSheet(
                 )
             }
 
+            account.balanceMessageId?.takeIf { !account.isCard }?.let { id ->
+                AppButton("See the message this balance came from", { onOpenMessage(id) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
+
             RemoveAccountPicture(account)
 
             account.paymentLink?.let { AppButton("Pay bill", { onPay(it) }, Modifier.fillMaxWidth()) }

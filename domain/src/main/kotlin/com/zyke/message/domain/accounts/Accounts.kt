@@ -49,7 +49,9 @@ data class AccountSummary(
     /** The person marked this as a provident fund; it is shown under Savings and kept out of the bank total. */
     val isProvidentFund: Boolean = false,
     /** The member id's last four digits came from an EPF passbook message, so this is a provident fund without being told. */
-    val fromPassbook: Boolean = false
+    val fromPassbook: Boolean = false,
+    /** The message the balance was read from, so the person can check it. */
+    val balanceMessageId: Long? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -128,6 +130,7 @@ object Accounts {
                 title = card?.name?.takeIf { it.isNotBlank() } ?: "${bank.displayString.ifEmpty { "Account" }} ${kind.label.lowercase()}",
                 balance = balance?.amount,
                 balanceAsOf = balance?.asOf,
+                balanceMessageId = balance?.messageId,
                 spent = spent,
                 received = received,
                 activityCount = count,
@@ -160,7 +163,7 @@ object Accounts {
                 AccountSummary(
                     key = "${kind.name.lowercase()}-${card.last4}", kind = kind, bankName = BankName.OTHERS, last4 = card.last4,
                     title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },
-                    balance = balance?.amount, balanceAsOf = balance?.asOf,
+                    balance = balance?.amount, balanceAsOf = balance?.asOf, balanceMessageId = balance?.messageId,
                     spent = BigDecimal.ZERO, received = BigDecimal.ZERO, activityCount = 0, lastActivity = 0L,
                     dueAmount = null, dueDate = null, minimumDue = null, paymentLink = null, sampleMessageId = 0L, userCard = card,
                     isProvidentFund = "${kind.name.lowercase()}-${card.last4}" in providentFunds
