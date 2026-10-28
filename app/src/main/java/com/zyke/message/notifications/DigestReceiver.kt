@@ -1,6 +1,14 @@
 package com.zyke.message.notifications
 
 import android.Manifest
+import java.util.Locale
+import java.time.format.DateTimeFormatter
+import java.time.LocalDate
+import com.zyke.message.presentation.format.DisplayFormatters
+import com.zyke.message.domain.insights.DigestItem
+import android.text.style.StyleSpan
+import android.text.SpannableString
+import android.graphics.Typeface
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -49,7 +57,7 @@ object DigestNotifier {
     /** A quiet day still gets its line, so a missing notification means something is wrong, not that nothing is due. */
     suspend fun show(context: Context): Boolean {
         if (!canNotify(context)) return false
-        val digest = DigestProvider.load(context) ?: DigestSummary("Your day", listOf("Nothing due or on today"))
+        val digest = DigestProvider.load(context) ?: DigestSummary("Your day", emptyList())
         post(context, digest)
         return true
     }
@@ -67,26 +75,54 @@ object DigestNotifier {
             context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val day = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault()).format(LocalDate.now())
+        val items = digest.items
+        val urgent = items.count { it.urgent }
+
+        // Collapsed: how many things, and the most pressing one. Expanded: every thing on its own line.
+        val headline = when {
+            items.isEmpty() -> "All clear"
+            items.size == 1 -> "1 thing today"
+            else -> "${items.size} things today" + if (urgent > 0) " · $urgent due now" else ""
+        }
+        val preview = items.firstOrNull()?.let { line(it) } ?: "Nothing due or on today"
+        val style = NotificationCompat.InboxStyle().setSummaryText("Zyke Message")
+        if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it)) }
+
+        val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.baseline_message_24)
-            .setContentTitle(digest.title)
-            .setContentText(digest.short)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(digest.lines.joinToString("\n")))
+            .setColor(accent)
+            .setContentTitle("$headline · $day")
+            .setContentText(preview)
+            .setStyle(style)
             .setContentIntent(open)
             .addAction(0, "Open", open)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setShowWhen(true)
+            .setShowWhen(false)
+            .setAutoCancel(true)
             // The text stays off the lock screen, with a plain line in its place, until the phone is unlocked.
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL)
                     .setSmallIcon(R.drawable.baseline_message_24)
+                    .setColor(accent)
                     .setContentTitle("Your day")
                     .setContentText("Unlock to read your morning summary")
                     .build()
             )
             .build()
         manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /** "Reminder: Rent ₹12,000 today" as one plain line. */
+    private fun line(item: DigestItem): String =
+        listOfNotNull(item.title, item.amount?.let { DisplayFormatters.rupees(it) }, item.detail.takeIf { it.isNotBlank() }).joinToString(" · ")
+
+    /** The same line with the title in bold, so the eye finds what each is about. */
+    private fun boldTitle(item: DigestItem): CharSequence {
+        val text = line(item)
+        return SpannableString(text).apply { setSpan(StyleSpan(Typeface.BOLD), 0, item.title.length.coerceAtMost(text.length), 0) }
     }
 }

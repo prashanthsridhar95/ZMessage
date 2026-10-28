@@ -7,4 +7,12 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="zyke_accent">#FFC9A24B</color>
+    <color name="widget_gold">#FFE8C98A</color>
+    <color name="widget_text">#FFF4EEE2</color>
+    <color name="widget_muted">#FFA89F8F</color>
+    <color name="widget_urgent">#FFFF7A70</color>
+    <color name="widget_due">#FFE8C98A</color>
+    <color name="widget_event">#FF7AB8FF</color>
+    <color name="widget_info">#FF5ED6A1</color>
 </resources>

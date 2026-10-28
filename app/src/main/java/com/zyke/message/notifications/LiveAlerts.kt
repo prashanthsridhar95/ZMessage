@@ -60,12 +60,18 @@ internal object LiveAlerts {
                 .putExtra(EXTRA_CODE, content.code).putExtra(EXTRA_NOTIFICATION_ID, id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // The code is the headline, large and spaced so it can be read at a glance and typed from the shade.
+        val spaced = if (content.code.length == 6) "${content.code.take(3)} ${content.code.drop(3)}" else content.code
+        val forPayment = content.paymentAmount?.let { " for ${DisplayFormatters.rupees(it)}" }.orEmpty()
         notify(
             context, id,
-            title = "Code from ${content.senderName}",
-            text = content.code,
-            publicText = "A new one-time code",
+            title = spaced,
+            text = "From ${content.senderName}$forPayment · tap to copy",
+            bigText = "From ${content.senderName}$forPayment.\nTap to copy the code, then paste it where it is asked for.\nNever share it with anyone.",
+            publicTitle = "One-time code",
+            publicText = "Unlock to see it",
             action = "Copy code" to copy,
+            secondary = null,
             contentIntent = copy
         )
     }
@@ -73,7 +79,7 @@ internal object LiveAlerts {
     private fun postBill(context: Context, message: ClassifiedMessage, content: MessageContent.CardBill) {
         val id = idFor(message)
         val link = content.paymentLink
-        val due = content.dueDate?.let { " due ${DisplayFormatters.dueLabel(it).removePrefix("Due ").lowercase()}" }.orEmpty()
+        val due = content.dueDate?.let { DisplayFormatters.dueLabel(it).lowercase() }
         val open = PendingIntent.getActivity(
             context, id, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -84,12 +90,16 @@ internal object LiveAlerts {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
+        val minimum = content.minimumDue?.let { "Minimum due ${DisplayFormatters.rupees(it)}" }
         notify(
             context, id,
-            title = "${content.bankName.displayString} card bill",
-            text = DisplayFormatters.rupees(content.amount) + due,
-            publicText = "A new card bill",
+            title = DisplayFormatters.rupees(content.amount) + (due?.let { " · $it" } ?: ""),
+            text = "${content.bankName.displayString} card bill",
+            bigText = listOfNotNull("${content.bankName.displayString} card bill", minimum, due?.replaceFirstChar { it.uppercase() }).joinToString("\n"),
+            publicTitle = "Card bill",
+            publicText = "Unlock to see the amount",
             action = pay?.let { "Pay" to it },
+            secondary = "Open" to open,
             contentIntent = open
         )
     }
@@ -99,8 +109,11 @@ internal object LiveAlerts {
         id: Int,
         title: String,
         text: String,
+        bigText: String,
+        publicTitle: String,
         publicText: String,
         action: Pair<String, PendingIntent>?,
+        secondary: Pair<String, PendingIntent>?,
         contentIntent: PendingIntent
     ) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -109,20 +122,26 @@ internal object LiveAlerts {
                 description = "One-tap Copy code and Pay buttons for new codes and card bills"
             }
         )
+        val accent = androidx.core.content.ContextCompat.getColor(context, R.color.zyke_accent)
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.baseline_message_24)
+            .setColor(accent)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             // What the lock screen shows: the code or amount itself stays hidden.
             .setPublicVersion(
-                NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.baseline_message_24)
-                    .setContentTitle(title).setContentText(publicText).build()
+                NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
+                    .setContentTitle(publicTitle).setContentText(publicText).build()
             )
             .setTimeoutAfter(TIMEOUT_MS)
         action?.let { (label, intent) -> builder.addAction(0, label, intent) }
+        secondary?.let { (label, intent) -> builder.addAction(0, label, intent) }
         manager.notify(id, builder.build())
     }
 

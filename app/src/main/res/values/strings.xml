@@ -34,4 +34,8 @@
     <string name="report_failed">Couldn\'t prepare the report</string>
     <string name="widget_description">What is due and what is on today, from your messages</string>
     <string name="widget_title">Your day</string>
+    <string name="widget_empty_title">All clear</string>
+    <string name="widget_empty_detail">Nothing due or on today</string>
+    <string name="widget_needs_access_title">Allow SMS access</string>
+    <string name="widget_needs_access_detail">Open Zyke Message to let it read your messages</string>
 </resources>
