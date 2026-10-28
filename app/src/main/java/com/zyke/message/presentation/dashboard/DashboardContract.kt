@@ -69,6 +69,7 @@ object DashboardContract {
         /** The person's money plan, and how this month is going against it; null insights when no plan is filled in. */
         val plan: MoneyPlan = MoneyPlan(),
         val planInsights: PlanInsights? = null,
+        val forecast: com.zyke.message.domain.forecast.SpendForecast? = null,
         /** Where each category with a limit stands today and this month. */
         val limits: List<CategoryLimits> = emptyList(),
         /** Tips the person has waved away. */

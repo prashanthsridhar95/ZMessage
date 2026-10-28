@@ -35,7 +35,9 @@ class DashboardViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
     private val cardRepository: CardRepository = NoCards,
     private val userStateRepository: UserMessageStateRepository? = null,
-    private val planRepository: MoneyPlanRepository = NoMoneyPlan
+    private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+    private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
@@ -132,6 +134,8 @@ class DashboardViewModel(
         }
     }
 
+    private fun archivedIds(): Set<Long> = userStateRepository?.state?.value?.archivedIds.orEmpty()
+
     private fun reduceDashboard(change: State.() -> State) = reduce {
         val updated = change()
         if (!updated.hasLoaded) {
@@ -157,7 +161,16 @@ class DashboardViewModel(
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
                 limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),
-                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
+                planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle),
+                forecast = com.zyke.message.domain.forecast.SpendForecasts.build(
+                    updated.messages,
+                    // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.
+                    com.zyke.message.domain.accounts.Accounts.build(
+                        updated.messages.filter { it.id !in archivedIds() }, updated.cards, updated.now, clock.zone, cycle,
+                        hiddenAccounts.hidden.value, pfAccounts.keys.value
+                    ).totalBalance,
+                    updated.now, clock.zone, cycle
+                )
             )
         }
     }
@@ -167,13 +180,15 @@ class DashboardViewModel(
         private val budgetRepository: BudgetRepository,
         private val cardRepository: CardRepository = NoCards,
         private val userStateRepository: UserMessageStateRepository? = null,
-        private val planRepository: MoneyPlanRepository = NoMoneyPlan
+        private val planRepository: MoneyPlanRepository = NoMoneyPlan,
+        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+        private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             DashboardViewModel(
                 observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository,
-                planRepository = planRepository
+                planRepository = planRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts
             ) as T
     }
 }

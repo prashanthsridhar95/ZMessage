@@ -60,7 +60,8 @@ class MainActivity : ComponentActivity() {
 
     private val dashboardViewModel: DashboardViewModel by viewModels {
         DashboardViewModel.Factory(
-            container.observeMessages, container.budgets, container.cards, container.userMessageState, container.moneyPlan
+            container.observeMessages, container.budgets, container.cards, container.userMessageState, container.moneyPlan,
+            container.hiddenAccounts, container.providentFundAccounts
         )
     }
 
