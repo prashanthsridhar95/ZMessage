@@ -223,9 +223,34 @@ internal fun BudgetCalendarSheet(
     }
 }
 
-/** What was spent and received on the chosen day, by category or item by item, with a switch for each. */
+/** A button under the chosen day that opens a sheet of what was spent and received on it. */
 @Composable
 private fun DayDetails(messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId) {
+    var open by rememberSaveable(date) { mutableStateOf(false) }
+    AppButton(
+        "See spends and income for the day",
+        { open = true },
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        style = ButtonStyle.TONAL
+    )
+    if (open) {
+        AppBottomSheet({ open = false }) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text(
+                    DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(date),
+                    Modifier.heading(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                DayBreakdownList(messages, date, zone)
+            }
+        }
+    }
+}
+
+/** What was spent and received on the chosen day, by category or item by item, with a switch for each. */
+@Composable
+private fun DayBreakdownList(messages: List<ClassifiedMessage>, date: java.time.LocalDate, zone: java.time.ZoneId) {
     val breakdown = remember(messages, date) { DayBreakdowns.build(messages, date, zone) }
     var showReceived by rememberSaveable(date) { mutableStateOf(false) }
     var byItem by rememberSaveable { mutableStateOf(false) }
