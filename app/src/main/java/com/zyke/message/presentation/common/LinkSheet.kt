@@ -1,5 +1,23 @@
 package com.zyke.message.presentation.common
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.background
+import android.view.ViewGroup
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
@@ -52,65 +70,187 @@ fun openExternally(context: android.content.Context, url: String) {
     }.onFailure { Toast.makeText(context, R.string.link_failed, Toast.LENGTH_SHORT).show() }
 }
 
-/** A web page inside the app, so a bill link or a tracking page does not take the person away from their messages. */
+/**
+ * The one web page the person has open inside the app. The page itself lives here, not in the sheet, so minimising
+ * the sheet leaves it loaded and running, and opening it again picks up where it was.
+ */
 @SuppressLint("SetJavaScriptEnabled")
-@Composable
-fun LinkSheet(url: String, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var progress by remember { mutableFloatStateOf(0f) }
-    var loading by remember { mutableStateOf(true) }
-    var host by remember { mutableStateOf(Uri.parse(url).host.orEmpty()) }
+class WebSession(private val context: android.content.Context) {
+    /** The address being shown; null when nothing is open. */
+    var url by mutableStateOf<String?>(null)
+        private set
+    var minimised by mutableStateOf(false)
+    var host by mutableStateOf("")
+        private set
+    var progress by mutableFloatStateOf(0f)
+        private set
+    var loading by mutableStateOf(false)
+        private set
 
-    AppBottomSheet(onDismiss) {
+    private var view: WebView? = null
+
+    val isOpen: Boolean get() = url != null
+
+    /** Shows [address]: in the page already open when it is the same one, else loads it fresh. */
+    fun open(address: String) {
+        minimised = false
+        if (url == address && view != null) return
+        url = address
+        host = Uri.parse(address).host.orEmpty()
+        view?.loadUrl(address) ?: webView().loadUrl(address)
+    }
+
+    fun close() {
+        view?.let { it.stopLoading(); (it.parent as? ViewGroup)?.removeView(it); it.destroy() }
+        view = null
+        url = null
+        minimised = false
+        loading = false
+    }
+
+    /** The page's view, made once and handed back to whichever sheet is showing it. */
+    fun webView(): WebView = view ?: WebView(context).apply {
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView, u: String?, favicon: Bitmap?) { loading = true }
+            override fun onPageFinished(view: WebView, u: String?) {
+                loading = false
+                Uri.parse(u).host?.let { host = it }
+            }
+
+            // Pages that hand off to an app (UPI, a bank app) open it; plain web pages stay here.
+            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                val next = request.url.toString()
+                if (isWebLink(next)) return false
+                openExternally(context, next)
+                return true
+            }
+        }
+        webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
+        }
+    }.also { view = it }
+}
+
+/** A web page inside the app, so a bill link or a tracking page does not take the person away from their messages. */
+@Composable
+fun LinkSheet(session: WebSession) {
+    val context = LocalContext.current
+
+    // Swiping the sheet away closes the page; "Minimise" keeps it, as a button that can be moved about.
+    AppBottomSheet({ session.close() }) {
         Column(Modifier.fillMaxWidth().height(640.dp)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    host,
+                    session.host,
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                AppButton("Open in browser", { openExternally(context, url); onDismiss() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                AppButton("Minimise", { session.minimised = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                AppButton(
+                    "Browser",
+                    { session.url?.let { openExternally(context, it) }; session.close() },
+                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+                )
             }
-            if (loading) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
+            if (session.loading) LinearProgressIndicator(progress = { session.progress }, Modifier.fillMaxWidth())
 
             AndroidView(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView, u: String?, favicon: Bitmap?) { loading = true }
-                            override fun onPageFinished(view: WebView, u: String?) {
-                                loading = false
-                                Uri.parse(u).host?.let { host = it }
-                            }
-                            // Pages that hand off to an app (UPI, a bank app) open it; plain web pages stay here.
-                            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
-                                val next = request.url.toString()
-                                if (isWebLink(next)) return false
-                                openExternally(ctx, next)
-                                return true
-                            }
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress / 100f }
-                        }
-                        loadUrl(url)
-                    }
+                factory = {
+                    // The same page may have been on screen before; it can only have one parent.
+                    session.webView().also { (it.parent as? ViewGroup)?.removeView(it) }
                 },
-                onRelease = { it.stopLoading(); it.destroy() }
+                // Not destroyed here: minimising takes it off the screen but keeps it alive.
+                onRelease = { (it.parent as? ViewGroup)?.removeView(it) }
             )
         }
     }
 }
+
+/**
+ * The minimised page: a round button that can be dragged anywhere. A tap opens the page again; dragging it onto the
+ * circle that appears at the bottom centre closes it.
+ */
+@Composable
+fun MinimisedLink(session: WebSession, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val sizePx = with(density) { FAB_SIZE.toPx() }
+    val targetPx = with(density) { TARGET_SIZE.toPx() }
+    val reach = with(density) { CLOSE_REACH.toPx() }
+
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val width = with(density) { maxWidth.toPx() }
+        val height = with(density) { maxHeight.toPx() }
+        var position by remember(width, height) { mutableStateOf(Offset(width - sizePx - 24f, height - sizePx * 2.5f)) }
+        var dragging by remember { mutableStateOf(false) }
+
+        // The close target, bottom centre.
+        val targetCentre = Offset(width / 2f, height - targetPx / 2f - 24f)
+        fun overTarget() = (position + Offset(sizePx / 2f, sizePx / 2f) - targetCentre).getDistance() < reach
+
+        if (dragging) {
+            val hot = overTarget()
+            Box(
+                Modifier
+                    .offset { IntOffset((targetCentre.x - targetPx / 2f).roundToInt(), (targetCentre.y - targetPx / 2f).roundToInt()) }
+                    .size(TARGET_SIZE)
+                    .clip(CircleShape)
+                    .background(if (hot) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "\u2715",
+                    color = if (hot) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        }
+
+        Box(
+            Modifier
+                .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+                .size(FAB_SIZE)
+                .shadow(if (dragging) 12.dp else 6.dp, CircleShape)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .pointerInput(Unit) { detectTapGestures(onTap = { session.minimised = false }) }
+                .pointerInput(width, height) {
+                    detectDragGestures(
+                        onDragStart = { dragging = true },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            position = Offset(
+                                (position.x + amount.x).coerceIn(0f, width - sizePx),
+                                (position.y + amount.y).coerceIn(0f, height - sizePx)
+                            )
+                        },
+                        onDragEnd = {
+                            if (overTarget()) session.close()
+                            dragging = false
+                        },
+                        onDragCancel = { dragging = false }
+                    )
+                }
+                .semantics { contentDescription = "Open ${session.host} again. Drag to the bottom to close it" },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("\uD83C\uDF10", style = MaterialTheme.typography.titleLarge)
+        }
+    }
+}
+
+private val FAB_SIZE = 56.dp
+private val TARGET_SIZE = 64.dp
+private val CLOSE_REACH = 64.dp

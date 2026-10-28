@@ -19,6 +19,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import com.zyke.message.presentation.common.LinkSheet
+import com.zyke.message.presentation.common.MinimisedLink
+import com.zyke.message.presentation.common.WebSession
 import com.zyke.message.presentation.common.LocalOpenLink
 import com.zyke.message.presentation.common.LocalOpenSettings
 import com.zyke.message.presentation.common.isWebLink
@@ -80,8 +82,9 @@ fun AppRoot(
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var openLink by rememberSaveable { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val web = remember { WebSession(context) }
+    androidx.compose.runtime.DisposableEffect(web) { onDispose { web.close() } }
     val stateHolder = rememberSaveableStateHolder()
     val reduceMotion = rememberReduceMotion()
 
@@ -89,7 +92,7 @@ fun AppRoot(
 
     CompositionLocalProvider(
         LocalOpenSettings provides { showSettings = true },
-        LocalOpenLink provides { url -> if (isWebLink(url)) openLink = url else openExternally(context, url) }
+        LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
@@ -118,7 +121,9 @@ fun AppRoot(
         }
         }
         if (showSettings) settings { showSettings = false }
-        openLink?.let { LinkSheet(it) { openLink = null } }
+        if (web.isOpen) {
+            if (web.minimised) MinimisedLink(web, Modifier.padding(padding)) else LinkSheet(web)
+        }
     }
     }
 }
