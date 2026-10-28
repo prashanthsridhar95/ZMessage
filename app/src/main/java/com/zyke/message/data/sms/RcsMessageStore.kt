@@ -1,6 +1,7 @@
 package com.zyke.message.data.sms
 
 import android.content.Context
+import com.zyke.message.domain.classification.UpiLiteNotification
 import com.zyke.message.domain.model.SmsMessage
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,7 @@ class RcsMessageStore(private val context: Context) {
     @Synchronized
     fun add(sender: String, body: String, date: Long) {
         val all = load()
-        if (all.any { it.sender == sender && it.body == body && it.date == date }) return
+        if (all.any { it.sender == sender && it.body == body && (it.date == date || (sender == UpiLiteNotification.SENDER && abs(it.date - date) <= NOTIFICATION_REPEAT_MS)) }) return
         val message = SmsMessage(idFor(sender, body, date), sender, body, date, isRead = false, isRcs = true)
         save((all + message).sortedByDescending { it.date }.take(MAX_MESSAGES))
         _changes.tryEmit(Unit)
@@ -37,16 +38,25 @@ class RcsMessageStore(private val context: Context) {
     /** Like [mergeWith], for the one month [fromMillis] to [untilMillis] of the inbox. */
     fun mergeWindow(sms: List<SmsMessage>, fromMillis: Long, untilMillis: Long): List<SmsMessage> {
         val inWindow = load().filter { it.date in fromMillis until untilMillis }
-        val extra = inWindow.filter { r -> sms.none { it.body == r.body && abs(it.date - r.date) <= SMS_DEDUPE_WINDOW_MS } }
+        val extra = inWindow.filter { r -> !arrivedAsSms(r, sms) }
         return if (extra.isEmpty()) sms else (sms + extra).sortedByDescending { it.date }
     }
 
     /** Adds the stored RCS messages to [sms], skipping ones that already arrived as SMS. */
     fun mergeWith(sms: List<SmsMessage>): List<SmsMessage> {
-        val rcs = load().filter { r ->
-            sms.none { it.body == r.body && abs(it.date - r.date) <= SMS_DEDUPE_WINDOW_MS }
-        }
+        val rcs = load().filter { r -> !arrivedAsSms(r, sms) }
         return if (rcs.isEmpty()) sms else (sms + rcs).sortedByDescending { it.date }
+    }
+
+    /** Already in the SMS list: the same text, or, for a Google Pay top-up, the bank's own message about the same amount. */
+    private fun arrivedAsSms(stored: SmsMessage, sms: List<SmsMessage>): Boolean {
+        if (sms.any { it.body == stored.body && abs(it.date - stored.date) <= SMS_DEDUPE_WINDOW_MS }) return true
+        if (!UpiLiteNotification.isFromNotification(stored.sender)) return false
+        val amount = UpiLiteNotification.amount(null, stored.body) ?: return false
+        return sms.any {
+            abs(it.date - stored.date) <= TOP_UP_DEDUPE_WINDOW_MS &&
+                it.body.contains("UPI LITE", ignoreCase = true) && it.body.contains(amount.substringBefore('.'))
+        }
     }
 
     @Synchronized
@@ -85,5 +95,7 @@ class RcsMessageStore(private val context: Context) {
         const val FILE_NAME = "rcs_messages.json"
         const val MAX_MESSAGES = 2000
         const val SMS_DEDUPE_WINDOW_MS = 2 * 60 * 1000L
+        const val TOP_UP_DEDUPE_WINDOW_MS = 10 * 60 * 1000L
+        const val NOTIFICATION_REPEAT_MS = 10 * 60 * 1000L
     }
 }

@@ -394,7 +394,7 @@ private fun RcsSection() {
     val context = LocalContext.current
     SectionCard("RCS messages") {
         Caption(
-            "Adds new chats from Google and Samsung Messages",
+            "Adds new chats from Google and Samsung Messages, and UPI Lite top-ups from Google Pay so they count as spending",
             maxLines = 5
         )
         AppButton(

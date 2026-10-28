@@ -4,10 +4,15 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.zyke.message.ZykeMessagesApplication
+import com.zyke.message.domain.classification.UpiLiteNotification
 
 /** Captures incoming chat (RCS) messages from the default messaging apps' notifications. */
 class RcsNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if (sbn.packageName == GOOGLE_PAY) {
+            keepUpiLiteTopUp(sbn)
+            return
+        }
         if (sbn.packageName !in MESSAGING_PACKAGES) return
         val notification = sbn.notification
         if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -21,7 +26,18 @@ class RcsNotificationListener : NotificationListenerService() {
         (application as ZykeMessagesApplication).container.rcsStore.add(sender, body, sbn.postTime)
     }
 
+    /** A Google Pay "UPI Lite refilled" notification becomes a message, so the top-up is counted as spent. */
+    private fun keepUpiLiteTopUp(sbn: StatusBarNotification) {
+        val extras = sbn.notification.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()
+        val amount = UpiLiteNotification.amount(title, text) ?: return
+        (application as ZykeMessagesApplication).container.rcsStore.add(UpiLiteNotification.SENDER, UpiLiteNotification.body(amount), sbn.postTime)
+    }
+
     private companion object {
+        const val GOOGLE_PAY = "com.google.android.apps.nbu.paisa.user"
+
         val MESSAGING_PACKAGES = setOf(
             "com.google.android.apps.messaging",
             "com.samsung.android.messaging"
