@@ -45,7 +45,9 @@ data class AccountSummary(
     val sampleMessageId: Long,
     val userCard: UserCard?,
     /** The statement day the card's bills point to, when the person has not set one. */
-    val suggestedStatementDay: Int? = null
+    val suggestedStatementDay: Int? = null,
+    /** The person marked this as a provident fund; it is shown under Savings and kept out of the bank total. */
+    val isProvidentFund: Boolean = false
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 }
@@ -62,7 +64,8 @@ object Accounts {
         now: Instant,
         zone: ZoneId,
         cycle: CycleRule = CycleRule.CALENDAR,
-        hidden: Set<String> = emptySet()
+        hidden: Set<String> = emptySet(),
+        providentFunds: Set<String> = emptySet()
     ): AccountsOverview {
         val today = LocalDate.ofInstant(now, zone)
         val range = cycle.containing(today)
@@ -122,6 +125,7 @@ object Accounts {
                 paymentLink = bill?.paymentLink,
                 sampleMessageId = newest.message.id,
                 userCard = card,
+                isProvidentFund = "${kind.name.lowercase()}-$last4" in providentFunds,
                 suggestedStatementDay = if (kind == AccountKind.CREDIT_CARD && card?.statementDay == null) {
                     StatementDays.suggest(
                         rows.filter { it.message.content is MessageContent.CardBill }
@@ -134,7 +138,7 @@ object Accounts {
             compareBy<AccountSummary> { it.isCard }.thenByDescending { it.lastActivity }
         )
 
-        val known = accounts.mapNotNull { it.balance }
+        val known = accounts.filter { !it.isProvidentFund }.mapNotNull { it.balance }
         return AccountsOverview(accounts, known.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO, BigDecimal::add), known.size)
     }
 

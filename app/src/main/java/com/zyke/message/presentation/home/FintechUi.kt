@@ -120,7 +120,8 @@ internal fun rememberNowMillis(): Long {
 @Composable
 internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Intent) -> Unit) {
     val overview = state.accounts
-    val banks = overview.accounts.filter { !it.isCard }
+    val banks = overview.accounts.filter { !it.isCard && !it.isProvidentFund }
+    val funds = overview.accounts.filter { it.isProvidentFund }
     val cards = overview.accounts.filter { it.isCard }
     val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     var tab by rememberSaveable { mutableStateOf(0) }
@@ -141,7 +142,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         item(key = "tabs") {
             UnderlineTabs(
                 labels = listOf("Accounts", "Cards", "Savings"),
-                counts = listOf(banks.size, cards.size, if (pf != null) 1 else 0),
+                counts = listOf(banks.size, cards.size, funds.size + if (pf != null) 1 else 0),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
@@ -149,12 +150,16 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         }
 
         if (tab == 2) {
-            item(key = "pf") {
-                if (pf == null) {
-                    FintechCard { Caption("No provident fund yet. Passbook messages from EPFO show up here.", maxLines = 3) }
-                } else {
-                    PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) }
+            if (pf == null && funds.isEmpty()) {
+                item(key = "pf-empty") {
+                    FintechCard {
+                        Caption("No provident fund yet. Passbook messages from EPFO show up here, and you can mark any account as a provident fund from its sheet.", maxLines = 4)
+                    }
                 }
+            }
+            if (pf != null) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
+            funds.forEach { fund ->
+                item(key = fund.key) { FundTile(fund) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
             }
         } else if (shown.isEmpty()) {
             item(key = "empty") {
@@ -165,6 +170,30 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
         }
 
+    }
+}
+
+/** An account marked as a provident fund: a calmer tile that leads with what has been put in, not spending. */
+@Composable
+private fun FundTile(fund: AccountSummary, onOpen: () -> Unit) {
+    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val asOf = fund.balanceAsOf
+    FintechCard(onClick = onOpen) {
+        Caption("PROVIDENT FUND  ••  ${fund.last4}")
+        Text(
+            fund.balance?.let { DisplayFormatters.rupees(it) } ?: "—",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Caption(if (asOf != null) "balance as of ${dayFormat.format(asOf)}" else "balance not stated", maxLines = 2)
+        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Stat("Added this cycle", DisplayFormatters.rupees(fund.received))
+            Stat("Taken out", DisplayFormatters.rupees(fund.spent))
+            Stat("Entries", fund.activityCount.toString())
+        }
     }
 }
 
@@ -265,6 +294,7 @@ internal fun AccountSheet(
     onName: (String) -> Unit,
     onStatementDay: (Int?) -> Unit,
     onRemove: () -> Unit,
+    onProvidentFund: (Boolean) -> Unit,
     onOpenMessage: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -372,6 +402,18 @@ internal fun AccountSheet(
                     activity.forEachIndexed { index, message ->
                         if (index > 0) HorizontalDivider()
                         RecentRow(message, onOpen = { onOpenMessage(message.id) })
+                    }
+                }
+            }
+
+            if (account.kind == AccountKind.BANK_ACCOUNT) {
+                FintechCard(onClick = { onProvidentFund(!account.isProvidentFund) }) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            RowTitle("Provident fund account")
+                            Caption("Shown under Savings, and left out of your bank total", maxLines = 2)
+                        }
+                        androidx.compose.material3.Switch(checked = account.isProvidentFund, onCheckedChange = null)
                     }
                 }
             }

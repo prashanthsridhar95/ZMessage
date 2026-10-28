@@ -61,6 +61,7 @@ class AppContainer(context: Context) {
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
     val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
     val merges: MergeRepository = MergeRepositoryImpl(context)
+    val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context)
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
 
     /**

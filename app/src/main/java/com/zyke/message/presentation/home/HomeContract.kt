@@ -45,6 +45,7 @@ object HomeContract {
         val reminderList: List<Reminder> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val hiddenAccounts: Set<String> = emptySet(),
+        val pfAccountKeys: Set<String> = emptySet(),
         val providentFund: com.zyke.message.domain.pf.ProvidentFund? = null,
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
@@ -133,6 +134,7 @@ object HomeContract {
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent
         data class SetStatementDay(val key: String, val day: Int?) : Intent
+        data class SetProvidentFund(val key: String, val on: Boolean) : Intent
         data class RemoveAccount(val key: String) : Intent
         data class OpenJourney(val messageId: Long) : Intent
         data object CloseJourney : Intent
