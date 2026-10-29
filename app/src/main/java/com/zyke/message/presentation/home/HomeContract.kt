@@ -94,6 +94,9 @@ object HomeContract {
         val openAccountKey: String? = null,
         val showCodes: Boolean = false,
         val showGoals: Boolean = false,
+        /** The in-app calendar is open. */
+        val showAgenda: Boolean = false,
+        val events: List<com.zyke.message.domain.calendar.CalendarEvent> = emptyList(),
         val showReminders: Boolean = false,
         /** The trip whose scene is open. */
         val journeyMessageId: Long? = null,
@@ -138,6 +141,10 @@ object HomeContract {
         data class RemoveAccount(val key: String) : Intent
         data class OpenJourney(val messageId: Long) : Intent
         data object CloseJourney : Intent
+        data object OpenAgenda : Intent
+        data object CloseAgenda : Intent
+        data class SaveEvent(val event: com.zyke.message.domain.calendar.CalendarEvent) : Intent
+        data class RemoveEvent(val id: String) : Intent
         data object OpenGoals : Intent
         data object CloseGoals : Intent
         data object OpenReminders : Intent

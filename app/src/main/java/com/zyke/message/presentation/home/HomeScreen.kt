@@ -278,6 +278,12 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
                     goal?.let { "${it.goal.name} · ${(it.fraction * 100).toInt()}%" } ?: state.goals.size.takeIf { it > 0 }?.let { "$it reached" } ?: "None yet"
                 ) { onIntent(Intent.OpenGoals) }
                 PlanTile(
+                    "Calendar",
+                    state.events.count { !it.date.isBefore(today) && it.date.isBefore(today.plusDays(8)) }.let { n ->
+                        if (n > 0) "$n of your events this week" else "Bills, reminders and your events"
+                    }
+                ) { onIntent(Intent.OpenAgenda) }
+                PlanTile(
                     "Reminders",
                     if (soon > 0) "$soon in the next week" else state.reminders.size.takeIf { it > 0 }?.let { "$it set" } ?: "None yet"
                 ) { onIntent(Intent.OpenReminders) }
@@ -428,6 +434,17 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
                 onAdd = { id, amount -> onIntent(Intent.AddToGoal(id, amount)) }
             )
         }
+    }
+
+    if (state.showAgenda) {
+        CalendarSheet(
+            messages = state.messages, reminders = state.reminderList, events = state.events, goals = state.goalList, plan = state.plan,
+            now = state.now,
+            onSaveEvent = { onIntent(Intent.SaveEvent(it)) },
+            onRemoveEvent = { onIntent(Intent.RemoveEvent(it)) },
+            onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
+            onDismiss = { onIntent(Intent.CloseAgenda) }
+        )
     }
 
     if (state.showReminders) {
