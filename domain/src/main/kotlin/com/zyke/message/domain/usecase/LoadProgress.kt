@@ -8,7 +8,11 @@ data class LoadProgress(
     val messagesTotal: Int = 0,
     /** Start of the oldest month read so far, in epoch millis; null before the first one. */
     val oldestLoaded: Long? = null,
-    val isDone: Boolean = true
+    val isDone: Boolean = true,
+    /** The inbox has never been read in full on this phone, so the work must outlast the screen. */
+    val isFirstSync: Boolean = false,
+    /** Messages that arrived since the last visit and are still to be read. */
+    val pending: Int = 0
 ) {
     /** Older months are still being read. */
     val isWorking: Boolean get() = !isDone

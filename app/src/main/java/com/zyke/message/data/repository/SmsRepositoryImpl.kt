@@ -47,6 +47,8 @@ class SmsRepositoryImpl(
 
     override fun refresh() = dataSource.requestRefresh()
 
+    override fun refreshRecent() = dataSource.requestRecentRefresh()
+
     override val supportsWindows: Boolean = true
 
     /**

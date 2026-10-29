@@ -70,6 +70,7 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
                     TABLE, null,
                     ContentValues().apply {
                         put(ID, message.id)
+                        put(DATE, message.message.date)
                         put(PAYLOAD, payload)
                     },
                     SQLiteDatabase.CONFLICT_REPLACE
@@ -101,7 +102,45 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
     @Synchronized
     override fun clear() {
         helper.writableDatabase.delete(TABLE, null, null)
+        helper.writableDatabase.delete(META, "$KEY != ?", arrayOf(VERSION_KEY))
     }
+
+    @Synchronized
+    override fun meta(key: String): String? =
+        helper.readableDatabase.rawQuery("SELECT $VALUE FROM $META WHERE $KEY = ?", arrayOf(key)).use { if (it.moveToFirst()) it.getString(0) else null }
+
+    @Synchronized
+    override fun putMeta(key: String, value: String) {
+        helper.writableDatabase.insertWithOnConflict(
+            META, null, ContentValues().apply { put(KEY, key); put(VALUE, value) }, SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    @Synchronized
+    override fun loadWindow(fromMillis: Long, untilMillis: Long): List<ClassifiedMessage> {
+        val result = ArrayList<ClassifiedMessage>()
+        val damaged = ArrayList<Long>()
+        helper.readableDatabase.rawQuery(
+            "SELECT $ID, $PAYLOAD FROM $TABLE WHERE $DATE >= ? AND $DATE < ? ORDER BY $DATE DESC",
+            arrayOf(fromMillis.toString(), untilMillis.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val message = runCatching { deserialize(decrypt(cursor.getBlob(1))) }.getOrNull()
+                if (message != null) result += message else damaged += cursor.getLong(0)
+            }
+        }
+        if (damaged.isNotEmpty()) {
+            val db = helper.writableDatabase
+            damaged.forEach { db.delete(TABLE, "$ID = ?", arrayOf(it.toString())) }
+        }
+        return result
+    }
+
+    @Synchronized
+    override fun dateRange(): Pair<Long, Long>? =
+        helper.readableDatabase.rawQuery("SELECT MIN($DATE), MAX($DATE) FROM $TABLE", null).use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) to it.getLong(1) else null
+        }
 
     private fun readAll(): HashMap<Long, ClassifiedMessage> {
         val result = HashMap<Long, ClassifiedMessage>()
@@ -124,7 +163,8 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
 
     private inner class Helper(context: Context) : SQLiteOpenHelper(context, "classified.db", null, SCHEMA_VERSION) {
         override fun onCreate(db: SQLiteDatabase) {
-            db.execSQL("CREATE TABLE $TABLE ($ID INTEGER PRIMARY KEY, $PAYLOAD BLOB NOT NULL)")
+            db.execSQL("CREATE TABLE $TABLE ($ID INTEGER PRIMARY KEY, $DATE INTEGER NOT NULL DEFAULT 0, $PAYLOAD BLOB NOT NULL)")
+            db.execSQL("CREATE INDEX classified_date ON $TABLE ($DATE)")
             db.execSQL("CREATE TABLE $META ($KEY TEXT PRIMARY KEY, $VALUE TEXT NOT NULL)")
         }
 
@@ -142,7 +182,9 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
                 if (it.moveToFirst()) it.getString(0) else null
             }
             if (stored != versionTag) {
+                // What was remembered, and how far it had been read, is no longer trusted.
                 db.delete(TABLE, null, null)
+                db.delete(META, null, null)
                 db.insertWithOnConflict(
                     META, null,
                     ContentValues().apply {
@@ -195,11 +237,12 @@ class EncryptedClassificationCache(context: Context, private val versionTag: Str
     }
 
     private companion object {
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
         const val QUERY_CHUNK = 500
         const val TABLE = "classified"
         const val META = "meta"
         const val ID = "id"
+        const val DATE = "date"
         const val PAYLOAD = "payload"
         const val KEY = "k"
         const val VALUE = "v"

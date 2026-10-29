@@ -147,6 +147,11 @@ class SmsDataSource(
 
     private val refreshes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
+    /** Asks for a look at what arrived lately only; nothing is re-read in full. */
+    fun requestRecentRefresh() {
+        refreshes.tryEmit(Unit)
+    }
+
     /** Asks every collector to read the inbox again, whether or not the provider announced a change. */
     fun requestRefresh() {
         refreshes.tryEmit(Unit)

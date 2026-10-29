@@ -35,6 +35,9 @@ interface SmsRepository {
     /** Reads the inbox again now, even if nothing announced a change, e.g. when the app is brought to the front. */
     fun refresh() = Unit
 
+    /** Looks only at what arrived lately, which is what coming back to the app needs; deletions are left to [refresh]. */
+    fun refreshRecent() = refresh()
+
     /**
      * True when the inbox can be read a month at a time through [scan] and [readWindow], which is what lets a very
      * large inbox appear newest month first instead of after everything has been read.

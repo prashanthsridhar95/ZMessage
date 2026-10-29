@@ -293,7 +293,7 @@ class MainActivity : ComponentActivity() {
         lockIfAway()
         // Whatever was deleted or read in the messaging app while this app was away shows up now. A fresh start already
         // reads everything, and a very large inbox is not read again for a quick switch between apps.
-        if (leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > REFRESH_AFTER_MS) container.smsRepository.refresh()
+        if (leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > REFRESH_AFTER_MS) container.smsRepository.refreshRecent()
         keepReadingInBackground()
         container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
         DaysAheadWidget.refresh(this)
@@ -305,7 +305,9 @@ class MainActivity : ComponentActivity() {
             val progress = container.observeMessages.progress
             // Wait for the first look at the inbox, then see whether there is a lot still to read.
             val seen = progress.first { it.monthsTotal > 0 || !it.isDone }
-            if (seen.isWorking && seen.messagesTotal >= BackfillService.BIG_INBOX) {
+            // The first full read of an inbox has to finish even if the app is left, so it gets a service whatever its size;
+            // so does a large inbox, and a visit with a lot of new messages waiting.
+            if (seen.isWorking && (seen.isFirstSync || seen.messagesTotal >= BackfillService.BIG_INBOX || seen.pending >= BackfillService.MANY_NEW)) {
                 runCatching { BackfillService.start(this@MainActivity) }
             }
         }

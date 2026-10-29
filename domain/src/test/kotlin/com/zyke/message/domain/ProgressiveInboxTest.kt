@@ -108,4 +108,39 @@ class ProgressiveInboxTest {
         assertEquals(36, last.size)
         assertFalse(useCase.progress.value.isWorking)
     }
+
+    /** A cache that keeps what it is given, with the extras the quick start needs. */
+    private class MemoryCache : com.zyke.message.domain.repository.ClassificationCache {
+        private val store = java.util.concurrent.ConcurrentHashMap<Long, com.zyke.message.domain.model.ClassifiedMessage>()
+        private val notes = java.util.concurrent.ConcurrentHashMap<String, String>()
+        override fun load() = store.toMap()
+        override fun save(messages: List<com.zyke.message.domain.model.ClassifiedMessage>) { messages.forEach { store[it.id] = it } }
+        override fun retainOnly(ids: Set<Long>) { store.keys.retainAll(ids) }
+        override fun clear() { store.clear() }
+        override fun meta(key: String) = notes[key]
+        override fun putMeta(key: String, value: String) { notes[key] = value }
+        override fun loadWindow(fromMillis: Long, untilMillis: Long) =
+            store.values.filter { it.message.date in fromMillis until untilMillis }.sortedByDescending { it.message.date }
+        override fun dateRange() = store.values.map { it.message.date }.takeIf { it.isNotEmpty() }?.let { it.min() to it.max() }
+    }
+
+    @Test
+    fun comingBackLater_readsOnlyTheRecentMonths_andTheRestComesFromWhatWasRemembered() = runBlocking {
+        val now = YearMonth.from(LocalDate.now())
+        val inbox = listOf(sms(1, now, 2), sms(2, now.minusMonths(1), 5), sms(3, now.minusMonths(4), 5), sms(4, now.minusMonths(6), 6))
+        val cache = MemoryCache()
+
+        // The first visit reads everything and remembers it.
+        val first = Months(inbox, zone)
+        collectAll(ObserveMessagesUseCase(first, MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache), 4)
+        assertEquals(4, first.reads.size)
+
+        // A later visit (a new run of the app) has the same inbox, nothing new.
+        val second = Months(inbox, zone)
+        val emissions = collectAll(ObserveMessagesUseCase(second, MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache), 4)
+
+        // Only the last month or two were read from the inbox; the older ones came from the cache.
+        assertTrue(second.reads.toString(), second.reads.size <= 2)
+        assertEquals(listOf(1L, 2L, 3L, 4L), emissions.last().map { it.id })
+    }
 }

@@ -22,6 +22,17 @@ interface ClassificationCache {
 
     /** Forgets everything. */
     fun clear()
+
+    /** A small note kept with the cache and forgotten with it: how far the inbox has been read, and when it was last checked in full. */
+    fun meta(key: String): String? = null
+
+    fun putMeta(key: String, value: String) = Unit
+
+    /** The remembered messages dated from [fromMillis] up to [untilMillis], newest first. Empty when the cache cannot say. */
+    fun loadWindow(fromMillis: Long, untilMillis: Long): List<ClassifiedMessage> = emptyList()
+
+    /** The dates of the oldest and the newest remembered message; null when it cannot say or holds none. */
+    fun dateRange(): Pair<Long, Long>? = null
 }
 
 /** No memory: every message is read by the rules each time. */

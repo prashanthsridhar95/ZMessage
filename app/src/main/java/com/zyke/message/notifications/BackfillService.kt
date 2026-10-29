@@ -77,6 +77,9 @@ class BackfillService : Service() {
         /** A phone with fewer messages than this reads them in moments, so no service is needed. */
         const val BIG_INBOX = 20_000
 
+        /** A visit that finds this many new messages waiting reads them in the background too. */
+        const val MANY_NEW = 300
+
         fun start(context: Context) {
             context.startForegroundService(Intent(context, BackfillService::class.java))
         }
@@ -94,7 +97,7 @@ class BackfillService : Service() {
             )
             return NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.baseline_message_24)
-                .setContentTitle("Reading your older messages")
+                .setContentTitle(if (progress.isFirstSync) "Getting your messages ready" else "Reading your messages")
                 .setContentText(describe(progress))
                 .setProgress(progress.monthsTotal.coerceAtLeast(1), progress.monthsLoaded, progress.monthsTotal == 0)
                 .setOngoing(true)
