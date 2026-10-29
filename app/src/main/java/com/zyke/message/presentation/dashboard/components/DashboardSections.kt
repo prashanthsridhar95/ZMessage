@@ -252,11 +252,15 @@ internal fun DashboardFilterSheet(
     period: DashboardPeriod,
     customRange: DateRange?,
     category: MessageCategory?,
+    source: com.zyke.message.domain.dashboard.SourceFilter,
+    sourceOptions: List<com.zyke.message.domain.dashboard.SourceOption>,
+    sourceLabel: (com.zyke.message.domain.dashboard.SourceFilter) -> String,
     dashboard: Dashboard,
     canReset: Boolean,
     onPeriod: (DashboardPeriod) -> Unit,
     onCustomRange: (java.time.LocalDate, java.time.LocalDate) -> Unit,
     onCategory: (MessageCategory?) -> Unit,
+    onSource: (com.zyke.message.domain.dashboard.SourceFilter) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -287,6 +291,24 @@ internal fun DashboardFilterSheet(
                 initial = customRange,
                 onPick = { start, end -> onCustomRange(start, end); pickingRange = false },
                 onDismiss = { pickingRange = false }
+            )
+        }
+
+        // Where the money moved through: UPI, one bank account or one card.
+        if (sourceOptions.isNotEmpty()) {
+            SheetSection("Paid through")
+            TileGrid(
+                buildList {
+                    add(TileOption("Everything", !source.isActive, { onSource(com.zyke.message.domain.dashboard.SourceFilter()) }))
+                    sourceOptions.forEach { option ->
+                        add(
+                            TileOption(
+                                sourceLabel(option.filter), option.filter == source, { onSource(option.filter) },
+                                DisplayFormatters.count(option.count, "payment", "payments")
+                            )
+                        )
+                    }
+                }
             )
         }
 

@@ -163,11 +163,15 @@ fun DashboardScreen(
             period = state.period,
             customRange = state.customRange,
             category = state.category,
+            source = state.source,
+            sourceOptions = state.sourceOptions,
+            sourceLabel = { sourceLabel(it, state.cards) },
             dashboard = dashboardForSheet,
             canReset = state.activeFilterCount > 0,
             onPeriod = { onIntent(Intent.SelectPeriod(it)) },
             onCustomRange = { start, end -> onIntent(Intent.SelectCustomRange(start, end)) },
             onCategory = { onIntent(Intent.SetCategory(it)) },
+            onSource = { onIntent(Intent.SelectSource(it)) },
             onReset = { onIntent(Intent.ResetFilters) },
             onDismiss = { onIntent(Intent.CloseFilters) }
         )
@@ -251,7 +255,8 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 ActiveFilterBar(
                     summary = listOfNotNull(
                         (if (state.period == DashboardPeriod.CUSTOM) state.customRange?.let(::rangeLabel) else state.period.label).takeIf { state.period != DashboardPeriod.THIS_MONTH },
-                        state.category?.displayString
+                        state.category?.displayString,
+                        state.source.takeIf { it.isActive }?.let { sourceLabel(it, state.cards) }
                     ).joinToString(" · "),
                     resultCount = dashboard.count,
                     onChange = { onIntent(Intent.OpenFilters) },
@@ -428,4 +433,18 @@ private fun GroupLabel(text: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.secondary
     )
+}
+
+/** "UPI", or an account or card by the name the person gave it, else by its last four digits. */
+private fun sourceLabel(source: com.zyke.message.domain.dashboard.SourceFilter, cards: List<com.zyke.message.domain.model.UserCard>): String = when (source.kind) {
+    com.zyke.message.domain.dashboard.SourceKind.ALL -> "Everything"
+    com.zyke.message.domain.dashboard.SourceKind.UPI -> "UPI"
+    com.zyke.message.domain.dashboard.SourceKind.ACCOUNT -> {
+        val named = cards.firstOrNull { it.last4 == source.last4 && it.type == com.zyke.message.domain.model.CardType.ACCOUNT }?.name?.takeIf { it.isNotBlank() }
+        named ?: "Account •• ${source.last4}"
+    }
+    com.zyke.message.domain.dashboard.SourceKind.CARD -> {
+        val named = cards.firstOrNull { it.last4 == source.last4 && it.type != com.zyke.message.domain.model.CardType.ACCOUNT }?.name?.takeIf { it.isNotBlank() }
+        named ?: "Card •• ${source.last4}"
+    }
 }

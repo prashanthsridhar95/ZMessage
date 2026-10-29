@@ -9,6 +9,7 @@ import com.zyke.message.domain.cards.CardCycleBuilder
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardPeriod
+import com.zyke.message.domain.dashboard.SourceFilter
 import com.zyke.message.domain.dashboard.ReportCardBuilder
 import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.repository.BudgetRepository
@@ -37,9 +38,15 @@ class DashboardViewModel(
     private val userStateRepository: UserMessageStateRepository? = null,
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
-    private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts
+    private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
+    private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter
 ) : MviViewModel<State, Intent, Effect>(
-    State(now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
+    insightsFilter.load().let { saved ->
+        State(
+            now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
+            period = saved.period, customRange = saved.customRange, source = saved.source
+        )
+    }
 ) {
 
     private var observeJob: Job? = null
@@ -69,10 +76,20 @@ class DashboardViewModel(
             is Intent.ScreenStarted ->
                 if (intent.permissionGranted) startObserving() else reduce { copy(isLoading = false, permissionMissing = true) }
 
-            is Intent.SelectCustomRange -> reduceDashboard {
-                copy(period = DashboardPeriod.CUSTOM, customRange = com.zyke.message.domain.dashboard.DateRange(intent.start, intent.end), cycleOffset = 0, expandedVendor = null)
+            is Intent.SelectCustomRange -> {
+                reduceDashboard {
+                    copy(period = DashboardPeriod.CUSTOM, customRange = com.zyke.message.domain.dashboard.DateRange(intent.start, intent.end), cycleOffset = 0, expandedVendor = null)
+                }
+                saveFilter()
             }
-            is Intent.SelectPeriod -> reduceDashboard { copy(period = intent.period, cycleOffset = 0, expandedVendor = null) }
+            is Intent.SelectPeriod -> {
+                reduceDashboard { copy(period = intent.period, cycleOffset = 0, expandedVendor = null) }
+                saveFilter()
+            }
+            is Intent.SelectSource -> {
+                reduceDashboard { copy(source = intent.source, expandedVendor = null) }
+                saveFilter()
+            }
             is Intent.ShiftCycle -> reduceDashboard {
                 val offset = (cycleOffset + intent.delta).coerceAtMost(0)
                 val today = LocalDate.ofInstant(now, clock.zone)
@@ -93,8 +110,11 @@ class DashboardViewModel(
             Intent.CloseReportCard -> reduce { copy(showReportCard = false) }
             Intent.OpenFilters -> reduce { copy(showFilterSheet = true) }
             Intent.CloseFilters -> reduce { copy(showFilterSheet = false) }
-            Intent.ResetFilters -> reduceDashboard {
-                copy(period = DashboardPeriod.THIS_MONTH, customRange = null, cycleOffset = 0, category = null, expandedVendor = null)
+            Intent.ResetFilters -> {
+                reduceDashboard {
+                    copy(period = DashboardPeriod.THIS_MONTH, customRange = null, cycleOffset = 0, category = null, source = SourceFilter(), expandedVendor = null)
+                }
+                saveFilter()
             }
             Intent.ClearCategory -> reduceDashboard { copy(category = null, expandedVendor = null) }
 
@@ -134,6 +154,19 @@ class DashboardViewModel(
         }
     }
 
+    /** Keeps the period, range and source that are chosen now, so they are still chosen the next time the app opens. */
+    private fun saveFilter() {
+        val now = currentState()
+        // A cycle stepped back to with the arrows is a passing look, not a choice to keep.
+        insightsFilter.save(
+            com.zyke.message.domain.repository.SavedInsightsFilter(
+                period = if (now.cycleOffset != 0) DashboardPeriod.THIS_MONTH else now.period,
+                customRange = now.customRange.takeIf { now.period == DashboardPeriod.CUSTOM && now.cycleOffset == 0 },
+                source = now.source
+            )
+        )
+    }
+
     private fun archivedIds(): Set<Long> = userStateRepository?.state?.value?.archivedIds.orEmpty()
 
     private fun reduceDashboard(change: State.() -> State) = reduce {
@@ -143,25 +176,28 @@ class DashboardViewModel(
         } else {
             val flowQuery = updated.query.copy(category = null)
             val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, clock.zone)
+            // The figures and charts follow the chosen source (UPI, one account or one card); the rest of the screen does not.
+            val scoped = com.zyke.message.domain.dashboard.SourceFilters.apply(updated.messages, updated.source)
             val planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
             updated.copy(
                 cycle = cycle,
                 categoryDetail = updated.openCategory?.let { open ->
-                    DashboardBuilder.build(updated.messages, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets, cycle)
+                    DashboardBuilder.build(scoped, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets, cycle)
                 },
-                dashboard = DashboardBuilder.build(updated.messages, updated.query, updated.now, clock.zone, updated.budgets, cycle),
+                dashboard = DashboardBuilder.build(scoped, updated.query, updated.now, clock.zone, updated.budgets, cycle),
                 expenseTrend = DashboardBuilder.build(
-                    updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),
+                    scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),
                     updated.now, clock.zone, updated.budgets, cycle
                 ).trend,
                 incomeTrend = DashboardBuilder.build(
-                    updated.messages, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED),
+                    scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED),
                     updated.now, clock.zone, updated.budgets, cycle
                 ).trend,
-                reportCard = ReportCardBuilder.build(updated.messages, updated.budgets, updated.now, clock.zone, cycle),
+                reportCard = ReportCardBuilder.build(scoped, updated.budgets, updated.now, clock.zone, cycle),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
                 limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),
+                sourceOptions = com.zyke.message.domain.dashboard.SourceFilters.options(updated.messages),
                 planInsights = planInsights,
                 limitSuggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(
                     updated.messages, updated.budgets, planInsights?.spendable, updated.now, clock.zone, cycle
@@ -186,13 +222,15 @@ class DashboardViewModel(
         private val userStateRepository: UserMessageStateRepository? = null,
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
-        private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts
+        private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
+        private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             DashboardViewModel(
                 observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository,
-                planRepository = planRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts
+                planRepository = planRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts,
+                insightsFilter = insightsFilter
             ) as T
     }
 }

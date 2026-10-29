@@ -43,6 +43,9 @@ object DashboardContract {
         val editingBudget: MessageCategory? = null,
 
         val showFilterSheet: Boolean = false,
+        /** Which payments the figures cover: all, UPI, one account or one card. */
+        val source: com.zyke.message.domain.dashboard.SourceFilter = com.zyke.message.domain.dashboard.SourceFilter(),
+        val sourceOptions: List<com.zyke.message.domain.dashboard.SourceOption> = emptyList(),
         val showReportCard: Boolean = false,
         val expandedVendor: String? = null,
         /** The category whose payments are open in a sheet, and what they add up to. */
@@ -83,12 +86,13 @@ object DashboardContract {
 
         /** Period and category live in the filter sheet; the direction has its own switch on screen. */
         val activeFilterCount: Int
-            get() = (if (period != DashboardPeriod.THIS_MONTH && cycleOffset == 0) 1 else 0) + (if (category != null) 1 else 0)
+            get() = (if (period != DashboardPeriod.THIS_MONTH && cycleOffset == 0) 1 else 0) + (if (category != null) 1 else 0) + (if (source.isActive) 1 else 0)
     }
 
     sealed interface Intent {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SelectPeriod(val period: DashboardPeriod) : Intent
+        data class SelectSource(val source: com.zyke.message.domain.dashboard.SourceFilter) : Intent
         /** Moves the chart and lists to the pay cycle before or after; never past the current one. */
         data class ShiftCycle(val delta: Int) : Intent
         data class SelectCustomRange(val start: java.time.LocalDate, val end: java.time.LocalDate) : Intent

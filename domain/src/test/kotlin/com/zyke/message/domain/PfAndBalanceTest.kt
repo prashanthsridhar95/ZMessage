@@ -252,3 +252,24 @@ class DismissalsTest {
         assertTrue(hidden(java.time.LocalDate.of(2026, 11, 12), day(11, 10)))
     }
 }
+
+class SourceFilterTest {
+    private val c = MessageClassifier()
+    private fun sms(id: Long, body: String) = c.classify(SmsMessage(id, "AD-HDFCBK", body, id * 1000, true))
+
+    @Test
+    fun upiAnAccountAndACard_canEachBeChosen() {
+        val upi = sms(1, "Rs.450.00 debited from A/c XX1234 on 12-10-26 to VPA cafe@okhdfc (UPI 111)")
+        val atm = sms(2, "Rs.2000.00 withdrawn from A/c XX1234 on 12-10-26 at ATM")
+        val other = sms(3, "Rs.300.00 debited from A/c XX9999 on 12-10-26 to VPA shop@okhdfc (UPI 222)")
+        val card = sms(4, "Rs.800.00 spent on HDFC Bank Credit Card XX7777 at AMAZON on 12-10-26")
+        val all = listOf(upi, atm, other, card)
+
+        val sf = com.zyke.message.domain.dashboard.SourceFilters
+                assertEquals(listOf(1L, 3L), sf.apply(all, com.zyke.message.domain.dashboard.SourceFilter(com.zyke.message.domain.dashboard.SourceKind.UPI)).map { it.id })
+        assertEquals(listOf(1L, 2L), sf.apply(all, com.zyke.message.domain.dashboard.SourceFilter(com.zyke.message.domain.dashboard.SourceKind.ACCOUNT, "1234")).map { it.id })
+        assertEquals(listOf(4L), sf.apply(all, com.zyke.message.domain.dashboard.SourceFilter(com.zyke.message.domain.dashboard.SourceKind.CARD, "7777")).map { it.id })
+        assertEquals(4, sf.apply(all, com.zyke.message.domain.dashboard.SourceFilter()).size)
+        assertTrue(sf.options(all).any { it.filter.kind == com.zyke.message.domain.dashboard.SourceKind.CARD && it.filter.last4 == "7777" })
+    }
+}
