@@ -83,6 +83,8 @@ class AppContainer(context: Context) {
 
     private fun cacheTag(context: Context): String {
         val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
-        return "${info?.versionName}-${info?.longVersionCode}-${info?.lastUpdateTime}-r${com.zyke.message.domain.classification.MessageClassifier.RULES_VERSION}"
+        // Not the install time: updating the app must not throw away what was read, or every update would read the whole
+        // inbox again. When the rules change what a message is read as, MessageClassifier.RULES_VERSION is raised instead.
+        return "${info?.versionName}-${info?.longVersionCode}-r${com.zyke.message.domain.classification.MessageClassifier.RULES_VERSION}"
     }
 }
