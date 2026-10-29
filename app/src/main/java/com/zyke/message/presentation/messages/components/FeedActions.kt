@@ -14,6 +14,8 @@ data class FeedActions(
     val onUnarchive: (Long) -> Unit,
     val onTogglePin: (Long) -> Unit,
     val onDismissAttention: (String) -> Unit,
+    /** Settle a bill for good; unlike a dismissal, it does not come back as the due date nears. */
+    val onMarkPaid: (String) -> Unit = {},
     val onOpenSummary: () -> Unit,
     val onOpenLink: (String) -> Unit,
     val onSetCategory: (messageId: Long, category: MessageCategory?) -> Unit,

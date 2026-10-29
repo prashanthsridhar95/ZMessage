@@ -5,5 +5,7 @@ data class UserMessageState(
     val readIds: Set<Long> = emptySet(),
     val archivedIds: Set<Long> = emptySet(),
     val pinnedIds: Set<Long> = emptySet(),
-    val dismissedAttention: Set<String> = emptySet()
+    val dismissedAttention: Set<String> = emptySet(),
+    /** When a bill's card was dismissed (epoch millis), so it can come back as the due date nears. */
+    val dismissedAt: Map<String, Long> = emptyMap()
 )

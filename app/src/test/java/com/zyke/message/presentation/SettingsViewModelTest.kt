@@ -56,7 +56,7 @@ class SettingsViewModelTest {
         override fun markRead(messageId: Long) {}
         override fun setArchived(messageId: Long, archived: Boolean) {}
         override fun setPinned(messageId: Long, pinned: Boolean) {}
-        override fun dismissAttention(key: String) {}
+        override fun dismissAttention(key: String, forever: Boolean) {}
         override fun clearAll() { cleared = true }
     }
 

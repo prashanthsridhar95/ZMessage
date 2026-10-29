@@ -9,7 +9,11 @@ interface UserMessageStateRepository {
     fun markRead(messageId: Long)
     fun setArchived(messageId: Long, archived: Boolean)
     fun setPinned(messageId: Long, pinned: Boolean)
-    fun dismissAttention(key: String)
+    /**
+     * Dismisses a card from "Needs your attention". A bill's card is hidden for now and comes back three days before
+     * it is due, and again on the due date; anything else, or a dismissal that is [forever], does not come back.
+     */
+    fun dismissAttention(key: String, forever: Boolean = false)
 
     /** Forgets every read / archived / pinned / dismissed mark. */
     fun clearAll()

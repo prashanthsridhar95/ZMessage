@@ -150,7 +150,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
                 AppButton("Pay", { actions.onOpenLink(link) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
             }
             AppButton(
-                "Mark as paid", { actions.onDismissAttention(bill.key) }, Modifier.weight(1f),
+                "Mark as paid", { actions.onMarkPaid(bill.key) }, Modifier.weight(1f),
                 style = ButtonStyle.TONAL, size = ButtonSize.COMPACT
             )
         }

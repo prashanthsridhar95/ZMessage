@@ -59,7 +59,7 @@ class MessagesViewModelTest {
             _state.value = _state.value.copy(pinnedIds = if (pinned) ids + messageId else ids - messageId)
         }
         override fun clearAll() { _state.value = UserMessageState() }
-        override fun dismissAttention(key: String) {
+        override fun dismissAttention(key: String, forever: Boolean) {
             _state.value = _state.value.copy(dismissedAttention = _state.value.dismissedAttention + key)
         }
     }

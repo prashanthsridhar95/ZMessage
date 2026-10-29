@@ -109,7 +109,8 @@ sealed interface AttentionItem {
         val dueDate: LocalDate?,
         val paymentLink: String? = null
     ) : AttentionItem {
-        override val key get() = "bill-${message.id}"
+        // The card and the due date, not the message, so a second message about the same bill is still the same bill.
+        override val key get() = if (dueDate != null) "bill-${(message.content as? com.zyke.message.domain.model.MessageContent.CardBill)?.bankName?.name}-${(message.content as? com.zyke.message.domain.model.MessageContent.CardBill)?.accountNumber}-$dueDate" else "bill-${message.id}"
     }
 
     data class LowFastTag(

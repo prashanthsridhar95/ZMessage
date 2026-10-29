@@ -2,6 +2,7 @@ package com.zyke.message.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.zyke.message.domain.feed.Dismissals
 import com.zyke.message.domain.model.UserMessageState
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,10 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
         copy(pinnedIds = if (pinned) pinnedIds + messageId else pinnedIds - messageId)
     }
 
-    override fun dismissAttention(key: String) = change { copy(dismissedAttention = dismissedAttention + key) }
+    override fun dismissAttention(key: String, forever: Boolean) = change {
+        if (Dismissals.isTimed(key) && !forever) copy(dismissedAt = dismissedAt + (key to System.currentTimeMillis()))
+        else copy(dismissedAttention = dismissedAttention + key)
+    }
 
     override fun clearAll() {
         _state.value = UserMessageState()
@@ -57,7 +61,11 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
         readIds = longs(READ),
         archivedIds = longs(ARCHIVED),
         pinnedIds = longs(PINNED),
-        dismissedAttention = prefs.getStringSet(DISMISSED, emptySet()).orEmpty().toSet()
+        dismissedAttention = prefs.getStringSet(DISMISSED, emptySet()).orEmpty().toSet(),
+        dismissedAt = runCatching {
+            val json = org.json.JSONObject(prefs.getString(DISMISSED_AT, null) ?: return@runCatching emptyMap<String, Long>())
+            json.keys().asSequence().associateWith { json.getLong(it) }
+        }.getOrDefault(emptyMap())
     )
 
     private fun longs(key: String): Set<Long> =
@@ -69,6 +77,7 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
             .putStringSet(ARCHIVED, state.archivedIds.mapTo(HashSet()) { it.toString() })
             .putStringSet(PINNED, state.pinnedIds.mapTo(HashSet()) { it.toString() })
             .putStringSet(DISMISSED, HashSet(state.dismissedAttention))
+            .putString(DISMISSED_AT, org.json.JSONObject().also { json -> state.dismissedAt.forEach { (k, v) -> json.put(k, v) } }.toString())
             .apply()
     }
 
@@ -78,5 +87,6 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
         const val ARCHIVED = "archived"
         const val PINNED = "pinned"
         const val DISMISSED = "dismissed_attention"
+        const val DISMISSED_AT = "dismissed_at"
     }
 }

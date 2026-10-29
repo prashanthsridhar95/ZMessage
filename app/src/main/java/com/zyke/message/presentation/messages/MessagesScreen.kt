@@ -306,6 +306,7 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onUnarchive = { this(Intent.Unarchive(it)) },
     onTogglePin = { this(Intent.TogglePin(it)) },
     onDismissAttention = { this(Intent.DismissAttention(it)) },
+    onMarkPaid = { this(Intent.DismissAttention(it, forever = true)) },
     onOpenSummary = { this(Intent.OpenSummary) },
     onOpenLink = { this(Intent.OpenLink(it)) },
     onSetCategory = { id, category -> this(Intent.SetCategory(id, category)) },

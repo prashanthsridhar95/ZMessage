@@ -112,7 +112,7 @@ object HomeContract {
     sealed interface Intent {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class CopyOtp(val messageId: Long, val code: String) : Intent
-        data class DismissAttention(val key: String) : Intent
+        data class DismissAttention(val key: String, val forever: Boolean = false) : Intent
         data class OpenLink(val url: String) : Intent
         data class OpenMessage(val messageId: Long) : Intent
         data object CloseMessage : Intent

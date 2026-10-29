@@ -176,6 +176,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         FeedActions.None.copy(
             onCopyOtp = { id, code -> onIntent(Intent.CopyOtp(id, code)) },
             onDismissAttention = { onIntent(Intent.DismissAttention(it)) },
+            onMarkPaid = { onIntent(Intent.DismissAttention(it, forever = true)) },
             onOpenLink = { onIntent(Intent.OpenLink(it)) },
             onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
             onTogglePin = { onIntent(Intent.TogglePin(it)) },

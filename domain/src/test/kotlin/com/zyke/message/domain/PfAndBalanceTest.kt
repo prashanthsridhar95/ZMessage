@@ -8,6 +8,7 @@ import com.zyke.message.domain.model.SmsMessage
 import com.zyke.message.domain.pf.ProvidentFunds
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -223,5 +224,31 @@ class AutoDebitPaidTest {
         val debited = c.classify(SmsMessage(2, "AD-HDFCBK", "Rs.12345.00 debited from your HDFC Bank A/c XX5765 towards credit card bill payment on 28-10-26", at(28, 9), true))
         val up = com.zyke.message.domain.home.UpcomingBuilder.build(listOf(debited, bill), java.time.LocalDate.of(2026, 10, 28), includePaidToday = true, zone = zone)
         assertEquals(java.time.LocalDate.of(2026, 10, 28), up.single().paidOn)
+    }
+}
+
+class DismissalsTest {
+    private val zone = ZoneId.of("UTC")
+    private val due = java.time.LocalDate.of(2026, 11, 10)
+    private fun day(m: Int, d: Int) = java.time.LocalDate.of(2026, m, d).atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+    private fun hidden(on: java.time.LocalDate, dismissedOn: Long?) = com.zyke.message.domain.feed.Dismissals.isHidden(
+        "bill-x", due, on, zone, emptySet(), dismissedOn?.let { mapOf("bill-x" to it) }.orEmpty()
+    )
+
+    @Test
+    fun aBillDismissedEarly_comesBackThreeDaysBeforeItIsDue() {
+        val dismissed = day(10, 29)
+        assertTrue(hidden(java.time.LocalDate.of(2026, 11, 1), dismissed))
+        assertTrue(hidden(java.time.LocalDate.of(2026, 11, 6), dismissed))
+        assertFalse(hidden(java.time.LocalDate.of(2026, 11, 7), dismissed))
+    }
+
+    @Test
+    fun dismissedAgainInThoseDays_itComesBackOnTheDueDate_thenNeverAgain() {
+        val dismissed = day(11, 8)
+        assertTrue(hidden(java.time.LocalDate.of(2026, 11, 9), dismissed))
+        assertFalse(hidden(java.time.LocalDate.of(2026, 11, 10), dismissed))
+        // Dismissed on the due date itself: that was the last time.
+        assertTrue(hidden(java.time.LocalDate.of(2026, 11, 12), day(11, 10)))
     }
 }

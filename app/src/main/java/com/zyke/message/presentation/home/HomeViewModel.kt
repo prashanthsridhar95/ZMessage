@@ -116,7 +116,7 @@ class HomeViewModel(
                 userStateRepository.markRead(intent.messageId)
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
-            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
+            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
                 userStateRepository.markRead(intent.messageId)
@@ -277,7 +277,7 @@ class HomeViewModel(
                 owed = SplitInsights.build(updated.splits, updated.messages, zone).filter { !it.settled },
                 subscriptions = Subscriptions.find(live, updated.now, zone),
                 attention = AttentionBuilder.build(
-                    live.filter { !it.isPromotional }, updated.userState.dismissedAttention, updated.now, zone
+                    live.filter { !it.isPromotional }, updated.userState.dismissedAttention, updated.now, zone, updated.userState.dismissedAt
                 ),
                 thisMonth = dashboard,
                 upcoming = UpcomingBuilder.build(updated.messages, today, includePaidToday = true, zone = zone),

@@ -65,7 +65,7 @@ class ClassificationCacheTest {
         override fun markRead(messageId: Long) = Unit
         override fun setArchived(messageId: Long, archived: Boolean) = Unit
         override fun setPinned(messageId: Long, pinned: Boolean) = Unit
-        override fun dismissAttention(key: String) = Unit
+        override fun dismissAttention(key: String, forever: Boolean) = Unit
         override fun clearAll() = Unit
         override fun retainOnly(existingIds: Set<Long>) { kept = existingIds }
     }

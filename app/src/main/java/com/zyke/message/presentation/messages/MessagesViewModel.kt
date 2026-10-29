@@ -133,7 +133,7 @@ class MessagesViewModel(
                     emitEffect(Effect.CategoryChanged(message.id, CategoryKey.label(message), intent.category, previous))
                 }
             }
-            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key)
+            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
         }
     }

@@ -22,11 +22,15 @@ object AttentionBuilder {
         messages: List<ClassifiedMessage>,
         dismissed: Set<String>,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        dismissedAt: Map<String, Long> = emptyMap()
     ): List<AttentionItem> {
         val today = LocalDate.ofInstant(now, zone)
         val items = listOfNotNull(freshOtp(messages, now)) + bills(messages, now, today, zone) + lowFastTags(messages)
-        return items.filter { it.key !in dismissed }.take(MAX_ITEMS)
+        return items.filter { item ->
+            val due = (item as? AttentionItem.BillDue)?.dueDate
+            !Dismissals.isHidden(item.key, due, today, zone, dismissed, dismissedAt)
+        }.take(MAX_ITEMS)
     }
 
     private fun freshOtp(messages: List<ClassifiedMessage>, now: Instant): AttentionItem? {
