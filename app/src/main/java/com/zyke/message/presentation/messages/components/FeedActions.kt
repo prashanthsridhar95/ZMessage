@@ -33,6 +33,9 @@ data class FeedActions(
     val onSplit: ((messageId: Long) -> Unit)? = null
 ) {
     companion object {
-        val None = FeedActions({}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> })
+        val None = FeedActions(
+            onOpenMessage = {}, onToggleGroup = {}, onCopyOtp = { _, _ -> }, onArchive = {}, onUnarchive = {}, onTogglePin = {},
+            onDismissAttention = {}, onOpenSummary = {}, onOpenLink = {}, onSetCategory = { _, _ -> }
+        )
     }
 }
