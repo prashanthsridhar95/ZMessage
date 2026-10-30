@@ -5,6 +5,7 @@ import com.zyke.message.domain.feed.FeedBuilder
 import com.zyke.message.domain.feed.FeedItem
 import com.zyke.message.domain.feed.FeedSection
 import com.zyke.message.domain.feed.SectionId
+import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.UserMessageState
 import java.time.Instant
@@ -44,14 +45,26 @@ class ConversationBuilder(private val merchants: MerchantResolver = MerchantReso
     private fun build(key: String, group: List<ClassifiedMessage>, userState: UserMessageState): Conversation {
         val sorted = group.sortedByDescending { it.message.date }
         val address = SenderKey.displayAddress(sorted.first().message.sender)
+        // A name or picture given to the sender itself (a phone number, say) is on its messages; the conversation shows it too.
+        val own = sorted.filter { it.categoryKeyIsSender() }
+        val named = own.firstOrNull { it.merchant.renamed && !it.nicknameOwn }
+        val pictured = own.firstOrNull { it.merchant.imageKey != null && it.merchant.imageKey == CategoryKey.of(it) }
+        val resolved = merchants.resolve(sorted.first().message.sender)
         return Conversation(
             key = key,
             address = address,
-            merchant = merchants.resolve(sorted.first().message.sender),
+            merchant = resolved.copy(
+                name = named?.merchant?.name ?: resolved.name,
+                renamed = named != null || resolved.renamed,
+                imageKey = pictured?.merchant?.imageKey ?: resolved.imageKey
+            ),
             messages = sorted,
             unreadCount = sorted.count { !it.message.isRead && it.id !in userState.readIds }
         )
     }
+
+    /** True when what the person's choices are keyed on is the sender itself, not a payee named in the message. */
+    private fun ClassifiedMessage.categoryKeyIsSender() = CategoryKey.of(this) == CategoryKey.normalise(message.sender)
 
     private fun matches(conversation: Conversation, needle: String) =
         conversation.address.contains(needle, ignoreCase = true) ||

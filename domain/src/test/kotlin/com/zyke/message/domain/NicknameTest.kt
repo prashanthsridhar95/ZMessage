@@ -44,4 +44,17 @@ class NicknameTest {
         assertTrue(renamed.merchant.renamed)
         assertFalse(messages.first { it.id == 2L }.merchant.renamed)
     }
+
+    @Test
+    fun aNameGivenToAPhoneNumber_showsOnItsConversation() = runBlocking {
+        val number = "+919876543210"
+        val inbox = listOf(SmsMessage(1, number, "See you at 7 then", 2000, true))
+        val names = Names(mapOf(CategoryKey.normalise(number) to "Ravi"))
+        val messages = ObserveMessagesUseCase(Sms(inbox), MessageClassifier(), Dispatchers.Unconfined, nicknameRepository = names)().first()
+
+        val conversation = com.zyke.message.domain.conversation.ConversationBuilder()
+            .conversations(messages, com.zyke.message.domain.model.UserMessageState()).single()
+        assertEquals("Ravi", conversation.merchant.name)
+        assertTrue(conversation.merchant.renamed)
+    }
 }
