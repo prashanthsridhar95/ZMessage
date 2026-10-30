@@ -393,6 +393,15 @@ private fun LiveAlertsToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modi
 private fun RcsSection() {
     val context = LocalContext.current
     SectionCard("RCS messages") {
+        // Whether the reader is on, and what it has caught, so a missing top-up can be traced.
+        val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+        val enabled = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+        val topUps = androidx.compose.runtime.remember { container.rcsStore.all().count { com.zyke.message.domain.classification.UpiLiteNotification.isFromNotification(it.sender) } }
+        Caption(
+            (if (enabled) "Notification access is on" else "Notification access is off") +
+                " · $topUps UPI Lite top-up${if (topUps == 1) "" else "s"} caught from Google Pay",
+            maxLines = 3
+        )
         Caption(
             "Adds new chats from Google and Samsung Messages, and UPI Lite top-ups from Google Pay so they count as spending",
             maxLines = 5

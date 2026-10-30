@@ -270,23 +270,11 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
         }
 
         item(key = "plan-tiles") {
-            val soon = state.reminders.count { it.daysFrom(today) <= REMINDER_SOON_DAYS }
-            val goal = state.goals.firstOrNull { !it.isReached }
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PlanTile(
-                    "Goals",
-                    goal?.let { "${it.goal.name} · ${(it.fraction * 100).toInt()}%" } ?: state.goals.size.takeIf { it > 0 }?.let { "$it reached" } ?: "None yet"
-                ) { onIntent(Intent.OpenGoals) }
-                PlanTile(
-                    "Calendar",
-                    state.events.count { !it.date.isBefore(today) && it.date.isBefore(today.plusDays(8)) }.let { n ->
-                        if (n > 0) "$n of your events this week" else "Bills, reminders and your events"
-                    }
-                ) { onIntent(Intent.OpenAgenda) }
-                PlanTile(
-                    "Reminders",
-                    if (soon > 0) "$soon in the next week" else state.reminders.size.takeIf { it > 0 }?.let { "$it set" } ?: "None yet"
-                ) { onIntent(Intent.OpenReminders) }
+            // Three squares in a line, each a page of its own.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
+                ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
+                ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
             }
         }
 
@@ -426,7 +414,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
     }
 
     if (state.showGoals) {
-        PlanSheet("Goals", { onIntent(Intent.CloseGoals) }) {
+        PlanPage("Goals", { onIntent(Intent.CloseGoals) }) {
             GoalsCard(
                 goals = state.goals,
                 onSave = { onIntent(Intent.SaveGoal(it)) },
@@ -437,7 +425,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
     }
 
     if (state.showAgenda) {
-        CalendarSheet(
+        CalendarPage(
             messages = state.messages, reminders = state.reminderList, events = state.events, goals = state.goalList, plan = state.plan,
             now = state.now,
             onSaveEvent = { onIntent(Intent.SaveEvent(it)) },
@@ -448,7 +436,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
     }
 
     if (state.showReminders) {
-        PlanSheet("Reminders", { onIntent(Intent.CloseReminders) }) {
+        PlanPage("Reminders", { onIntent(Intent.CloseReminders) }) {
             RemindersCard(
                 reminders = state.reminders, today = LocalDate.ofInstant(state.now, ZoneId.systemDefault()),
                 onSave = { onIntent(Intent.SaveReminder(it)) }, onRemove = { onIntent(Intent.RemoveReminder(it)) }

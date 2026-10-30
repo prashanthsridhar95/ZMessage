@@ -16,10 +16,8 @@ class RcsNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) = handle(sbn)
 
     private fun handle(sbn: StatusBarNotification) {
-        if (sbn.packageName == GOOGLE_PAY) {
-            keepUpiLiteTopUp(sbn)
-            return
-        }
+        // A UPI Lite top-up is recognised by what it says, whichever Google Pay app or profile posted it.
+        if (sbn.packageName != packageName && keepUpiLiteTopUp(sbn)) return
         if (sbn.packageName !in MESSAGING_PACKAGES) return
         val notification = sbn.notification
         if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -34,16 +32,18 @@ class RcsNotificationListener : NotificationListenerService() {
     }
 
     /** A Google Pay "UPI Lite refilled" notification becomes a message, so the top-up is counted as spent. */
-    private fun keepUpiLiteTopUp(sbn: StatusBarNotification) {
+    private fun keepUpiLiteTopUp(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()
-        val amount = UpiLiteNotification.amount(title, text) ?: return
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+        val big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+        // The short and the expanded text are tried in turn; either may be the one that carries the amount.
+        val amount = UpiLiteNotification.amount(title, text) ?: UpiLiteNotification.amount(title, big) ?: return false
         (application as ZykeMessagesApplication).container.rcsStore.add(UpiLiteNotification.SENDER, UpiLiteNotification.body(amount), sbn.postTime)
+        return true
     }
 
     private companion object {
-        const val GOOGLE_PAY = "com.google.android.apps.nbu.paisa.user"
 
         val MESSAGING_PACKAGES = setOf(
             "com.google.android.apps.messaging",

@@ -28,6 +28,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -289,6 +292,37 @@ internal fun PlanTile(title: String, summary: String, onOpen: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text("\u203A", color = mutedColor())
         }
+    }
+}
+
+/** A square button with an icon and a small name beneath it, for a page of its own. */
+@Composable
+internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    FintechCard(modifier.aspectRatio(1f), onClick = onOpen) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(icon),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
+            )
+            Text(
+                label,
+                Modifier.padding(top = 10.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.secondary,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/** The page a plan shortcut opens: its card, with room round it. */
+@Composable
+internal fun PlanPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    com.zyke.message.presentation.common.AppPage(title, onBack) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
     }
 }
 

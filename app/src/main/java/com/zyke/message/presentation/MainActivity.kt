@@ -295,6 +295,14 @@ class MainActivity : ComponentActivity() {
         // reads everything, and a very large inbox is not read again for a quick switch between apps.
         if (leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > REFRESH_AFTER_MS) container.smsRepository.refreshRecent()
         keepReadingInBackground()
+        // After an update the phone can leave the notification reader unconnected until it is asked to reconnect.
+        if (hasNotificationAccess()) {
+            runCatching {
+                android.service.notification.NotificationListenerService.requestRebind(
+                    android.content.ComponentName(this, com.zyke.message.data.sms.RcsNotificationListener::class.java)
+                )
+            }
+        }
         container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
         DaysAheadWidget.refresh(this)
     }

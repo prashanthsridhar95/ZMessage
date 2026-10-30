@@ -100,10 +100,12 @@ fun AppRoot(
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
     val sheetHost = remember { SheetHost() }
+    val pageHost = remember { com.zyke.message.presentation.common.PageHost() }
     val snackbar = remember { SnackbarHostState() }
 
     CompositionLocalProvider(
         LocalSheetHost provides sheetHost,
+        com.zyke.message.presentation.common.LocalPageHost provides pageHost,
         LocalAppSnackbar provides snackbar,
         LocalOpenSettings provides { showSettings = true },
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
@@ -139,6 +141,8 @@ fun AppRoot(
         if (web.isOpen && !web.minimised) LinkSheet(web)
     }
     // Drawn after the screens, so over them; the minimised page and the snackbar are drawn after the sheets, so over those.
+    // Pages go over the screens; the sheets opened from a page, then the web button and the snackbar, go over those.
+    com.zyke.message.presentation.common.PageHostLayer(pageHost)
     SheetHostLayer(sheetHost)
     if (web.isOpen && web.minimised) MinimisedLink(web, Modifier.statusBarsPadding().navigationBarsPadding())
     SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))

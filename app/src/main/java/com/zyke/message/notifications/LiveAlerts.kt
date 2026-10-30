@@ -72,7 +72,12 @@ internal object LiveAlerts {
             publicText = "Unlock to see it",
             action = "Copy code" to copy,
             secondary = null,
-            contentIntent = copy
+            contentIntent = copy,
+            // The code itself is drawn large, with the rest in small type beneath.
+            customView = android.widget.RemoteViews(context.packageName, R.layout.notification_code).apply {
+                setTextViewText(R.id.code_value, spaced)
+                setTextViewText(R.id.code_detail, "From ${content.senderName}$forPayment\nTap to copy. Never share it.")
+            }
         )
     }
 
@@ -114,7 +119,8 @@ internal object LiveAlerts {
         publicText: String,
         action: Pair<String, PendingIntent>?,
         secondary: Pair<String, PendingIntent>?,
-        contentIntent: PendingIntent
+        contentIntent: PendingIntent,
+        customView: android.widget.RemoteViews? = null
     ) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
@@ -128,7 +134,7 @@ internal object LiveAlerts {
             .setColor(accent)
             .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setStyle(if (customView != null) NotificationCompat.DecoratedCustomViewStyle() else NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
@@ -140,6 +146,7 @@ internal object LiveAlerts {
                     .setContentTitle(publicTitle).setContentText(publicText).build()
             )
             .setTimeoutAfter(TIMEOUT_MS)
+        customView?.let { builder.setCustomContentView(it).setCustomBigContentView(it) }
         action?.let { (label, intent) -> builder.addAction(0, label, intent) }
         secondary?.let { (label, intent) -> builder.addAction(0, label, intent) }
         manager.notify(id, builder.build())

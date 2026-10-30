@@ -49,7 +49,7 @@ import com.zyke.message.domain.goals.Goal
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.reminders.Reminder
-import com.zyke.message.presentation.common.AppBottomSheet
+import com.zyke.message.presentation.common.AppPage
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -88,7 +88,7 @@ private fun kindColor(kind: CalendarKind): Color = when (kind) {
  * appointments, regular payments, the salary day and goal dates.
  */
 @Composable
-internal fun CalendarSheet(
+internal fun CalendarPage(
     messages: List<ClassifiedMessage>,
     reminders: List<Reminder>,
     events: List<CalendarEvent>,
@@ -114,11 +114,9 @@ internal fun CalendarSheet(
     }
     val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
 
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Text("Calendar", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    AppPage("Calendar", onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 AppButton("‹", { monthText = month.minusMonths(1).toString() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                 Text(
                     DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1)),
