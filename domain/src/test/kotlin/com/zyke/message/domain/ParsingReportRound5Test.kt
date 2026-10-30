@@ -84,4 +84,14 @@ class ParsingReportRound5Test {
         assertEquals(NoticeKind.PAYMENT_DECLINED, kind("Transaction of INR 9,999.99 at OPENAI *CHATGPT on ICICI Bank Credit Card XX9999 was declined due to insufficient credit limit. Available Credit Limit is INR 999.99"))
         assertNotNull(kind("Alert! HDFC Bank A/c XXXX9999 Avg. bal. maintained as on 28-OCT-26: Rs 9999.99 Avoid non-maintenance charges by maintaining Avg. bal. of Rs 99999 in OCT-2026"))
     }
+
+    @Test
+    fun aConditionalRefundPromiseIsNotIncome_andTheInspectionIsAnAppointment() {
+        val message = read(
+            "Hi SRIDHAR R, We have rescheduled the car inspection of your vehicle to Oct 31, 2026, 01:00 PM as per your request. An authorized Acko crew member will visit you for inspection, you can check for a valid ID if required. In case your inspection is not approved, we will refund the complete amount of Rs 11901.0 - Team Acko",
+            sender = "AX-ACKOIN"
+        )
+        assertTrue(message.content.toString(), message.content !is MessageContent.Transaction)
+        assertTrue(message.content.toString(), message.content is MessageContent.Life)
+    }
 }

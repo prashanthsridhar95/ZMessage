@@ -21,7 +21,8 @@ class GenericTransactionParser {
         parseKnownFormats(message.replace(Regex("[\\s\\u00a0]+"), " ").trim())?.let { return it }
         if (PromoDetector.hasPromoHints(message)) return null
         // "Refund of Rs 500 initiated" is a promise, not money received yet.
-        if (RefundTracker.announcesPendingRefund(message.replace(Regex("\\s+"), " "))) return null
+        val flat = message.replace(Regex("\\s+"), " ")
+        if (RefundTracker.announcesPendingRefund(flat) || RefundTracker.isConditionalRefund(flat)) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
         return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)

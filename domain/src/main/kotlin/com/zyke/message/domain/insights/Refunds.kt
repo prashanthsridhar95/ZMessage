@@ -34,6 +34,11 @@ object RefundTracker {
     private val CREDITED_ALREADY = Regex("(?i)\\b(?:has been|have been|was|is)\\s+credited\\b|(?<!be )\\bcredited to\\b")
     private val AMOUNT = Regex("(?i)(?:INR\\.?|Rs\\.?|₹)\\s*([\\d,]+(?:\\.\\d+)?)")
 
+    private val CONDITIONAL = Regex("(?i)\\b(?:we|they) (?:will|shall) refund\\b|\\bin case\\b.*\\brefund")
+
+    /** "In case it is not approved, we will refund the amount": a promise that may never be kept, not money in or out. */
+    fun isConditionalRefund(body: String): Boolean = CONDITIONAL.containsMatchIn(body)
+
     /** True for a message that announces a refund which has not arrived yet. */
     fun announcesPendingRefund(body: String): Boolean = STARTED.containsMatchIn(body) && !CREDITED_ALREADY.containsMatchIn(body)
 

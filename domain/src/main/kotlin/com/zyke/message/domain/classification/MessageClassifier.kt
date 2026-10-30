@@ -297,7 +297,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 10
+        const val RULES_VERSION = 11
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(

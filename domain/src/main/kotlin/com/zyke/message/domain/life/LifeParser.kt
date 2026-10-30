@@ -82,7 +82,7 @@ object LifeParser {
 
     // ---- appointments
 
-    private val APPOINTMENT_WORD = Regex("(?i)\\b(?:appointment|appt|slot|consultation|visit|session|test booking|sample collection|service (?:booking|due)|pickup scheduled)\\b")
+    private val APPOINTMENT_WORD = Regex("(?i)\\b(?:appointment|appt|slot|consultation|visit|session|test booking|sample collection|service (?:booking|due)|pickup scheduled|inspection)\\b")
     private val APPOINTMENT_VERB = Regex("(?i)\\b(?:scheduled|confirmed|booked|reminder|is on|fixed|rescheduled|remind)\\b")
 
     private fun appointment(text: String, receivedOn: LocalDate): LifeFacts? {
