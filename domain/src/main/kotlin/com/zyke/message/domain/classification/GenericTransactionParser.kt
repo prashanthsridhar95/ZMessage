@@ -17,12 +17,110 @@ import java.util.Locale
 class GenericTransactionParser {
 
     fun parse(message: String): BankTransaction? {
+        // Formats that are known by name come first, so a word like "coupon" in them cannot make them look like offers.
+        parseKnownFormats(message.replace(Regex("[\\s\\u00a0]+"), " ").trim())?.let { return it }
         if (PromoDetector.hasPromoHints(message)) return null
         // "Refund of Rs 500 initiated" is a promise, not money received yet.
         if (RefundTracker.announcesPendingRefund(message.replace(Regex("\\s+"), " "))) return null
 
         val body = message.replace(Regex("\\s+"), " ").trim()
         return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
+    }
+
+    /**
+     * Formats seen in the field: SBI net banking and account alerts, card mandates, card bill payments, FASTag, LazyPay,
+     * telecom and gas bills, and the loan reminders of lenders that send them as "due on".
+     */
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    private fun parseKnownFormats(body: String): BankTransaction? {
+        SBI_NETBANKING.find(body)?.let {
+            return BankTransaction(BankName.SBI, it.groupValues[2], it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        SBI_ACCOUNT_ALERT.find(body)?.let {
+            val received = it.groupValues[2].equals("credit", ignoreCase = true)
+            val who = it.groupValues[3].trim().let { name ->
+                when {
+                    name.equals("transfer", ignoreCase = true) -> ""
+                    name.startsWith("UPI/", ignoreCase = true) -> "UPI"
+                    else -> name
+                }
+            }.let(::tidy).orEmpty()
+            return BankTransaction(
+                BankName.SBI, it.groupValues[1], who, clean(it.groupValues[4]),
+                if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
+            )
+        }
+        UPI_MANDATE_CREATED.find(body)?.let {
+            return BankTransaction(bank(body), it.groupValues[3], it.groupValues[2].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.MANDATE_SET)
+        }
+        STANDING_INSTRUCTION.find(body)?.let {
+            return BankTransaction(bank(body), it.groupValues[1], it.groupValues[2].let(::tidy).orEmpty(), clean(it.groupValues[3]), BankTransactionType.MANDATE_SET)
+        }
+        CARD_EMANDATE.find(body)?.let {
+            return BankTransaction(bank(body), it.groupValues[1], it.groupValues[2].let(::tidy).orEmpty(), clean(it.groupValues[3]), BankTransactionType.MANDATE_SET)
+        }
+        RBL_BILL.find(body)?.let {
+            return BankTransaction(
+                bank(body).takeIf { b -> b != BankName.OTHERS } ?: BankName.OTHERS, it.groupValues[3], "", clean(it.groupValues[1]), BankTransactionType.CARD_BILL,
+                dueDate = parseDate(it.groupValues[2]), paymentLink = paymentLink(body)
+            )
+        }
+        CARD_PAYMENT_PROCESSED.find(body)?.let {
+            return BankTransaction(bank(body), "", "", clean(it.groupValues[1]), BankTransactionType.RECEIVED)
+        }
+        CARD_PAYMENT_THANKS.find(body)?.let {
+            return BankTransaction(bank(body), "", "", clean(it.groupValues[1]), BankTransactionType.RECEIVED)
+        }
+        AIRTEL_BILL.find(body)?.let {
+            return BankTransaction(BankName.OTHERS, "", "Airtel", clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseDate(it.groupValues[2]))
+        }
+        LAZYPAY_PAID.find(body)?.let {
+            return BankTransaction(BankName.LAZYPAY, "", "LazyPay", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        LAZYPAY_STATEMENT.find(body)?.let {
+            return BankTransaction(
+                BankName.LAZYPAY, "", "", clean(it.groupValues[1]), BankTransactionType.CARD_BILL,
+                dueDate = parseDate(it.groupValues[2].replace(Regex("(?<=\\d)(?:st|nd|rd|th)"), "").replace(",", "")), paymentLink = LINK.find(body)?.value
+            )
+        }
+        LAZYPAY_OUTSTANDING.find(body)?.let {
+            return BankTransaction(BankName.LAZYPAY, "", "", clean(it.groupValues[1]), BankTransactionType.CARD_BILL, paymentLink = LINK.find(body)?.value)
+        }
+        FASTAG_REGISTRATION.find(body)?.let {
+            return BankTransaction(bank(body), "", "FASTag", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        FASTAG_PARKING.find(body)?.let {
+            return BankTransaction(bank(body), "", it.groupValues[2].let(::tidy) ?: "FASTag parking", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        GAS_PAYMENT.find(body)?.let {
+            return BankTransaction(BankName.OTHERS, "", "Indane gas", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        LOW_BALANCE_CHARGE.find(body)?.let {
+            return BankTransaction(bank(body), it.groupValues[2], "Low balance charge", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
+        // Lenders' "is due" reminders: an announced debit with its day.
+        NACH_PRESENTED.find(body)?.let {
+            return BankTransaction(bank(body), "", it.groupValues[1].let(::tidy).orEmpty().ifEmpty { "Loan" }, clean(it.groupValues[2]), BankTransactionType.UPCOMING_DEBIT, dueDate = TODAY_MARKER)
+        }
+        NACH_DUE.find(body)?.let {
+            return BankTransaction(bank(body), "", it.groupValues[1].let(::tidy).orEmpty().ifEmpty { "Loan" }, clean(it.groupValues[2]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[3]))
+        }
+        LOAN_DUE.find(body)?.let {
+            val lender = LENDER_SIGNOFF.find(body)?.groupValues?.get(1)?.let(::tidy) ?: "Loan EMI"
+            return BankTransaction(bank(body), "", lender, clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[2]))
+        }
+        EMI_DUE_LENDER.find(body)?.let {
+            val lender = LENDER_DASH.find(body)?.groupValues?.get(1)?.let(::tidy) ?: it.groupValues[2].let(::tidy) ?: "Loan EMI"
+            return BankTransaction(bank(body), "", lender, clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[3]))
+        }
+        return null
+    }
+
+    /** A date written as 2026-11-05 (with or without a time), 05-11-2026, 5 Nov 26 and so on. */
+    private fun parseLoose(raw: String): LocalDate? {
+        val text = raw.trim()
+        ISO_DATE.find(text)?.let { return runCatching { LocalDate.parse(it.value) }.getOrNull() }
+        return parseDate(text.trimEnd('.', ','))
     }
 
     /** Fixed-format messages (autopay, SIPs, netbanking, ATM, ...) that carry no debit / credit keyword. */
@@ -417,6 +515,32 @@ class GenericTransactionParser {
         private val BILL_MIN = Regex(
             "(?i)min(?:imum)?(?: (?:amt|amount|payment))?(?: due)?\\W{0,12}(?:of )?$CURRENCY?\\s*$DR$NUMBER"
         )
+        /** A debit announced for "today": the classifier replaces this with the day the message arrived. */
+        internal val TODAY_MARKER: LocalDate = LocalDate.of(1, 1, 1)
+
+        private val ISO_DATE = Regex("\\d{4}-\\d{2}-\\d{2}")
+        private val SBI_NETBANKING = Regex("(?i)\\bTh(?:an)?[kx]s? for .{0,60}?txn of $CURRENCY\\s*$NUMBER frm A/c [Xx*]*(\\d+) to (.+?) Ref\\b")
+        private val SBI_ACCOUNT_ALERT = Regex("(?i)\\bA/C [Xx*]*(\\d+) has (?:a )?(credit|debit) (?:for|by) (.*?)\\s*of $CURRENCY\\s*$NUMBER on\\b")
+        private val UPI_MANDATE_CREATED = Regex("(?i)UPI-?Mandate for $CURRENCY\\s*$NUMBER is successfully created towards (.+?) from A/c(?: No:?)? [Xx*]*(\\d{4})")
+        private val STANDING_INSTRUCTION = Regex("(?i)activated Standing Instruction on .{0,40}?Credit Card (\\d{4})\\. Merchant: (.+?), Maximum Amount: $CURRENCY\\s*$NUMBER")
+        private val CARD_EMANDATE = Regex("(?i)e-Mandate set at merchant platform with your credit card ending (\\d{4}) has been registered.{0,40}?Merchant: (.+?), Description:.{0,160}?e-Mandate Limit Amount \\(INR\\):\\s*$NUMBER")
+        private val RBL_BILL = Regex("(?i)Total amt of $CURRENCY\\s*$NUMBER is due by (\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}) on .{0,30}?Credit Card \\(?[xX*]*(\\d{2,4})\\)?")
+        private val CARD_PAYMENT_PROCESSED = Regex("(?i)\\bpayment of $CURRENCY\\s*$NUMBER for your .{0,30}?Credit Card has been successfully processed")
+        private val CARD_PAYMENT_THANKS = Regex("(?i)\\bthank you for your payment of $CURRENCY\\s*$NUMBER towards your .{0,30}?Credit Card\\b")
+        private val AIRTEL_BILL = Regex("(?i)\\bBill for your .{0,40}?plan .{0,80}?has been generated.{0,400}?Payable Amount: $CURRENCY\\s*$NUMBER.{0,80}?Due By: (\\d{1,2}-[A-Za-z]{3}-\\d{2,4})")
+        private val LAZYPAY_PAID = Regex("(?i)\\bthanks for your payment of $CURRENCY\\s*$NUMBER against your LazyPay statement")
+        private val LAZYPAY_STATEMENT = Regex("(?i)\\bLazyPay statement of $CURRENCY\\s*$NUMBER .{0,80}? is due on (\\d{1,2}(?:st|nd|rd|th)? [A-Za-z]{3,9},? ?\\d{0,4})")
+        private val LAZYPAY_OUTSTANDING = Regex("(?i)\\bYour LazyPay outstanding of $CURRENCY\\s*$NUMBER is due for payment")
+        private val FASTAG_REGISTRATION = Regex("(?i)registering with .{0,20}?FASTag.{0,160}?Total $CURRENCY\\s*$NUMBER")
+        private val FASTAG_PARKING = Regex("(?i)\\bFASTag:\\s*$CURRENCY\\s*$NUMBER paid for parking at (.+?) by\\b")
+        private val GAS_PAYMENT = Regex("(?i)confirmation receipt for your online payment of $CURRENCY\\s*$NUMBER, against Order no")
+        private val LOW_BALANCE_CHARGE = Regex("(?i)\\b$CURRENCY\\s*$NUMBER \\+GST charged for low balance in your .{0,20}?A/c [Xx*]*(\\d{4})")
+        private val NACH_PRESENTED = Regex("(?i)NACH Auto-?Debit for (.+?) loan is presented to your bank account for $CURRENCY\\s*$NUMBER due TODAY")
+        private val NACH_DUE = Regex("(?i)^(\\w[\\w ]{1,20}?) NACH Debit of $CURRENCY\\s*$NUMBER is due (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
+        private val LOAN_DUE = Regex("(?i)(?:Monthly instalment|EMI) of $CURRENCY\\s*$NUMBER for your Loan Account No\\.? ?\\S+ (?:is|will be) due on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
+        private val EMI_DUE_LENDER = Regex("(?i)\\bEMI of (?:Rs\\.?|INR) ?(?:INR )?$NUMBER for (.{1,40}?) ?(?:loan )?account no\\.? ?\\w+ (?:is|will be) due on (\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4})")
+        private val LENDER_SIGNOFF = Regex("(?i)Thanks,\\s*([A-Za-z][A-Za-z ]{2,30})\\s*$")
+        private val LENDER_DASH = Regex("(?i)-\\s*([A-Za-z][A-Za-z ]{2,30}?)\\s*$")
         private val PAY_AT = Regex("(?i)\\bpay at\\s+(\\S+)")
         private val ATM = Regex("\\bATM\\b")
         private val BILL_DUE = Regex("(?i)due (?:date|by|on)?\\W{0,3}(\\d{1,2}[-/ ](?:\\d{1,2}|[A-Za-z]{3})[-/ ]\\d{2,4})")

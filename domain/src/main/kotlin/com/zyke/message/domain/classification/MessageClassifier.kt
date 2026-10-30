@@ -92,7 +92,8 @@ class MessageClassifier(
     }
 
     private fun fastTag(message: SmsMessage): ClassifiedMessage {
-        val event = fastTagParser.parse(message.body) ?: return notice(message) ?: generic(message)
+        // A FASTag message the tag parser does not know (a parking charge, a registration) may still be a payment.
+        val event = fastTagParser.parse(message.body) ?: return notice(message) ?: bank(message)
         return ClassifiedMessage(
             message = message,
             category = MessageCategory.FASTAG,
@@ -151,7 +152,9 @@ class MessageClassifier(
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 payee = tx.payee,
                 amount = normalizeAmount(tx.amount),
-                date = tx.dueDate,
+                // A debit announced for "today" is due the day the message arrived.
+                date = tx.dueDate?.takeIf { it != GenericTransactionParser.TODAY_MARKER }
+                    ?: tx.dueDate?.let { java.time.Instant.ofEpochMilli(message.date).atZone(ZoneId.systemDefault()).toLocalDate() },
                 isCard = message.body.contains("Card", ignoreCase = true)
             )
         )
@@ -294,7 +297,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 8
+        const val RULES_VERSION = 9
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(

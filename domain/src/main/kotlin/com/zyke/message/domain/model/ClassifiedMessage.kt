@@ -116,7 +116,9 @@ enum class NoticeKind(val label: String) {
     REFUND_PENDING("Refund on the way"),
     EMI_CONVERTED("Converted to EMI"),
     BALANCE_UPDATE("Balance update"),
-    PF_UPDATE("PF passbook updated")
+    PF_UPDATE("PF passbook updated"),
+    TRADE_CONFIRMATION("Trade confirmation"),
+    PAYMENT_DECLINED("Payment declined")
 }
 
 enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET, MANDATE_CANCELLED, MANDATE_REQUEST }
