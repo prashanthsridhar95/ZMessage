@@ -26,6 +26,7 @@ import com.zyke.message.presentation.common.LocalImageStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
 
     private var permissionStage = -1
     private val showAccessPrompt = mutableStateOf(false)
+    private val showSmsExplainer = mutableStateOf(false)
 
     /**
      * On opening, whatever has not been allowed is asked for, one at a time: SMS access, then permission to show
@@ -118,7 +120,8 @@ class MainActivity : ComponentActivity() {
         // Only while the opening flow is running, so a prompt from a button elsewhere does not start it.
         if (permissionStage < 0 || permissionStage > LAST_STAGE) return
         when (permissionStage++) {
-            0 -> if (!has(Manifest.permission.READ_SMS)) smsPermission.launch(Manifest.permission.READ_SMS) else askNextPermission()
+            // Why, in plain words, before the phone's own prompt appears.
+            0 -> if (!has(Manifest.permission.READ_SMS)) showSmsExplainer.value = true else askNextPermission()
             1 -> if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && !has(Manifest.permission.POST_NOTIFICATIONS)) {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
@@ -185,6 +188,18 @@ class MainActivity : ComponentActivity() {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
                 androidx.compose.runtime.LaunchedEffect(locked) { if (!locked) startPermissionFlow() }
+                if (showSmsExplainer.value && !locked) {
+                    SmsExplainer(
+                        onContinue = {
+                            showSmsExplainer.value = false
+                            smsPermission.launch(Manifest.permission.READ_SMS)
+                        },
+                        onLater = {
+                            showSmsExplainer.value = false
+                            askNextPermission()
+                        }
+                    )
+                }
                 if (showAccessPrompt.value && !locked) {
                     NotificationAccessPrompt(
                         onOpenSettings = {
@@ -374,6 +389,38 @@ private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
 )
 
 private const val LAST_STAGE = 2
+
+/** What the app reads, why, and what it does with it, before Android asks for permission to read messages. */
+@androidx.compose.runtime.Composable
+private fun SmsExplainer(onContinue: () -> Unit, onLater: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onLater,
+        title = { androidx.compose.material3.Text("Why Zyke Message reads your messages") },
+        text = {
+            androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                androidx.compose.material3.Text("To turn bank and payment texts into a picture of your money: what you spent, what is due, and where you stand.")
+                androidx.compose.material3.Text("\u2022 Everything is read and kept on this phone. Nothing is uploaded.")
+                androidx.compose.material3.Text("\u2022 It never sends, changes or deletes a message.")
+                androidx.compose.material3.Text("\u2022 You can pause reading, export your data, or delete it all from Settings at any time.")
+                androidx.compose.material3.Text("Without this permission the app has nothing to show, but you can still add entries by hand.")
+            }
+        },
+        confirmButton = {
+            com.zyke.message.presentation.common.AppButton(
+                "Continue", onContinue,
+                style = com.zyke.message.presentation.common.ButtonStyle.TEXT,
+                size = com.zyke.message.presentation.common.ButtonSize.COMPACT
+            )
+        },
+        dismissButton = {
+            com.zyke.message.presentation.common.AppButton(
+                "Not now", onLater,
+                style = com.zyke.message.presentation.common.ButtonStyle.TEXT,
+                size = com.zyke.message.presentation.common.ButtonSize.COMPACT
+            )
+        }
+    )
+}
 
 /** Why notification access is asked for, in plain words, before the phone's own settings page is opened. */
 @androidx.compose.runtime.Composable

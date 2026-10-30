@@ -110,6 +110,7 @@ fun SettingsPage(
     onDismiss: () -> Unit
 ) {
     var openName by rememberSaveable { mutableStateOf<String?>(null) }
+    var deleting by rememberSaveable { mutableStateOf(false) }
     val open = SettingsGroup.entries.firstOrNull { it.name == openName }
     val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
@@ -167,11 +168,13 @@ fun SettingsPage(
             // This page is about one thing, so its sections show their contents instead of folding away.
             CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    GroupContent(group, state, versionName, onIntent)
+                    GroupContent(group, state, versionName, onIntent, onDeleteAll = { deleting = true })
                 }
             }
         }
     }
+
+    if (deleting) DeleteAllSheet(onDismiss = { deleting = false })
 
     if (state.confirmingReset) {
         AlertDialog(
@@ -181,6 +184,33 @@ fun SettingsPage(
             confirmButton = { AppButton("Reset", { onIntent(Intent.ConfirmReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
             dismissButton = { AppButton("Cancel", { onIntent(Intent.CancelReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
         )
+    }
+}
+
+/** The last way out: everything the app has saved, gone, after typing a word so it cannot happen by accident. */
+@Composable
+private fun DeleteAllSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var typed by rememberSaveable { mutableStateOf("") }
+    com.zyke.message.presentation.common.FormSheet(
+        title = "Delete all my data?",
+        subtitle = "This cannot be undone",
+        onDismiss = onDismiss,
+        primaryLabel = "Delete everything",
+        primaryEnabled = typed.trim().equals("DELETE", ignoreCase = false),
+        hint = "Type DELETE to confirm",
+        onPrimary = {
+            com.zyke.message.data.DataWipe.wipe(context)
+            // Closed at once, so nothing still in memory writes itself back.
+            (context as? android.app.Activity)?.finishAndRemoveTask()
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
+    ) {
+        Caption(
+            "Removes the transactions read from your messages, your plan, limits, cards, goals, reminders, events, entries, names, categories, pictures and settings from this app. Your messages on the phone are not touched.",
+            maxLines = 8
+        )
+        com.zyke.message.presentation.common.FormField("Type DELETE to confirm", typed, { typed = it }, placeholder = "DELETE")
     }
 }
 
@@ -273,7 +303,7 @@ private fun SettingsList(title: String, rows: List<Pair<SettingsGroup, String>>,
 }
 
 @Composable
-private fun GroupContent(group: SettingsGroup, state: State, versionName: String, onIntent: (Intent) -> Unit) {
+private fun GroupContent(group: SettingsGroup, state: State, versionName: String, onIntent: (Intent) -> Unit, onDeleteAll: () -> Unit) {
     when (group) {
         SettingsGroup.MONEY -> {
             PlanSection(
@@ -355,6 +385,18 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 modifier = Modifier.padding(top = 12.dp)
             )
             AppLockToggle(enabled = state.settings.appLock, onChange = { onIntent(Intent.SetAppLock(it)) }, modifier = Modifier.padding(top = 12.dp))
+            val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+            ToggleRow(
+                title = "Pause reading messages",
+                description = "Stops reading your messages and listening for new ones. What was already read stays, and you can carry on any time.",
+                checked = state.settings.readingPaused,
+                onCheckedChange = { paused ->
+                    onIntent(Intent.SetReadingPaused(paused))
+                    // Carrying on: look at what arrived while paused.
+                    if (!paused) container.smsRepository.refreshRecent()
+                },
+                modifier = Modifier.padding(top = 12.dp)
+            )
         }
         SettingsGroup.APPEARANCE -> SectionCard("Theme") {
             com.zyke.message.presentation.common.SegmentedChoice(
@@ -365,13 +407,36 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             Caption("Automatic follows your phone", Modifier.padding(top = 8.dp))
         }
         SettingsGroup.ABOUT -> {
-            SectionCard("Your data") {
-                Caption("Clears marks and budgets, never your messages", maxLines = 4)
+            SectionCard("Take your data with you") {
+                Caption("Nothing leaves the phone unless you share the file yourself.", maxLines = 3)
+                AppButton(
+                    text = "Export transactions (spreadsheet)",
+                    onClick = { onIntent(Intent.ExportTransactions) },
+                    style = ButtonStyle.OUTLINE,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                )
+                Caption("The transactions read so far. Message text is not included.", Modifier.padding(top = 4.dp), maxLines = 2)
+                AppButton(
+                    text = "Export my setup",
+                    onClick = { onIntent(Intent.ExportSetup) },
+                    style = ButtonStyle.OUTLINE,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                )
+                Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
+            }
+            SectionCard("Clear data") {
+                Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
                 AppButton(
                     text = "Reset marks and budgets",
                     onClick = { onIntent(Intent.AskReset) },
                     style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                )
+                AppButton(
+                    text = "Delete all my data",
+                    onClick = onDeleteAll,
+                    style = ButtonStyle.OUTLINE,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
             }
             SectionCard("About") {
