@@ -3,6 +3,13 @@ package com.zyke.message.presentation.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.selected
+import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +94,7 @@ private fun kindColor(kind: CalendarKind): Color = when (kind) {
  * brings together the person's events and reminders, the card bills and auto-debits from their messages, orders and
  * appointments, regular payments, the salary day and goal dates.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CalendarPage(
     messages: List<ClassifiedMessage>,
@@ -114,79 +122,117 @@ internal fun CalendarPage(
     }
     val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
 
+    val monthName = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1))
+    val monthEntries = entries.values.flatten()
+    val unsettled = monthEntries.filter { (it.kind == CalendarKind.BILL || it.kind == CalendarKind.DEBIT) && !it.done && it.amount != null }
+    val dayEntries = entries[selected].orEmpty()
+    val onThisMonth = month == YearMonth.from(today)
+
     AppPage("Calendar", onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Where am I, and how do I move: the month with a large arrow either side, Today when away from it.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AppButton("‹", { monthText = month.minusMonths(1).toString() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                Text(
-                    DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1)),
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                AppButton("›", { monthText = month.plusMonths(1).toString() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                MonthArrow("‹", "Previous month") { monthText = month.minusMonths(1).toString() }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(monthName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Caption(
+                        when {
+                            monthEntries.isEmpty() -> "Nothing planned"
+                            unsettled.isEmpty() -> DisplayFormatters.count(monthEntries.size, "thing", "things") + " this month"
+                            else -> DisplayFormatters.count(unsettled.size, "bill or debit", "bills and debits") + " still to pay · " +
+                                DisplayFormatters.rupees(unsettled.fold(java.math.BigDecimal.ZERO) { sum, it -> sum + it.amount!! })
+                        },
+                        textAlign = TextAlign.Center, maxLines = 2
+                    )
+                }
+                MonthArrow("›", "Next month") { monthText = month.plusMonths(1).toString() }
             }
-            if (month != YearMonth.from(today)) {
+            if (!onThisMonth || selected != today) {
                 AppButton(
-                    "Today", { monthText = YearMonth.from(today).toString(); selectedText = today.toString() },
-                    Modifier.align(Alignment.CenterHorizontally), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+                    "Back to today", { monthText = YearMonth.from(today).toString(); selectedText = today.toString() },
+                    Modifier.align(Alignment.CenterHorizontally), style = ButtonStyle.TONAL, size = ButtonSize.COMPACT
                 )
             }
 
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                (0..6).forEach { offset ->
-                    Caption(
-                        DayOfWeek.MONDAY.plus(offset.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(2).uppercase(),
-                        Modifier.weight(1f), textAlign = TextAlign.Center
-                    )
+            FintechCard(
+                Modifier.pointerInput(month) {
+                    // Swiping the month sideways moves through time, the way the arrows suggest.
+                    var travelled = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { travelled = 0f },
+                        onDragEnd = {
+                            if (travelled < -120f) monthText = month.plusMonths(1).toString()
+                            else if (travelled > 120f) monthText = month.minusMonths(1).toString()
+                        }
+                    ) { _, delta -> travelled += delta }
                 }
-            }
-            val cells = leading + month.lengthOfMonth()
-            (0 until (cells + 6) / 7).forEach { week ->
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    (0..6).forEach { column ->
-                        val dayNumber = week * 7 + column - leading + 1
-                        Box(Modifier.weight(1f).height(52.dp), contentAlignment = Alignment.Center) {
-                            if (dayNumber in 1..month.lengthOfMonth()) {
-                                val date = month.atDay(dayNumber)
-                                DayCell(date, entries[date].orEmpty(), isToday = date == today, isSelected = date == selected) { selectedText = date.toString() }
+            ) {
+                Row(Modifier.fillMaxWidth()) {
+                    (0..6).forEach { offset ->
+                        Caption(
+                            DayOfWeek.MONDAY.plus(offset.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(2).uppercase(),
+                            Modifier.weight(1f), textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                val cells = leading + month.lengthOfMonth()
+                (0 until (cells + 6) / 7).forEach { week ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        (0..6).forEach { column ->
+                            val dayNumber = week * 7 + column - leading + 1
+                            Box(Modifier.weight(1f).height(52.dp), contentAlignment = Alignment.Center) {
+                                if (dayNumber in 1..month.lengthOfMonth()) {
+                                    val date = month.atDay(dayNumber)
+                                    DayCell(date, entries[date].orEmpty(), isToday = date == today, isSelected = date == selected) { selectedText = date.toString() }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Only the colours that appear this month, each with its name.
+                val present = monthEntries.map { it.kind }.distinct()
+                if (present.isNotEmpty()) {
+                    FlowRow(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        present.forEach { kind ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).background(kindColor(kind), CircleShape))
+                                Spacer(Modifier.width(6.dp))
+                                Caption(kind.label)
                             }
                         }
                     }
                 }
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // The chosen day: what it is, how busy, and the one action for it.
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(selected),
-                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
-                    )
-                    val count = entries[selected].orEmpty().size
-                    Caption(if (count == 0) "Nothing on this day" else DisplayFormatters.count(count, "thing", "things"))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(selected),
+                            Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
+                        )
+                        if (selected == today) StatusPill("Today", Tone.NEUTRAL, Modifier.padding(start = 8.dp))
+                    }
+                    Caption(if (dayEntries.isEmpty()) "Nothing on this day" else DisplayFormatters.count(dayEntries.size, "thing", "things"))
                 }
                 AppButton("Add event", { adding = true }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
             }
 
-            entries[selected].orEmpty().forEachIndexed { index, entry ->
-                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                EntryRow(entry) {
-                    when {
-                        entry.eventId != null -> editing = events.firstOrNull { it.id == entry.eventId }
-                        entry.messageId != null -> onOpenMessage(entry.messageId!!)
+            if (dayEntries.isEmpty()) {
+                FintechCard {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("A free day", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                        Caption("Add an appointment or a plan, and it shows here and on the dot above.", Modifier.padding(top = 4.dp), maxLines = 3, textAlign = TextAlign.Center)
                     }
                 }
-            }
-
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                listOf(CalendarKind.EVENT, CalendarKind.REMINDER, CalendarKind.BILL, CalendarKind.SALARY).forEach { kind ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).background(kindColor(kind), CircleShape))
-                        Spacer(Modifier.width(6.dp))
-                        Caption(kind.label.substringBefore(' ').lowercase())
+            } else {
+                dayEntries.forEach { entry ->
+                    EntryRow(entry) {
+                        when {
+                            entry.eventId != null -> editing = events.firstOrNull { it.id == entry.eventId }
+                            entry.messageId != null -> onOpenMessage(entry.messageId!!)
+                        }
                     }
                 }
             }
@@ -207,19 +253,31 @@ internal fun CalendarPage(
 }
 
 @Composable
+private fun MonthArrow(glyph: String, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(glyph, Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
 private fun DayCell(date: LocalDate, entries: List<CalendarEntry>, isToday: Boolean, isSelected: Boolean, onClick: () -> Unit) {
     val ink = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(14.dp)
     Column(
         Modifier
             .fillMaxWidth()
             .height(48.dp)
             .clip(shape)
-            .background(if (isSelected) ink.copy(alpha = 0.14f) else Color.Transparent)
-            .then(if (isToday) Modifier.border(1.5.dp, ink, shape) else Modifier)
+            .background(if (isSelected) ink else Color.Transparent)
+            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, ink, shape) else Modifier)
             .clickable(role = Role.Button, onClickLabel = "Show ${date.dayOfMonth}", onClick = onClick)
             .semantics {
-                contentDescription = "${date.dayOfMonth}" + if (entries.isEmpty()) "" else ", ${DisplayFormatters.count(entries.size, "thing", "things")}"
+                contentDescription = "${date.dayOfMonth}" + (if (isToday) ", today" else "") +
+                    if (entries.isEmpty()) "" else ", ${DisplayFormatters.count(entries.size, "thing", "things")}"
+                selected = isSelected
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -228,49 +286,43 @@ private fun DayCell(date: LocalDate, entries: List<CalendarEntry>, isToday: Bool
             date.dayOfMonth.toString(),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.primary
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else ink
         )
         Row(Modifier.padding(top = 3.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             entries.map { it.kind }.distinct().take(3).forEach { kind ->
-                Box(Modifier.size(6.dp).background(kindColor(kind), CircleShape))
+                Box(Modifier.size(6.dp).background(kindColor(kind), CircleShape).then(if (isSelected) Modifier.border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape) else Modifier))
             }
         }
     }
 }
 
+/** One thing on the day: a stripe in its colour, its name and time, a word for its kind, the amount, and whether it is settled. */
 @Composable
 private fun EntryRow(entry: CalendarEntry, onClick: () -> Unit) {
     val clickable = entry.eventId != null || entry.messageId != null
-    Row(
-        Modifier.fillMaxWidth()
-            .then(if (clickable) Modifier.fullWidthClickable(onClickLabel = "Open", onClick = onClick) else Modifier)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(10.dp).background(kindColor(entry.kind), CircleShape))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            RowTitle(entry.title)
-            Caption(
-                listOfNotNull(
-                    entry.time?.let { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it) },
-                    entry.kind.label.takeIf { entry.detail.isBlank() },
-                    entry.detail.takeIf { it.isNotBlank() }
-                ).joinToString(" · "),
-                maxLines = 2
-            )
-        }
-        entry.amount?.let {
-            Text(
-                DisplayFormatters.rupees(it),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        if (entry.done) {
-            Spacer(Modifier.width(8.dp))
-            Text("✓", color = Color(0xFF34A853), fontWeight = FontWeight.Bold)
+    val color = kindColor(entry.kind)
+    FintechCard(onClick = if (clickable) onClick else null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).height(44.dp).background(color, RoundedCornerShape(2.dp)))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                RowTitle(entry.title)
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        entry.kind.label,
+                        Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1
+                    )
+                    entry.time?.let { Caption(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it)) }
+                }
+                if (entry.detail.isNotBlank()) Caption(entry.detail, Modifier.padding(top = 4.dp), maxLines = 2)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                entry.amount?.let {
+                    Text(DisplayFormatters.rupees(it), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                }
+                if (entry.done) StatusPill("Done", Tone.GOOD, Modifier.padding(top = 6.dp))
+            }
         }
     }
 }

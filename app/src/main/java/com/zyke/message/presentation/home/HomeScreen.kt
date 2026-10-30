@@ -415,7 +415,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
 
     if (state.showGoals) {
         PlanPage("Goals", { onIntent(Intent.CloseGoals) }) {
-            GoalsCard(
+            GoalsContent(
                 goals = state.goals,
                 onSave = { onIntent(Intent.SaveGoal(it)) },
                 onRemove = { onIntent(Intent.RemoveGoal(it)) },
@@ -437,7 +437,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
 
     if (state.showReminders) {
         PlanPage("Reminders", { onIntent(Intent.CloseReminders) }) {
-            RemindersCard(
+            RemindersContent(
                 reminders = state.reminders, today = LocalDate.ofInstant(state.now, ZoneId.systemDefault()),
                 onSave = { onIntent(Intent.SaveReminder(it)) }, onRemove = { onIntent(Intent.RemoveReminder(it)) }
             )
