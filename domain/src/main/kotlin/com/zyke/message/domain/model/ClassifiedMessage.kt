@@ -27,7 +27,9 @@ data class ClassifiedMessage(
     /** The category was chosen for this one transaction, not for its sender or receiver. */
     val categoryOwn: Boolean = false,
     /** The name was given to this one transaction, not to its sender or receiver. */
-    val nicknameOwn: Boolean = false
+    val nicknameOwn: Boolean = false,
+    /** Kept out of the income and spending totals, though still in the list: left out by the person, or a transfer between their own accounts. */
+    val setAside: com.zyke.message.domain.ledger.SetAside? = null
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

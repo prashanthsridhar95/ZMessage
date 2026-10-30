@@ -32,7 +32,9 @@ class ProgressiveInbox(
     private val cache: ClassificationCache,
     private val userState: UserMessageStateRepository?,
     private val maxMonths: Int = DEFAULT_MAX_MONTHS,
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    /** While true the phone's inbox is not read at all; what was read before is shown from memory. */
+    private val paused: () -> Boolean = { false }
 ) {
     private class Window(val stamp: Long, val messages: List<ClassifiedMessage>)
 
@@ -63,6 +65,18 @@ class ProgressiveInbox(
         val syncedThrough = cache.meta(SYNCED_THROUGH)?.toLongOrNull()
         val lastFull = cache.meta(FULL_SYNC_AT)?.toLongOrNull()
         val cached = cache.dateRange()
+
+        // Reading is paused: show what was remembered and leave the inbox alone.
+        if (paused()) {
+            if (cached == null) {
+                emit(emptyList())
+                everEmitted = true
+                publishProgress()
+            } else {
+                incrementalPass(zone, now, syncedThrough ?: now, cached, readNew = false)
+            }
+            return
+        }
 
         // Coming back to the app: what was read before is remembered, so only what arrived since is read now, and the
         // inbox is checked in full only now and then (that is also how messages deleted elsewhere are noticed).
@@ -132,12 +146,15 @@ class ProgressiveInbox(
      * The quick way in: the messages of the last month or so are read from the phone's inbox, and every older month
      * comes straight from what was remembered, without touching the inbox or the rules. Newest first, as always.
      */
-    private suspend fun FlowCollector<List<ClassifiedMessage>>.incrementalPass(zone: ZoneId, now: Long, syncedThrough: Long, cached: Pair<Long, Long>) {
+    private suspend fun FlowCollector<List<ClassifiedMessage>>.incrementalPass(
+        zone: ZoneId, now: Long, syncedThrough: Long, cached: Pair<Long, Long>, readNew: Boolean = true
+    ) {
         quickIncomplete = true
-        val boundary = monthStart(minOf(syncedThrough, now) - DAY_MS, zone)
-        val recent = repository.scan(zone, boundary)?.months.orEmpty()
+        // Not reading the inbox: every month comes from memory.
+        val boundary = if (readNew) monthStart(minOf(syncedThrough, now) - DAY_MS, zone) else Long.MAX_VALUE
+        val recent = if (readNew) repository.scan(zone, boundary)?.months.orEmpty() else emptyList()
         // Only what arrived since the last visit is new; the month it falls in is read again, but mostly from memory.
-        pendingNew = repository.readWindow(syncedThrough + 1, Long.MAX_VALUE).size
+        pendingNew = if (readNew) repository.readWindow(syncedThrough + 1, Long.MAX_VALUE).size else 0
 
         // Every month there is, from the newest to the oldest remembered one, up to the limit.
         val newestMonth = YearMonth.from(Instant.ofEpochMilli(maxOf(cached.second, recent.firstOrNull()?.start ?: 0L)).atZone(zone))
@@ -181,7 +198,7 @@ class ProgressiveInbox(
         everEmitted = true
         publishProgress()
         quickIncomplete = false
-        remember(now, full = false)
+        if (readNew) remember(now, full = false)
     }
 
     /** Notes how far the inbox has been read, so the next visit starts from there. */

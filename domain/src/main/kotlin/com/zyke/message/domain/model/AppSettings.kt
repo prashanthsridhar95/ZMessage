@@ -11,5 +11,7 @@ data class AppSettings(
     /** A short notification each morning with what is due and what is on. */
     val morningDigest: Boolean = false,
     /** Off until chosen: a "Copy code" or "Pay" notification the moment a code or bill arrives. */
-    val liveAlerts: Boolean = false
+    val liveAlerts: Boolean = false,
+    /** Stops reading the phone's messages and listening for new ones; what was read stays and can still be used. */
+    val readingPaused: Boolean = false
 )

@@ -16,6 +16,8 @@ class RcsNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) = handle(sbn)
 
     private fun handle(sbn: StatusBarNotification) {
+        // Paused: nothing is read from notifications either.
+        if ((application as com.zyke.message.ZykeMessagesApplication).container.settings.settings.value.readingPaused) return
         // A UPI Lite top-up is recognised by what it says, whichever Google Pay app or profile posted it.
         if (sbn.packageName != packageName && keepUpiLiteTopUp(sbn)) return
         if (sbn.packageName !in MESSAGING_PACKAGES) return

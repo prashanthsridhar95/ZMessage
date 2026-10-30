@@ -19,7 +19,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             fetchLogos = prefs.getBoolean(FETCH_LOGOS, true),
             appLock = prefs.getBoolean(APP_LOCK, false),
             morningDigest = prefs.getBoolean(MORNING_DIGEST, false),
-            liveAlerts = prefs.getBoolean(LIVE_ALERTS, false)
+            liveAlerts = prefs.getBoolean(LIVE_ALERTS, false),
+            readingPaused = prefs.getBoolean(READING_PAUSED, false)
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -54,7 +55,13 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(liveAlerts = enabled)
     }
 
+    override fun setReadingPaused(paused: Boolean) {
+        prefs.edit().putBoolean(READING_PAUSED, paused).apply()
+        _settings.value = _settings.value.copy(readingPaused = paused)
+    }
+
     private companion object {
+        const val READING_PAUSED = "reading_paused"
         const val LIVE_ALERTS = "live_alerts"
         const val FETCH_LOGOS = "fetch_logos"
         const val SCREEN_PROTECTION = "screen_protection"

@@ -80,7 +80,8 @@ class AppContainer(context: Context) {
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
         categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
-        classificationCache = classificationCache, userState = userMessageState, scope = appScope
+        classificationCache = classificationCache, userState = userMessageState, scope = appScope,
+        isReadingPaused = { settings.settings.value.readingPaused }
     )
 
     private fun cacheTag(context: Context): String {

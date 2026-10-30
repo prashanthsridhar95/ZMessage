@@ -58,11 +58,17 @@ class ObserveMessagesUseCase(
     /** When given, marks for messages that have left the inbox are dropped each time the inbox is read. */
     private val userState: UserMessageStateRepository? = null,
     /** When given, the result is shared by every screen that asks for it instead of being worked out again for each. */
-    private val scope: CoroutineScope? = null
+    private val scope: CoroutineScope? = null,
+    /** True while the person has paused reading messages: the inbox is left alone and what was remembered is shown. */
+    private val isReadingPaused: () -> Boolean = { false },
+    /** Payments the person records by hand; they are read as if they had come in a message. */
+    private val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
+    /** Payments left out of the totals and transfers between the person's own accounts. */
+    private val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
-            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState)
+            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState, paused = isReadingPaused)
         } else {
             null
         }
@@ -80,6 +86,14 @@ class ObserveMessagesUseCase(
 
     private fun pipeline(): Flow<List<ClassifiedMessage>> =
         (progressive?.messages() ?: whole())
+            .combine(manualEntries.entries) { classified, entries ->
+                if (entries.isEmpty()) {
+                    classified
+                } else {
+                    val zone = ZoneId.systemDefault()
+                    (classified + entries.map { com.zyke.message.domain.ledger.ManualEntries.toMessage(it, zone) }).sortedByDescending { it.message.date }
+                }
+            }
             .combine(categoryOverrides.overrides) { classified, overrides ->
                 classified.map { CategoryKey.apply(it, overrides) }
             }
@@ -111,6 +125,14 @@ class ObserveMessagesUseCase(
                     if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true), nicknameOwn = own != null) else message
                 }
             }
+            .combine(setAsides.state) { classified, asides ->
+                if (asides.excluded.isEmpty() && asides.transfers.isEmpty()) classified else classified.map { message ->
+                    val kind = message.setAside ?: asides.kindOf(message.id) ?: return@map message
+                    val content = message.content
+                    val internal = if (content is MessageContent.Transaction) content.copy(isCardPayment = true) else content
+                    message.copy(content = internal, setAside = kind)
+                }
+            }
             .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
             .map(CategorySuggester::annotate)
             .flowOn(dispatcher)
@@ -118,6 +140,7 @@ class ObserveMessagesUseCase(
     /** A small inbox, or a repository that cannot read by month: read all of it at once. */
     private fun whole(): Flow<List<ClassifiedMessage>> =
         repository.observeInbox().map { inbox ->
+            if (isReadingPaused()) return@map classificationCache.load().values.sortedByDescending { it.message.date }
             val classified = classifyBatch(inbox)
             if (inbox.isNotEmpty()) {
                 // A message deleted in the messaging app is gone from here too, along with every trace of it.

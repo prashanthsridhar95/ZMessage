@@ -18,4 +18,6 @@ interface SettingsRepository {
     fun setMorningDigest(enabled: Boolean)
 
     fun setLiveAlerts(enabled: Boolean)
+
+    fun setReadingPaused(paused: Boolean) = Unit
 }

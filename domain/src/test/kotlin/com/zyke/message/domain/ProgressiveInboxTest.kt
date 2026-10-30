@@ -161,4 +161,22 @@ class ProgressiveInboxTest {
         // Nothing new arrived, so the background reading is never asked for on account of it.
         assertTrue(seenPending.toString(), seenPending.all { it == 0 })
     }
+
+    @Test
+    fun whilePaused_theInboxIsNotReadAndWhatWasRememberedIsShown() = runBlocking {
+        val now = YearMonth.from(LocalDate.now())
+        val inbox = listOf(sms(1, now, 2), sms(2, now.minusMonths(1), 5))
+        val cache = MemoryCache()
+        collectAll(ObserveMessagesUseCase(Months(inbox, zone), MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache), 2)
+
+        // A later visit with reading paused, and a message that has arrived since.
+        val newer = inbox + sms(3, now, 3)
+        val paused = Months(newer, zone)
+        val shown = collectAll(
+            ObserveMessagesUseCase(paused, MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache, isReadingPaused = { true }), 2
+        )
+
+        assertEquals(emptyList<Long>(), paused.reads)
+        assertEquals(listOf(1L, 2L), shown.last().map { it.id })
+    }
 }

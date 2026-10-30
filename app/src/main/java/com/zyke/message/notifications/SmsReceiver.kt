@@ -16,7 +16,7 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val container = (context.applicationContext as ZykeMessagesApplication).container
-        if (!container.settings.settings.value.liveAlerts) return
+        if (!container.settings.settings.value.liveAlerts || container.settings.settings.value.readingPaused) return
 
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         // A long text arrives in pieces from one sender; join them.
