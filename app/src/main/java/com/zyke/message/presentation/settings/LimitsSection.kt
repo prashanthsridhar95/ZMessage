@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.PickField
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,9 +138,11 @@ private fun LimitDialog(
         onSecondary = onRemove
     ) {
         if (category == null) {
-            FormGroup("What is it for?") {
-                Chips(categories.map { ChipOption(it.displayString, chosen == it) }, onSelect = { chosen = categories[it] })
-            }
+            PickField(
+                "What is it for?", categories.map { it.displayString }, chosen?.displayString,
+                onPick = { name -> chosen = categories.firstOrNull { it.displayString == name } },
+                placeholder = "Choose a category"
+            )
         }
         AmountField(
             "Each month", monthlyText, { monthlyText = it },

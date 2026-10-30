@@ -226,7 +226,7 @@ internal fun RemindersContent(
         }
     }
 
-    if (adding) ReminderDialog(null, today, onSave = { onSave(it); adding = false }, onRemove = null, onDismiss = { adding = false })
+    if (adding) ReminderDialog(null, today, onSave = { onSave(it); adding = false }, onRemove = null, onDismiss = { adding = false }, known = reminders.map { it.reminder.title })
     reminders.firstOrNull { it.reminder.id == editing }?.let { due ->
         ReminderDialog(
             due.reminder, today,
@@ -240,7 +240,8 @@ internal fun RemindersContent(
                     if (result == SnackbarResult.ActionPerformed) onSave(removed)
                 }
             },
-            onDismiss = { editing = null }
+            onDismiss = { editing = null },
+            known = reminders.map { it.reminder.title }
         )
     }
 }

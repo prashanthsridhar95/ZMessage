@@ -99,6 +99,7 @@ fun WatchlistEditor() {
                 onChange = { typed = it; problem = null },
                 modifier = Modifier.padding(top = 12.dp),
                 placeholder = "RELIANCE, TCS, INFY.BO, ^NSEBANK",
+                suggestions = POPULAR,
                 supporting = problem ?: "A name alone means NSE. Add .BO for BSE."
             )
             AppButton(
@@ -143,3 +144,9 @@ private fun SwitchLine(title: String, description: String, checked: Boolean, onC
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
     }
 }
+
+/** Tickers people commonly add; a bare name means the NSE listing. */
+private val POPULAR = listOf(
+    "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "ITC", "LT", "BHARTIARTL", "KOTAKBANK", "AXISBANK", "WIPRO",
+    "HINDUNILVR", "MARUTI", "TATAMOTORS", "TATASTEEL", "ADANIENT", "BAJFINANCE", "SUNPHARMA", "ZOMATO", "^NSEBANK", "^CNXIT"
+)

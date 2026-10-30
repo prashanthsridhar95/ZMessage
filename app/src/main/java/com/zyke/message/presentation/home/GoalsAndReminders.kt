@@ -38,7 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import com.zyke.message.presentation.common.DateField
+import com.zyke.message.presentation.common.TimeField
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.goals.Goal
 import com.zyke.message.domain.goals.GoalProgress
@@ -70,10 +73,9 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
     var name by rememberSaveable { mutableStateOf(goal?.name.orEmpty()) }
     var target by rememberSaveable { mutableStateOf(goal?.target?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     var saved by rememberSaveable { mutableStateOf(goal?.saved?.takeIf { it.signum() > 0 }?.stripTrailingZeros()?.toPlainString().orEmpty()) }
-    var dateMillis by rememberSaveable { mutableStateOf(goal?.targetDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()) }
-    var picking by rememberSaveable { mutableStateOf(false) }
+    var dateText by rememberSaveable { mutableStateOf(goal?.targetDate?.toString().orEmpty()) }
     val amount = target.toBigDecimalOrNull()
-    val date = dateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
+    val date = dateText.takeIf { it.isNotEmpty() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
     val presets = listOf("3 months" to today.plusMonths(3), "6 months" to today.plusMonths(6), "1 year" to today.plusYears(1))
     val preview = if (amount != null && amount.signum() > 0) {
         Goals.progress(Goal("preview", name, amount, saved.toBigDecimalOrNull() ?: BigDecimal.ZERO, date), today).neededPerMonth
@@ -91,60 +93,39 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
         secondaryLabel = if (onRemove != null) "Delete goal" else null,
         onSecondary = onRemove
     ) {
-        FormField("Goal", name, { name = it }, placeholder = "Goa trip, new laptop, rainy-day fund")
-        AmountField("Target amount", target, { target = it })
-        FormGroup("Target date (optional)") {
-            Chips(
-                buildList {
-                    add(ChipOption("None", date == null))
-                    presets.forEach { (label, day) -> add(ChipOption(label, date == day)) }
-                    add(ChipOption(if (date != null && presets.none { it.second == date }) DayFormat.format(date) else "Pick a date", date != null && presets.none { it.second == date }))
-                },
-                onSelect = { index ->
-                    when {
-                        index == 0 -> dateMillis = null
-                        index <= presets.size -> dateMillis = presets[index - 1].second.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                        else -> picking = true
-                    }
-                }
-            )
-            preview?.let { Caption("${DisplayFormatters.rupees(it)} a month gets you there") }
-        }
+        FormField(
+            "Goal", name, { name = it }, placeholder = "Goa trip, new laptop, rainy-day fund",
+            suggestions = PlanSuggestions.goals, capitalization = KeyboardCapitalization.Sentences
+        )
+        AmountField("Target amount", target, { target = it }, quickAdds = listOf(10_000, 50_000, 100_000))
+        DateField(
+            "Target date (optional)", date, { dateText = it?.toString().orEmpty() },
+            placeholder = "No date", clearable = true, presets = presets,
+            supporting = preview?.let { "${DisplayFormatters.rupees(it)} a month gets you there" }
+        )
         if (goal == null) AmountField("Already saved (optional)", saved, { saved = it })
     }
-    if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DayPickerDialog(initial: Long?, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
-    val state = rememberDatePickerState(initialSelectedDateMillis = initial)
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            AppButton("Use this day", { state.selectedDateMillis?.let(onPick) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = state.selectedDateMillis != null)
-        },
-        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-    ) { DatePicker(state) }
 }
 
 @Composable
-internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Reminder) -> Unit, onRemove: (() -> Unit)?, onDismiss: () -> Unit) {
+internal fun ReminderDialog(
+    reminder: Reminder?,
+    today: LocalDate,
+    onSave: (Reminder) -> Unit,
+    onRemove: (() -> Unit)?,
+    onDismiss: () -> Unit,
+    /** Titles already used, offered along with the usual ones. */
+    known: List<String> = emptyList()
+) {
     var title by rememberSaveable { mutableStateOf(reminder?.title.orEmpty()) }
     var amount by rememberSaveable { mutableStateOf(reminder?.amount?.stripTrailingZeros()?.toPlainString().orEmpty()) }
-    var dateMillis by rememberSaveable {
-        mutableStateOf((reminder?.date ?: today).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-    }
+    var dateText by rememberSaveable { mutableStateOf((reminder?.date ?: today).toString()) }
     var monthly by rememberSaveable { mutableStateOf(reminder?.repeatsMonthly ?: false) }
-    var picking by rememberSaveable { mutableStateOf(false) }
     var timeText by rememberSaveable { mutableStateOf(reminder?.time?.toString().orEmpty()) }
-    var pickingTime by rememberSaveable { mutableStateOf(false) }
     val time = timeText.takeIf { it.isNotEmpty() }?.let { runCatching { java.time.LocalTime.parse(it) }.getOrNull() }
-    val timePresets = listOf(java.time.LocalTime.of(9, 0), java.time.LocalTime.of(12, 0), java.time.LocalTime.of(18, 0))
-    val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-    val day = Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate()
-    val presets = listOf("Today" to today, "Tomorrow" to today.plusDays(1), "In a week" to today.plusWeeks(1))
-    val custom = presets.none { it.second == day }
+    val day = runCatching { LocalDate.parse(dateText) }.getOrDefault(today)
+    val datePresets = listOf("Today" to today, "Tomorrow" to today.plusDays(1), "In a week" to today.plusWeeks(1))
+    val timePresets = listOf("9:00 AM" to java.time.LocalTime.of(9, 0), "12:00 PM" to java.time.LocalTime.of(12, 0), "6:00 PM" to java.time.LocalTime.of(18, 0))
 
     FormSheet(
         title = if (reminder == null) "New reminder" else "Edit reminder",
@@ -156,37 +137,18 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
         secondaryLabel = if (onRemove != null) "Delete reminder" else null,
         onSecondary = onRemove
     ) {
-        FormField("Reminder", title, { title = it }, placeholder = "Rent, insurance premium, pay Ravi")
-        AmountField("Amount (optional)", amount, { amount = it })
-        FormGroup("When") {
-            Chips(
-                buildList {
-                    presets.forEach { (label, d) -> add(ChipOption(label, day == d)) }
-                    add(ChipOption(if (custom) DayFormat.format(day) else "Pick a date", custom))
-                },
-                onSelect = { index ->
-                    if (index < presets.size) dateMillis = presets[index].second.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() else picking = true
-                }
-            )
-        }
-        FormGroup("Notify me at") {
-            val custom = time != null && time !in timePresets
-            Chips(
-                buildList {
-                    add(ChipOption("Morning summary only", time == null))
-                    timePresets.forEach { add(ChipOption(timeFormat.format(it), time == it)) }
-                    add(ChipOption(if (custom) timeFormat.format(time) else "Pick a time", custom))
-                },
-                onSelect = { index ->
-                    when {
-                        index == 0 -> timeText = ""
-                        index <= timePresets.size -> timeText = timePresets[index - 1].toString()
-                        else -> pickingTime = true
-                    }
-                }
-            )
-            Caption(if (time == null) "It is mentioned in the morning summary on the day" else "A notification at ${timeFormat.format(time)} on the day")
-        }
+        FormField(
+            "Reminder", title, { title = it }, placeholder = "Rent, insurance premium, pay Ravi",
+            suggestions = (known + PlanSuggestions.reminders).distinct(), capitalization = KeyboardCapitalization.Sentences
+        )
+        AmountField("Amount (optional)", amount, { amount = it }, quickAdds = listOf(500, 1_000, 5_000))
+        DateField("Date", day, { dateText = (it ?: today).toString() }, presets = datePresets)
+        TimeField(
+            "Notify me at (optional)", time, { timeText = it?.toString().orEmpty() },
+            placeholder = "Morning summary only", presets = timePresets,
+            supporting = if (time == null) "It is mentioned in the morning summary on the day"
+            else "A notification at ${DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(time)} on the day"
+        )
         FormGroup("Repeat") {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -197,20 +159,6 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
             }
         }
     }
-    if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
-    if (pickingTime) TimePickerDialog(time ?: java.time.LocalTime.of(9, 0), onPick = { timeText = it.toString(); pickingTime = false }, onDismiss = { pickingTime = false })
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimePickerDialog(initial: java.time.LocalTime, onPick: (java.time.LocalTime) -> Unit, onDismiss: () -> Unit) {
-    val state = androidx.compose.material3.rememberTimePickerState(initial.hour, initial.minute, is24Hour = false)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { AppButton("Use this time", { onPick(java.time.LocalTime.of(state.hour, state.minute)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-        text = { androidx.compose.material3.TimePicker(state) }
-    )
 }
 
 /** One line on Home for something planned ahead; it opens its own sheet. */

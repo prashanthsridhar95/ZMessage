@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.DayOfMonthField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,7 +86,9 @@ internal fun CardDialog(
             label = if (type == CardType.ACCOUNT) "Bank" else "Bank (optional)",
             value = bank,
             onChange = { bank = it.take(MAX_NAME) },
-            placeholder = "e.g. HDFC Bank"
+            placeholder = "e.g. HDFC Bank",
+            suggestions = BANKS,
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
         )
         FormField(
             label = "Your name for it (optional)",
@@ -94,13 +97,11 @@ internal fun CardDialog(
             placeholder = if (type == CardType.ACCOUNT) "e.g. Salary account" else "e.g. HDFC Regalia"
         )
         if (type == CardType.CREDIT) {
-            FormField(
+            DayOfMonthField(
                 label = "Statement day (optional)",
                 value = day,
-                onChange = { input -> day = input.filter(Char::isDigit).take(2) },
-                placeholder = "e.g. 12",
-                supporting = if (day.isNotEmpty() && statementDay == null) "A day from 1 to 31" else "The day of the month the bill is made. Leave blank for calendar months.",
-                keyboardType = KeyboardType.Number
+                onChange = { day = it },
+                supporting = "The day of the month the bill is made. Leave it unset for calendar months."
             )
         }
     }
@@ -117,3 +118,9 @@ internal fun CardDialog(
 }
 
 private const val MAX_NAME = 30
+
+private val BANKS = listOf(
+    "HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "IDFC FIRST Bank", "Yes Bank", "IndusInd Bank",
+    "RBL Bank", "Federal Bank", "Bank of Baroda", "Punjab National Bank", "Canara Bank", "AU Small Finance Bank", "American Express",
+    "Standard Chartered", "HSBC", "Citibank", "Union Bank of India", "Bank of India"
+)

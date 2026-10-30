@@ -349,7 +349,6 @@ private fun EntryRow(entry: CalendarEntry, onClick: () -> Unit) {
 }
 
 /** Add or change one of the person's own events: a title, the day, an optional time and a note. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EventForm(
     initial: CalendarEvent?,
@@ -362,57 +361,29 @@ private fun EventForm(
     var dateText by rememberSaveable { mutableStateOf(startDate.toString()) }
     var timeText by rememberSaveable { mutableStateOf(initial?.time?.toString().orEmpty()) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
-    var pickingDate by remember { mutableStateOf(false) }
     val date = LocalDate.parse(dateText)
-    val time = timeText.takeIf { it.isNotBlank() }?.let { runCatching { LocalTime.parse(it.padStart(5, '0')) }.getOrNull() }
-    val timeValid = timeText.isBlank() || time != null
+    val time = timeText.takeIf { it.isNotBlank() }?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
 
     FormSheet(
         title = if (initial == null) "Add an event" else "Edit event",
         onDismiss = onDismiss,
         primaryLabel = "Save",
-        primaryEnabled = title.isNotBlank() && timeValid,
-        hint = if (title.isBlank()) "Name the event" else "Use hours and minutes, like 18:30",
+        primaryEnabled = title.isNotBlank(),
+        hint = "Name the event",
         onPrimary = { onSave(CalendarEvent(initial?.id ?: UUID.randomUUID().toString(), title.trim(), date, time, note.trim())) },
         secondaryLabel = if (onRemove != null) "Remove" else null,
         onSecondary = onRemove
     ) {
-        FormField(label = "What is it?", value = title, onChange = { title = it }, placeholder = "e.g. Dentist, Dinner with Ravi")
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Day", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.secondary)
-            AppButton(
-                DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.getDefault()).format(date), { pickingDate = true },
-                Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE
-            )
-        }
-
         FormField(
-            label = "Time (optional)",
-            value = timeText,
-            onChange = { timeText = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
-            placeholder = "e.g. 18:30",
-            supporting = if (timeValid) "24-hour, like 09:00 or 18:30" else "Use hours and minutes, like 18:30",
-            keyboardType = KeyboardType.Number
+            label = "What is it?", value = title, onChange = { title = it }, placeholder = "e.g. Dentist, Dinner with Ravi",
+            suggestions = PlanSuggestions.events, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+        )
+        com.zyke.message.presentation.common.DateField("Day", date, { dateText = (it ?: date).toString() })
+        com.zyke.message.presentation.common.TimeField(
+            "Time (optional)", time, { timeText = it?.toString().orEmpty() },
+            placeholder = "All day",
+            presets = listOf("9:00 AM" to LocalTime.of(9, 0), "12:00 PM" to LocalTime.of(12, 0), "6:00 PM" to LocalTime.of(18, 0))
         )
         FormField(label = "Note (optional)", value = note, onChange = { note = it }, placeholder = "Where, who with, what to bring")
-    }
-
-    if (pickingDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { pickingDate = false },
-            confirmButton = {
-                AppButton(
-                    "Done",
-                    {
-                        state.selectedDateMillis?.let { dateText = Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() }
-                        pickingDate = false
-                    },
-                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
-                )
-            },
-            dismissButton = { AppButton("Cancel", { pickingDate = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-        ) { DatePicker(state = state) }
     }
 }

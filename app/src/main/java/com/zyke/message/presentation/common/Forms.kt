@@ -1,6 +1,13 @@
 package com.zyke.message.presentation.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -117,21 +124,25 @@ fun FormField(
     prefix: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     large: Boolean = false,
-    error: String? = null
+    error: String? = null,
+    /** Offered while the field is being typed in: those that contain what is typed (a few, when nothing is yet). */
+    suggestions: List<String> = emptyList(),
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
         val quiet = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+        var focused by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).onFocusChanged { focused = it.isFocused },
             singleLine = true,
             isError = error != null,
             textStyle = if (large) MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyLarge,
             placeholder = placeholder?.let { { Text(it, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)) } },
             prefix = prefix?.let { { Text(it, style = if (large) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge) } },
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next, capitalization = capitalization),
             shape = RoundedCornerShape(16.dp),
             // Filled and borderless until it is the one being typed in, then ringed in the brand colour.
             colors = OutlinedTextFieldDefaults.colors(
@@ -145,6 +156,36 @@ fun FormField(
         when {
             error != null -> Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             supporting != null -> Caption(supporting, maxLines = 2)
+        }
+        if (focused) {
+            val typed = value.trim()
+            val shown = if (typed.isEmpty()) suggestions.take(MAX_SUGGESTIONS)
+            else suggestions.filter { it.contains(typed, ignoreCase = true) && !it.equals(typed, ignoreCase = true) }.take(MAX_SUGGESTIONS)
+            if (shown.isNotEmpty()) SuggestionRow(shown) { onChange(it) }
+        }
+    }
+}
+
+private const val MAX_SUGGESTIONS = 6
+
+/** Small tappable completions under a field, in one scrolling line so they never push the form down. */
+@Composable
+fun SuggestionRow(options: List<String>, onPick: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            Text(
+                option,
+                Modifier
+                    .heightIn(min = 40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .clickable(role = Role.Button, onClickLabel = "Use $option", onClick = { onPick(option) })
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.PickField
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -104,10 +105,17 @@ private fun WishDialog(item: WishItem?, onSave: (WishItem) -> Unit, onRemove: ((
         secondaryLabel = if (onRemove != null) "Remove" else null,
         onSecondary = onRemove
     ) {
-        FormField(label = "What do you want?", value = name, onChange = { name = it }, placeholder = "e.g. Air fryer")
+        FormField(
+            label = "What do you want?", value = name, onChange = { name = it }, placeholder = "e.g. Air fryer",
+            suggestions = listOf("Air fryer", "Headphones", "Smartwatch", "Running shoes", "Backpack", "Monitor", "Coffee machine", "Phone case"),
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+        )
         AmountField("Price", price, { price = it }, quickAdds = listOf(1000, 5000, 10000))
-        FormGroup("Would be spent under") {
-            Chips(categories.map { ChipOption(it.displayString, category == it) }, onSelect = { category = if (category == categories[it]) null else categories[it] })
-        }
+        val anyCategory = "Any category"
+        PickField(
+            "Would be spent under (optional)", listOf(anyCategory) + categories.map { it.displayString }, category?.displayString,
+            onPick = { picked -> category = categories.firstOrNull { it.displayString == picked } },
+            placeholder = anyCategory
+        )
     }
 }

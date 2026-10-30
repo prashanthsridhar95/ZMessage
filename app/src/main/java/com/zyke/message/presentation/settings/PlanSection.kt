@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.presentation.common.DayOfMonthField
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -219,13 +220,11 @@ private fun SalaryDialog(amount: BigDecimal?, day: Int?, onSave: (String, String
             "Amount that reaches your account, roughly", amountText, { amountText = it },
             supporting = "Leave blank to clear it", quickAdds = listOf(5000, 10000, 25000)
         )
-        FormField(
+        DayOfMonthField(
             label = "Day it arrives (optional)",
             value = dayText,
-            onChange = { dayText = it.filter(Char::isDigit).take(2) },
-            placeholder = "e.g. 1",
-            supporting = if (dayValid) "Your months can start from this day" else "A day from 1 to 31",
-            keyboardType = KeyboardType.Number
+            onChange = { dayText = it },
+            supporting = "Your months can start from this day"
         )
     }
 }
@@ -272,16 +271,16 @@ private fun PlanItemDialog(
             label = "Name",
             value = name,
             onChange = { name = it.take(MAX_NAME) },
-            placeholder = if (kind == PlanItemKind.OUTFLOW) "e.g. Parents, Charity" else "e.g. Index fund SIP"
+            placeholder = if (kind == PlanItemKind.OUTFLOW) "e.g. Parents, Charity" else "e.g. Index fund SIP",
+            suggestions = if (kind == PlanItemKind.OUTFLOW) listOf("Parents", "Charity", "Rent", "Child's fees", "Pocket money", "Loan repayment") else listOf("Index fund SIP", "PPF", "Recurring deposit", "NPS", "Emergency fund", "Gold savings"),
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
         )
         AmountField("Amount each month", amount, { amount = it }, quickAdds = listOf(500, 1000, 5000))
-        FormField(
+        DayOfMonthField(
             label = "Usual day of the month (optional)",
             value = day,
-            onChange = { day = it.filter(Char::isDigit).take(2) },
-            placeholder = "e.g. 5",
-            supporting = if (dayValid) "Helps spot the payment when it happens" else "A day from 1 to 31",
-            keyboardType = KeyboardType.Number
+            onChange = { day = it },
+            supporting = "Helps spot the payment when it happens"
         )
     }
 }

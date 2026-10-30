@@ -149,3 +149,10 @@ internal fun ProgressRing(fraction: Float, tone: Tone, modifier: Modifier = Modi
         Text("$percent%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }
+
+/** What people usually call these, offered as they type. */
+internal object PlanSuggestions {
+    val goals = listOf("Emergency fund", "Vacation", "New phone", "New laptop", "Car down payment", "Home down payment", "Wedding", "Education", "Festival shopping")
+    val reminders = listOf("Rent", "Electricity bill", "Credit card bill", "Insurance premium", "EMI", "SIP", "School fee", "Mobile recharge", "Water bill", "Internet bill", "Maintenance", "Pay back")
+    val events = listOf("Dentist", "Doctor appointment", "Dinner", "Meeting", "Birthday", "Anniversary", "Flight", "Gym", "Call", "Interview")
+}
