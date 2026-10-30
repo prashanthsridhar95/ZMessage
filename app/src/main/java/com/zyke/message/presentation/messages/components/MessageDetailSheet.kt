@@ -364,8 +364,8 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
 }
 
 /**
- * Choosing a picture for this sender / receiver from the person's own photos; no permission is needed. The
- * sheet's round picture is the button. Null where pictures are not available.
+ * Choosing a picture for this sender / receiver: from the person's own photos (no permission is needed), or from a
+ * Google image search for its name, inside the app. Null where pictures are not available.
  */
 @Composable
 private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
@@ -373,6 +373,8 @@ private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
     val key = CategoryKey.of(item) ?: return null
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    // 0 nothing open, 1 choosing where from, 2 searching the web.
+    var step by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             scope.launch {
@@ -380,7 +382,40 @@ private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
             }
         }
     }
-    return { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val label = CategoryKey.label(item)
+
+    if (step == 1) {
+        AppBottomSheet({ step = 0 }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Add a picture", Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                PictureSource("From this phone", "Choose a photo from your gallery") {
+                    step = 0
+                    launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
+                PictureSource("From the web", "Search Google Images for \"$label\" and tap the one you want") { step = 2 }
+            }
+        }
+    }
+    if (step == 2) {
+        com.zyke.message.presentation.common.ImageSearchSheet(
+            query = label, store = store, onDismiss = { step = 0 },
+            onUse = { bitmap ->
+                scope.launch {
+                    if (store.saveChosenBitmap(key, bitmap)) step = 0
+                    else Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+    return { step = 1 }
+}
+
+@Composable
+private fun PictureSource(title: String, description: String, onClick: () -> Unit) {
+    com.zyke.message.presentation.common.FintechCard(onClick = onClick) {
+        RowTitle(title)
+        Caption(description, maxLines = 2)
+    }
 }
 
 /**

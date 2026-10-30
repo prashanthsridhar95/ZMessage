@@ -49,11 +49,37 @@ class ImageStore(
 
     suspend fun saveChosen(key: String, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val bitmap = runCatching { decodeSquare(uri) }.getOrNull() ?: return@withContext false
+        keep(key, bitmap)
+    }
+
+    /** A picture picked on a web page, already downloaded: centre-cropped and scaled like one from the gallery. */
+    suspend fun saveChosenBitmap(key: String, source: Bitmap): Boolean = withContext(Dispatchers.IO) {
+        val side = minOf(source.width, source.height)
+        val bitmap = runCatching {
+            val square = Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
+            Bitmap.createScaledBitmap(square, minOf(TARGET, side), minOf(TARGET, side), true)
+        }.getOrNull() ?: return@withContext false
+        keep(key, bitmap)
+    }
+
+    /** The picture behind a web page's image: a data address is read directly, an https one is downloaded. */
+    suspend fun fetchPicked(address: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (address.startsWith("data:image", ignoreCase = true)) {
+            runCatching {
+                val bytes = android.util.Base64.decode(address.substringAfter("base64,"), android.util.Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        } else {
+            logoFetcher.fetchPicked(address)
+        }
+    }
+
+    private fun keep(key: String, bitmap: Bitmap): Boolean {
         runCatching { File(chosenDir, fileName(key)).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-            .onFailure { return@withContext false }
+            .onFailure { return false }
         cache.put(CHOSEN + key, bitmap)
         updateKeys(_keys.value + key)
-        true
+        return true
     }
 
     fun removeChosen(key: String) {

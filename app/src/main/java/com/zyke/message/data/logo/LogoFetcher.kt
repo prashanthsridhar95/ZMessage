@@ -8,14 +8,18 @@ import java.net.URL
 /**
  * The only code in the app that talks to the internet, and the only thing it ever sends is the website
  * name of a well-known brand taken from [com.zyke.message.domain.classification.KnownEntityDomains]. No message text,
- * numbers or amounts. A test keeps network calls out of every other file.
+ * numbers or amounts. A test keeps network calls out of every other file. It also downloads a picture the person picked
+ * on a Google image search they opened themselves ([fetchPicked]); the address is the one they tapped.
  */
 internal class LogoFetcher {
 
     /** The brand's icon, or null if no source had one. */
     fun fetch(domain: String): Bitmap? = SOURCES.firstNotNullOfOrNull { template -> download(template.replace("{domain}", domain)) }
 
-    private fun download(address: String): Bitmap? = runCatching {
+    /** A picture the person chose on a web page: any https address, since they picked it, within a size limit. */
+    fun fetchPicked(address: String): Bitmap? = if (address.startsWith("https://", ignoreCase = true)) download(address, PICKED_MAX_BYTES) else null
+
+    private fun download(address: String, limit: Int = MAX_BYTES): Bitmap? = runCatching {
         val connection = (URL(address).openConnection() as HttpURLConnection).apply {
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
@@ -24,7 +28,7 @@ internal class LogoFetcher {
         }
         try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
-            val bytes = connection.inputStream.use { it.readBytes(MAX_BYTES) } ?: return@runCatching null
+            val bytes = connection.inputStream.use { it.readBytes(limit) } ?: return@runCatching null
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.takeIf { it.width >= MIN_SIDE && it.height >= MIN_SIDE }
         } finally {
             connection.disconnect()
@@ -46,6 +50,7 @@ internal class LogoFetcher {
     private companion object {
         const val TIMEOUT_MS = 6_000
         const val MAX_BYTES = 512 * 1024
+        const val PICKED_MAX_BYTES = 4 * 1024 * 1024
         const val MIN_SIDE = 48
         const val BUFFER = 8 * 1024
 

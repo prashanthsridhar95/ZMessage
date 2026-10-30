@@ -8,6 +8,7 @@
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
 | Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
+| Picture for a sender, searched on the web (only when the person taps "From the web") | Google Images, searched for the sender's name in an in-app page; the picture the person taps is downloaded once | Cropped to 256px in private storage | The sender's name is the search text, as if typed into Google; nothing else |
 | Market prices (off until switched on in Settings) | A public price service (Yahoo Finance), asked for the tickers in your watch list only | Held in memory; the list itself is in private SharedPreferences | The tickers are sent, never message content |
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
