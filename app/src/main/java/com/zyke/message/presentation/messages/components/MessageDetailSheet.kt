@@ -101,6 +101,12 @@ internal fun MessageDetailSheet(
     var nameScope by remember { mutableStateOf<Boolean?>(null) }
     val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, CategoryKey.label(item)) }
     val imageStore = LocalImageStore.current
+    val pictureKeys by (imageStore?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
+    val thisMessageKey = CategoryKey.messageKey(item.id)
+    val senderHasPicture = CategoryKey.of(item)?.let { it in pictureKeys } == true
+    val thisHasPicture = thisMessageKey in pictureKeys
+    // The same chooser, for this one payment rather than everything from its sender or receiver.
+    val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, title) else null
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
 
     AppBottomSheet(onDismiss) {
@@ -204,6 +210,10 @@ internal fun MessageDetailSheet(
                     SettingsGroup("This transaction") {
                         DetailRow("Category", if (item.categoryOwn) item.category.displayString else "Same as $title") { categoryScope = true }
                         DetailRow("Nickname", if (item.nicknameOwn) item.merchant.name else "None") { nameScope = true }
+                        if (pickThisPicture != null) {
+                            DetailRow("Picture", if (thisHasPicture) "Your picture" else "Same as $title", onClick = pickThisPicture)
+                            if (thisHasPicture) DetailRow("Remove picture", null) { imageStore?.removeChosen(thisMessageKey) }
+                        }
                     }
                 }
                 SettingsGroup(if (content is MessageContent.Transaction) "Every payment to $title" else "About $title") {
@@ -218,12 +228,12 @@ internal fun MessageDetailSheet(
                         DetailRow("Nickname", if (item.merchant.renamed && !item.nicknameOwn) item.merchant.name else "None") { nameScope = false }
                         if (pickPicture != null) {
                             val pictureValue = when {
-                                item.merchant.imageKey != null -> "Your picture"
+                                senderHasPicture -> "Your picture"
                                 imageStore != null && imageStore.hasLogo(item.merchant.name) && item.merchant.name.trim().lowercase() !in hiddenLogos -> "Brand logo"
                                 else -> "Default"
                             }
                             DetailRow("Picture", pictureValue, onClick = pickPicture)
-                            RemovePictureRow(item)
+                            RemovePictureRow(item, senderHasPicture)
                         }
                     }
                     SwitchRow("Mute $sender", item.isMuted) { actions.onToggleMute(item.id) }
@@ -372,13 +382,13 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
  * can be brought back from the same row.
  */
 @Composable
-private fun RemovePictureRow(item: ClassifiedMessage) {
+private fun RemovePictureRow(item: ClassifiedMessage, hasOwnPicture: Boolean) {
     val store = LocalImageStore.current ?: return
     val key = CategoryKey.of(item) ?: return
     val hidden by store.hiddenLogos.collectAsState()
     val name = item.merchant.name
     when {
-        item.merchant.imageKey != null -> DetailRow("Remove picture", null) { store.removeChosen(key) }
+        hasOwnPicture -> DetailRow("Remove picture", null) { store.removeChosen(key) }
         store.hasLogo(name) && !store.isHidden(name) -> DetailRow("This logo is wrong", null) { store.hideLogo(name) }
         store.isHidden(name) && hidden.isNotEmpty() -> DetailRow("Show the logo again", null) { store.showLogo(name) }
     }

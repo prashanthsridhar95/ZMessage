@@ -88,8 +88,14 @@ class ObserveMessagesUseCase(
             }
             .combine(senderImages.keysWithImage) { classified, keys ->
                 if (keys.isEmpty()) classified else classified.map { message ->
+                    // A picture chosen for this one payment beats one chosen for everything from its sender or receiver.
+                    val own = CategoryKey.messageKey(message.id)
                     val key = CategoryKey.of(message)
-                    if (key != null && key in keys) message.copy(merchant = message.merchant.copy(imageKey = key)) else message
+                    when {
+                        own in keys -> message.copy(merchant = message.merchant.copy(imageKey = own))
+                        key != null && key in keys -> message.copy(merchant = message.merchant.copy(imageKey = key))
+                        else -> message
+                    }
                 }
             }
             .combine(mutedSenders.muted) { classified, muted ->
