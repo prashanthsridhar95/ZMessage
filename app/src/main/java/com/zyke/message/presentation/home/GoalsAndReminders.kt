@@ -86,6 +86,7 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
         onDismiss = onDismiss,
         primaryLabel = if (goal == null) "Create goal" else "Save changes",
         primaryEnabled = name.isNotBlank() && amount != null && amount.signum() > 0,
+        hint = if (name.isBlank()) "Give the goal a name" else "Enter the amount you are aiming for",
         onPrimary = { onSave(Goal(goal?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, saved.toBigDecimalOrNull() ?: BigDecimal.ZERO, date)) },
         secondaryLabel = if (onRemove != null) "Delete goal" else null,
         onSecondary = onRemove
@@ -150,6 +151,7 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
         onDismiss = onDismiss,
         primaryLabel = if (reminder == null) "Add reminder" else "Save changes",
         primaryEnabled = title.isNotBlank(),
+        hint = "Give the reminder a name",
         onPrimary = { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly, time)) },
         secondaryLabel = if (onRemove != null) "Delete reminder" else null,
         onSecondary = onRemove

@@ -372,6 +372,7 @@ private fun EventForm(
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = title.isNotBlank() && timeValid,
+        hint = if (title.isBlank()) "Name the event" else "Use hours and minutes, like 18:30",
         onPrimary = { onSave(CalendarEvent(initial?.id ?: UUID.randomUUID().toString(), title.trim(), date, time, note.trim())) },
         secondaryLabel = if (onRemove != null) "Remove" else null,
         onSecondary = onRemove

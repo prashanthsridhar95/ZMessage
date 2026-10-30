@@ -123,6 +123,7 @@ internal fun GoalsContent(
             onDismiss = { topping = null },
             primaryLabel = value?.let { "Add ${DisplayFormatters.rupees(it)}" } ?: "Add",
             primaryEnabled = value != null && value.signum() > 0,
+            hint = "Enter how much to add",
             onPrimary = {
                 val added = value!!
                 onAdd(progress.goal.id, added)
