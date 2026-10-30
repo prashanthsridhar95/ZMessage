@@ -63,15 +63,12 @@ internal fun CycleSection(
             }
         }
         if (plan.cycleMode == CycleMode.DAY) {
-            OutlinedTextField(
-                value = day,
-                onValueChange = { input ->
-                    day = input.filter { it.isDigit() }.take(2)
+            com.zyke.message.presentation.common.DayOfMonthField(
+                "Day of the month your months start", day,
+                onChange = { picked ->
+                    day = picked
                     onChange(CycleMode.DAY, day)
                 },
-                singleLine = true,
-                label = { Text("Day of the month (1-31)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }

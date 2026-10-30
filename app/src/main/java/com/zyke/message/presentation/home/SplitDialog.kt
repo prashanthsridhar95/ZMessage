@@ -16,9 +16,8 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.split.Split
 import com.zyke.message.domain.split.SplitPerson
-import com.zyke.message.presentation.common.AppButton
-import com.zyke.message.presentation.common.ButtonSize
-import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.FormField
+import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.format.DisplayFormatters
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -40,46 +39,30 @@ internal fun SplitDialog(message: ClassifiedMessage, onSave: (Split) -> Unit, on
     // Equal parts, the person's own part included.
     val share = if (friends.isEmpty()) BigDecimal.ZERO else total.divide(BigDecimal(friends.size + 1), 2, RoundingMode.HALF_UP)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Split ${DisplayFormatters.rupees(total)}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true, label = { Text("For") })
-                OutlinedTextField(
-                    value = names,
-                    onValueChange = { names = it },
-                    label = { Text("Who owes you? Names, separated by commas") },
-                    minLines = 2
+    FormSheet(
+        title = "Split ${DisplayFormatters.rupees(total)}",
+        onDismiss = onDismiss,
+        primaryLabel = if (friends.isEmpty()) "Split" else "Split with ${DisplayFormatters.count(friends.size, "friend", "friends")}",
+        primaryEnabled = friends.isNotEmpty(),
+        hint = "Add at least one name",
+        onPrimary = {
+            onSave(
+                Split(
+                    UUID.randomUUID().toString(), message.id, title.trim().ifEmpty { defaultTitle }, total,
+                    friends.map { SplitPerson(it, share) }
                 )
-                Text(
-                    if (friends.isEmpty()) {
-                        "Everyone, you included, pays an equal part."
-                    } else {
-                        "${DisplayFormatters.rupees(share)} each. When a credit with their name for about that amount arrives, " +
-                            "their share is ticked off."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-        },
-        confirmButton = {
-            AppButton(
-                "Save",
-                {
-                    onSave(
-                        Split(
-                            UUID.randomUUID().toString(), message.id, title.trim().ifEmpty { defaultTitle }, total,
-                            friends.map { SplitPerson(it, share) }
-                        )
-                    )
-                },
-                style = ButtonStyle.TEXT,
-                size = ButtonSize.COMPACT,
-                enabled = friends.isNotEmpty()
             )
-        },
-        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-    )
+        }
+    ) {
+        FormField("For", title, { title = it }, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences)
+        FormField(
+            "Who owes you?", names, { names = it }, placeholder = "Ravi, Priya",
+            supporting = if (friends.isEmpty()) {
+                "Names, separated by commas. Everyone, you included, pays an equal part."
+            } else {
+                "${DisplayFormatters.rupees(share)} each. When a credit with their name for about that amount arrives, their share is ticked off."
+            },
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+        )
+    }
 }

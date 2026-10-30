@@ -154,9 +154,10 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         if (tab == 2) {
             if (pf == null && funds.isEmpty()) {
                 item(key = "pf-empty") {
-                    FintechCard {
-                        Caption("No provident fund yet. Passbook messages from EPFO show up here, and you can mark any account as a provident fund from its sheet.", maxLines = 4)
-                    }
+                    com.zyke.message.presentation.common.EmptyState(
+                        "No provident fund yet",
+                        "Passbook messages from EPFO show up here, and you can mark any account as a provident fund from its sheet."
+                    )
                 }
             }
             if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
@@ -165,7 +166,10 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
         } else if (shown.isEmpty()) {
             item(key = "empty") {
-                FintechCard { Caption(if (tab == 0) "No accounts yet" else "No cards yet") }
+                com.zyke.message.presentation.common.EmptyState(
+                    if (tab == 0) "No accounts yet" else "No cards yet",
+                    if (tab == 0) "Bank accounts appear here once a message with a balance arrives." else "Cards appear here once a card payment or bill message arrives."
+                )
             }
         }
         shown.forEach { account ->
@@ -491,28 +495,18 @@ internal fun AccountSheet(
 
     if (editingCycle) {
         var day by rememberSaveable { mutableStateOf(account.userCard?.statementDay?.toString().orEmpty()) }
-        val parsed = day.toIntOrNull()?.takeIf { it in 1..31 }
-        AlertDialog(
-            onDismissRequest = { editingCycle = false },
-            title = { Text("Billing cycle") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = day,
-                        onValueChange = { day = it.filter(Char::isDigit).take(2) },
-                        singleLine = true,
-                        isError = day.isNotEmpty() && parsed == null,
-                        label = { Text("Statement day of the month (1-31)") },
-                        supportingText = { Text("Leave empty to use calendar months") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-                    )
-                }
-            },
-            confirmButton = {
-                AppButton("Save", { onStatementDay(parsed); editingCycle = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = day.isEmpty() || parsed != null)
-            },
-            dismissButton = { AppButton("Cancel", { editingCycle = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-        )
+        com.zyke.message.presentation.common.FormSheet(
+            title = "Billing cycle",
+            onDismiss = { editingCycle = false },
+            primaryLabel = "Save",
+            primaryEnabled = true,
+            onPrimary = { onStatementDay(day.toIntOrNull()?.takeIf { it in 1..31 }); editingCycle = false }
+        ) {
+            com.zyke.message.presentation.common.DayOfMonthField(
+                "Statement day of the month", day, { day = it },
+                supporting = "Leave it unset to use calendar months"
+            )
+        }
     }
 
     if (removing) {
@@ -527,19 +521,20 @@ internal fun AccountSheet(
 
     if (naming) {
         var name by rememberSaveable { mutableStateOf(account.userCard?.name.orEmpty()) }
-        AlertDialog(
-            onDismissRequest = { naming = false },
-            title = { Text("Name this account") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
-                }
-            },
-            confirmButton = {
-                AppButton("Save", { onName(name); naming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = name.isNotBlank())
-            },
-            dismissButton = { AppButton("Cancel", { naming = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-        )
+        com.zyke.message.presentation.common.FormSheet(
+            title = "Name this account",
+            onDismiss = { naming = false },
+            primaryLabel = "Save",
+            primaryEnabled = name.isNotBlank(),
+            hint = "Type a name",
+            onPrimary = { onName(name); naming = false }
+        ) {
+            com.zyke.message.presentation.common.FormField(
+                "Name", name, { name = it }, placeholder = "e.g. Salary account",
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+            )
+        }
+
     }
 }
 

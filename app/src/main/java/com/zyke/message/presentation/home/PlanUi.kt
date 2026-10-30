@@ -108,29 +108,8 @@ internal fun PageSummary(label: String, value: String, caption: String, modifier
 
 /** Nothing here yet: says what the page is for and offers the one thing to do about it. */
 @Composable
-internal fun EmptyPlan(icon: Int, title: String, body: String, actionLabel: String, onAction: () -> Unit) {
-    FintechCard {
-        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier.size(64.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(icon),
-                    contentDescription = null,
-                    modifier = Modifier.size(30.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
-                )
-            }
-            Text(
-                title, Modifier.padding(top = 14.dp), style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center
-            )
-            Caption(body, Modifier.padding(top = 4.dp, bottom = 16.dp), maxLines = 4, textAlign = TextAlign.Center)
-            AppButton(actionLabel, onAction)
-        }
-    }
-}
+internal fun EmptyPlan(icon: Int, title: String, body: String, actionLabel: String, onAction: () -> Unit) =
+    com.zyke.message.presentation.common.EmptyState(title, body, icon = icon, actionLabel = actionLabel, onAction = onAction)
 
 /** A ring that fills as a goal is met, with the percentage inside it. */
 @Composable

@@ -235,10 +235,10 @@ private fun SummaryPage(
 
         if (state.isBlank) {
             item(key = "blank") {
-                FintechCard {
-                    RowTitle("Nothing here yet")
-                    Caption("Nothing yet")
-                }
+                com.zyke.message.presentation.common.EmptyState(
+                    "Nothing here yet",
+                    "Your balances, bills and spending appear here as messages from your bank arrive."
+                )
             }
         }
 
