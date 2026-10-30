@@ -64,6 +64,11 @@ data class AccountSummary(
     val paidSinceBill: BigDecimal? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
+
+    /** The latest bill has been paid in full (to within a rupee), so what is owed now is only what was spent after it. */
+    val billPaid: Boolean
+        get() = kind == AccountKind.CREDIT_CARD && dueAmount != null && paidSinceBill != null &&
+            paidSinceBill >= dueAmount - BigDecimal.ONE
 }
 
 /** Everything the accounts screen shows. */

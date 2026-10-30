@@ -296,7 +296,13 @@ private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onO
             }
             Spacer(Modifier.width(12.dp))
             Column(horizontalAlignment = Alignment.End) {
-                val headline = if (account.isCard) account.dueAmount else account.balance
+                // Once the bill is paid, what is owed is what has been spent since, not the bill that was just settled.
+                val showUnbilled = account.billPaid && account.unbilled != null
+                val headline = when {
+                    showUnbilled -> account.unbilled
+                    account.isCard -> account.dueAmount
+                    else -> account.balance
+                }
                 Text(
                     headline?.let { DisplayFormatters.rupees(it) } ?: "—",
                     style = MaterialTheme.typography.titleLarge,
@@ -306,6 +312,7 @@ private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onO
                 )
                 Caption(
                     when {
+                        showUnbilled -> "unbilled \u00B7 last bill paid"
                         account.isCard && due != null -> "due ${dayFormat.format(due)}"
                         account.isCard -> "latest bill"
                         asOf != null && account.balanceAdjustment != null -> "stated ${dayFormat.format(asOf)}, plus later payments"

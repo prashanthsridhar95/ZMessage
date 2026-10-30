@@ -45,4 +45,15 @@ class CardSpendTest {
         assertEquals(1f, over.fraction, 0.001f)
         assertNull(CardSpend.status(emptyList(), null))
     }
+
+    @Test
+    fun aCardWhoseLatestBillIsPaidInFull_showsWhatIsUnbilled() {
+        val card = account("card1111", AccountKind.CREDIT_CARD, 0).copy(
+            dueAmount = BigDecimal(12_345), paidSinceBill = BigDecimal(12_345), unbilled = BigDecimal(1_800)
+        )
+        assertTrue(card.billPaid)
+        assertFalse(card.copy(paidSinceBill = BigDecimal(617)).billPaid)
+        assertFalse(card.copy(paidSinceBill = null).billPaid)
+        assertFalse(card.copy(kind = AccountKind.DEBIT_CARD).billPaid)
+    }
 }
