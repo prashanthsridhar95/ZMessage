@@ -33,6 +33,7 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
             .put("salary", plan.salary?.toPlainString() ?: JSONObject.NULL)
             .put("salaryDay", plan.salaryDay ?: JSONObject.NULL)
             .put("salaryLastWorking", plan.salaryOnLastWorkingDay)
+            .put("cardSpendLimit", plan.cardSpendLimit?.toPlainString() ?: JSONObject.NULL)
             .put("savingsGoal", plan.savingsGoal?.toPlainString() ?: JSONObject.NULL)
             .put("cycleMode", plan.cycleMode.name)
             .put("cycleDay", plan.cycleDay ?: JSONObject.NULL)
@@ -52,6 +53,7 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
             salary = json.optString("salary").toBigDecimalOrNull(),
             salaryDay = if (json.isNull("salaryDay")) null else json.optInt("salaryDay"),
             salaryOnLastWorkingDay = json.optBoolean("salaryLastWorking"),
+            cardSpendLimit = if (json.isNull("cardSpendLimit")) null else json.optString("cardSpendLimit").toBigDecimalOrNull(),
             savingsGoal = json.optString("savingsGoal").toBigDecimalOrNull(),
             cycleMode = CycleMode.entries.firstOrNull { it.name == json.optString("cycleMode") } ?: CycleMode.SALARY,
             cycleDay = if (json.isNull("cycleDay")) null else json.optInt("cycleDay"),

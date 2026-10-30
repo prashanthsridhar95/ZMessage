@@ -9,7 +9,6 @@ import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.PlanItem
 import com.zyke.message.domain.plan.SalaryPattern
-import com.zyke.message.domain.wishlist.WishItem
 import java.math.BigDecimal
 
 object SettingsContract {
@@ -28,7 +27,14 @@ object SettingsContract {
         val plan: MoneyPlan = MoneyPlan(),
         /** The pay cycle now in force, from the person's choice. */
         val cycleRange: com.zyke.message.domain.dashboard.DateRange? = null,
-        val wishlist: List<WishItem> = emptyList(),
+        /** Every card and account the app knows: those found in the messages and those the person added. */
+        val accounts: List<com.zyke.message.domain.accounts.AccountSummary> = emptyList(),
+        /** What the plan leaves to spend in a month, once what is committed is taken out. */
+        val spendable: BigDecimal? = null,
+        /** Monthly limits worked out from the plan and from what has been spent, to set in one tap. */
+        val limitSuggestions: List<com.zyke.message.domain.forecast.LimitSuggestion> = emptyList(),
+        /** Credit card spending against the one limit set for all cards. */
+        val cardSpend: com.zyke.message.domain.accounts.CardSpendStatus? = null,
         /** The salary the messages show arriving each month, if there is one. It is used ahead of the entered amount. */
         val spottedSalary: SalaryPattern? = null
     )
@@ -47,13 +53,13 @@ object SettingsContract {
         /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */
         data class SetLimits(val category: MessageCategory, val daily: String, val monthly: String) : Intent
         data class RemoveLimits(val category: MessageCategory) : Intent
+        /** The most to spend on credit cards in a month, all cards together; blank clears it. */
+        data class SetCardLimit(val amount: String) : Intent
         /** The usual monthly salary and the day it arrives; a blank amount clears it. */
         data class SetSalary(val amount: String, val day: String) : Intent
         data class SetSavingsGoal(val amount: String) : Intent
         /** Where the month starts; [day] is only used for the day-of-month choice. */
         data class SetCycle(val mode: com.zyke.message.domain.cycle.CycleMode, val day: String) : Intent
-        data class SaveWish(val item: WishItem) : Intent
-        data class RemoveWish(val id: String) : Intent
         data class SavePlanItem(val item: PlanItem) : Intent
         data class DeletePlanItem(val id: String) : Intent
         data object AskReset : Intent

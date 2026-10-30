@@ -15,8 +15,6 @@ import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.NoMoneyPlan
 import com.zyke.message.domain.repository.NoCards
-import com.zyke.message.domain.repository.NoWishlist
-import com.zyke.message.domain.repository.WishlistRepository
 import com.zyke.message.domain.repository.SettingsRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
@@ -46,10 +44,9 @@ class SettingsViewModel(
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-    private val wishlistRepository: WishlistRepository = NoWishlist
+    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
 ) : MviViewModel<State, Intent, Effect>(
-    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
-        wishlist = wishlistRepository.items.value)
+    State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
 
     private var observeJob: Job? = null
@@ -60,7 +57,7 @@ class SettingsViewModel(
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
         }
         viewModelScope.launch {
-            wishlistRepository.items.collect { items -> reduce { copy(wishlist = items) } }
+            hiddenAccounts.hidden.collect { recomputeLimits() }
         }
         viewModelScope.launch {
             planRepository.plan.collect { plan -> reduce { copy(plan = plan) }; recomputeLimits() }
@@ -72,7 +69,7 @@ class SettingsViewModel(
             budgetRepository.dailyBudgets.collect { daily -> reduce { copy(dailyLimits = daily) }; recomputeLimits() }
         }
         viewModelScope.launch {
-            cardRepository.cards.collect { cards -> reduce { copy(cards = cards) } }
+            cardRepository.cards.collect { cards -> reduce { copy(cards = cards) }; recomputeLimits() }
         }
     }
 
@@ -124,8 +121,6 @@ class SettingsViewModel(
                     cycleDay = intent.day.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAY }
                 )
             )
-            is Intent.SaveWish -> wishlistRepository.save(intent.item)
-            is Intent.RemoveWish -> wishlistRepository.remove(intent.id)
             is Intent.SavePlanItem -> {
                 val plan = planRepository.plan.value
                 val exists = plan.items.any { it.id == intent.item.id }
@@ -136,6 +131,10 @@ class SettingsViewModel(
             is Intent.DeletePlanItem -> {
                 val plan = planRepository.plan.value
                 planRepository.save(plan.copy(items = plan.items.filter { it.id != intent.id }))
+            }
+            is Intent.SetCardLimit -> {
+                planRepository.save(planRepository.plan.value.copy(cardSpendLimit = amountOf(intent.amount)))
+                emitEffect(Effect.ShowMessage(if (amountOf(intent.amount) == null) "Card limit removed" else "Card limit saved"))
             }
             is Intent.RemoveLimits -> {
                 budgetRepository.setDailyBudget(intent.category, null)
@@ -178,7 +177,18 @@ class SettingsViewModel(
         val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle)
         val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
         val range = cycle.containing(java.time.LocalDate.ofInstant(clock.instant(), clock.zone))
-        reduce { copy(limits = limits, spottedSalary = spotted, cycleRange = range) }
+        val accounts = com.zyke.message.domain.accounts.Accounts.build(
+            inbox, state.cards, clock.instant(), clock.zone, cycle, hiddenAccounts.hidden.value
+        ).accounts
+        val spendable = com.zyke.message.domain.plan.PlanInsightsBuilder.build(state.plan, inbox, clock.instant(), clock.zone, cycle)?.spendable
+        val suggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(inbox, state.monthlyLimits, spendable, clock.instant(), clock.zone, cycle)
+        val cardSpend = com.zyke.message.domain.accounts.CardSpend.status(accounts, state.plan.cardSpendLimit)
+        reduce {
+            copy(
+                limits = limits, spottedSalary = spotted, cycleRange = range, accounts = accounts,
+                spendable = spendable, limitSuggestions = suggestions, cardSpend = cardSpend
+            )
+        }
     }
 
     /** A blank or unusable entry clears the limit rather than keeping a stale one. */
@@ -220,14 +230,14 @@ class SettingsViewModel(
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-        private val wishlistRepository: WishlistRepository = NoWishlist
+        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, wishlistRepository = wishlistRepository
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts
             ) as T
     }
 }

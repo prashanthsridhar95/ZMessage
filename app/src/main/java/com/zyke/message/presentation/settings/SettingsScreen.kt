@@ -15,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,7 +30,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -78,184 +79,95 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
         }
     }
 
-    SettingsSheet(state, versionName, viewModel::onIntent, onDismiss)
+    SettingsPage(state, versionName, viewModel::onIntent, onDismiss)
 }
 
-/** Settings as a bottom sheet over the current tab; as tall as its content, up to the screen. */
+/** The pages Settings is made of; the hub lists them and each opens as a page of its own. */
+private enum class SettingsGroup(val title: String, val icon: Int) {
+    MONEY("Money plan", R.drawable.ic_wallet_24),
+    LIMITS("Spending limits", R.drawable.ic_goal_24),
+    CARDS("Cards and accounts", R.drawable.ic_card_24),
+    MESSAGES("Messages and pictures", R.drawable.baseline_message_24),
+    ALERTS("Reminders and alerts", R.drawable.ic_reminder_24),
+    MARKETS("Market watch", R.drawable.ic_trending_24),
+    PRIVACY("Privacy and security", R.drawable.ic_lock_24),
+    APPEARANCE("Appearance", R.drawable.ic_sun_24),
+    ABOUT("Your data and about", R.drawable.ic_info_24)
+}
+
+/**
+ * Settings as a page of its own. The first screen is a short list of what can be set, each with its current state beside
+ * it, so the answer to "how is this set?" needs no opening. Anything still to set up is called out above the list. A
+ * row opens one page about that one thing.
+ */
 @Composable
-fun SettingsSheet(
+fun SettingsPage(
     state: State,
     versionName: String,
     onIntent: (Intent) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AppBottomSheet(onDismiss, contentInset = 16.dp) {
-        // Each section is a tile here that opens its own sheet, so Settings is a short list to choose from.
-        CompositionLocalProvider(LocalSectionsAsSheets provides true) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                modifier = Modifier.padding(horizontal = 4.dp).heading(),
-                text = "Settings",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+    var openName by rememberSaveable { mutableStateOf<String?>(null) }
+    val open = SettingsGroup.entries.firstOrNull { it.name == openName }
+    val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val watch by container.watchlist.watch.collectAsStateWithLifecycle()
 
-            GroupLabel("Money")
-            PlanSection(
-                plan = state.plan,
-                spotted = state.spottedSalary,
-                onSalary = { amount, day -> onIntent(Intent.SetSalary(amount, day)) },
-                onSavingsGoal = { onIntent(Intent.SetSavingsGoal(it)) },
-                onSaveItem = { onIntent(Intent.SavePlanItem(it)) },
-                onDeleteItem = { onIntent(Intent.DeletePlanItem(it)) }
-            )
-
-            CycleSection(
-                plan = state.plan,
-                spotted = state.spottedSalary,
-                current = state.cycleRange,
-                onChange = { mode, day -> onIntent(Intent.SetCycle(mode, day)) }
-            )
-
-            LimitsSection(
-                limits = state.limits,
-                onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },
-                onRemove = { onIntent(Intent.RemoveLimits(it)) }
-            )
-
-            WishlistSection(
-                items = state.wishlist,
-                onSave = { onIntent(Intent.SaveWish(it)) },
-                onRemove = { onIntent(Intent.RemoveWish(it)) }
-            )
-
-            CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
-
-            GroupLabel("Markets")
-            com.zyke.message.presentation.markets.MarketSettingsSection()
-
-            GroupLabel("Messages")
-            SectionCard("Pictures") {
-                Caption(
-                    "Pick one from any message sheet",
-                    maxLines = 3
-                )
-                ToggleRow(
-                    title = "Fetch brand logos from the internet",
-                    description = "Looks up logos of well-known brands once each. Only the brand name is sent.",
-                    checked = state.settings.fetchLogos,
-                    onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            }
-
-            RcsSection()
-
-            SectionCard("Parsing health") {
-                val diagnostics = state.diagnostics
-                if (diagnostics == null) {
-                    Caption("Allow SMS access to see how well your messages are understood.", maxLines = 3)
-                } else if (diagnostics.moneyMessages == 0) {
-                    Caption("No money messages found yet.")
-                } else {
-                    val fraction = diagnostics.recognised.toFloat() / diagnostics.moneyMessages
-                    RowTitle("${diagnostics.recognised} of ${diagnostics.moneyMessages} money messages understood")
-                    ShareBar(fraction)
-                    Caption(
-                        if (diagnostics.unrecognised == 0) "Everything was understood."
-                        else "${diagnostics.unrecognised} shown as plain text. Share a report as a file, with numbers, " +
-                            "names and links masked, so they can be taught.",
-                        Modifier.padding(top = 8.dp),
-                        maxLines = 4
-                    )
-                    AppButton(
-                        text = "Share report",
-                        onClick = { onIntent(Intent.ShareDiagnostics) },
-                        style = ButtonStyle.OUTLINE,
-                        enabled = diagnostics.unrecognised > 0,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-            }
-
-            GroupLabel("Privacy and alerts")
-            SectionCard("Privacy", summary = if (state.settings.appLock) "App lock on" else "Private on this phone") {
-                Caption(
-                    "Messages stay on this phone",
-                    maxLines = 5
-                )
-                ToggleRow(
-                    title = "Block screenshots",
-                    description = "Also hides the recent-apps view",
-                    checked = state.settings.screenProtection,
-                    onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-                AppLockToggle(
-                    enabled = state.settings.appLock,
-                    onChange = { onIntent(Intent.SetAppLock(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            }
-
-            SectionCard("Reminders", summary = if (state.settings.morningDigest) "Morning summary on" else "Off") {
-                MorningDigestToggle(
-                    enabled = state.settings.morningDigest,
-                    onChange = { onIntent(Intent.SetMorningDigest(it)) }
-                )
-                LiveAlertsToggle(
-                    enabled = state.settings.liveAlerts,
-                    onChange = { onIntent(Intent.SetLiveAlerts(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-                Caption(
-                    "A \"Your day\" widget is in the widget list",
-                    Modifier.padding(top = 12.dp),
-                    maxLines = 2
-                )
-            }
-
-            GroupLabel("App")
-            SectionCard("Appearance", summary = state.settings.themeMode.label) {
-                ThemeMode.entries.forEach { mode ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = state.settings.themeMode == mode,
-                                onClick = { onIntent(Intent.SetThemeMode(mode)) },
-                                role = Role.RadioButton
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = state.settings.themeMode == mode, onClick = null)
-                        Text(mode.label, Modifier.padding(start = 12.dp))
+    com.zyke.message.presentation.common.AppPage("Settings", onDismiss) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val todo = setupSteps(state)
+            if (todo.isNotEmpty()) {
+                com.zyke.message.presentation.common.FintechCard {
+                    Caption("FINISH SETTING UP")
+                    todo.forEachIndexed { index, step ->
+                        Row(
+                            Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = step.first) { openName = step.third.name }.padding(top = if (index == 0) 8.dp else 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                RowTitle(step.first)
+                                Caption(step.second, maxLines = 2)
+                            }
+                            Text("\u203A", color = com.zyke.message.presentation.messages.components.mutedColor())
+                        }
                     }
                 }
             }
 
-            SectionCard("Your data") {
-                Caption(
-                    "Clears marks and budgets, never your messages",
-                    maxLines = 4
+            SettingsList(
+                "Your money",
+                listOf(
+                    SettingsGroup.MONEY to moneySummary(state),
+                    SettingsGroup.LIMITS to limitsSummary(state),
+                    SettingsGroup.CARDS to cardsSummary(state)
                 )
-                AppButton(
-                    text = "Reset marks and budgets",
-                    onClick = { onIntent(Intent.AskReset) },
-                    style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.padding(top = 12.dp)
+            ) { openName = it.name }
+            SettingsList(
+                "Your messages",
+                listOf(
+                    SettingsGroup.MESSAGES to messagesSummary(state),
+                    SettingsGroup.ALERTS to alertsSummary(state),
+                    SettingsGroup.MARKETS to if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off"
                 )
-            }
-
-            SectionCard("About") {
-                Caption("Version $versionName")
-                Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
-            }
+            ) { openName = it.name }
+            SettingsList(
+                "This app",
+                listOf(
+                    SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone",
+                    SettingsGroup.APPEARANCE to state.settings.themeMode.label,
+                    SettingsGroup.ABOUT to "Version $versionName"
+                )
+            ) { openName = it.name }
         }
+    }
+
+    open?.let { group ->
+        com.zyke.message.presentation.common.AppPage(group.title, { openName = null }) {
+            // This page is about one thing, so its sections show their contents instead of folding away.
+            CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    GroupContent(group, state, versionName, onIntent)
+                }
+            }
         }
     }
 
@@ -270,41 +182,272 @@ fun SettingsSheet(
     }
 }
 
-/** The person's cards: with their last four digits, messages are matched to the right card and grouped by cycle. */
-@Composable
-private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDelete: (String) -> Unit) {
-    var editing by remember { mutableStateOf<UserCard?>(null) }
-    var adding by remember { mutableStateOf(false) }
+/** What is not set up yet and would help: the thing, why, and the page that sets it. */
+private fun setupSteps(state: State): List<Triple<String, String, SettingsGroup>> = buildList {
+    if (state.plan.salary == null && state.spottedSalary == null) {
+        add(Triple("Add your salary", "So the app can show what is left to spend each month", SettingsGroup.MONEY))
+    }
+    if (state.limits.isEmpty()) {
+        add(Triple("Set spending limits", if (state.limitSuggestions.isNotEmpty()) "Suggestions are ready for you" else "Keep a category within what you choose", SettingsGroup.LIMITS))
+    }
+    if (state.cardSpend == null && state.accounts.any { it.kind == com.zyke.message.domain.accounts.AccountKind.CREDIT_CARD }) {
+        add(Triple("Set a credit card limit", "One limit across all your cards", SettingsGroup.LIMITS))
+    }
+}.take(MAX_STEPS)
 
-    SectionCard("Your cards & accounts") {
-        Caption(
-            "Last four digits, bank name and statement day",
-            maxLines = 5
-        )
-        cards.forEach { card ->
-            Row(
-                Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${card.label}") { editing = card }.padding(top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    RowTitle(card.label)
-                    Caption(
-                        listOfNotNull(
-                            card.type.label,
-                            card.bankName.takeIf { it.isNotBlank() && card.name.isNotBlank() },
-                            card.statementDay?.let { "statement on day $it" }
-                        ).joinToString(" · ")
-                    )
+private const val MAX_STEPS = 3
+
+private fun moneySummary(state: State): String {
+    val salary = state.plan.salary?.let { com.zyke.message.presentation.format.DisplayFormatters.rupees(it) }
+    return when {
+        salary != null -> salary
+        state.spottedSalary != null -> "Salary found in messages"
+        else -> "Not set up"
+    }
+}
+
+private fun limitsSummary(state: State): String {
+    val count = state.limits.size
+    val limits = if (count == 0) "None set" else com.zyke.message.presentation.format.DisplayFormatters.count(count, "limit", "limits")
+    return if (state.cardSpend != null) "$limits \u00B7 card limit" else limits
+}
+
+private fun cardsSummary(state: State): String {
+    val cards = state.accounts.count { it.isCard }
+    val accounts = state.accounts.size - cards
+    if (cards == 0 && accounts == 0) return "None found"
+    return listOfNotNull(
+        cards.takeIf { it > 0 }?.let { com.zyke.message.presentation.format.DisplayFormatters.count(it, "card", "cards") },
+        accounts.takeIf { it > 0 }?.let { com.zyke.message.presentation.format.DisplayFormatters.count(it, "account", "accounts") }
+    ).joinToString(" \u00B7 ")
+}
+
+private fun messagesSummary(state: State): String {
+    val d = state.diagnostics ?: return "Allow SMS access"
+    if (d.moneyMessages == 0) return "No money messages yet"
+    return "${d.recognised * 100 / d.moneyMessages}% understood"
+}
+
+private fun alertsSummary(state: State): String = when {
+    state.settings.morningDigest && state.settings.liveAlerts -> "Morning summary and code buttons on"
+    state.settings.morningDigest -> "Morning summary on"
+    state.settings.liveAlerts -> "Code buttons on"
+    else -> "Off"
+}
+
+/** A titled card of rows: an icon, what it is, how it is set, and a chevron. */
+@Composable
+private fun SettingsList(title: String, rows: List<Pair<SettingsGroup, String>>, onOpen: (SettingsGroup) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        GroupLabel(title)
+        com.zyke.message.presentation.common.FintechCard {
+            rows.forEachIndexed { index, (group, summary) ->
+                if (index > 0) androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .fullWidthClickable(role = Role.Button, onClickLabel = "Open ${group.title}") { onOpen(group) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(group.icon), contentDescription = null, modifier = Modifier.size(22.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                    Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                        RowTitle(group.title)
+                        Caption(summary, maxLines = 2)
+                    }
+                    Text("\u203A", style = MaterialTheme.typography.titleLarge, color = com.zyke.message.presentation.messages.components.mutedColor())
                 }
-                AppButton("Edit", { editing = card }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
         }
-        AppButton(
-            text = "Add card or account",
-            onClick = { adding = true },
-            style = ButtonStyle.OUTLINE,
-            modifier = Modifier.padding(top = 12.dp)
+    }
+}
+
+@Composable
+private fun GroupContent(group: SettingsGroup, state: State, versionName: String, onIntent: (Intent) -> Unit) {
+    when (group) {
+        SettingsGroup.MONEY -> {
+            PlanSection(
+                plan = state.plan,
+                spotted = state.spottedSalary,
+                onSalary = { amount, day -> onIntent(Intent.SetSalary(amount, day)) },
+                onSavingsGoal = { onIntent(Intent.SetSavingsGoal(it)) },
+                onSaveItem = { onIntent(Intent.SavePlanItem(it)) },
+                onDeleteItem = { onIntent(Intent.DeletePlanItem(it)) }
+            )
+            CycleSection(
+                plan = state.plan,
+                spotted = state.spottedSalary,
+                current = state.cycleRange,
+                onChange = { mode, day -> onIntent(Intent.SetCycle(mode, day)) }
+            )
+        }
+        SettingsGroup.LIMITS -> LimitsSection(
+            limits = state.limits,
+            onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },
+            onRemove = { onIntent(Intent.RemoveLimits(it)) },
+            spendable = state.spendable,
+            suggestions = state.limitSuggestions,
+            cardSpend = state.cardSpend,
+            onCardLimit = { onIntent(Intent.SetCardLimit(it)) }
         )
+        SettingsGroup.CARDS -> CardsSection(state.accounts, state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
+        SettingsGroup.MESSAGES -> {
+            SectionCard("Pictures") {
+                Caption("Tap the photo on any message sheet to change it", maxLines = 3)
+                ToggleRow(
+                    title = "Fetch brand logos from the internet",
+                    description = "Looks up logos of well-known brands once each. Only the brand name is sent.",
+                    checked = state.settings.fetchLogos,
+                    onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+            RcsSection()
+            SectionCard("Parsing health") {
+                val diagnostics = state.diagnostics
+                if (diagnostics == null) {
+                    Caption("Allow SMS access to see how well your messages are understood.", maxLines = 3)
+                } else if (diagnostics.moneyMessages == 0) {
+                    Caption("No money messages found yet.")
+                } else {
+                    val fraction = diagnostics.recognised.toFloat() / diagnostics.moneyMessages
+                    RowTitle("${diagnostics.recognised} of ${diagnostics.moneyMessages} money messages understood")
+                    ShareBar(fraction)
+                    Caption(
+                        if (diagnostics.unrecognised == 0) "Everything was understood."
+                        else "${diagnostics.unrecognised} shown as plain text. Share a report as a file, with numbers, names and links masked, so they can be taught.",
+                        Modifier.padding(top = 8.dp),
+                        maxLines = 4
+                    )
+                    AppButton(
+                        text = "Share report",
+                        onClick = { onIntent(Intent.ShareDiagnostics) },
+                        style = ButtonStyle.OUTLINE,
+                        enabled = diagnostics.unrecognised > 0,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
+            }
+        }
+        SettingsGroup.ALERTS -> SectionCard("Reminders and alerts") {
+            MorningDigestToggle(enabled = state.settings.morningDigest, onChange = { onIntent(Intent.SetMorningDigest(it)) })
+            LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = 12.dp))
+            Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = 12.dp), maxLines = 2)
+        }
+        SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
+        SettingsGroup.PRIVACY -> SectionCard("Privacy") {
+            Caption("Messages stay on this phone", maxLines = 5)
+            ToggleRow(
+                title = "Block screenshots",
+                description = "Also hides the recent-apps view",
+                checked = state.settings.screenProtection,
+                onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            AppLockToggle(enabled = state.settings.appLock, onChange = { onIntent(Intent.SetAppLock(it)) }, modifier = Modifier.padding(top = 12.dp))
+        }
+        SettingsGroup.APPEARANCE -> SectionCard("Theme") {
+            com.zyke.message.presentation.common.SegmentedChoice(
+                choices = ThemeMode.entries.map { com.zyke.message.presentation.common.Choice(it, it.label) },
+                selected = state.settings.themeMode,
+                onSelect = { onIntent(Intent.SetThemeMode(it)) }
+            )
+            Caption("Automatic follows your phone", Modifier.padding(top = 8.dp))
+        }
+        SettingsGroup.ABOUT -> {
+            SectionCard("Your data") {
+                Caption("Clears marks and budgets, never your messages", maxLines = 4)
+                AppButton(
+                    text = "Reset marks and budgets",
+                    onClick = { onIntent(Intent.AskReset) },
+                    style = ButtonStyle.OUTLINE,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+            SectionCard("About") {
+                Caption("Version $versionName")
+                Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Every card and account the app knows, those found in the messages as well as those added by hand. A found one can be
+ * given its details (a name, a statement day); an added one can be edited or removed.
+ */
+@Composable
+private fun CardsSection(
+    accounts: List<com.zyke.message.domain.accounts.AccountSummary>,
+    cards: List<UserCard>,
+    onSave: (UserCard) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var editing by remember { mutableStateOf<UserCard?>(null) }
+    var editingIsNew by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+
+    if (accounts.isEmpty()) {
+        com.zyke.message.presentation.common.EmptyState(
+            "No cards or accounts yet",
+            "They appear here as soon as a message mentions one, or you can add one by its last four digits.",
+            icon = R.drawable.ic_card_24,
+            actionLabel = "Add a card or account",
+            onAction = { adding = true }
+        )
+    } else {
+        SectionCard("Found and added") {
+            Caption("Messages are matched to these by their last four digits", maxLines = 3)
+            accounts.forEach { account ->
+                val own = account.userCard
+                // The details to edit: the added card, or one filled in from what the messages show.
+                val edit = {
+                    editingIsNew = own == null
+                    editing = own ?: UserCard(
+                        id = java.util.UUID.randomUUID().toString(),
+                        type = when (account.kind) {
+                            com.zyke.message.domain.accounts.AccountKind.CREDIT_CARD -> com.zyke.message.domain.model.CardType.CREDIT
+                            com.zyke.message.domain.accounts.AccountKind.DEBIT_CARD -> com.zyke.message.domain.model.CardType.DEBIT
+                            com.zyke.message.domain.accounts.AccountKind.BANK_ACCOUNT -> com.zyke.message.domain.model.CardType.ACCOUNT
+                        },
+                        last4 = account.last4, name = "", bankName = account.bankName.displayString
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${account.title}", onClick = edit).padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        RowTitle(account.title)
+                        Caption(
+                            listOfNotNull(
+                                "${account.kind.label} \u2022\u2022 ${account.last4}",
+                                own?.statementDay?.let { "statement on day $it" }
+                            ).joinToString(" \u00B7 ")
+                        )
+                    }
+                    com.zyke.message.presentation.home.StatusPill(
+                        if (own != null) "Added" else "Found",
+                        if (own != null) com.zyke.message.presentation.home.Tone.GOOD else com.zyke.message.presentation.home.Tone.NEUTRAL
+                    )
+                    AppButton(if (own != null) "Edit" else "Add details", edit, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                }
+            }
+            AppButton(
+                text = "Add a card or account",
+                onClick = { adding = true },
+                style = ButtonStyle.OUTLINE,
+                modifier = Modifier.padding(top = 14.dp)
+            )
+        }
     }
 
     if (adding) {
@@ -314,7 +457,7 @@ private fun CardsSection(cards: List<UserCard>, onSave: (UserCard) -> Unit, onDe
         CardDialog(
             initial = card,
             onSave = { onSave(it); editing = null },
-            onDelete = { onDelete(card.id); editing = null },
+            onDelete = if (editingIsNew) null else ({ onDelete(card.id); editing = null }),
             onDismiss = { editing = null }
         )
     }

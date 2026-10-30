@@ -35,6 +35,8 @@ data class MoneyPlan(
     val items: List<PlanItem> = emptyList(),
     /** How much to put aside each month. */
     val savingsGoal: BigDecimal? = null,
+    /** What the person wants to spend on credit cards in a month, all cards together. */
+    val cardSpendLimit: BigDecimal? = null,
     /** Where the month starts for graphs, limits and the report card, and the day when it is the person's own. */
     val cycleMode: CycleMode = CycleMode.SALARY,
     val cycleDay: Int? = null

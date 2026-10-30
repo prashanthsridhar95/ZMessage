@@ -120,6 +120,9 @@ internal fun FlowDirection.countLabel(count: Int) =
 /** When true, [SectionCard] is a row that opens a bottom sheet instead of unfolding in place. */
 internal val LocalSectionsAsSheets = androidx.compose.runtime.compositionLocalOf { false }
 
+/** When true, [SectionCard] is a card with its content always showing, for a page that is already about that one thing. */
+internal val LocalSectionsInline = androidx.compose.runtime.compositionLocalOf { false }
+
 /**
  * A titled section on the plain page: a title, a short [summary] and a chevron on one line. It unfolds in place,
  * or, where [LocalSectionsAsSheets] is set, opens its detail in a bottom sheet.
@@ -133,6 +136,14 @@ internal fun SectionCard(
     startOpen: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    if (LocalSectionsInline.current) {
+        FintechCard(modifier) {
+            Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp), maxLines = 3)
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) { content() }
+        }
+        return
+    }
     val asSheet = LocalSectionsAsSheets.current && !startOpen
     var open by rememberSaveable(title) { mutableStateOf(startOpen) }
     if (asSheet) {
