@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
  */
 class BackfillService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var finished = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -45,20 +46,35 @@ class BackfillService : Service() {
         scope.launch { container.observeMessages().collect { } }
         scope.launch {
             container.observeMessages.progress.collect { progress ->
-                (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(ID, notification(this@BackfillService, progress))
-                if (progress.isDone && progress.monthsTotal > 0) stopSelf()
+                if (progress.isDone && progress.monthsTotal > 0) {
+                    finish()
+                } else {
+                    (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(ID, notification(this@BackfillService, progress))
+                }
             }
         }
         // An empty inbox never reports months; do not linger.
         scope.launch {
             delay(NOTHING_TO_READ_MS)
-            if (container.observeMessages.progress.value.monthsTotal == 0) stopSelf()
+            if (container.observeMessages.progress.value.monthsTotal == 0) finish()
         }
         return START_NOT_STICKY
     }
 
-    override fun onDestroy() {
+    /** Everything is read: take the notification down at once, and make sure no late update can bring it back. */
+    private fun finish() {
+        if (finished) return
+        finished = true
         scope.cancel()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(ID)
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        finished = true
+        scope.cancel()
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(ID)
         super.onDestroy()
     }
 

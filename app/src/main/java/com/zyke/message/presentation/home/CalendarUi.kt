@@ -11,6 +11,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -128,7 +129,17 @@ internal fun CalendarPage(
     val dayEntries = entries[selected].orEmpty()
     val onThisMonth = month == YearMonth.from(today)
 
-    AppPage("Calendar", onDismiss) {
+    AppPage(
+        "Calendar", onDismiss,
+        floating = {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = { adding = true },
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) { Text("+ Event", fontWeight = FontWeight.SemiBold) }
+        }
+    ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Where am I, and how do I move: the month with a large arrow either side, Today when away from it.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -216,7 +227,6 @@ internal fun CalendarPage(
                         Modifier.padding(end = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
                     )
                 }
-                AppButton("Add event", { adding = true }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
             }
 
             if (dayEntries.isEmpty()) {
@@ -236,6 +246,7 @@ internal fun CalendarPage(
                     }
                 }
             }
+            Spacer(Modifier.height(72.dp))
         }
     }
 
