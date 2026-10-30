@@ -30,7 +30,7 @@ Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cann
 - **Lint and CI:** GitHub Actions runs tests, detekt, Android lint and builds the debug APK on every PR;
   `release.yml` builds a signed release (R8 minified) from repository secrets. Dependabot keeps
   dependencies and actions current.
-- **Privacy by construction:** `INTERNET` only for the brand-logo fetch (can be turned off, one file, tested), backups off, one exported activity, enforced by
+- **Privacy by construction:** `INTERNET` only for the brand-logo fetch (can be turned off) and the market strip's prices (off until switched on); two files, tested, backups off, one exported activity, enforced by
   `ManifestPolicyTest`. See [SECURITY.md](SECURITY.md) and [docs/PRIVACY.md](docs/PRIVACY.md).
 - **Accessibility:** WCAG AA text contrast, one-sentence TalkBack descriptions for every message, 48dp targets.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).

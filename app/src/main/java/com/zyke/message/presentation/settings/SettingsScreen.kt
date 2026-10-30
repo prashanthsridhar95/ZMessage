@@ -134,6 +134,9 @@ fun SettingsSheet(
 
             CardsSection(state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
 
+            GroupLabel("Markets")
+            com.zyke.message.presentation.markets.MarketSettingsSection()
+
             GroupLabel("Messages")
             SectionCard("Pictures") {
                 Caption(

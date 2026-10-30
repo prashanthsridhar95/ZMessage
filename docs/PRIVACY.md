@@ -8,6 +8,7 @@
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
 | Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
+| Market prices (off until switched on in Settings) | A public price service (Yahoo Finance), asked for the tickers in your watch list only | Held in memory; the list itself is in private SharedPreferences | The tickers are sent, never message content |
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
@@ -27,13 +28,13 @@
 
 Suggestions, spam scoring, search phrases, alerts and summaries are computed on the phone from messages already in memory; nothing is downloaded or sent. An on-device language model (Gemini Nano) is supported through a small interface but is only used when the phone provides one, and every answer it gives is checked against the message text.
 
-There is no account, no analytics and no crash reporter. The only network use is the logo setting, which is on by default and can be turned off.
+There is no account, no analytics and no crash reporter. The only network use is the logo setting (on by default, can be turned off) and the market strip (off until you turn it on).
 
 ## Threats considered
 
 | Threat | Mitigation |
 |---|---|
-| App exfiltrates messages | `INTERNET` is used by one file (`LogoFetcher`) for the logo setting, which sends only a brand's website name; a unit test enforces that no other file touches the network |
+| App exfiltrates messages | `INTERNET` is used by two files: `LogoFetcher` (a brand's website name) and `QuoteFetcher` (tickers from your watch list); a unit test enforces that no other file touches the network and which hosts they may call |
 | The cache database is copied off the phone and read | Each entry is AES-256-GCM encrypted with a Keystore key that cannot be exported, so the file alone is unreadable; backups and device transfer exclude databases; a damaged or old entry is dropped, never trusted |
 | Messages end up in a cloud backup | `allowBackup=false` plus exclude-all backup and transfer rules |
 | Someone looks over the shoulder / screen capture / recent-apps preview | Optional `FLAG_SECURE` ("Block screenshots") |

@@ -55,6 +55,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -192,11 +194,17 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 
     HomeSheets(state, actions, onIntent, onNavigate)
 
+    var marketsOpen by rememberSaveable { mutableStateOf(false) }
+    // The prices are asked for only while Home is in front, and only if the person switched the strip on.
+    if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
+
     when (page) {
-        HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate)
+        HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, onOpenMarkets = { marketsOpen = true })
         HomePage.BILLS -> BillsPage(state, today, onIntent)
         HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
     }
+
+    if (marketsOpen) com.zyke.message.presentation.markets.MarketPage(onBack = { marketsOpen = false })
 }
 
 /**
@@ -204,7 +212,10 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
  * thing worth knowing, what is due next and the latest activity. Each part is a card; everything else has a tab.
  */
 @Composable
-private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
+private fun SummaryPage(
+    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, onOpenMarkets: () -> Unit
+) {
+    val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
     val nowMillis = rememberNowMillis()
@@ -216,6 +227,10 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (showMarkets) {
+            item(key = "market") { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) }
+        }
+
         if (state.isBlank) {
             item(key = "blank") {
                 FintechCard {

@@ -31,7 +31,7 @@ class ManifestPolicyTest {
         assertEquals(
             listOf(
                 "android.permission.READ_SMS",
-                "android.permission.INTERNET", // brand logos
+                "android.permission.INTERNET", // brand logos, and prices for the market strip (off until switched on)
                 "android.permission.POST_NOTIFICATIONS", // morning digest
                 "android.permission.RECEIVE_BOOT_COMPLETED", // putting the digest alarm back after a restart
                 "android.permission.RECEIVE_SMS", // live code and bill buttons, off until switched on
@@ -44,8 +44,10 @@ class ManifestPolicyTest {
     }
 
     /**
-     * INTERNET exists for one feature (the brand-logo fetch, on by default, can be turned off). The promise "your messages never leave the phone"
-     * is kept by making sure the network is reachable from exactly one file, which sends only a brand's website name.
+     * INTERNET exists for two features: the brand-logo fetch (on by default, can be turned off) and the market strip's
+     * prices (off until switched on). The promise "your messages never leave the phone" is kept by making sure the
+     * network is reachable from exactly two files, one sending only a brand's website name and the other only a ticker
+     * the person typed into their watch list.
      */
     @Test
     fun networkCodeLivesInOneFile_andOnlyAsksPublicIconServices() {
@@ -53,13 +55,17 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("LogoFetcher.kt"), offenders)
+        assertEquals(listOf("LogoFetcher.kt", "QuoteFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
         assertEquals(setOf("www.google.com", "icons.duckduckgo.com"), hosts)
         // The brand's own site is the third source, and the address is always built from the known-domain list.
         assertTrue("https://{domain}/apple-touch-icon.png" in fetcher)
+
+        val quotes = File("src/main/java/com/zyke/message/data/markets/QuoteFetcher.kt").readText()
+        val quoteHosts = Regex("https://([a-z0-9.]+)/").findAll(quotes).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("query1.finance.yahoo.com"), quoteHosts)
     }
 
     @Test

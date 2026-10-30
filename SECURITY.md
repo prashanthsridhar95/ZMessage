@@ -5,7 +5,7 @@ phone.
 
 ## What the app guarantees
 
-- **Almost no network.** The `INTERNET` permission exists only for the "Fetch brand logos" setting (on by default, can be turned off). The single file that can use it, `LogoFetcher.kt`, sends only a well-known brand's website name (never message text, numbers or amounts) to a public icon service; a unit test keeps network code out of every other file.
+- **Almost no network.** The `INTERNET` permission exists for two settings: "Fetch brand logos" (on by default, can be turned off) and the market strip (off until you turn it on). Only two files can use it. `LogoFetcher.kt` sends a well-known brand's website name to a public icon service; `QuoteFetcher.kt` sends the tickers you typed into your watch list (such as `RELIANCE.NS`) to a public price service. Neither ever sends message text, numbers or amounts, and a unit test keeps network code out of every other file.
   `ManifestPolicyTest` fails the build if that changes.
 - **Least privilege.** The only permission is `READ_SMS`. It never writes to, sends or deletes messages.
 - **Nothing leaves unless you send it.** The one exception is the masked parsing report you choose to share.
