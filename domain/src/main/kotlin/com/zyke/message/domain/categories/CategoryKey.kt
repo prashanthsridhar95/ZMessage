@@ -37,7 +37,8 @@ object CategoryKey {
         return message.copy(
             category = category,
             merchant = message.merchant.copy(category = category),
-            categoryOverridden = true
+            categoryOverridden = true,
+            categoryOwn = overrides.containsKey(messageKey(message.id))
         )
     }
 }

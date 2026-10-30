@@ -180,13 +180,8 @@ class HomeViewModel(
             is Intent.AddQuick -> addQuick(intent.quick)
             is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 val own = CategoryKey.messageKey(message.id)
-                if (intent.onlyThis) {
-                    nicknames.set(own, intent.name)
-                } else {
-                    // For everything from this sender or receiver: a name given to this one transaction alone would hide it.
-                    nicknames.set(own, "")
-                    CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
-                }
+                // Naming this one transaction and naming its sender or receiver are two separate things.
+                if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
             }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
             Intent.CancelSplit -> reduce { copy(splittingMessageId = null) }

@@ -124,13 +124,8 @@ class MessagesViewModel(
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
             is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 val own = CategoryKey.messageKey(message.id)
-                if (intent.onlyThis) {
-                    nicknames.set(own, intent.name)
-                } else {
-                    // For everything from this sender or receiver: a name given to this one transaction alone would hide it.
-                    nicknames.set(own, "")
-                    CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
-                }
+                // Naming this one transaction and naming its sender or receiver are two separate things.
+                if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
             }
             is Intent.SetMessageCategory -> categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->

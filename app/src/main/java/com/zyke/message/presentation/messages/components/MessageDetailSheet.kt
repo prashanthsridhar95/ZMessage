@@ -95,8 +95,9 @@ internal fun MessageDetailSheet(
     val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
     val sender = SenderKey.displayAddress(message.sender)
     val canTag = content !is MessageContent.Otp && CategoryKey.of(item) != null
-    var choosingCategory by remember { mutableStateOf(false) }
-    var naming by remember { mutableStateOf(false) }
+    // Which of the two the open sheet is for: this one transaction, or the sender or receiver it is with.
+    var categoryScope by remember { mutableStateOf<Boolean?>(null) }
+    var nameScope by remember { mutableStateOf<Boolean?>(null) }
     val pickPicture = rememberPicturePicker(item)
     val imageStore = LocalImageStore.current
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
@@ -194,10 +195,23 @@ internal fun MessageDetailSheet(
             MergeSuggestions(item, mergeCandidates, actions.onRequestMerge)
 
             if (content !is MessageContent.Otp) {
-                SettingsGroup("About $title") {
+                // A payment can be filed and named on its own, apart from everything else paid to the same receiver.
+                if (canTag && content is MessageContent.Transaction) {
+                    SettingsGroup("This transaction") {
+                        DetailRow("Category", if (item.categoryOwn) item.category.displayString else "Same as $title") { categoryScope = true }
+                        DetailRow("Nickname", if (item.nicknameOwn) item.merchant.name else "None") { nameScope = true }
+                    }
+                }
+                SettingsGroup(if (content is MessageContent.Transaction) "Every payment to $title" else "About $title") {
                     if (canTag) {
-                        DetailRow("Category", item.category.displayString + if (item.categoryOverridden) "" else " · auto") { choosingCategory = true }
-                        DetailRow("Nickname", if (item.merchant.renamed) item.merchant.name else "None") { naming = true }
+                        DetailRow(
+                            "Category",
+                            when {
+                                item.categoryOwn -> "Not set"
+                                else -> item.category.displayString + if (item.categoryOverridden) "" else " · auto"
+                            }
+                        ) { categoryScope = false }
+                        DetailRow("Nickname", if (item.merchant.renamed && !item.nicknameOwn) item.merchant.name else "None") { nameScope = false }
                         if (pickPicture != null) {
                             val pictureValue = when {
                                 item.merchant.imageKey != null -> "Your picture"
@@ -226,8 +240,8 @@ internal fun MessageDetailSheet(
         }
     }
 
-    if (choosingCategory) CategorySheet(item, actions) { choosingCategory = false }
-    if (naming) NicknameSheet(item, title, actions) { naming = false }
+    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction) { categoryScope = null } }
+    nameScope?.let { forTransaction -> NicknameSheet(item, title, actions, forTransaction) { nameScope = null } }
 }
 
 /** A titled card of rows, for settings that belong together. */
@@ -269,52 +283,40 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 
 /** Every category in a list, the current one ticked, with the automatic guess offered first when it differs. */
 @Composable
-private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, onDismiss: () -> Unit) {
+private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTransaction: Boolean, onDismiss: () -> Unit) {
+    // What is in effect for the thing being filed: this one transaction's own choice, or its sender's or receiver's.
+    val chosenHere = if (forTransaction) item.categoryOwn else item.categoryOverridden && !item.categoryOwn
     val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
-    // A payment with no named receiver is filed by its bank, so a choice would spread to every message from that bank:
-    // the salary and the spending in one account must not share a category. Those start as "only this message".
-    val bankOnly = CategoryKey.of(item) == CategoryKey.normalise(item.message.sender)
-    var onlyThis by remember { mutableStateOf(bankOnly) }
     val set: (MessageCategory?) -> Unit = { category ->
-        if (onlyThis) actions.onSetMessageCategory(item.id, category) else actions.onSetCategory(item.id, category)
+        if (forTransaction) actions.onSetMessageCategory(item.id, category) else actions.onSetCategory(item.id, category)
     }
     AppBottomSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(
-                "Category for ${CategoryKey.label(item)}",
-                Modifier.padding(bottom = 8.dp).heading(),
+                if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}",
+                Modifier.padding(bottom = 4.dp).heading(),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
             )
-            Row(
-                Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Only this message") { onlyThis = !onlyThis }.padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Only this message", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        if (onlyThis) "Others from ${CategoryKey.label(item)} keep their category" else "Every message from ${CategoryKey.label(item)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+            Caption(
+                if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
+                Modifier.padding(bottom = 8.dp), maxLines = 2
+            )
+            if (!forTransaction) {
+                suggestion?.let {
+                    CategoryRow("Looks like ${it.displayString}", current = false) {
+                        set(it)
+                        onDismiss()
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 }
-                Switch(checked = onlyThis, onCheckedChange = null)
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            suggestion?.let {
-                CategoryRow("Looks like ${it.displayString}", current = false) {
-                    set(it)
-                    onDismiss()
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             }
             Caption(CategoryOptions.natureOf(item.content).label, Modifier.padding(top = 8.dp, bottom = 2.dp))
             CategoryOptions.forMessage(item).forEach { category ->
-                val current = item.category == category
+                val current = chosenHere && item.category == category
                 CategoryRow(category.displayString, current) {
-                    // Choosing the current one goes back to the automatic guess.
-                    val clear = item.categoryOverridden && current
-                    set(if (clear) null else category)
+                    // Choosing the one already chosen takes the choice away.
+                    set(if (current) null else category)
                     onDismiss()
                 }
             }
@@ -339,46 +341,25 @@ private fun CategoryRow(label: String, current: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** "Only this transaction", the choice between naming or filing one message and everything from its sender or receiver. */
-@Composable
-private fun ScopeRow(onlyThis: Boolean, label: String, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Only this transaction") { onChange(!onlyThis) }.padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Only this transaction", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-            Text(
-                if (onlyThis) "Other payments to $label are not changed" else "Every payment to $label",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-        Switch(checked = onlyThis, onCheckedChange = null)
-    }
-}
-
 /** Giving the sender a nickname, in the app's one form shape. */
 @Composable
-private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: FeedActions, onDismiss: () -> Unit) {
-    var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
-    // A payment with no named receiver is filed by its bank: a name for it must not become the bank's name.
-    val bankOnly = CategoryKey.of(item) == CategoryKey.normalise(item.message.sender)
-    var onlyThis by rememberSaveable { mutableStateOf(bankOnly) }
+private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: FeedActions, forTransaction: Boolean, onDismiss: () -> Unit) {
+    // A name for this transaction, or for the sender or receiver: each is kept and cleared on its own.
+    val named = if (forTransaction) item.nicknameOwn else item.merchant.renamed && !item.nicknameOwn
+    var name by rememberSaveable { mutableStateOf(if (named) shownName else "") }
     FormSheet(
-        title = "Nickname",
+        title = if (forTransaction) "Name this transaction" else "Name ${CategoryKey.label(item)}",
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
-        onPrimary = { actions.onRename(item.id, name, onlyThis); onDismiss() },
-        secondaryLabel = if (item.merchant.renamed) "Use the original name" else null,
-        onSecondary = { actions.onRename(item.id, "", onlyThis); onDismiss() }
+        onPrimary = { actions.onRename(item.id, name, forTransaction); onDismiss() },
+        secondaryLabel = if (named) "Remove this name" else null,
+        onSecondary = { actions.onRename(item.id, "", forTransaction); onDismiss() }
     ) {
         FormField(
             "Name", name, { name = it }, placeholder = CategoryKey.label(item),
-            supporting = if (onlyThis) "Only this transaction is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears"
+            supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears"
         )
-        ScopeRow(onlyThis, CategoryKey.label(item)) { onlyThis = it }
     }
 }
 

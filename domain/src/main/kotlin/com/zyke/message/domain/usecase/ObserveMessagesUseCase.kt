@@ -100,8 +100,9 @@ class ObserveMessagesUseCase(
             .combine(nicknameRepository.nicknames) { classified, nicknames ->
                 if (nicknames.isEmpty()) classified else classified.map { message ->
                     // A name given to this one transaction wins over one given to everything from the same sender or receiver.
-                    val nickname = nicknames[CategoryKey.messageKey(message.id)] ?: CategoryKey.of(message)?.let(nicknames::get)
-                    if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true)) else message
+                    val own = nicknames[CategoryKey.messageKey(message.id)]
+                    val nickname = own ?: CategoryKey.of(message)?.let(nicknames::get)
+                    if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true), nicknameOwn = own != null) else message
                 }
             }
             .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }

@@ -23,7 +23,11 @@ data class ClassifiedMessage(
     /** The person muted this sender; it is treated like marketing, kept out of the main views and the unread badge. */
     val isMuted: Boolean = false,
     /** Other messages the person says are the same transaction as this one; they are left out of every list and total. */
-    val mergedMessages: List<SmsMessage> = emptyList()
+    val mergedMessages: List<SmsMessage> = emptyList(),
+    /** The category was chosen for this one transaction, not for its sender or receiver. */
+    val categoryOwn: Boolean = false,
+    /** The name was given to this one transaction, not to its sender or receiver. */
+    val nicknameOwn: Boolean = false
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }
