@@ -54,4 +54,19 @@ class DiagnosticsTest {
         assertEquals(2, diagnostics.samples.size) // the duplicate collapses
         assertTrue(diagnostics.samples.all { s -> s.none { it in "012345678" } })
     }
+
+    @Test
+    fun samplesAreOnePerKind_mostCommonFirst() {
+        val classifier = MessageClassifier()
+        fun msg(id: Long, body: String) = classifier.classify(SmsMessage(id, "XY-ZORK", body, 1_793_000_000_000L, true))
+        val rare = "Zorkplex quarterly flibber of Rs 10 noted for you"
+        val common = "Wibblewobble gadget moment of Rs %d is ticking along"
+        val messages = listOf(msg(1, rare)) + (2L..5L).map { msg(it, common.format(100 * it)) }
+
+        val diagnostics = DiagnosticsBuilder.build(messages)
+        // Four of one kind and one of another make two samples, the common kind first.
+        assertEquals(5, diagnostics.unrecognised)
+        assertEquals(2, diagnostics.samples.size)
+        assertTrue(diagnostics.samples.first().startsWith("Wibblewobble"))
+    }
 }

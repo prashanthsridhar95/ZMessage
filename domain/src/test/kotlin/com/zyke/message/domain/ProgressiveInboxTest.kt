@@ -143,4 +143,22 @@ class ProgressiveInboxTest {
         assertTrue(second.reads.toString(), second.reads.size <= 2)
         assertEquals(listOf(1L, 2L, 3L, 4L), emissions.last().map { it.id })
     }
+
+    @Test
+    fun aBusyMonthWithNothingNew_doesNotLookLikeAMountainOfNewMessages() = runBlocking {
+        val now = YearMonth.from(LocalDate.now())
+        // Many messages this month, all of them already seen on the last visit.
+        val inbox = (1L..350L).map { sms(it, now, 1) } + sms(400, now.minusMonths(2), 5)
+        val cache = MemoryCache()
+        collectAll(ObserveMessagesUseCase(Months(inbox, zone), MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache), 351)
+
+        val second = ObserveMessagesUseCase(Months(inbox, zone), MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache)
+        val seenPending = CopyOnWriteArrayList<Int>()
+        val watcher = launch(Dispatchers.Default) { second.progress.collect { seenPending += it.pending } }
+        collectAll(second, 351)
+        watcher.cancel()
+
+        // Nothing new arrived, so the background reading is never asked for on account of it.
+        assertTrue(seenPending.toString(), seenPending.all { it == 0 })
+    }
 }

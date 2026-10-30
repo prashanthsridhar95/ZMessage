@@ -17,14 +17,20 @@ data class ParsingDiagnostics(
 }
 
 object DiagnosticsBuilder {
-    fun build(messages: List<ClassifiedMessage>, maxSamples: Int = 40): ParsingDiagnostics {
+    private const val SHAPE_LENGTH = 70
+
+    /** How many messages of the same kind a sample stands for is shown by ordering: the most common kinds come first. */
+    fun build(messages: List<ClassifiedMessage>, maxSamples: Int = 60): ParsingDiagnostics {
         val money = messages.filter { !it.isPromotional && GenericTransactionParser.mentionsMoney(it.message.body) }
         val unrecognised = money.filter { it.content is MessageContent.Generic }
 
         return ParsingDiagnostics(
             moneyMessages = money.size,
             unrecognised = unrecognised.size,
-            samples = unrecognised.map { MessageRedactor.redact(it.message.body) }.distinct().take(maxSamples)
+            samples = unrecognised.map { MessageRedactor.redact(it.message.body) }
+                // One sample per kind of message: the same wording with different numbers is one kind.
+                .groupBy { sample -> sample.lowercase().replace(Regex("9+"), "9").replace(Regex("\\s+"), " ").take(SHAPE_LENGTH) }
+                .values.sortedByDescending { it.size }.map { it.first() }.take(maxSamples)
         )
     }
 }
