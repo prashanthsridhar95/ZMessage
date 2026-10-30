@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.markets.MarketSymbols
+import com.zyke.message.domain.markets.StockDirectory
 import com.zyke.message.domain.markets.WatchSymbol
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -98,10 +99,26 @@ fun WatchlistEditor() {
                 value = typed,
                 onChange = { typed = it; problem = null },
                 modifier = Modifier.padding(top = 12.dp),
-                placeholder = "RELIANCE, TCS, INFY.BO, ^NSEBANK",
-                suggestions = POPULAR,
-                supporting = problem ?: "A name alone means NSE. Add .BO for BSE."
+                placeholder = "Start typing a company, like Reliance or Tata",
+                supporting = problem ?: "Pick from the names below, or type a ticker. A ticker alone means NSE; add .BO for BSE."
             )
+            // As soon as there is something typed, the names that match it, each added with one tap.
+            val matches = androidx.compose.runtime.remember(typed, watch.symbols) {
+                StockDirectory.search(typed).filter { entry -> watch.symbols.none { it.symbol == entry.symbol } }
+            }
+            if (matches.isNotEmpty()) {
+                Text(
+                    if (typed.isBlank()) "Popular" else "Matches", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary
+                )
+                com.zyke.message.presentation.common.SuggestionRow(matches.map { "${it.name} \u00B7 ${it.symbol.removeSuffix(".NS")}" }) { picked ->
+                    matches.firstOrNull { "${it.name} \u00B7 ${it.symbol.removeSuffix(".NS")}" == picked }?.let { entry ->
+                        container.watchlist.save(watch.copy(symbols = watch.symbols + WatchSymbol(entry.symbol, entry.name)))
+                        typed = ""
+                        problem = null
+                    }
+                }
+            }
             AppButton(
                 if (checking) "Checking…" else "Add to the strip",
                 onClick = {
@@ -144,9 +161,3 @@ private fun SwitchLine(title: String, description: String, checked: Boolean, onC
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
     }
 }
-
-/** Tickers people commonly add; a bare name means the NSE listing. */
-private val POPULAR = listOf(
-    "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "ITC", "LT", "BHARTIARTL", "KOTAKBANK", "AXISBANK", "WIPRO",
-    "HINDUNILVR", "MARUTI", "TATAMOTORS", "TATASTEEL", "ADANIENT", "BAJFINANCE", "SUNPHARMA", "ZOMATO", "^NSEBANK", "^CNXIT"
-)

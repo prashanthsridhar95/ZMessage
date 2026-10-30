@@ -21,6 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.common.ChipOption
+import com.zyke.message.presentation.common.Chips
+import com.zyke.message.presentation.common.FormGroup
 import com.zyke.message.presentation.common.rememberPicturePicker
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -295,7 +298,18 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** Every category in a list, the current one ticked, with the automatic guess offered first when it differs. */
+/** How the categories are grouped on the sheet, so one is found by where it belongs and not by reading the whole list. */
+private val CATEGORY_GROUPS = listOf(
+    "Everyday" to listOf(MessageCategory.FOOD, MessageCategory.GROCERIES, MessageCategory.SHOPPING, MessageCategory.FUEL, MessageCategory.TRAVEL, MessageCategory.ENTERTAINMENT, MessageCategory.UPI_PAYMENT),
+    "Bills and services" to listOf(MessageCategory.UTILITIES, MessageCategory.CREDIT_CARDS, MessageCategory.PAY_LATER, MessageCategory.NETWORK_CARRIERS, MessageCategory.INSURANCE, MessageCategory.FASTAG, MessageCategory.COURIER, MessageCategory.LOYALTY_PROGRAMMES),
+    "Money" to listOf(MessageCategory.INVESTMENTS, MessageCategory.SAVINGS, MessageCategory.SALARY),
+    "People and life" to listOf(MessageCategory.HEALTH, MessageCategory.EDUCATION, MessageCategory.FAMILY, MessageCategory.CHARITY)
+)
+
+/**
+ * Filing a payment: the one in effect and the app's own guess come first, then the categories in groups, each a tap
+ * away. Typing in the search box narrows them all to the ones that match. Tapping the one already chosen takes the choice away.
+ */
 @Composable
 private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTransaction: Boolean, onDismiss: () -> Unit) {
     // What is in effect for the thing being filed: this one transaction's own choice, or its sender's or receiver's.
@@ -304,54 +318,70 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
     val set: (MessageCategory?) -> Unit = { category ->
         if (forTransaction) actions.onSetMessageCategory(item.id, category) else actions.onSetCategory(item.id, category)
     }
+    val available = CategoryOptions.forMessage(item)
+    var query by rememberSaveable { mutableStateOf("") }
+    val matches = available.filter { it.displayString.contains(query.trim(), ignoreCase = true) }
+
+    fun choose(category: MessageCategory) {
+        // Choosing the one already chosen takes the choice away.
+        set(if (chosenHere && item.category == category) null else category)
+        onDismiss()
+    }
+
     AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text(
-                if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}",
-                Modifier.padding(bottom = 4.dp).heading(),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Caption(
-                if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
-                Modifier.padding(bottom = 8.dp), maxLines = 2
-            )
-            if (!forTransaction) {
-                suggestion?.let {
-                    CategoryRow("Looks like ${it.displayString}", current = false) {
-                        set(it)
-                        onDismiss()
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column {
+                Text(
+                    if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}",
+                    Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
+                )
+                Caption(
+                    if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
+                    Modifier.padding(top = 2.dp), maxLines = 2
+                )
             }
-            Caption(CategoryOptions.natureOf(item.content).label, Modifier.padding(top = 8.dp, bottom = 2.dp))
-            CategoryOptions.forMessage(item).forEach { category ->
-                val current = chosenHere && item.category == category
-                CategoryRow(category.displayString, current) {
-                    // Choosing the one already chosen takes the choice away.
-                    set(if (current) null else category)
-                    onDismiss()
+
+            FormField(label = "Find a category", value = query, onChange = { query = it }, placeholder = "Type to search")
+
+            if (query.isBlank()) {
+                // Where it is now, and what the app thinks it is.
+                val now = item.category.takeIf { chosenHere }
+                if (now != null || (!forTransaction && suggestion != null)) {
+                    FormGroup("Now") {
+                        Chips(
+                            buildList {
+                                now?.let { add(ChipOption(it.displayString, true)) }
+                                if (!forTransaction) suggestion?.let { add(ChipOption("Looks like ${it.displayString}", false)) }
+                            },
+                            onSelect = { index ->
+                                if (now != null && index == 0) choose(now)
+                                else suggestion?.let { choose(it) }
+                            }
+                        )
+                    }
                 }
+                val shown = HashSet<MessageCategory>()
+                CATEGORY_GROUPS.forEach { (title, members) ->
+                    val inGroup = members.filter { it in available }
+                    if (inGroup.isEmpty()) return@forEach
+                    shown += inGroup
+                    FormGroup(title) {
+                        Chips(inGroup.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(inGroup[it]) })
+                    }
+                }
+                // Anything this payment can be filed under that the groups above do not hold.
+                val rest = available.filter { it !in shown }
+                if (rest.isNotEmpty()) {
+                    FormGroup("More") {
+                        Chips(rest.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(rest[it]) })
+                    }
+                }
+            } else if (matches.isEmpty()) {
+                Caption("Nothing matches \"${query.trim()}\"", maxLines = 2)
+            } else {
+                Chips(matches.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(matches[it]) })
             }
         }
-    }
-}
-
-@Composable
-private fun CategoryRow(label: String, current: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "File under $label", onClick = onClick).padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.primary
-        )
-        if (current) Text("\u2713", color = MaterialTheme.colorScheme.primary)
     }
 }
 
