@@ -6,15 +6,16 @@
     android:paddingTop="2dp"
     android:paddingBottom="4dp">
 
-    <!-- The code is what the notification is for, so it is the large text. -->
+    <!-- The code is what the notification is for, so it is the large text. The text styles are the system's own for
+         notifications, so the colours follow the notification's background, light or dark, and are always readable. -->
     <TextView
         android:id="@+id/code_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:letterSpacing="0.14"
         android:maxLines="1"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="30sp"
+        style="@style/TextAppearance.Compat.Notification.Title"
+        android:textSize="32sp"
         android:textStyle="bold" />
 
     <TextView
@@ -24,6 +25,6 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:maxLines="2"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp" />
+        style="@style/TextAppearance.Compat.Notification"
+        android:textSize="13sp" />
 </LinearLayout>
