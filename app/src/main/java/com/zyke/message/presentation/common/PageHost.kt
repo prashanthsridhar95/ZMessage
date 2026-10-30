@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -52,6 +53,7 @@ class PageEntry {
     var title by mutableStateOf("")
     var onBack by mutableStateOf<() -> Unit>({})
     var content by mutableStateOf<@Composable ColumnScope.() -> Unit>({})
+    var floating by mutableStateOf<(@Composable BoxScope.() -> Unit)?>(null)
 }
 
 @Stable
@@ -68,13 +70,14 @@ private const val SLIDE_MS = 240
  * from the side. Sheets opened from it are drawn above it, and Back leaves it.
  */
 @Composable
-fun AppPage(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun AppPage(title: String, onBack: () -> Unit, floating: (@Composable BoxScope.() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val host = LocalPageHost.current ?: return
     val entry = remember { PageEntry() }
     SideEffect {
         entry.title = title
         entry.onBack = onBack
         entry.content = content
+        entry.floating = floating
     }
     DisposableEffect(host, entry) {
         host.entries.add(entry)
@@ -104,10 +107,11 @@ private fun PageLayer(entry: PageEntry) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val width = constraints.maxWidth
+        // The page and anything floating over it slide in together.
+        Box(Modifier.fillMaxSize().offset { IntOffset((away.value * width).roundToInt(), 0) }) {
         Column(
             Modifier
                 .fillMaxSize()
-                .offset { IntOffset((away.value * width).roundToInt(), 0) }
                 .background(MaterialTheme.colorScheme.surface)
                 // Nothing under the page may be touched through it.
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
@@ -137,6 +141,8 @@ private fun PageLayer(entry: PageEntry) {
             ) {
                 entry.content(this)
             }
+        }
+        entry.floating?.invoke(this)
         }
     }
 }

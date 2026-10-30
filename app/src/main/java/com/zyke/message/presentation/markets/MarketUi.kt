@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -197,7 +198,24 @@ fun MarketPage(onBack: () -> Unit) {
     val state by ticker.state.collectAsStateWithLifecycle()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    AppPage("Market watch", onBack) {
+    var editing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
+    AppPage(
+        "Market watch", onBack,
+        floating = {
+            androidx.compose.material3.FloatingActionButton(
+                onClick = { editing = true },
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                androidx.compose.material3.Icon(
+                    painter = androidx.compose.ui.res.painterResource(com.zyke.message.R.drawable.ic_edit_24),
+                    contentDescription = "Edit the watch list"
+                )
+            }
+        }
+    ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -222,7 +240,19 @@ fun MarketPage(onBack: () -> Unit) {
                 rows.forEach { MarketCard(it) }
             }
             Caption("Choose what to watch in Settings › Market watch. Only the names of what you watch are sent, nothing from your messages.", Modifier.padding(top = 4.dp), maxLines = 4)
+            // Room for the button to sit below the last card.
+            Spacer(Modifier.height(72.dp))
         }
+    }
+
+    if (editing) {
+        com.zyke.message.presentation.common.FormSheet(
+            title = "Edit watch list",
+            onDismiss = { editing = false },
+            primaryLabel = "Done",
+            primaryEnabled = true,
+            onPrimary = { editing = false }
+        ) { WatchlistEditor() }
     }
 }
 

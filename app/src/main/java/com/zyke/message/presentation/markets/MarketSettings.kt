@@ -42,10 +42,6 @@ import kotlinx.coroutines.launch
 fun MarketSettingsSection() {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
-    var typed by rememberSaveable { mutableStateOf("") }
-    var checking by rememberSaveable { mutableStateOf(false) }
-    var problem by rememberSaveable { mutableStateOf<String?>(null) }
 
     SectionCard("Market watch") {
         SwitchLine(
@@ -58,8 +54,23 @@ fun MarketSettingsSection() {
             SwitchLine("US dollar in rupees", "Shows USD / INR", watch.showDollar, { container.watchlist.save(watch.copy(showDollar = it)) })
             SwitchLine("Gold", "Rupees for 10 grams, worked out from the international price", watch.showGold, { container.watchlist.save(watch.copy(showGold = it)) })
 
+            WatchlistEditor()
+        }
+    }
+}
+
+/** The person's own list: what is in it with a Remove for each, and a field to add one, checked before it is kept. */
+@Composable
+fun WatchlistEditor() {
+    val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
+    val watch by container.watchlist.watch.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var typed by rememberSaveable { mutableStateOf("") }
+    var checking by rememberSaveable { mutableStateOf(false) }
+    var problem by rememberSaveable { mutableStateOf<String?>(null) }
+    Column {
             Text(
-                "Your list", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.labelLarge,
+                "Your list", Modifier, style = MaterialTheme.typography.labelLarge,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, color = MaterialTheme.colorScheme.secondary
             )
             if (watch.symbols.isEmpty()) Caption("Nothing yet. Add a share or an index below.", Modifier.padding(top = 4.dp), maxLines = 2)
@@ -116,7 +127,6 @@ fun MarketSettingsSection() {
                 style = ButtonStyle.OUTLINE,
                 enabled = !checking && typed.isNotBlank()
             )
-        }
     }
 }
 
