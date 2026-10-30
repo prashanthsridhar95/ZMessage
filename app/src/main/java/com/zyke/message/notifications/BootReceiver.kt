@@ -11,5 +11,6 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val container = (context.applicationContext as ZykeMessagesApplication).container
         if (container.settings.settings.value.morningDigest) DigestScheduler(context).apply(true)
+        ReminderAlarms.schedule(context)
     }
 }

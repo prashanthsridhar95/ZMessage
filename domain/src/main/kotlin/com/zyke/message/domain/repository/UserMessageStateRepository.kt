@@ -15,6 +15,9 @@ interface UserMessageStateRepository {
      */
     fun dismissAttention(key: String, forever: Boolean = false)
 
+    /** Takes a dismissal back, so what was hidden shows again. */
+    fun restoreAttention(key: String) = Unit
+
     /** Forgets every read / archived / pinned / dismissed mark. */
     fun clearAll()
 

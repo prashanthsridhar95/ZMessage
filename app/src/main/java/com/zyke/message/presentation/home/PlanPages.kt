@@ -268,6 +268,7 @@ private fun ReminderCard(due: ReminderDue, today: LocalDate, onEdit: () -> Unit)
                         },
                         tone
                     )
+                    due.reminder.time?.let { Caption(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it)) }
                     if (due.reminder.repeatsMonthly) Caption("every month")
                 }
             }

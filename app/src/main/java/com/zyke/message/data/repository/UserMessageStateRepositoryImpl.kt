@@ -34,6 +34,10 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
         else copy(dismissedAttention = dismissedAttention + key)
     }
 
+    override fun restoreAttention(key: String) = change {
+        copy(dismissedAttention = dismissedAttention - key, dismissedAt = dismissedAt - key)
+    }
+
     override fun clearAll() {
         _state.value = UserMessageState()
         prefs.edit().clear().apply()

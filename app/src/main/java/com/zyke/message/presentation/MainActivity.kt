@@ -138,6 +138,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         applyScreenProtection(container.settings.settings.value.screenProtection)
         observeScreenProtection()
+        // The alarm for the next timed reminder follows whatever reminders there are.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.reminders.reminders.collect {
+                    com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
+                    DaysAheadWidget.refresh(this@MainActivity)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.calendarEvents.events.collect { DaysAheadWidget.refresh(this@MainActivity) }
+            }
+        }
         // Locked from the very first frame, so the inbox never flashes before the lock screen.
         lockedState.value = container.settings.settings.value.appLock &&
             getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true

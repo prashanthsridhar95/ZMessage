@@ -19,6 +19,6 @@ internal object DigestProvider {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return null
         val container = (context.applicationContext as ZykeMessagesApplication).container
         val messages = container.observeMessages().first()
-        return DailyDigest.build(messages, container.userMessageState.state.value, Instant.now(), ZoneId.systemDefault(), container.reminders.reminders.value)
+        return DailyDigest.build(messages, container.userMessageState.state.value, Instant.now(), ZoneId.systemDefault(), container.reminders.reminders.value, container.calendarEvents.events.value)
     }
 }

@@ -136,6 +136,11 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
     }
     var monthly by rememberSaveable { mutableStateOf(reminder?.repeatsMonthly ?: false) }
     var picking by rememberSaveable { mutableStateOf(false) }
+    var timeText by rememberSaveable { mutableStateOf(reminder?.time?.toString().orEmpty()) }
+    var pickingTime by rememberSaveable { mutableStateOf(false) }
+    val time = timeText.takeIf { it.isNotEmpty() }?.let { runCatching { java.time.LocalTime.parse(it) }.getOrNull() }
+    val timePresets = listOf(java.time.LocalTime.of(9, 0), java.time.LocalTime.of(12, 0), java.time.LocalTime.of(18, 0))
+    val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     val day = Instant.ofEpochMilli(dateMillis).atZone(ZoneOffset.UTC).toLocalDate()
     val presets = listOf("Today" to today, "Tomorrow" to today.plusDays(1), "In a week" to today.plusWeeks(1))
     val custom = presets.none { it.second == day }
@@ -145,7 +150,7 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
         onDismiss = onDismiss,
         primaryLabel = if (reminder == null) "Add reminder" else "Save changes",
         primaryEnabled = title.isNotBlank(),
-        onPrimary = { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly)) },
+        onPrimary = { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly, time)) },
         secondaryLabel = if (onRemove != null) "Delete reminder" else null,
         onSecondary = onRemove
     ) {
@@ -162,6 +167,24 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
                 }
             )
         }
+        FormGroup("Notify me at") {
+            val custom = time != null && time !in timePresets
+            Chips(
+                buildList {
+                    add(ChipOption("Morning summary only", time == null))
+                    timePresets.forEach { add(ChipOption(timeFormat.format(it), time == it)) }
+                    add(ChipOption(if (custom) timeFormat.format(time) else "Pick a time", custom))
+                },
+                onSelect = { index ->
+                    when {
+                        index == 0 -> timeText = ""
+                        index <= timePresets.size -> timeText = timePresets[index - 1].toString()
+                        else -> pickingTime = true
+                    }
+                }
+            )
+            Caption(if (time == null) "It is mentioned in the morning summary on the day" else "A notification at ${timeFormat.format(time)} on the day")
+        }
         FormGroup("Repeat") {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -173,6 +196,19 @@ internal fun ReminderDialog(reminder: Reminder?, today: LocalDate, onSave: (Remi
         }
     }
     if (picking) DayPickerDialog(dateMillis, onPick = { dateMillis = it; picking = false }, onDismiss = { picking = false })
+    if (pickingTime) TimePickerDialog(time ?: java.time.LocalTime.of(9, 0), onPick = { timeText = it.toString(); pickingTime = false }, onDismiss = { pickingTime = false })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimePickerDialog(initial: java.time.LocalTime, onPick: (java.time.LocalTime) -> Unit, onDismiss: () -> Unit) {
+    val state = androidx.compose.material3.rememberTimePickerState(initial.hour, initial.minute, is24Hour = false)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { AppButton("Use this time", { onPick(java.time.LocalTime.of(state.hour, state.minute)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+        dismissButton = { AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+        text = { androidx.compose.material3.TimePicker(state) }
+    )
 }
 
 /** One line on Home for something planned ahead; it opens its own sheet. */

@@ -32,6 +32,7 @@ class ReminderRepositoryImpl(context: Context) : ReminderRepository {
             array.put(
                 JSONObject().put("id", it.id).put("title", it.title).put("amount", it.amount?.toPlainString() ?: JSONObject.NULL)
                     .put("date", it.date.toString()).put("monthly", it.repeatsMonthly)
+                    .put("time", it.time?.toString() ?: JSONObject.NULL)
             )
         }
         prefs.edit().putString(KEY, array.toString()).apply()
@@ -46,7 +47,8 @@ class ReminderRepositoryImpl(context: Context) : ReminderRepository {
                 title = o.getString("title"),
                 amount = if (o.isNull("amount")) null else o.optString("amount").toBigDecimalOrNull(),
                 date = runCatching { LocalDate.parse(o.getString("date")) }.getOrNull() ?: return@mapNotNull null,
-                repeatsMonthly = o.optBoolean("monthly")
+                repeatsMonthly = o.optBoolean("monthly"),
+                time = if (o.isNull("time")) null else runCatching { java.time.LocalTime.parse(o.optString("time")) }.getOrNull()
             )
         }
     }.getOrDefault(emptyList())

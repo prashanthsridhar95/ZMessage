@@ -66,7 +66,8 @@ object DailyDigest {
         userState: UserMessageState,
         now: Instant,
         zone: ZoneId,
-        reminders: List<Reminder> = emptyList()
+        reminders: List<Reminder> = emptyList(),
+        events: List<com.zyke.message.domain.calendar.CalendarEvent> = emptyList()
     ): DigestSummary? {
         val today = LocalDate.ofInstant(now, zone)
         val live = messages.filter { it.id !in userState.archivedIds && !it.isPromotional }
@@ -75,6 +76,12 @@ object DailyDigest {
         // What the person asked to be reminded of comes first.
         Reminders.upcoming(reminders, today, withinDays = 1).forEach { due ->
             items += DigestItem(DigestKind.REMINDER, "Reminder: ${due.reminder.title}", dayWord(due.on, today), due.reminder.amount, due.on == today)
+        }
+
+        // So are the person's own events, today and tomorrow, with the time when there is one.
+        events.filter { it.date == today || it.date == today.plusDays(1) }.sortedWith(compareBy({ it.date }, { it.time })).forEach { event ->
+            val at = event.time?.let { " at " + java.time.format.DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it) }.orEmpty()
+            items += DigestItem(DigestKind.EVENT, event.title, dayWord(event.date, today) + at, null, event.date == today)
         }
 
         UpcomingBuilder.build(live, today).filter { !it.date.isAfter(today.plusDays(DUE_SOON_DAYS)) }.forEach { due ->

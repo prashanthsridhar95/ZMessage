@@ -69,6 +69,7 @@ import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import java.time.DayOfWeek
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -117,6 +118,8 @@ internal fun CalendarPage(
     val selected = remember(selectedText) { LocalDate.parse(selectedText) }
     var editing by remember { mutableStateOf<CalendarEvent?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
+    val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val entries = remember(month, messages, reminders, events, goals, plan, now) {
         CalendarBuilder.month(month, messages, reminders, events, goals, plan, now, zone)
@@ -257,7 +260,14 @@ internal fun CalendarPage(
         EventForm(
             initial = event, startDate = event.date,
             onSave = { onSaveEvent(it); editing = null; selectedText = it.date.toString(); monthText = YearMonth.from(it.date).toString() },
-            onRemove = { onRemoveEvent(event.id); editing = null },
+            onRemove = {
+                onRemoveEvent(event.id)
+                editing = null
+                scope.launch {
+                    val result = snackbar.showSnackbar("Deleted ${event.title}", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) onSaveEvent(event)
+                }
+            },
             onDismiss = { editing = null }
         )
     }

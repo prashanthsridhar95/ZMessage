@@ -76,6 +76,9 @@
             android:name=".notifications.DigestReceiver"
             android:exported="false" />
         <receiver
+            android:name=".notifications.ReminderReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".notifications.CopyCodeReceiver"
             android:exported="false" />
         <!-- Exported only because the phone's telephony service must reach it; the BROADCAST_SMS permission lets

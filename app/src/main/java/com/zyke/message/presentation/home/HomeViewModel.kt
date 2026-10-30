@@ -119,6 +119,7 @@ class HomeViewModel(
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
+            is Intent.RestoreAttention -> userStateRepository.restoreAttention(intent.key)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
                 userStateRepository.markRead(intent.messageId)

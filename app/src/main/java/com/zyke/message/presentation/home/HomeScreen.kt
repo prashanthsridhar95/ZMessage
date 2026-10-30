@@ -96,6 +96,7 @@ import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -216,6 +217,7 @@ private fun SummaryPage(
     state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, onOpenMarkets: () -> Unit
 ) {
     val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
+    val markPaid = rememberMarkPaid(onIntent)
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
     val nowMillis = rememberNowMillis()
@@ -278,7 +280,7 @@ private fun SummaryPage(
             item(key = "next") {
                 FintechCard {
                     Caption("NEXT DUE")
-                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = { markPaid(it, onIntent) }) { onIntent(Intent.OpenLink(it)) }
+                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
                     LinkButton("All bills", { onNavigate(AppTab.BILLS) })
                 }
             }
@@ -336,6 +338,7 @@ private fun SummaryPage(
 /** Everything due or owed, soonest first, on one plain list. */
 @Composable
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
+    val markPaid = rememberMarkPaid(onIntent)
     val empty = state.upcoming.isEmpty() && state.refunds.isEmpty() &&
         state.owed.isEmpty() && state.subscriptions.isEmpty()
 
@@ -353,7 +356,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 PlainSection("Due") {
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = { markPaid(it, onIntent) }) { onIntent(Intent.OpenLink(it)) }
+                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
                     }
                 }
             }
@@ -620,10 +623,22 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
     }
 }
 
-/** The person says it is paid: the bill goes from the list, and from the attention strip too. */
-private fun markPaid(item: UpcomingItem, onIntent: (Intent) -> Unit) {
-    onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
-    item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
+/** The person says it is paid: the bill goes from the list and the attention strip, and a tap on Undo brings it back. */
+@Composable
+private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit {
+    val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return { item ->
+        onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
+        item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
+        scope.launch {
+            val result = snackbar.showSnackbar("Marked ${item.title} as paid", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                onIntent(Intent.RestoreAttention(item.markedPaidKey))
+                item.attentionKey?.let { onIntent(Intent.RestoreAttention(it)) }
+            }
+        }
+    }
 }
 
 @Composable
