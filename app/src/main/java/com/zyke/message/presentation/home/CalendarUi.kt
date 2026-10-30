@@ -147,13 +147,6 @@ internal fun CalendarPage(
                 }
                 MonthArrow("›", "Next month") { monthText = month.plusMonths(1).toString() }
             }
-            if (!onThisMonth || selected != today) {
-                AppButton(
-                    "Back to today", { monthText = YearMonth.from(today).toString(); selectedText = today.toString() },
-                    Modifier.align(Alignment.CenterHorizontally), style = ButtonStyle.TONAL, size = ButtonSize.COMPACT
-                )
-            }
-
             FintechCard(
                 Modifier.pointerInput(month) {
                     // Swiping the month sideways moves through time, the way the arrows suggest.
@@ -215,6 +208,13 @@ internal fun CalendarPage(
                         if (selected == today) StatusPill("Today", Tone.NEUTRAL, Modifier.padding(start = 8.dp))
                     }
                     Caption(if (dayEntries.isEmpty()) "Nothing on this day" else DisplayFormatters.count(dayEntries.size, "thing", "things"))
+                }
+                // Beside the day it leaves, not above the list, so showing or hiding it moves nothing below.
+                if (!onThisMonth || selected != today) {
+                    AppButton(
+                        "Today", { monthText = YearMonth.from(today).toString(); selectedText = today.toString() },
+                        Modifier.padding(end = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+                    )
                 }
                 AppButton("Add event", { adding = true }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
             }
