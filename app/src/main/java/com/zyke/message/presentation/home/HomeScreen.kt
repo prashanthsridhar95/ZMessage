@@ -185,7 +185,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             onSetCategory = { id, category -> onIntent(Intent.SetCategory(id, category)) },
             onSetMessageCategory = { id, category -> onIntent(Intent.SetMessageCategory(id, category)) },
             onToggleMute = { onIntent(Intent.ToggleMute(it)) },
-            onRename = { id, name -> onIntent(Intent.Rename(id, name)) },
+            onRename = { id, name, onlyThis -> onIntent(Intent.Rename(id, name, onlyThis)) },
             onSplit = { onIntent(Intent.StartSplit(it)) }
         )
     }

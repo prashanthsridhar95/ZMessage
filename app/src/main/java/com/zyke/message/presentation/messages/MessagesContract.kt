@@ -118,7 +118,7 @@ object MessagesContract {
         data object ConfirmMerge : Intent
         data object CancelMerge : Intent
         data class Unmerge(val duplicateId: Long) : Intent
-        data class Rename(val messageId: Long, val name: String) : Intent
+        data class Rename(val messageId: Long, val name: String, val onlyThis: Boolean = false) : Intent
         data class SetMessageCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?, val announce: Boolean = true) : Intent
         data class DismissAttention(val key: String, val forever: Boolean = false) : Intent

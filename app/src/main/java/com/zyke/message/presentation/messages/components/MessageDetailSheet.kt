@@ -339,20 +339,46 @@ private fun CategoryRow(label: String, current: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** "Only this transaction", the choice between naming or filing one message and everything from its sender or receiver. */
+@Composable
+private fun ScopeRow(onlyThis: Boolean, label: String, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Only this transaction") { onChange(!onlyThis) }.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Only this transaction", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+            Text(
+                if (onlyThis) "Other payments to $label are not changed" else "Every payment to $label",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+        Switch(checked = onlyThis, onCheckedChange = null)
+    }
+}
+
 /** Giving the sender a nickname, in the app's one form shape. */
 @Composable
 private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: FeedActions, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf(if (item.merchant.renamed) shownName else "") }
+    // A payment with no named receiver is filed by its bank: a name for it must not become the bank's name.
+    val bankOnly = CategoryKey.of(item) == CategoryKey.normalise(item.message.sender)
+    var onlyThis by rememberSaveable { mutableStateOf(bankOnly) }
     FormSheet(
         title = "Nickname",
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
-        onPrimary = { actions.onRename(item.id, name); onDismiss() },
+        onPrimary = { actions.onRename(item.id, name, onlyThis); onDismiss() },
         secondaryLabel = if (item.merchant.renamed) "Use the original name" else null,
-        onSecondary = { actions.onRename(item.id, ""); onDismiss() }
+        onSecondary = { actions.onRename(item.id, "", onlyThis); onDismiss() }
     ) {
-        FormField("Name", name, { name = it }, placeholder = CategoryKey.label(item), supporting = "Shown wherever ${CategoryKey.label(item)} appears")
+        FormField(
+            "Name", name, { name = it }, placeholder = CategoryKey.label(item),
+            supporting = if (onlyThis) "Only this transaction is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears"
+        )
+        ScopeRow(onlyThis, CategoryKey.label(item)) { onlyThis = it }
     }
 }
 

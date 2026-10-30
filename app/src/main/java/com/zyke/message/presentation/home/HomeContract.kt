@@ -124,7 +124,7 @@ object HomeContract {
         data class TogglePin(val messageId: Long) : Intent
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
-        data class Rename(val messageId: Long, val name: String) : Intent
+        data class Rename(val messageId: Long, val name: String, val onlyThis: Boolean = false) : Intent
         data object OpenCalendar : Intent
         data object CloseCalendar : Intent
         data class ShiftCalendar(val months: Int) : Intent
