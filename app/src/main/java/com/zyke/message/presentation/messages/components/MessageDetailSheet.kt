@@ -243,6 +243,35 @@ internal fun MessageDetailSheet(
                 }
             }
 
+            if (content is MessageContent.Transaction) {
+                // Where this payment stands in the income and spending totals.
+                val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+                val manual = com.zyke.message.domain.ledger.ManualEntries.isManual(item)
+                SettingsGroup("In your totals") {
+                    Caption(
+                        when (item.setAside) {
+                            com.zyke.message.domain.ledger.SetAside.TRANSFER -> "A transfer between your own accounts: not counted as income or spending"
+                            com.zyke.message.domain.ledger.SetAside.EXCLUDED -> "Left out: not counted in income, spending or limits"
+                            null -> if ((content as MessageContent.Transaction).isCardPayment) "A card bill payment: not counted as spending" else "Counted in your income and spending"
+                        },
+                        maxLines = 3
+                    )
+                    if (item.setAside != com.zyke.message.domain.ledger.SetAside.TRANSFER) {
+                        SwitchRow("Leave out of totals", item.setAside == com.zyke.message.domain.ledger.SetAside.EXCLUDED) {
+                            ledger.setExcluded(item.id, item.setAside != com.zyke.message.domain.ledger.SetAside.EXCLUDED)
+                        }
+                    }
+                    if (!manual && item.setAside != com.zyke.message.domain.ledger.SetAside.EXCLUDED) {
+                        if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) {
+                            DetailRow("Not a transfer", null) { ledger.markTransfer(item, false) }
+                        } else {
+                            DetailRow("This is a transfer between my accounts", null) { ledger.markTransfer(item, true) }
+                        }
+                    }
+                    if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
+                }
+            }
+
             SettingsGroup("This message") {
                 if (!isArchived) SwitchRow("Pinned", isPinned) { actions.onTogglePin(item.id) }
                 DetailRow(if (isArchived) "Restore" else "Archive", null) {

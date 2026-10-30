@@ -15,7 +15,7 @@ object ReportSharing {
     private const val DIRECTORY = "reports"
     private const val AUTHORITY_SUFFIX = ".fileprovider"
 
-    fun share(context: Context, fileName: String, text: String) {
+    fun share(context: Context, fileName: String, text: String, mimeType: String = "text/plain", subject: String = "Zyke Message parsing report") {
         val directory = File(context.cacheDir, DIRECTORY).apply { mkdirs() }
         directory.listFiles()?.forEach { it.delete() }
 
@@ -23,15 +23,15 @@ object ReportSharing {
         val uri = FileProvider.getUriForFile(context, context.packageName + AUTHORITY_SUFFIX, file)
 
         val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
+            type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Zyke Message parsing report")
+            putExtra(Intent.EXTRA_SUBJECT, subject)
             // Grants the chosen app read access to this one file (including through the chooser).
             clipData = ClipData.newRawUri(fileName, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(
-            Intent.createChooser(send, "Share parsing report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
 }

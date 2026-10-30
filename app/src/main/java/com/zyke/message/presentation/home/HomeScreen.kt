@@ -196,13 +196,37 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     HomeSheets(state, actions, onIntent, onNavigate)
 
     var marketsOpen by rememberSaveable { mutableStateOf(false) }
+    var entryOpen by rememberSaveable { mutableStateOf(false) }
+    var reviewOpen by rememberSaveable { mutableStateOf(false) }
     // The prices are asked for only while Home is in front, and only if the person switched the strip on.
     if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
 
-    when (page) {
-        HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, onOpenMarkets = { marketsOpen = true })
-        HomePage.BILLS -> BillsPage(state, today, onIntent)
-        HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+        when (page) {
+            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true })
+            HomePage.BILLS -> BillsPage(state, today, onIntent)
+            HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
+        }
+        // The one prominent add action: money that came in no message.
+        if (page == HomePage.HOME) {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = { entryOpen = true },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) { Text("+ Entry", fontWeight = FontWeight.SemiBold) }
+        }
+    }
+
+    if (entryOpen) ManualEntrySheet(today, onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false }, onDismiss = { entryOpen = false })
+    if (reviewOpen) {
+        ReviewPage(
+            review = state.review,
+            onLink = { debit, credit -> onIntent(Intent.LinkTransfer(debit, credit)) },
+            onNotTransfer = { onIntent(Intent.DismissTransfer(it)) },
+            onOpen = { onIntent(Intent.OpenMessage(it)) },
+            onBack = { reviewOpen = false }
+        )
     }
 
     if (marketsOpen) com.zyke.message.presentation.markets.MarketPage(onBack = { marketsOpen = false })
@@ -214,7 +238,8 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
  */
 @Composable
 private fun SummaryPage(
-    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, onOpenMarkets: () -> Unit
+    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, onOpenMarkets: () -> Unit,
+    onOpenReview: () -> Unit
 ) {
     val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
     val markPaid = rememberMarkPaid(onIntent)
@@ -226,7 +251,7 @@ private fun SummaryPage(
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (showMarkets) {
@@ -266,6 +291,10 @@ private fun SummaryPage(
                     if (attention.isNotEmpty()) AttentionStrip(attention, today, actions, inset = 0.dp, bordered = false)
                 }
             }
+        }
+
+        if (state.review.count > 0) {
+            item(key = "review") { ReviewCard(state.review.count, onOpenReview) }
         }
 
         if (focus != null) {

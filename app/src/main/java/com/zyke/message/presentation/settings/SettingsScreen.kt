@@ -75,6 +75,8 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
                 is Effect.ShareReport -> runCatching { ReportSharing.share(context, effect.fileName, effect.text) }
                     .onFailure { Toast.makeText(context, R.string.report_failed, Toast.LENGTH_LONG).show() }
                 is Effect.ShowMessage -> Toast.makeText(context, effect.text, Toast.LENGTH_SHORT).show()
+                is Effect.ShareData -> runCatching { ReportSharing.share(context, effect.fileName, effect.text, effect.mimeType, effect.subject) }
+                    .onFailure { Toast.makeText(context, R.string.report_failed, Toast.LENGTH_LONG).show() }
             }
         }
     }

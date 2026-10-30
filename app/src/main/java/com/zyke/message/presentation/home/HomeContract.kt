@@ -45,6 +45,9 @@ object HomeContract {
         val reminderList: List<Reminder> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val hiddenAccounts: Set<String> = emptySet(),
+        /** What the person has set aside from the totals, and what the app would like them to look at. */
+        val asides: com.zyke.message.domain.ledger.SetAsides = com.zyke.message.domain.ledger.SetAsides(),
+        val review: com.zyke.message.domain.ledger.ReviewQueue = com.zyke.message.domain.ledger.ReviewQueue(emptyList(), emptyList(), emptyList()),
         val pfAccountKeys: Set<String> = emptySet(),
         val providentFund: com.zyke.message.domain.pf.ProvidentFund? = null,
         val wishlist: List<WishItem> = emptyList(),
@@ -117,6 +120,11 @@ object HomeContract {
         data class CopyOtp(val messageId: Long, val code: String) : Intent
         data class DismissAttention(val key: String, val forever: Boolean = false) : Intent
         data class RestoreAttention(val key: String) : Intent
+        /** Says a debit and a credit are one transfer between the person's own accounts. */
+        data class LinkTransfer(val debitId: Long?, val creditId: Long?) : Intent
+        /** Says a suggested transfer is not one. */
+        data class DismissTransfer(val key: String) : Intent
+        data class SaveManualEntry(val entry: com.zyke.message.domain.ledger.ManualEntry) : Intent
         data class OpenLink(val url: String) : Intent
         data class OpenMessage(val messageId: Long) : Intent
         data object CloseMessage : Intent

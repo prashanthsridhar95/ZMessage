@@ -66,11 +66,19 @@ object SettingsContract {
         data object CancelReset : Intent
         data object ConfirmReset : Intent
         data object ShareDiagnostics : Intent
+        /** Stops reading the phone's messages and listening for new ones, or starts again. */
+        data class SetReadingPaused(val paused: Boolean) : Intent
+        /** The transactions read so far, as a spreadsheet. */
+        data object ExportTransactions : Intent
+        /** The person's own setup (plan, limits, cards, goals, reminders, events, entries), as a file. */
+        data object ExportSetup : Intent
     }
 
     sealed interface Effect {
         /** Write [text] to a file named [fileName] and offer it to the apps that can receive it. */
         data class ShareReport(val fileName: String, val text: String) : Effect
         data class ShowMessage(val text: String) : Effect
+        /** A file made from the person's own data, to offer to whichever app they pick. */
+        data class ShareData(val fileName: String, val text: String, val mimeType: String, val subject: String) : Effect
     }
 }

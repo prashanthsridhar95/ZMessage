@@ -64,6 +64,8 @@ class AppContainer(context: Context) {
     val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.data.repository.CalendarEventRepositoryImpl(context)
     val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.data.repository.InsightsFilterRepositoryImpl(context)
     val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context)
+    val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.data.repository.ManualEntryRepositoryImpl(context)
+    val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.data.repository.SetAsideRepositoryImpl(context)
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository = com.zyke.message.data.repository.WatchlistRepositoryImpl(context)
     val markets = com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
@@ -81,7 +83,8 @@ class AppContainer(context: Context) {
         smsRepository, messageClassifier,
         categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
-        isReadingPaused = { settings.settings.value.readingPaused }
+        isReadingPaused = { settings.settings.value.readingPaused },
+        manualEntries = manualEntries, setAsides = setAsides
     )
 
     private fun cacheTag(context: Context): String {

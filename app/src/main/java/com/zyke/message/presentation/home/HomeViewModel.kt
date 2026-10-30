@@ -79,12 +79,14 @@ class HomeViewModel(
     private val reminderRepository: ReminderRepository = NoReminders,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
     private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
-    private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents
+    private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
+    private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
+    private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
         plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
-        goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value)
+        goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, asides = setAsideRepository.state.value)
 ) {
 
     private var observeJob: Job? = null
@@ -107,6 +109,7 @@ class HomeViewModel(
         viewModelScope.launch { calendarEvents.events.collect { events -> reduceHome { copy(events = events) } } }
         viewModelScope.launch { pfAccounts.keys.collect { keys -> reduceHome { copy(pfAccountKeys = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
+        viewModelScope.launch { setAsideRepository.state.collect { asides -> reduceHome { copy(asides = asides) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
     }
 
@@ -120,6 +123,9 @@ class HomeViewModel(
             }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
             is Intent.RestoreAttention -> userStateRepository.restoreAttention(intent.key)
+            is Intent.LinkTransfer -> setAsideRepository.link(intent.debitId, intent.creditId)
+            is Intent.DismissTransfer -> setAsideRepository.dismissSuggestion(intent.key)
+            is Intent.SaveManualEntry -> manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it })
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
                 userStateRepository.markRead(intent.messageId)
@@ -289,6 +295,7 @@ class HomeViewModel(
                 attention = AttentionBuilder.build(
                     live.filter { !it.isPromotional }, updated.userState.dismissedAttention, updated.now, zone, updated.userState.dismissedAt
                 ),
+                review = com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone),
                 thisMonth = dashboard,
                 upcoming = UpcomingBuilder.build(updated.messages, today, includePaidToday = true, zone = zone, markedPaid = updated.userState.dismissedAttention),
                 budgetStatus = dashboard.categories
@@ -317,7 +324,9 @@ class HomeViewModel(
         private val reminderRepository: ReminderRepository = NoReminders,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
         private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
-        private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents
+        private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
+        private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
+        private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -325,7 +334,8 @@ class HomeViewModel(
                 observeMessages, userStateRepository, budgetRepository,
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
-                goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents
+                goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
+                setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository
             ) as T
     }
 

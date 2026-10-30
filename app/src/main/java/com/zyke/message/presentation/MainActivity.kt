@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
-            container.calendarEvents
+            container.calendarEvents, container.setAsides, container.manualEntries
         )
     }
 
@@ -81,7 +81,8 @@ class MainActivity : ComponentActivity() {
             onDigestChanged = { DigestScheduler(this).apply(it) },
             onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
             planRepository = container.moneyPlan,
-            hiddenAccounts = container.hiddenAccounts
+            hiddenAccounts = container.hiddenAccounts,
+            setupExtras = { com.zyke.message.data.export.SetupExport.extras(container) }
         )
     }
 

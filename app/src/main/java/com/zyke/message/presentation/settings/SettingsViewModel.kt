@@ -44,7 +44,9 @@ class SettingsViewModel(
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
+    private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+    /** The person's own setup beyond what this screen holds (goals, reminders, events, entries), for the export. */
+    private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
@@ -154,6 +156,36 @@ class SettingsViewModel(
                 emitEffect(Effect.ShowMessage("Marks and budgets cleared"))
             }
             Intent.ShareDiagnostics -> shareDiagnostics()
+            is Intent.SetReadingPaused -> settingsRepository.setReadingPaused(intent.paused)
+            Intent.ExportTransactions -> {
+                val csv = com.zyke.message.domain.export.Exports.transactionsCsv(inbox, clock.zone)
+                val stamp = LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT))
+                emitEffect(Effect.ShareData("zyke-transactions-$stamp.csv", csv, "text/csv", "Zyke Message transactions"))
+            }
+            Intent.ExportSetup -> {
+                val state = currentState()
+                val json = setupExtras().apply {
+                    put("plan", org.json.JSONObject().apply {
+                        put("salary", state.plan.salary?.toPlainString())
+                        put("salaryDay", state.plan.salaryDay)
+                        put("salaryOnLastWorkingDay", state.plan.salaryOnLastWorkingDay)
+                        put("savingsGoal", state.plan.savingsGoal?.toPlainString())
+                        put("cardSpendLimit", state.plan.cardSpendLimit?.toPlainString())
+                        put("cycle", state.plan.cycleMode.name)
+                        put("cycleDay", state.plan.cycleDay)
+                        put("items", org.json.JSONArray().apply {
+                            state.plan.items.forEach { put(org.json.JSONObject().put("kind", it.kind.name).put("name", it.name).put("amount", it.amount.toPlainString()).put("day", it.dayOfMonth)) }
+                        })
+                    })
+                    put("monthlyLimits", org.json.JSONObject().apply { state.monthlyLimits.forEach { (c, v) -> put(c.displayString, v.toPlainString()) } })
+                    put("dailyLimits", org.json.JSONObject().apply { state.dailyLimits.forEach { (c, v) -> put(c.displayString, v.toPlainString()) } })
+                    put("cards", org.json.JSONArray().apply {
+                        state.cards.forEach { put(org.json.JSONObject().put("type", it.type.name).put("last4", it.last4).put("name", it.name).put("bank", it.bankName).put("statementDay", it.statementDay)) }
+                    })
+                }
+                val stamp = LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT))
+                emitEffect(Effect.ShareData("zyke-setup-$stamp.json", json.toString(2), "application/json", "Zyke Message setup"))
+            }
         }
     }
 
@@ -230,14 +262,15 @@ class SettingsViewModel(
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
-        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts
+        private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+        private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts
+                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, setupExtras = setupExtras
             ) as T
     }
 }
