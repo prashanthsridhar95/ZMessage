@@ -263,7 +263,7 @@ private fun SummaryPage(state: State, today: LocalDate, actions: FeedActions, on
             item(key = "next") {
                 FintechCard {
                     Caption("NEXT DUE")
-                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }) { onIntent(Intent.OpenLink(it)) }
+                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = { markPaid(it, onIntent) }) { onIntent(Intent.OpenLink(it)) }
                     LinkButton("All bills", { onNavigate(AppTab.BILLS) })
                 }
             }
@@ -338,7 +338,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 PlainSection("Due") {
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }) { onIntent(Intent.OpenLink(it)) }
+                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = { markPaid(it, onIntent) }) { onIntent(Intent.OpenLink(it)) }
                     }
                 }
             }
@@ -605,8 +605,14 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
     }
 }
 
+/** The person says it is paid: the bill goes from the list, and from the attention strip too. */
+private fun markPaid(item: UpcomingItem, onIntent: (Intent) -> Unit) {
+    onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
+    item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
+}
+
 @Composable
-private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onPay: (String) -> Unit) {
+private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onMarkPaid: (UpcomingItem) -> Unit, onPay: (String) -> Unit) {
     val paid = item.paidOn != null
     val urgent = !paid && DisplayFormatters.isUrgent(item.date, today)
     val good = com.zyke.message.presentation.common.limitColors().good
@@ -636,15 +642,14 @@ private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit
                     color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
                 )
             }
-            val link = item.paymentLink
-            if (link != null && !paid) {
-                AppButton(
-                    text = "Pay bill",
-                    onClick = { onPay(link) },
-                    style = ButtonStyle.TONAL,
-                    size = ButtonSize.COMPACT,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
+            if (!paid) {
+                // Paid some other way, with no message about it: say so, and it goes.
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item.paymentLink?.let { link ->
+                        AppButton(text = "Pay bill", onClick = { onPay(link) }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+                    }
+                    AppButton(text = "Mark as paid", onClick = { onMarkPaid(item) }, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                }
             }
         }
         Spacer(Modifier.width(12.dp))

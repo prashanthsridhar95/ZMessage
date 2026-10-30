@@ -22,7 +22,14 @@ data class UpcomingItem(
     /** The day the bill was paid, for a bill that has been; such a bill is kept for that day only. */
     val paidOn: LocalDate? = null,
     val paidAmount: BigDecimal? = null
-)
+) {
+    /** What "Mark as paid" stores, so a bill the person says they paid (outside the messages) stays gone. */
+    val markedPaidKey: String get() = "paid-$key-$date"
+
+    /** The key the same bill has in the attention strip, so marking it paid clears both. */
+    val attentionKey: String?
+        get() = (message.content as? MessageContent.CardBill)?.let { "bill-${it.bankName.name}-${it.accountNumber}-$date" }
+}
 
 object UpcomingBuilder {
     private const val HORIZON_DAYS = 30L
@@ -33,7 +40,9 @@ object UpcomingBuilder {
         today: LocalDate,
         /** Keep a bill that was paid today, marked as paid, so the day shows it done; it goes tomorrow. */
         includePaidToday: Boolean = false,
-        zone: ZoneId = ZoneId.systemDefault()
+        zone: ZoneId = ZoneId.systemDefault(),
+        /** Keys of bills the person marked as paid themselves; see [UpcomingItem.markedPaidKey]. */
+        markedPaid: Set<String> = emptySet()
     ): List<UpcomingItem> {
         val horizon = today.plusDays(HORIZON_DAYS)
         val byId = messages.associateBy { it.id }
@@ -78,6 +87,7 @@ object UpcomingBuilder {
         }.distinctBy { it.key }
 
         return (bills + autoDebits)
+            .filter { it.markedPaidKey !in markedPaid }
             .filter { it.paidOn != null || (!it.date.isBefore(today) && !it.date.isAfter(horizon)) }
             .sortedBy { it.date }
     }

@@ -37,4 +37,14 @@ class UpcomingBuilderTest {
         assertEquals("HDFC Card •• 1234", items[1].title)
         assertEquals("https://hdfcbk.io/x", items[1].paymentLink)
     }
+
+    @Test
+    fun aBillMarkedPaid_isGone_andClearsItsAttentionKeyToo() {
+        val messages = listOf(
+            msg("HDFC Bank Credit Card XX1234 Statement: Total due amt: Rs.12,345.00 Min due amt: Rs.617.00 Due by:30-10-2026 pay https://hdfcbk.io/x")
+        )
+        val bill = UpcomingBuilder.build(messages, today).single()
+        assertEquals(emptyList<Any>(), UpcomingBuilder.build(messages, today, markedPaid = setOf(bill.markedPaidKey)))
+        assertEquals(true, bill.attentionKey?.startsWith("bill-"))
+    }
 }

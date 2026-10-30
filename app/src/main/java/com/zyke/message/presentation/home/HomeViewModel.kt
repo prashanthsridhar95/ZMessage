@@ -289,7 +289,7 @@ class HomeViewModel(
                     live.filter { !it.isPromotional }, updated.userState.dismissedAttention, updated.now, zone, updated.userState.dismissedAt
                 ),
                 thisMonth = dashboard,
-                upcoming = UpcomingBuilder.build(updated.messages, today, includePaidToday = true, zone = zone),
+                upcoming = UpcomingBuilder.build(updated.messages, today, includePaidToday = true, zone = zone, markedPaid = updated.userState.dismissedAttention),
                 budgetStatus = dashboard.categories
                     .filter { it.budget != null }
                     .sortedByDescending { it.usedFraction ?: 0.0 },
