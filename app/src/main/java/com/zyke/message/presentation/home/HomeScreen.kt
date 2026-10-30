@@ -335,21 +335,55 @@ private fun SummaryPage(
     }
 }
 
+private const val REMINDERS_SHOWN = 4
+
 /** Everything due or owed, soonest first, on one plain list. */
 @Composable
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
     val markPaid = rememberMarkPaid(onIntent)
-    val empty = state.upcoming.isEmpty() && state.refunds.isEmpty() &&
-        state.owed.isEmpty() && state.subscriptions.isEmpty()
-
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (empty) {
-            item(key = "empty") { PlainSection("Nothing due") { Caption("Nothing due") } }
+        if (state.upcoming.isEmpty()) {
+            item(key = "no-bills") {
+                FintechCard {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("\u2713", style = MaterialTheme.typography.headlineMedium, color = com.zyke.message.presentation.common.limitColors().good, fontWeight = FontWeight.Bold)
+                        Text(
+                            "No bills currently available", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Caption(
+                            "Nothing is due in the next 30 days. Card bills and auto-debits show up here when their messages arrive.",
+                            Modifier.padding(top = 4.dp), maxLines = 4, textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+        // Your own reminders belong with what is coming due, so the page is not bare when no bill is.
+        if (state.reminders.isNotEmpty()) {
+            item(key = "reminders") {
+                PlainSection("Your reminders") {
+                    state.reminders.take(REMINDERS_SHOWN).forEachIndexed { index, due ->
+                        if (index > 0) HorizontalDivider()
+                        Row(
+                            Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                RowTitle(due.reminder.title)
+                                Caption(DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (due.reminder.repeatsMonthly) " \u00B7 every month" else "")
+                            }
+                            due.reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
+                        }
+                    }
+                    if (state.reminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
+                }
+            }
         }
         if (state.upcoming.isNotEmpty()) {
             item(key = "upcoming") {
