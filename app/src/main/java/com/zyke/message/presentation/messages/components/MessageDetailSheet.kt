@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.common.rememberPicturePicker
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -98,7 +99,7 @@ internal fun MessageDetailSheet(
     // Which of the two the open sheet is for: this one transaction, or the sender or receiver it is with.
     var categoryScope by remember { mutableStateOf<Boolean?>(null) }
     var nameScope by remember { mutableStateOf<Boolean?>(null) }
-    val pickPicture = rememberPicturePicker(item)
+    val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, CategoryKey.label(item)) }
     val imageStore = LocalImageStore.current
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
 
@@ -108,7 +109,10 @@ internal fun MessageDetailSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp)
+                MerchantChip(
+                    item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
+                    modifier = if (pickPicture != null) Modifier.clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Change picture", onClick = pickPicture) else Modifier
+                )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -360,61 +364,6 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
             "Name", name, { name = it }, placeholder = CategoryKey.label(item),
             supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears"
         )
-    }
-}
-
-/**
- * Choosing a picture for this sender / receiver: from the person's own photos (no permission is needed), or from a
- * Google image search for its name, inside the app. Null where pictures are not available.
- */
-@Composable
-private fun rememberPicturePicker(item: ClassifiedMessage): (() -> Unit)? {
-    val store = LocalImageStore.current ?: return null
-    val key = CategoryKey.of(item) ?: return null
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    // 0 nothing open, 1 choosing where from, 2 searching the web.
-    var step by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                if (!store.saveChosen(key, uri)) Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-    val label = CategoryKey.label(item)
-
-    if (step == 1) {
-        AppBottomSheet({ step = 0 }) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Add a picture", Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                PictureSource("From this phone", "Choose a photo from your gallery") {
-                    step = 0
-                    launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-                PictureSource("From the web", "Search Google Images for \"$label\" and tap the one you want") { step = 2 }
-            }
-        }
-    }
-    if (step == 2) {
-        com.zyke.message.presentation.common.ImageSearchSheet(
-            query = label, store = store, onDismiss = { step = 0 },
-            onUse = { bitmap ->
-                scope.launch {
-                    if (store.saveChosenBitmap(key, bitmap)) step = 0
-                    else Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-    }
-    return { step = 1 }
-}
-
-@Composable
-private fun PictureSource(title: String, description: String, onClick: () -> Unit) {
-    com.zyke.message.presentation.common.FintechCard(onClick = onClick) {
-        RowTitle(title)
-        Caption(description, maxLines = 2)
     }
 }
 

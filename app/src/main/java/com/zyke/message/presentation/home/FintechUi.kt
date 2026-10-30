@@ -340,7 +340,7 @@ internal fun AccountSheet(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val pick = rememberAccountPicturePicker(account)
+                val pick = com.zyke.message.presentation.common.rememberPicturePicker(ACCOUNT_PICTURE_PREFIX + account.key, account.title)
                 AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(onClickLabel = "Change picture", onClick = pick) else Modifier))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -607,24 +607,6 @@ private fun AccountChip(account: AccountSummary, size: androidx.compose.ui.unit.
         description = account.title,
         size = size
     )
-}
-
-/** Choosing a picture for the account from the person's own photos; null where pictures are not available. */
-@Composable
-private fun rememberAccountPicturePicker(account: AccountSummary): (() -> Unit)? {
-    val store = LocalImageStore.current ?: return null
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                if (!store.saveChosen(ACCOUNT_PICTURE_PREFIX + account.key, uri)) {
-                    android.widget.Toast.makeText(context, "Couldn't use that image", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-    return { launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }
 }
 
 /** The way back to the bank's logo, once a picture of the person's own has been chosen. */
