@@ -46,7 +46,7 @@
             android:textColor="@color/widget_muted"
             android:textSize="12sp" />
 
-        <View
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
@@ -60,7 +60,7 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <View
+    <FrameLayout
         android:id="@+id/widget_divider"
         android:layout_width="1dp"
         android:layout_height="match_parent"
