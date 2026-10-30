@@ -10,6 +10,7 @@
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
 | Picture for a sender, searched on the web (only when the person taps "From the web") | Google Images, searched for the sender's name in an in-app page; the picture the person taps is downloaded once | Cropped to 256px in private storage | The sender's name is the search text, as if typed into Google; nothing else |
 | Market prices (off until switched on in Settings) | A public price service (Yahoo Finance), asked for the tickers in your watch list only | Held in memory; the list itself is in private SharedPreferences | The tickers are sent, never message content |
+| Entries you add by hand, payments left out of totals, transfers you link | User input | Private SharedPreferences | No |
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
