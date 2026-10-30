@@ -32,6 +32,7 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
         val json = JSONObject()
             .put("salary", plan.salary?.toPlainString() ?: JSONObject.NULL)
             .put("salaryDay", plan.salaryDay ?: JSONObject.NULL)
+            .put("salaryLastWorking", plan.salaryOnLastWorkingDay)
             .put("savingsGoal", plan.savingsGoal?.toPlainString() ?: JSONObject.NULL)
             .put("cycleMode", plan.cycleMode.name)
             .put("cycleDay", plan.cycleDay ?: JSONObject.NULL)
@@ -50,6 +51,7 @@ class MoneyPlanRepositoryImpl(context: Context) : MoneyPlanRepository {
         MoneyPlan(
             salary = json.optString("salary").toBigDecimalOrNull(),
             salaryDay = if (json.isNull("salaryDay")) null else json.optInt("salaryDay"),
+            salaryOnLastWorkingDay = json.optBoolean("salaryLastWorking"),
             savingsGoal = json.optString("savingsGoal").toBigDecimalOrNull(),
             cycleMode = CycleMode.entries.firstOrNull { it.name == json.optString("cycleMode") } ?: CycleMode.SALARY,
             cycleDay = if (json.isNull("cycleDay")) null else json.optInt("cycleDay"),

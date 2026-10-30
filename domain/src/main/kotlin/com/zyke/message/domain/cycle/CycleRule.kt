@@ -66,7 +66,7 @@ data class CycleRule(val startDay: Int = 1) {
         fun resolve(plan: MoneyPlan, messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): CycleRule = when (plan.cycleMode) {
             CycleMode.CALENDAR -> CALENDAR
             CycleMode.DAY -> CycleRule(plan.cycleDay ?: 1)
-            CycleMode.SALARY -> CycleRule(SalaryDetector.detect(messages, now, zone)?.typicalDay ?: plan.salaryDay ?: 1)
+            CycleMode.SALARY -> CycleRule(SalaryDetector.detect(messages, now, zone)?.typicalDay ?: plan.salaryDayIn(java.time.YearMonth.from(now.atZone(zone))) ?: 1)
         }
     }
 }

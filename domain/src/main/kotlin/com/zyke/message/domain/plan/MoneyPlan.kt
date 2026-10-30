@@ -30,6 +30,8 @@ data class MoneyPlan(
     /** Usual monthly salary credited, and the day it normally arrives. */
     val salary: BigDecimal? = null,
     val salaryDay: Int? = null,
+    /** Paid on the last working day of the month (Monday to Friday), whatever date that is; [salaryDay] is then not used. */
+    val salaryOnLastWorkingDay: Boolean = false,
     val items: List<PlanItem> = emptyList(),
     /** How much to put aside each month. */
     val savingsGoal: BigDecimal? = null,
@@ -39,6 +41,12 @@ data class MoneyPlan(
 ) {
     val outflows: List<PlanItem> get() = items.filter { it.kind == PlanItemKind.OUTFLOW }
     val investments: List<PlanItem> get() = items.filter { it.kind == PlanItemKind.INVESTMENT }
+
+    /** The day of the month the salary arrives in [month], when the person has said. */
+    fun salaryDayIn(month: java.time.YearMonth): Int? = if (salaryOnLastWorkingDay) SalaryDays.lastWorkingDay(month).dayOfMonth else salaryDay
+
+    /** Whether the person has said when the salary arrives, in either way. */
+    val hasSalaryDay: Boolean get() = salaryOnLastWorkingDay || salaryDay != null
 
     /** Nothing has been filled in. */
     val isEmpty: Boolean get() = salary == null && items.isEmpty() && savingsGoal == null

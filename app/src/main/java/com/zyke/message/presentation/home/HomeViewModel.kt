@@ -233,7 +233,7 @@ class HomeViewModel(
     private fun addQuick(quick: QuickAdd) {
         val plan = planRepository.plan.value
         when (quick) {
-            is QuickAdd.Salary -> planRepository.save(plan.copy(salary = quick.amount, salaryDay = quick.day))
+            is QuickAdd.Salary -> planRepository.save(plan.copy(salary = quick.amount, salaryDay = quick.day, salaryOnLastWorkingDay = false))
             is QuickAdd.Item -> planRepository.save(plan.copy(items = plan.items + quick.item))
             is QuickAdd.Account -> cardRepository.save(quick.card)
             is QuickAdd.SavingsGoal -> planRepository.save(plan.copy(savingsGoal = quick.amount))

@@ -116,7 +116,7 @@ object PlanInsightsBuilder {
                 salaryReceived = enteredReceived
                 income = plan.salary
                 incomeSource = IncomeSource.ENTERED
-                salaryDay = plan.salaryDay
+                salaryDay = plan.salaryDayIn(java.time.YearMonth.from(today))
             }
             else -> {
                 salaryReceived = null

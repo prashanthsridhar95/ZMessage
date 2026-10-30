@@ -31,6 +31,7 @@ import com.zyke.message.domain.plan.PlanItem
 import com.zyke.message.domain.plan.PlanItemKind
 import com.zyke.message.domain.plan.SalaryPattern
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.FormGroup
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.FormField
 import com.zyke.message.presentation.common.AmountField
@@ -86,7 +87,7 @@ internal fun PlanSection(
         PlanRow(
             title = if (spotted != null) "Salary to use if none is found" else "Monthly salary",
             value = plan.salary?.let { DisplayFormatters.rupees(it) } ?: "Not set",
-            detail = plan.salaryDay?.let { "Usually arrives on day $it" },
+            detail = if (plan.salaryOnLastWorkingDay) "Arrives on the last working day" else plan.salaryDay?.let { "Usually arrives on day $it" },
             onClick = { editSalary = true }
         )
 
@@ -153,6 +154,7 @@ internal fun PlanSection(
         SalaryDialog(
             amount = plan.salary,
             day = plan.salaryDay,
+            lastWorking = plan.salaryOnLastWorkingDay,
             onSave = { amount, day -> onSalary(amount, day); editSalary = false },
             onDismiss = { editSalary = false }
         )
@@ -204,28 +206,41 @@ private fun PlanRow(title: String, value: String, detail: String?, onClick: () -
 }
 
 @Composable
-private fun SalaryDialog(amount: BigDecimal?, day: Int?, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+private fun SalaryDialog(amount: BigDecimal?, day: Int?, lastWorking: Boolean, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
     var amountText by rememberSaveable { mutableStateOf(amount?.stripTrailingZeros()?.toPlainString().orEmpty()) }
     var dayText by rememberSaveable { mutableStateOf(day?.toString().orEmpty()) }
-    val dayValid = dayText.isBlank() || dayText.toIntOrNull() in 1..MAX_DAY
+    var onLast by rememberSaveable { mutableStateOf(lastWorking) }
 
     FormSheet(
         title = "Monthly salary",
         onDismiss = onDismiss,
         primaryLabel = "Save salary",
-        primaryEnabled = dayValid,
-        onPrimary = { onSave(amountText, dayText) }
+        primaryEnabled = true,
+        onPrimary = { onSave(amountText, if (onLast) "last" else dayText) }
     ) {
         AmountField(
             "Amount that reaches your account, roughly", amountText, { amountText = it },
             supporting = "Leave blank to clear it", quickAdds = listOf(5000, 10000, 25000)
         )
-        DayOfMonthField(
-            label = "Day it arrives (optional)",
-            value = dayText,
-            onChange = { dayText = it },
-            supporting = "Your months can start from this day"
-        )
+        FormGroup("When it arrives") {
+            com.zyke.message.presentation.common.ChoiceCards(
+                choices = listOf(
+                    com.zyke.message.presentation.common.Choice(false, "On a fixed day", "The same date every month"),
+                    com.zyke.message.presentation.common.Choice(true, "On the last working day", "The last Monday to Friday of the month, whatever the date")
+                ),
+                selected = onLast,
+                onSelect = { onLast = it }
+            )
+            if (!onLast) {
+                DayOfMonthField(
+                    label = "Day it arrives (optional)",
+                    value = dayText,
+                    onChange = { dayText = it },
+                    supporting = "Your months can start from this day",
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
     }
 }
 

@@ -106,12 +106,17 @@ class SettingsViewModel(
                 budgetRepository.setBudget(intent.category, amountOf(intent.monthly))
                 emitEffect(Effect.ShowMessage("Limits saved for ${intent.category.displayString}"))
             }
-            is Intent.SetSalary -> planRepository.save(
-                planRepository.plan.value.copy(
-                    salary = amountOf(intent.amount),
-                    salaryDay = intent.day.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAY }
+            is Intent.SetSalary -> {
+                // "last" stands for the last working day of the month; anything else is a day number or blank.
+                val last = intent.day.trim() == "last"
+                planRepository.save(
+                    planRepository.plan.value.copy(
+                        salary = amountOf(intent.amount),
+                        salaryDay = if (last) null else intent.day.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAY },
+                        salaryOnLastWorkingDay = last
+                    )
                 )
-            )
+            }
             is Intent.SetSavingsGoal -> planRepository.save(planRepository.plan.value.copy(savingsGoal = amountOf(intent.amount)))
             is Intent.SetCycle -> planRepository.save(
                 planRepository.plan.value.copy(

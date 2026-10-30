@@ -115,7 +115,7 @@ object CalendarBuilder {
                 all += CalendarEntry(CalendarKind.REGULAR, item.name, item.kind.label, on, item.amount, done = on.isBefore(today))
             }
             val salary = SalaryDetector.detect(messages, now, zone)
-            val salaryDay = salary?.typicalDay ?: plan.salaryDay
+            val salaryDay = salary?.typicalDay ?: plan.salaryDayIn(month)
             val salaryAmount = salary?.typical ?: plan.salary
             if (salaryDay != null) {
                 val on = month.atDay(minOf(salaryDay, month.lengthOfMonth()))
