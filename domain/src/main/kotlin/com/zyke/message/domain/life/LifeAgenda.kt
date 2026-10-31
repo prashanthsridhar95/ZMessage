@@ -22,6 +22,9 @@ data class AgendaItem(
 object LifeAgenda {
     private const val HORIZON_DAYS = 14L
     private const val TRANSIT_DAYS = 5L
+
+    /** "Out for delivery" is news for that day and the next, not for the rest of the week. */
+    private const val OUT_FOR_DELIVERY_DAYS = 1L
     private const val MAX_ITEMS = 6
 
     /** @param messages newest first */
@@ -41,10 +44,16 @@ object LifeAgenda {
             val life = message.content as? MessageContent.Life ?: return@mapNotNull null
             if (life.kind != LifeKind.DELIVERY) return@mapNotNull null
             val seen = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
-            if (seen.isBefore(today.minusDays(TRANSIT_DAYS))) return@mapNotNull null
-            Triple(life.reference ?: "${life.title}-$seen", message, life)
+            // Orders are told apart by their reference, else by what they are, so a later "delivered" from the same shop
+            // closes an earlier "out for delivery" instead of sitting beside it.
+            Triple(life.reference ?: life.title.lowercase(), message, life)
         }.distinctBy { it.first }
             .filter { !it.third.isDone }
+            .filter { (_, message, life) ->
+                val seen = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
+                val days = if (life.status.contains("out for delivery", ignoreCase = true)) OUT_FOR_DELIVERY_DAYS else TRANSIT_DAYS
+                !seen.isBefore(today.minusDays(days))
+            }
             .map { (_, message, life) -> AgendaItem(message, LifeKind.DELIVERY, life.title, life.status, null, null) }
 
         return (dated.sortedWith(compareBy({ it.date }, { it.time })) + orders).distinctBy { it.message.id }.take(MAX_ITEMS)

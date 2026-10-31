@@ -127,4 +127,17 @@ class LifeTest {
         assertTrue(Cleanup.staleIds(listOf(oldPromo), UserMessageState(pinnedIds = setOf(oldPromo.id)), now, SmartFilter.PROMOS).isEmpty())
         assertFalse(Cleanup.staleIds(listOf(oldPromo), UserMessageState(), now, SmartFilter.ALL).isNotEmpty())
     }
+
+    @Test
+    fun anOutForDeliveryNoteIsDroppedAfterADay_andALaterDeliveredClosesIt() {
+        val old = classify("Your order is out for delivery and will reach you today. Track: https://x.in", on = today.minusDays(3))
+        assertEquals(0, LifeAgenda.build(listOf(old), today, zone).size)
+
+        val fresh = classify("Your order is out for delivery and will reach you today. Track: https://x.in", on = today)
+        assertEquals(1, LifeAgenda.build(listOf(fresh), today, zone).size)
+
+        // Shipped three days ago is still on its way.
+        val shipped = classify("Your order has been shipped and will arrive soon. Track: https://x.in", on = today.minusDays(3))
+        assertEquals(1, LifeAgenda.build(listOf(shipped), today, zone).size)
+    }
 }
