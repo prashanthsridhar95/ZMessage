@@ -130,6 +130,7 @@ object QuickAdds {
         val kept = months.mapNotNull { m ->
             val moves = messages.filter { month(it, zone) == m }.mapNotNull { message ->
                 val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
+                if (message.setAside != null) return@mapNotNull null
                 tx.amount.toBigDecimalOrNull()?.let { if (tx.isReceived) it else it.negate() }
             }
             if (moves.isEmpty()) null else moves.fold(BigDecimal.ZERO, BigDecimal::add)
@@ -150,7 +151,7 @@ object QuickAdds {
         val spend = HashMap<MessageCategory, HashMap<java.time.YearMonth, BigDecimal>>()
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived || message.category in COMMITTED || message.category in budgets) return@forEach
+            if (tx.isReceived || message.setAside != null || message.category in COMMITTED || message.category in budgets) return@forEach
             val m = month(message, zone)
             if (m !in months) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach

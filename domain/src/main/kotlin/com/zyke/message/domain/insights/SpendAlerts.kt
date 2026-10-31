@@ -28,7 +28,7 @@ object SpendAlerts {
         val payments = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
-            if (tx.isReceived || tx.payee.isBlank()) null else Payment(message, tx.payee.trim().lowercase(), amount)
+            if (tx.isReceived || message.setAside != null || tx.payee.isBlank()) null else Payment(message, tx.payee.trim().lowercase(), amount)
         }
         val alerts = mutableListOf<SpendAlert>()
 

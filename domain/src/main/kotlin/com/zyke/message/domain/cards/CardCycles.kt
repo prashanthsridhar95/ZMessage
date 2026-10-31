@@ -37,7 +37,7 @@ object CardCycleBuilder {
         return cards.map { card ->
             val moves = messages.mapNotNull { message ->
                 val content = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-                if (message.cardId != card.id) return@mapNotNull null
+                if (message.cardId != card.id || message.setAside != null) return@mapNotNull null
                 val amount = content.amount.toBigDecimalOrNull() ?: return@mapNotNull null
                 Triple(LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone), amount, content.isReceived)
             }

@@ -65,7 +65,7 @@ object SpendingLimits {
         val spentMonth = HashMap<MessageCategory, BigDecimal>()
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived) return@forEach
+            if (tx.isReceived || message.setAside != null) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(monthStart) || date.isAfter(today)) return@forEach

@@ -15,7 +15,7 @@ object SpendSummaryBuilder {
 
         val spends = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (tx.isReceived) return@mapNotNull null
+            if (tx.isReceived || message.setAside != null) return@mapNotNull null
             if (YearMonth.from(Instant.ofEpochMilli(message.message.date).atZone(zone)) != month) return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
             message.category to amount

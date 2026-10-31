@@ -27,7 +27,8 @@ object AccountActivities {
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(from) || date.isAfter(to)) return@filter false
             val amount = tx.amount.toBigDecimalOrNull() ?: return@filter false
-            if (tx.isReceived) received += amount else spent += amount
+            // Still listed, but a payment left out of the totals, or a transfer, is not counted in what was spent or received.
+            if (message.setAside == null) { if (tx.isReceived) received += amount else spent += amount }
             true
         }.sortedByDescending { it.message.date }
         return AccountActivity(spent, received, list)

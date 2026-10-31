@@ -42,7 +42,7 @@ object Subscriptions {
 
         val payments = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (tx.isReceived || tx.payee.isBlank()) return@mapNotNull null
+            if (tx.isReceived || message.setAside != null || tx.payee.isBlank()) return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(earliest) || date.isAfter(today)) return@mapNotNull null

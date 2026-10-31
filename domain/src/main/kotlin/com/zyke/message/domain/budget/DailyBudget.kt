@@ -57,7 +57,7 @@ object DailyBudgets {
         val byDay = HashMap<LocalDate, BigDecimal>()
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived || message.category in COMMITTED) return@forEach
+            if (tx.isReceived || message.setAside != null || message.category in COMMITTED) return@forEach
             // A regular outgoing the plan already set aside (a subscription, a SIP) is not spending from the day's allowance.
             if (PlanMatching.isPlanned(message, planned)) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
