@@ -376,6 +376,8 @@ private fun SummaryPage(
             }
         }
 
+        item(key = "afford") { com.zyke.message.presentation.plan.AffordEntry(state, onIntent) }
+
         if (state.recent.isNotEmpty()) {
             item(key = "activity") {
                 FintechCard {
@@ -498,6 +500,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 }
             }
         }
+        item(key = "friends-link") { FriendsLink(state, onIntent) }
         val recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
         if (recurring.isNotEmpty()) {
             item(key = "subscriptions") {

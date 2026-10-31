@@ -16,6 +16,9 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.split.Split
 import com.zyke.message.domain.split.SplitPerson
+import com.zyke.message.domain.split.SplitPayer
+import com.zyke.message.presentation.common.ChipOption
+import com.zyke.message.presentation.common.Chips
 import com.zyke.message.presentation.common.FormField
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.format.DisplayFormatters
@@ -35,6 +38,7 @@ internal fun SplitDialog(message: ClassifiedMessage, onSave: (Split) -> Unit, on
 
     var title by rememberSaveable { mutableStateOf(defaultTitle) }
     var names by rememberSaveable { mutableStateOf("") }
+    var friendPaid by rememberSaveable { mutableStateOf(false) }
     val friends = names.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
     // Equal parts, the person's own part included.
     val share = if (friends.isEmpty()) BigDecimal.ZERO else total.divide(BigDecimal(friends.size + 1), 2, RoundingMode.HALF_UP)
@@ -49,18 +53,28 @@ internal fun SplitDialog(message: ClassifiedMessage, onSave: (Split) -> Unit, on
             onSave(
                 Split(
                     UUID.randomUUID().toString(), message.id, title.trim().ifEmpty { defaultTitle }, total,
-                    friends.map { SplitPerson(it, share) }
+                    friends.map { SplitPerson(it, share) },
+                    if (friendPaid) SplitPayer.FRIEND else SplitPayer.ME
                 )
             )
         }
     ) {
         FormField("For", title, { title = it }, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences)
+        Text("Who paid?", style = MaterialTheme.typography.labelLarge)
+        Chips(
+            listOf(ChipOption("Me", !friendPaid), ChipOption("Friend", friendPaid)),
+            { friendPaid = it == 1 }
+        )
         FormField(
-            "Who owes you?", names, { names = it }, placeholder = "Ravi, Priya",
+            if (friendPaid) "Who paid?" else "Who owes you?", names, { names = it }, placeholder = "Ravi, Priya",
             supporting = if (friends.isEmpty()) {
-                "Names, separated by commas. Everyone, you included, pays an equal part."
+                if (friendPaid) "The friend who paid. You owe them your equal part." else "Names, separated by commas. Everyone, you included, pays an equal part."
             } else {
-                "${DisplayFormatters.rupees(share)} each. When a credit with their name for about that amount arrives, their share is ticked off."
+                if (friendPaid) {
+                    "You owe ${DisplayFormatters.rupees(share)}. Mark it settled from Friends when you have paid."
+                } else {
+                    "${DisplayFormatters.rupees(share)} each. When a credit with their name for about that amount arrives, their share is ticked off."
+                }
             },
             capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
         )

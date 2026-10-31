@@ -348,7 +348,7 @@ class HomeViewModel(
                 quickAdds = quickAdds,
                 nudges = nudges,
                 refunds = memo("refunds", live, now) { RefundTracker.build(live, now, zone) },
-                owed = memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled } },
+                owed = memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled && it.split.paidBy == com.zyke.message.domain.split.SplitPayer.ME } },
                 subscriptions = memo("subs", live, now) { Subscriptions.find(live, now, zone) },
                 attention = attention,
                 review = review,
