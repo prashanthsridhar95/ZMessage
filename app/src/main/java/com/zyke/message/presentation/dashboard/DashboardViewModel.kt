@@ -66,6 +66,9 @@ class DashboardViewModel(
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduceDashboard { copy(dailyBudgets = daily) } }
         }
+        viewModelScope.launch {
+            budgetRepository.adjustments.collect { adjustments -> reduceDashboard { copy(budgetAdjustments = adjustments) } }
+        }
         userStateRepository?.let { repository ->
             viewModelScope.launch {
                 repository.state.collect { userState -> reduce { copy(dismissedTips = userState.dismissedAttention) } }
@@ -247,16 +250,11 @@ class DashboardViewModel(
             val cardBills = part { memos.of("cardBills", messages, now) { CardBillsBuilder.build(messages, LocalDate.ofInstant(now, zone)) } }
             val cardCycles = part { memos.of("cardCycles", messages, updated.cards, now) { CardCycleBuilder.build(messages, updated.cards, now, zone) } }
             val limits = part {
-                memos.of("limits", messages, updated.budgets, updated.dailyBudgets, now, cycle) {
-                    SpendingLimits.build(messages, updated.budgets, updated.dailyBudgets, now, zone, cycle)
+                memos.of("limits", messages, updated.budgets, updated.dailyBudgets, updated.budgetAdjustments, now, cycle) {
+                    SpendingLimits.build(messages, updated.budgets, updated.dailyBudgets, now, zone, cycle, updated.budgetAdjustments)
                 }
             }
             val sourceOptions = part { memos.of("sourceOptions", messages) { com.zyke.message.domain.dashboard.SourceFilters.options(messages) } }
-            val limitSuggestions = part {
-                memos.of("limitSuggestions", messages, updated.budgets, planInsights, now, cycle) {
-                    com.zyke.message.domain.forecast.LimitSuggestions.build(messages, updated.budgets, planInsights?.spendable, now, zone, cycle)
-                }
-            }
             val forecast = part {
                 // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.
                 val balance = memos.of("accountsBalance", messages, archived, updated.cards, now, cycle, hidden, pfKeys) {
@@ -268,7 +266,7 @@ class DashboardViewModel(
             }
             val ready = Ready(
                 categoryDetail.await(), dashboard.await(), expenseTrend.await(), incomeTrend.await(), reportCard.await(), monthlySummary.await(),
-                cardBills.await(), cardCycles.await(), limits.await(), sourceOptions.await(), limitSuggestions.await(), forecast.await()
+                cardBills.await(), cardCycles.await(), limits.await(), sourceOptions.await(), forecast.await()
             )
             ready
         }
@@ -281,7 +279,7 @@ class DashboardViewModel(
                 expenseTrend = built.expenseTrend, incomeTrend = built.incomeTrend, reportCard = built.reportCard,
                 monthlySummary = built.monthlySummary, cardBills = built.cardBills, cardCycles = built.cardCycles,
                 limits = built.limits, sourceOptions = built.sourceOptions, planInsights = planInsights,
-                limitSuggestions = built.limitSuggestions, forecast = built.forecast
+                forecast = built.forecast
             )
         }
     }
@@ -298,7 +296,6 @@ class DashboardViewModel(
         val cardCycles: List<com.zyke.message.domain.cards.CardCycles>,
         val limits: List<com.zyke.message.domain.dashboard.CategoryLimits>,
         val sourceOptions: List<com.zyke.message.domain.dashboard.SourceOption>,
-        val limitSuggestions: List<com.zyke.message.domain.forecast.LimitSuggestion>,
         val forecast: com.zyke.message.domain.forecast.SpendForecast?
     )
 

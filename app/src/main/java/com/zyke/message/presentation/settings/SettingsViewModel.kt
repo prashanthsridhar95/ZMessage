@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.zyke.message.domain.dashboard.Budgets
+import com.zyke.message.domain.dashboard.CarryOver
 import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.diagnostics.DiagnosticsBuilder
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -76,6 +78,9 @@ class SettingsViewModel(
             budgetRepository.dailyBudgets.collect { daily -> reduce { copy(dailyLimits = daily) }; recomputeLimits() }
         }
         viewModelScope.launch {
+            budgetRepository.adjustments.collect { adjustments -> reduce { copy(budgetAdjustments = adjustments) }; recomputeLimits() }
+        }
+        viewModelScope.launch {
             cardRepository.cards.collect { cards -> reduce { copy(cards = cards) }; recomputeLimits() }
         }
     }
@@ -116,7 +121,26 @@ class SettingsViewModel(
             is Intent.SetLimits -> {
                 budgetRepository.setDailyBudget(intent.category, amountOf(intent.daily))
                 budgetRepository.setBudget(intent.category, amountOf(intent.monthly))
-                emitEffect(Effect.ShowMessage("Limits saved for ${intent.category.displayString}"))
+                val start = currentState().cycleRange?.start
+                if (intent.carry != null && start != null) {
+                    budgetRepository.saveAdjustments(Budgets.setCarry(budgetRepository.adjustments.value, intent.category, intent.carry, start))
+                }
+                emitEffect(Effect.ShowMessage("Budget saved for ${intent.category.displayString}"))
+            }
+            is Intent.MoveBudget -> {
+                val status = currentState().budgetStatus
+                val amount = amountOf(intent.amount)
+                val before = budgetRepository.adjustments.value
+                val after = if (status != null && amount != null) Budgets.move(before, status, intent.from, intent.to, amount) else before
+                if (after != before) {
+                    budgetRepository.saveAdjustments(after)
+                    emitEffect(Effect.ShowMessage("Moved ${com.zyke.message.presentation.format.DisplayFormatters.rupees(amount!!)} to ${intent.to.displayString}"))
+                } else {
+                    emitEffect(Effect.ShowMessage("That is more than ${intent.from.displayString} has left"))
+                }
+            }
+            Intent.UndoBudgetMove -> currentState().cycleRange?.start?.let {
+                budgetRepository.saveAdjustments(Budgets.undoMove(budgetRepository.adjustments.value, it))
             }
             is Intent.SetSalary -> {
                 // "last" stands for the last working day of the month; anything else is a day number or blank.
@@ -154,7 +178,10 @@ class SettingsViewModel(
             is Intent.RemoveLimits -> {
                 budgetRepository.setDailyBudget(intent.category, null)
                 budgetRepository.setBudget(intent.category, null)
-                emitEffect(Effect.ShowMessage("Limits removed"))
+                currentState().cycleRange?.start?.let {
+                    budgetRepository.saveAdjustments(Budgets.setCarry(budgetRepository.adjustments.value, intent.category, CarryOver.RESET, it))
+                }
+                emitEffect(Effect.ShowMessage("Budget removed"))
             }
             is Intent.DeleteCard -> {
                 cardRepository.remove(intent.id)
@@ -192,6 +219,7 @@ class SettingsViewModel(
                     })
                     put("monthlyLimits", org.json.JSONObject().apply { state.monthlyLimits.forEach { (c, v) -> put(c.displayString, v.toPlainString()) } })
                     put("dailyLimits", org.json.JSONObject().apply { state.dailyLimits.forEach { (c, v) -> put(c.displayString, v.toPlainString()) } })
+                    put("budgetCarryOver", org.json.JSONObject().apply { state.budgetAdjustments.carry.forEach { (c, v) -> put(c.displayString, v.name) } })
                     put("cards", org.json.JSONArray().apply {
                         state.cards.forEach { put(org.json.JSONObject().put("type", it.type.name).put("last4", it.last4).put("name", it.name).put("bank", it.bankName).put("statementDay", it.statementDay)) }
                     })
@@ -222,7 +250,7 @@ class SettingsViewModel(
     private fun deriveLimits(state: State): State.() -> State {
         val inbox = inbox
         val cycle = CycleRule.resolve(state.plan, inbox, clock.instant(), clock.zone)
-        val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle)
+        val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle, state.budgetAdjustments)
         val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
         val range = cycle.containing(java.time.LocalDate.ofInstant(clock.instant(), clock.zone))
         val accounts = com.zyke.message.domain.accounts.Accounts.build(
@@ -231,10 +259,13 @@ class SettingsViewModel(
         val spendable = com.zyke.message.domain.plan.PlanInsightsBuilder.build(state.plan, inbox, clock.instant(), clock.zone, cycle)?.spendable
         val suggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(inbox, state.monthlyLimits, spendable, clock.instant(), clock.zone, cycle)
         val cardSpend = com.zyke.message.domain.accounts.CardSpend.status(accounts, state.plan.cardSpendLimit)
+        val budgetStatus = Budgets.status(
+            state.monthlyLimits, state.budgetAdjustments, inbox, cycle, java.time.LocalDate.ofInstant(clock.instant(), clock.zone), clock.zone, spendable
+        )
         return {
             copy(
                 limits = limits, spottedSalary = spotted, cycleRange = range, accounts = accounts,
-                spendable = spendable, limitSuggestions = suggestions, cardSpend = cardSpend
+                spendable = spendable, limitSuggestions = suggestions, cardSpend = cardSpend, budgetStatus = budgetStatus
             )
         }
     }

@@ -90,7 +90,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
 /** The pages Settings is made of; the hub lists them and each opens as a page of its own. */
 private enum class SettingsGroup(val title: String, val icon: Int) {
     MONEY("Money plan", R.drawable.ic_wallet_24),
-    LIMITS("Spending limits", R.drawable.ic_goal_24),
+    LIMITS("Budgets", R.drawable.ic_goal_24),
     CARDS("Cards and accounts", R.drawable.ic_card_24),
     MESSAGES("Messages and pictures", R.drawable.baseline_message_24),
     RULES("Your rules", R.drawable.baseline_list_24),
@@ -229,7 +229,7 @@ private fun setupSteps(state: State): List<Triple<String, String, SettingsGroup>
         add(Triple("Add your salary", "So the app can show what is left to spend each month", SettingsGroup.MONEY))
     }
     if (state.limits.isEmpty()) {
-        add(Triple("Set spending limits", if (state.limitSuggestions.isNotEmpty()) "Suggestions are ready for you" else "Keep a category within what you choose", SettingsGroup.LIMITS))
+        add(Triple("Set budgets", if (state.limitSuggestions.isNotEmpty()) "Suggestions are ready for you" else "Keep a category within what you choose", SettingsGroup.LIMITS))
     }
     if (state.cardSpend == null && state.accounts.any { it.kind == com.zyke.message.domain.accounts.AccountKind.CREDIT_CARD }) {
         add(Triple("Set a credit card limit", "One limit across all your cards", SettingsGroup.LIMITS))
@@ -249,7 +249,7 @@ private fun moneySummary(state: State): String {
 
 private fun limitsSummary(state: State): String {
     val count = state.limits.size
-    val limits = if (count == 0) "None set" else com.zyke.message.presentation.format.DisplayFormatters.count(count, "limit", "limits")
+    val limits = if (count == 0) "None set" else com.zyke.message.presentation.format.DisplayFormatters.count(count, "budget", "budgets")
     return if (state.cardSpend != null) "$limits \u00B7 card limit" else limits
 }
 
@@ -333,8 +333,11 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         }
         SettingsGroup.LIMITS -> LimitsSection(
             limits = state.limits,
-            onSave = { category, daily, monthly -> onIntent(Intent.SetLimits(category, daily, monthly)) },
+            onSave = { category, daily, monthly, carry -> onIntent(Intent.SetLimits(category, daily, monthly, carry)) },
             onRemove = { onIntent(Intent.RemoveLimits(it)) },
+            onMove = { from, to, amount -> onIntent(Intent.MoveBudget(from, to, amount)) },
+            onUndoMove = { onIntent(Intent.UndoBudgetMove) },
+            status = state.budgetStatus,
             spendable = state.spendable,
             suggestions = state.limitSuggestions,
             cardSpend = state.cardSpend,

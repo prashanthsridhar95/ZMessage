@@ -42,7 +42,12 @@ data class CategoryLimits(
     val monthly: LimitLine?,
     /** What can still be spent each remaining day of the month and stay within the monthly limit; null if it is over or there is none. */
     val perDayLeft: BigDecimal?,
-    val daysLeft: Int
+    val daysLeft: Int,
+    /** Leftovers brought in from earlier cycles, already part of the monthly limit above. */
+    val carriedIn: BigDecimal = BigDecimal.ZERO,
+    /** Net money moved in (or out, if negative) this cycle, already part of the monthly limit above. */
+    val moved: BigDecimal = BigDecimal.ZERO,
+    val carry: CarryOver = CarryOver.RESET
 ) {
     val isOver: Boolean get() = (daily?.isOver ?: false) || (monthly?.isOver ?: false)
 }
@@ -56,7 +61,8 @@ object SpendingLimits {
         daily: Map<MessageCategory, BigDecimal>,
         now: Instant,
         zone: ZoneId,
-        cycle: CycleRule = CycleRule.CALENDAR
+        cycle: CycleRule = CycleRule.CALENDAR,
+        adjustments: BudgetAdjustments = BudgetAdjustments()
     ): List<CategoryLimits> {
         val today = LocalDate.ofInstant(now, zone)
         val monthStart = cycle.containing(today).start
@@ -75,12 +81,17 @@ object SpendingLimits {
         }
 
         return (monthly.keys + daily.keys).map { category ->
+            // The monthly limit as it stands this cycle: the budget, plus what was carried in or moved here.
+            val budget = Budgets.lineFor(monthly, adjustments, messages, cycle, today, zone, category)
             val monthlyLine = monthly[category]?.takeIf { it.signum() > 0 }
-                ?.let { LimitLine(LimitPeriod.MONTHLY, it, spentMonth[category] ?: BigDecimal.ZERO) }
+                ?.let { LimitLine(LimitPeriod.MONTHLY, budget?.available ?: it, spentMonth[category] ?: BigDecimal.ZERO) }
             val dailyLine = daily[category]?.takeIf { it.signum() > 0 }
                 ?.let { LimitLine(LimitPeriod.DAILY, it, spentToday[category] ?: BigDecimal.ZERO) }
             val perDay = monthlyLine?.takeIf { !it.isOver }?.available?.divide(BigDecimal(daysLeft), 0, RoundingMode.FLOOR)
-            CategoryLimits(category, dailyLine, monthlyLine, perDay, daysLeft)
+            CategoryLimits(
+                category, dailyLine, monthlyLine, perDay, daysLeft,
+                carriedIn = budget?.carriedIn ?: BigDecimal.ZERO, moved = budget?.moved ?: BigDecimal.ZERO, carry = budget?.carry ?: CarryOver.RESET
+            )
         }.filter { it.daily != null || it.monthly != null }
             .sortedWith(
                 compareByDescending<CategoryLimits> { it.isOver }

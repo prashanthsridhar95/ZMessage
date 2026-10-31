@@ -23,6 +23,10 @@ object SettingsContract {
         val limits: List<CategoryLimits> = emptyList(),
         val dailyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
         val monthlyLimits: Map<MessageCategory, BigDecimal> = emptyMap(),
+        /** Carry-over choices and money moved between budgets. */
+        val budgetAdjustments: com.zyke.message.domain.dashboard.BudgetAdjustments = com.zyke.message.domain.dashboard.BudgetAdjustments(),
+        /** The monthly budgets this cycle: what is assigned, moved, carried, spent, and what is not yet assigned. */
+        val budgetStatus: com.zyke.message.domain.dashboard.BudgetStatus? = null,
         /** What the person has told the app about their month. */
         val plan: MoneyPlan = MoneyPlan(),
         /** The pay cycle now in force, from the person's choice. */
@@ -56,7 +60,17 @@ object SettingsContract {
         data class SaveCard(val card: UserCard) : Intent
         data class DeleteCard(val id: String) : Intent
         /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */
-        data class SetLimits(val category: MessageCategory, val daily: String, val monthly: String) : Intent
+        data class SetLimits(
+            val category: MessageCategory,
+            val daily: String,
+            val monthly: String,
+            /** Null leaves the carry-over choice as it is. */
+            val carry: com.zyke.message.domain.dashboard.CarryOver? = null
+        ) : Intent
+        /** Moves part of what is left of one budget to another, this cycle. */
+        data class MoveBudget(val from: MessageCategory, val to: MessageCategory, val amount: String) : Intent
+        /** Takes back the last move of this cycle. */
+        data object UndoBudgetMove : Intent
         data class RemoveLimits(val category: MessageCategory) : Intent
         /** The most to spend on credit cards in a month, all cards together; blank clears it. */
         data class SetCardLimit(val amount: String) : Intent

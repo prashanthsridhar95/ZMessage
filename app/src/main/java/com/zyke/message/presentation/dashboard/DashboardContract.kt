@@ -71,10 +71,11 @@ object DashboardContract {
         val cardCycles: List<CardCycles> = emptyList(),
         /** Daily limits; the monthly ones are [budgets]. */
         val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        /** Carry-over and money moved between budgets, which make up the monthly limit shown in [limits]. */
+        val budgetAdjustments: com.zyke.message.domain.dashboard.BudgetAdjustments = com.zyke.message.domain.dashboard.BudgetAdjustments(),
         /** The person's money plan, and how this month is going against it; null insights when no plan is filled in. */
         val plan: MoneyPlan = MoneyPlan(),
         val planInsights: PlanInsights? = null,
-        val limitSuggestions: List<com.zyke.message.domain.forecast.LimitSuggestion> = emptyList(),
         val forecast: com.zyke.message.domain.forecast.SpendForecast? = null,
         /** Where each category with a limit stands today and this month. */
         val limits: List<CategoryLimits> = emptyList(),

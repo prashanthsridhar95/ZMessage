@@ -69,7 +69,6 @@ import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.presentation.dashboard.components.LimitsCard
 import com.zyke.message.presentation.dashboard.components.ForecastCard
-import com.zyke.message.presentation.dashboard.components.LimitSuggestionsCard
 import com.zyke.message.presentation.dashboard.components.PlanCard
 import com.zyke.message.presentation.dashboard.components.CardBillRow
 import com.zyke.message.presentation.dashboard.components.CardCyclesSection
@@ -388,22 +387,9 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         item(key = "limits") {
-            LimitsCard(state.limits, onManage = LocalOpenSettings.current)
-        }
-
-        item(key = "envelopes") {
-            var open by remember { mutableStateOf(false) }
-            EnvelopesEntryCard { open = true }
-            if (open) EnvelopesPage(state.messages, state.cycle, today, state.planInsights?.spendable) { open = false }
-        }
-
-        if (state.limitSuggestions.isNotEmpty()) {
-            item(key = "limit-suggestions") {
-                LimitSuggestionsCard(
-                    state.limitSuggestions,
-                    onSet = { category, amount -> onIntent(Intent.SaveBudget(category, amount.toPlainString())) }
-                )
-            }
+            val spendable = state.planInsights?.spendable
+            val budgeted = state.budgets.values.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+            LimitsCard(state.limits, onManage = LocalOpenSettings.current, unassigned = spendable?.takeIf { state.budgets.isNotEmpty() }?.subtract(budgeted))
         }
     }
     if (showYear && reviewYear != null) {

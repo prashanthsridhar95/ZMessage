@@ -40,6 +40,7 @@ object HomeContract {
         val userState: UserMessageState = UserMessageState(),
         val budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
         val dailyBudgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        val budgetAdjustments: com.zyke.message.domain.dashboard.BudgetAdjustments = com.zyke.message.domain.dashboard.BudgetAdjustments(),
         val plan: MoneyPlan = MoneyPlan(),
         val goalList: List<Goal> = emptyList(),
         val reminderList: List<Reminder> = emptyList(),

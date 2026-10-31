@@ -123,6 +123,9 @@ class HomeViewModel(
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
+        viewModelScope.launch {
+            budgetRepository.adjustments.collect { adjustments -> reduceHome { copy(budgetAdjustments = adjustments) } }
+        }
         viewModelScope.launch { planRepository.plan.collect { plan -> reduceHome { copy(plan = plan) } } }
         viewModelScope.launch { goalRepository.goals.collect { goals -> reduceHome { copy(goalList = goals) } } }
         viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
@@ -344,8 +347,8 @@ class HomeViewModel(
                     }
                 }
                 val limits = part {
-                    memo("limits", live, updated.budgets, updated.dailyBudgets, now, cycle) {
-                        SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, now, zone, cycle)
+                    memo("limits", live, updated.budgets, updated.dailyBudgets, updated.budgetAdjustments, now, cycle) {
+                        SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, now, zone, cycle, updated.budgetAdjustments)
                     }
                 }
                 val balances = part { memo("balances", live) { BalanceReader.latest(live, zone) } }

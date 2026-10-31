@@ -1063,23 +1063,31 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
  * points the way there.
  */
 @Composable
-internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modifier: Modifier = Modifier) {
-    SectionCard(title = "Spending limits", modifier = modifier) {
+internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modifier: Modifier = Modifier, unassigned: java.math.BigDecimal? = null) {
+    SectionCard(title = "Budgets", modifier = modifier) {
         if (limits.isEmpty()) {
-            Caption("No limits set")
+            Caption("No budgets set")
         } else {
+            if (unassigned != null) {
+                Caption(
+                    if (unassigned.signum() < 0) "${DisplayFormatters.rupees(unassigned.abs())} over-assigned against what your plan leaves to spend"
+                    else "${DisplayFormatters.rupees(unassigned)} not yet assigned",
+                    Modifier.padding(bottom = 10.dp)
+                )
+            }
             limits.take(MAX_LIMITS_SHOWN).forEachIndexed { index, entry ->
                 if (index > 0) HorizontalDivider(Modifier.padding(vertical = 10.dp))
                 RowTitle(entry.category.displayString)
                 entry.daily?.let { LimitStatus(it, Modifier.padding(top = 4.dp)) }
                 entry.monthly?.let { LimitStatus(it, Modifier.padding(top = 8.dp)) }
+                carryNote(entry)?.let { Caption(it, Modifier.padding(top = 4.dp), maxLines = 2) }
             }
             if (limits.size > MAX_LIMITS_SHOWN) {
                 Caption("${limits.size - MAX_LIMITS_SHOWN} more in Settings", Modifier.padding(top = 10.dp))
             }
         }
         AppButton(
-            text = if (limits.isEmpty()) "Set limits in Settings" else "Manage limits in Settings",
+            text = if (limits.isEmpty()) "Set budgets in Settings" else "Manage budgets in Settings",
             onClick = onManage,
             style = ButtonStyle.TONAL,
             size = ButtonSize.COMPACT,
@@ -1089,6 +1097,15 @@ internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modi
 }
 
 private const val MAX_LIMITS_SHOWN = 4
+
+/** "Includes ₹600 carried over" / "₹200 moved in", or null when the budget is the plain amount. */
+internal fun carryNote(entry: CategoryLimits): String? {
+    val parts = buildList {
+        if (entry.carriedIn.signum() > 0) add("includes ${DisplayFormatters.rupees(entry.carriedIn)} carried over")
+        if (entry.moved.signum() != 0) add("${DisplayFormatters.rupees(entry.moved.abs())} moved ${if (entry.moved.signum() > 0) "in" else "out"}")
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" \u00B7 ")?.replaceFirstChar { it.uppercase() }
+}
 
 private val RangeFormat = FormatCache.pattern("d MMM", Locale.getDefault())
 

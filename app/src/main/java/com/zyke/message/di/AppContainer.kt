@@ -63,7 +63,6 @@ class AppContainer(context: Context) {
     val goals: GoalRepository by lazy { GoalRepositoryImpl(context) }
     val goalContributions: com.zyke.message.domain.goals.GoalContributionRepository by lazy { com.zyke.message.data.repository.GoalContributionRepositoryImpl(context) }
     val goalSavings by lazy { com.zyke.message.domain.goals.GoalSavings(goals, goalContributions) }
-    val envelopes: com.zyke.message.domain.envelopes.EnvelopeRepository by lazy { com.zyke.message.data.repository.EnvelopeRepositoryImpl(context) }
     val reminders: ReminderRepository by lazy { ReminderRepositoryImpl(context) }
     val imageStore by lazy { ImageStore(context) { settings.settings.value.fetchLogos } }
     val messageClassifier by lazy { MessageClassifier() }

@@ -70,7 +70,8 @@ sent / received transactions for a period (this month, last month, 3 months, all
 - **credit card bills by card**: latest statement (amount, minimum, due date, pay link) with earlier
   statements on tap; independent of the selected period
 - a daily (or monthly) trend, drawn as bars stacked by category with a colour key
-- totals **by category**: tap one to filter everything below it; set a **monthly budget** per category
+- totals **by category**: tap one to filter everything below it; set a **monthly budget** per category (Settings > Budgets, with optional carry-over
+  and move-money)
   and see what is left (amber from 80%, red once over) for this month's spending
 - **top vendors** (UPI ids and merchants grouped by name): tap one for its latest payments
 - **paid from**: which account or card the money moved through

@@ -74,6 +74,21 @@ hands snapshots to a `WatchLink`. The default build uses `NoWatchLink` (`src/wea
 the phone, `minSdk` 30). Without the flag the existing build, CI and `ManifestPolicyTest` are untouched; `WearPolicyTest`
 keeps the normal build free of Play services and the watch manifest free of permissions.
 
+## Budgets
+
+A budget is a category's monthly amount, optionally with a daily cap. There is one concept, one store and one editor.
+`BudgetRepository` (`:domain`) is the only store: prefs `budgets` (a key per category, plus an `adjustments` key holding
+each category's carry-over choice, where carrying began and the money moved between budgets per cycle) and `daily_budgets`.
+`SpendingLimits` (status of each budget today and this month, with carry-over and moves folded into the monthly limit) and
+`Budgets` (carry-over, move money, "not yet assigned" from the plan's spendable) are pure and unit-tested. The editor is
+Settings > Budgets (`LimitsSection`); Insights only shows status (`LimitsCard`) and links there.
+
+The former Envelopes feature (prefs `envelopes`, per-cycle amounts) was merged into this. `BudgetRepositoryImpl` reads the
+old file once, behind a `migrated_envelopes` flag in `budgets`: the latest cycle's amounts become monthly budgets where
+none exist, and carry-over choices and moves are copied (`BudgetMigration`, pure and tested). The old file is left in
+place. `PrefsBackup` copies every prefs file, so backups carry the unified store, and a backup made before the merge
+restores and migrates on the next start. See `docs/UNIFICATION.md` for the other overlaps that were audited.
+
 ## Quality gates
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`
