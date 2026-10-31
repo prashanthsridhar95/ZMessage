@@ -84,6 +84,28 @@ private fun accentScheme(accent: AccentColor, dark: Boolean): ColorScheme {
     }
 }
 
+/** Light, Night or True black scheme built from the person's one chosen colour, every text pair at least 4.5:1. */
+fun customColorScheme(seed: Long, dark: Boolean, black: Boolean): ColorScheme {
+    val r = com.zyke.message.domain.model.AccentPalette.forSeed(seed, dark, dark && black)
+    fun c(v: Long) = Color(v)
+    return if (dark) {
+        val s = darkColorScheme(
+            primary = c(r.primary), onPrimary = c(r.onPrimary), primaryContainer = c(r.primaryContainer), onPrimaryContainer = c(r.onPrimaryContainer),
+            secondary = c(r.secondary), onSecondary = c(r.onSecondary), secondaryContainer = c(r.secondaryContainer), onSecondaryContainer = c(r.onSecondaryContainer),
+            tertiary = c(r.tertiary), onTertiary = c(r.onTertiary), tertiaryContainer = c(r.tertiaryContainer), onTertiaryContainer = c(r.onTertiaryContainer),
+            surfaceTint = c(r.surfaceTint)
+        )
+        if (black) s.pureBlack() else s
+    } else {
+        lightColorScheme(
+            primary = c(r.primary), onPrimary = c(r.onPrimary), primaryContainer = c(r.primaryContainer), onPrimaryContainer = c(r.onPrimaryContainer),
+            secondary = c(r.secondary), onSecondary = c(r.onSecondary), secondaryContainer = c(r.secondaryContainer), onSecondaryContainer = c(r.onSecondaryContainer),
+            tertiary = c(r.tertiary), onTertiary = c(r.onTertiary), tertiaryContainer = c(r.tertiaryContainer), onTertiaryContainer = c(r.onTertiaryContainer),
+            surfaceTint = c(r.surfaceTint)
+        )
+    }
+}
+
 /** Pure #000 for the background and surfaces (OLED); raised containers stay just off black so they still read. */
 private fun ColorScheme.pureBlack(): ColorScheme = copy(
     background = Color.Black, surface = Color.Black, surfaceDim = Color.Black, surfaceContainerLowest = Color.Black,
@@ -99,6 +121,8 @@ fun ZykeMessageTheme(
     dynamicColor: Boolean = true,
     trueBlack: Boolean = false,
     accent: AccentColor = AccentColor.DEFAULT,
+    /** The seed behind [AccentColor.CUSTOM]; without one the custom accent falls back to its built-in blue. */
+    customAccent: Long? = null,
     content: @Composable () -> Unit
 ) {
     val base = when {
@@ -108,6 +132,7 @@ fun ZykeMessageTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
+        accent == AccentColor.CUSTOM && customAccent != null -> customColorScheme(customAccent, darkTheme, trueBlack && darkTheme)
         accent != AccentColor.DEFAULT -> accentScheme(accent, darkTheme)
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
@@ -136,7 +161,14 @@ fun ZykeMessageTheme(
 /** A row of colour dots for choosing the accent; the chosen one is ringed and ticked. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AccentSwatches(selected: AccentColor, onSelect: (AccentColor) -> Unit, modifier: Modifier = Modifier) {
+fun AccentSwatches(
+    selected: AccentColor,
+    onSelect: (AccentColor) -> Unit,
+    modifier: Modifier = Modifier,
+    /** The seed of the person's own colour, if chosen; the "Custom" swatch shows it and [onCustom] opens the picker. */
+    customAccent: Long? = null,
+    onCustom: () -> Unit = {}
+) {
     val dark = isSystemInDarkTheme() || LocalTrueBlack.current ||
         MaterialTheme.colorScheme.background.luminance() < 0.5f
     androidx.compose.foundation.layout.FlowRow(
@@ -144,7 +176,7 @@ fun AccentSwatches(selected: AccentColor, onSelect: (AccentColor) -> Unit, modif
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        AccentColor.entries.forEach { accent ->
+        AccentColor.entries.filter { it != AccentColor.CUSTOM }.forEach { accent ->
             val chosen = accent == selected
             val fill = Color(if (dark) accent.darkPrimary else accent.lightPrimary)
             val onFill = Color(if (dark) accent.darkOnPrimary else accent.lightOnPrimary)
@@ -160,6 +192,34 @@ fun AccentSwatches(selected: AccentColor, onSelect: (AccentColor) -> Unit, modif
             ) {
                 if (chosen) Text("\u2713", color = onFill, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
+        }
+        CustomSwatch(selected == AccentColor.CUSTOM, customAccent, dark, onCustom)
+    }
+}
+
+/** The "Custom" swatch: a rainbow ring around the person's own colour (or an empty centre before one is chosen). */
+@Composable
+private fun CustomSwatch(chosen: Boolean, seed: Long?, dark: Boolean, onClick: () -> Unit) {
+    val rainbow = androidx.compose.ui.graphics.Brush.sweepGradient(
+        (0..6).map { Color.hsv((it * 60f) % 360f, 0.85f, 1f) }
+    )
+    val roles = seed?.let { com.zyke.message.domain.model.AccentPalette.forSeed(it, dark, dark && LocalTrueBlack.current) }
+    val fill = roles?.let { Color(it.primary) } ?: MaterialTheme.colorScheme.surface
+    val onFill = roles?.let { Color(it.onPrimary) } ?: MaterialTheme.colorScheme.onSurface
+    val desc = if (seed != null) "Custom colour ${com.zyke.message.domain.model.ColorMath.formatHex(seed)}, opens colour picker" else "Custom colour, opens colour picker"
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(rainbow)
+            .border(if (chosen) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+            .selectable(selected = chosen, role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = desc },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(Modifier.size(30.dp).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            if (chosen) Text("\u2713", color = onFill, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            else if (seed == null) Text("+", color = onFill, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
     }
 }

@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             ) {
-            ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent) {
+            ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent, customAccent = appSettings.customAccent) {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
                 androidx.compose.runtime.LaunchedEffect(locked) { if (!locked) startPermissionFlow() }

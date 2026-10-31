@@ -22,5 +22,7 @@ data class AppSettings(
     val lowBalanceFloor: java.math.BigDecimal? = null,
     /** Shows the big money figures as dots until tapped. */
     val hideAmounts: Boolean = false,
-    val accent: AccentColor = AccentColor.DEFAULT
+    val accent: AccentColor = AccentColor.DEFAULT,
+    /** The seed (0xFFRRGGBB) behind [AccentColor.CUSTOM]; null when none has been chosen. */
+    val customAccent: Long? = null
 )

@@ -446,12 +446,24 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             )
             Caption("Automatic follows your phone. True black is pure black, easy on OLED screens.", Modifier.padding(top = 8.dp), maxLines = 3)
             Caption("COLOUR", Modifier.padding(top = 16.dp))
+            var picking by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+            val customSeed = state.settings.customAccent
             com.zyke.message.presentation.theme.AccentSwatches(
                 selected = state.settings.accent,
                 onSelect = { onIntent(Intent.SetAccent(it)) },
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 8.dp),
+                customAccent = customSeed,
+                onCustom = { picking = true }
             )
-            Caption("Default uses your phone's wallpaper colours where it has them", Modifier.padding(top = 8.dp), maxLines = 2)
+            Caption("Default uses your phone's wallpaper colours where it has them. The ring is your own colour.", Modifier.padding(top = 8.dp), maxLines = 3)
+            if (picking) {
+                CustomAccentSheet(
+                    initial = customSeed,
+                    onSave = { onIntent(Intent.SetCustomAccent(it)); picking = false },
+                    onReset = { onIntent(Intent.SetAccent(com.zyke.message.domain.model.AccentColor.DEFAULT)); picking = false },
+                    onDismiss = { picking = false }
+                )
+            }
         }
         SettingsGroup.DEVELOPER -> DeveloperContent()
         SettingsGroup.ABOUT -> {

@@ -25,7 +25,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             headsUp = prefs.getBoolean(HEADS_UP, false),
             lowBalanceFloor = prefs.getString(LOW_BALANCE_FLOOR, null)?.toBigDecimalOrNull(),
             hideAmounts = prefs.getBoolean(HIDE_AMOUNTS, false),
-            accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null))
+            accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null)),
+            customAccent = com.zyke.message.domain.model.ColorMath.parseHex(prefs.getString(CUSTOM_ACCENT, null))
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -85,6 +86,15 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(hideAmounts = enabled)
     }
 
+    override fun setCustomAccent(argb: Long) {
+        val hex = com.zyke.message.domain.model.ColorMath.formatHex(argb)
+        prefs.edit().putString(CUSTOM_ACCENT, hex).putString(ACCENT, com.zyke.message.domain.model.AccentColor.CUSTOM.name).apply()
+        _settings.value = _settings.value.copy(
+            accent = com.zyke.message.domain.model.AccentColor.CUSTOM,
+            customAccent = com.zyke.message.domain.model.ColorMath.parseHex(hex)
+        )
+    }
+
     override fun setAccent(accent: com.zyke.message.domain.model.AccentColor) {
         prefs.edit().putString(ACCENT, accent.name).apply()
         _settings.value = _settings.value.copy(accent = accent)
@@ -93,6 +103,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private companion object {
         const val HIDE_AMOUNTS = "hide_amounts"
         const val ACCENT = "accent"
+        const val CUSTOM_ACCENT = "custom_accent"
         const val WEEKLY_SUMMARY = "weekly_summary"
         const val HEADS_UP = "heads_up"
         const val LOW_BALANCE_FLOOR = "low_balance_floor"

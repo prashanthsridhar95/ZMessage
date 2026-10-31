@@ -18,7 +18,10 @@ enum class AccentColor(
     GREEN("Green", 0xFF1B6D3A, 0xFFFFFFFF, 0xFF8FD99B, 0xFF00391B),
     ORANGE("Orange", 0xFF9A4A00, 0xFFFFFFFF, 0xFFFFB77C, 0xFF4E2600),
     ROSE("Rose", 0xFFA5254F, 0xFFFFFFFF, 0xFFFFB1C4, 0xFF5F0A27),
-    TEAL("Teal", 0xFF006A6A, 0xFFFFFFFF, 0xFF4CDADA, 0xFF003737);
+    TEAL("Teal", 0xFF006A6A, 0xFFFFFFFF, 0xFF4CDADA, 0xFF003737),
+
+    /** The person's own colour (see [AppSettings.customAccent]); the values here are only the fallback if none is stored. */
+    CUSTOM("Custom", 0xFF1A5FB4, 0xFFFFFFFF, 0xFFA8C8FF, 0xFF00315F);
 
     companion object {
         /** The accent stored under [name]; anything missing or unknown is [DEFAULT]. */
