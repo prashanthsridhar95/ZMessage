@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.home
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,9 +44,9 @@ import com.zyke.message.presentation.messages.components.mutedColor
  * the same state labels and the same empty page.
  */
 
-internal val Good = Color(0xFF2E9E5B)
-internal val Warn = Color(0xFFD9951B)
-internal val Danger = Color(0xFFD64550)
+internal val Good: Color @Composable @ReadOnlyComposable get() = AppColors.success
+internal val Warn: Color @Composable @ReadOnlyComposable get() = AppColors.warning
+internal val Danger: Color @Composable @ReadOnlyComposable get() = AppColors.danger
 
 /** How a state is shown: a colour and, always, a word, so nothing depends on colour alone. */
 internal enum class Tone { GOOD, WARN, BAD, NEUTRAL }

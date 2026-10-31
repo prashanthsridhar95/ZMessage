@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.Image
 import kotlin.math.roundToInt
 import kotlin.math.abs
@@ -61,11 +63,13 @@ import com.zyke.message.presentation.messages.components.RowTitle
 
 /** Grades read as a colour as well as a letter, so the month's mood is felt at a glance. */
 private object GradeColors {
-    val good = Color(0xFF3DD6A0)
-    val fair = Color(0xFFF5B942)
-    val poor = Color(0xFFFF6B6B)
-    val none = Color(0xFF8A9BA8)
+    val good: Color @Composable @ReadOnlyComposable get() = AppColors.success
+    val fair: Color @Composable @ReadOnlyComposable get() = AppColors.warning
+    val poor: Color @Composable @ReadOnlyComposable get() = AppColors.danger
+    val none: Color @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.onSurfaceVariant
 
+    @Composable
+    @ReadOnlyComposable
     fun of(grade: Grade?): Color = when (grade) {
         Grade.A, Grade.B -> good
         Grade.C -> fair

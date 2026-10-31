@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.theme
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -115,9 +117,12 @@ fun ZykeMessageTheme(
     CompositionLocalProvider(LocalTrueBlack provides black) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = AppTypography,
-            content = content
-        )
+            typography = AppTypography
+        ) {
+            // Text outside a Surface/Scaffold would otherwise use Compose's default content colour (black). Setting it
+            // once here makes every screen readable in every mode, whatever it paints behind itself.
+            CompositionLocalProvider(LocalContentColor provides colorScheme.onBackground, content = content)
+        }
     }
 }
 

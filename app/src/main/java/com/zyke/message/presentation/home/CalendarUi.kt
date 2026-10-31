@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.home
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,13 +82,15 @@ import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
 
+@Composable
+@ReadOnlyComposable
 private fun kindColor(kind: CalendarKind): Color = when (kind) {
-    CalendarKind.EVENT -> Color(0xFF4C8DF6)
-    CalendarKind.REMINDER -> Color(0xFFE0A526)
-    CalendarKind.BILL -> Color(0xFFE8505B)
+    CalendarKind.EVENT -> AppColors.info
+    CalendarKind.REMINDER -> AppColors.warning
+    CalendarKind.BILL -> AppColors.danger
     CalendarKind.DEBIT -> Color(0xFFF08A3C)
     CalendarKind.REGULAR -> Color(0xFF9B6BE0)
-    CalendarKind.SALARY -> Color(0xFF34A853)
+    CalendarKind.SALARY -> AppColors.success
     CalendarKind.LIFE -> Color(0xFF2FB8C8)
     CalendarKind.WARRANTY -> Color(0xFFC2689A)
     CalendarKind.GOAL -> Color(0xFF7AA33A)

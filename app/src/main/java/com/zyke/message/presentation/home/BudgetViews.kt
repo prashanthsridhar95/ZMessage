@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.home
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,8 +70,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val UnderColor = Color(0xFF34A853)
-private val OverColor = Color(0xFFE8505B)
+private val UnderColor: Color @Composable @ReadOnlyComposable get() = AppColors.success
+private val OverColor: Color @Composable @ReadOnlyComposable get() = AppColors.danger
 
 /** Today's share of what is spendable, how much of it is left, and the run of days kept within it. Tap for the calendar. */
 @Composable

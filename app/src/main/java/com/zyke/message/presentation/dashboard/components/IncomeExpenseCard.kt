@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
+import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.theme.AppColors
 import com.zyke.message.presentation.common.rememberReduceMotion
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.ButtonSize
@@ -57,8 +59,8 @@ import java.math.BigDecimal
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val IncomeColor = Color(0xFF34A853)
-private val ExpenseColor = Color(0xFFE8505B)
+private val IncomeColor: Color @Composable @ReadOnlyComposable get() = AppColors.success
+private val ExpenseColor: Color @Composable @ReadOnlyComposable get() = AppColors.danger
 
 /**
  * The top of the Spend tab: money out and money in over the period as two lines. The two totals underneath are
@@ -87,6 +89,8 @@ internal fun IncomeExpenseCard(
         DashboardPeriod.ALL_TIME -> "All time"
     }
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val incomeColor = IncomeColor
+    val expenseColor = ExpenseColor
 
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -169,8 +173,8 @@ internal fun IncomeExpenseCard(
                     // Zoomed in far enough, each day or month gets its own dot.
                     if (shownSpan <= DOT_SPAN) points.forEach { drawCircle(color, radius = 2.5.dp.toPx(), center = it) }
                 }
-                draw(received, IncomeColor)
-                draw(spent, ExpenseColor)
+                draw(received, incomeColor)
+                draw(spent, expenseColor)
             }
             val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {

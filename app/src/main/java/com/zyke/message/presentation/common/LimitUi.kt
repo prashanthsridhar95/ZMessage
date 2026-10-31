@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -27,12 +27,7 @@ import com.zyke.message.presentation.format.DisplayFormatters
 data class LimitColors(val good: Color, val bad: Color)
 
 @Composable
-fun limitColors(): LimitColors =
-    if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
-        LimitColors(good = Color(0xFF0B7A55), bad = Color(0xFFC62828))
-    } else {
-        LimitColors(good = Color(0xFF3DD6A0), bad = Color(0xFFFF6B6B))
-    }
+fun limitColors(): LimitColors = LimitColors(good = AppColors.success, bad = AppColors.danger)
 
 /** The words for a limit's position: "₹250 over today's limit" or "₹420 available today". Words as well as colour. */
 fun limitText(line: LimitLine): String {

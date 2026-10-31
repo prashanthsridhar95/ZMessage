@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -109,6 +111,9 @@ private fun PageLayer(entry: PageEntry) {
         val width = constraints.maxWidth
         // The page and anything floating over it slide in together.
         Box(Modifier.fillMaxSize().offset { IntOffset((away.value * width).roundToInt(), 0) }) {
+        // The page paints its own surface, so it must also say what text on it looks like: without this Text falls back to
+        // Compose's default content colour, black, which vanishes on a dark page.
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -141,6 +146,7 @@ private fun PageLayer(entry: PageEntry) {
             ) {
                 entry.content(this)
             }
+        }
         }
         entry.floating?.invoke(this)
         }
