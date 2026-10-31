@@ -557,8 +557,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             GoalsContent(
                 goals = state.goals,
                 onSave = { onIntent(Intent.SaveGoal(it)) },
-                onRemove = { onIntent(Intent.RemoveGoal(it)) },
-                onAdd = { id, amount -> onIntent(Intent.AddToGoal(id, amount)) }
+                onRemove = { onIntent(Intent.RemoveGoal(it)) }
             )
         }
     }

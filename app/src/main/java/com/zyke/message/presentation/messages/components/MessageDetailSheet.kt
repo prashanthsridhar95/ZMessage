@@ -264,6 +264,7 @@ internal fun MessageDetailSheet(
                             DetailRow("This is a transfer between my accounts", null) { ledger.markTransfer(item, true) }
                         }
                     }
+                    if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) GoalLinkRow(item)
                     if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
                 }
             }

@@ -26,7 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import androidx.compose.runtime.LaunchedEffect
 import com.zyke.message.domain.goals.Goal
+import com.zyke.message.domain.goals.GoalContribution
+import com.zyke.message.domain.goals.GoalContributions
+import com.zyke.message.presentation.common.LinkButton
 import com.zyke.message.domain.goals.GoalProgress
 import com.zyke.message.domain.reminders.Reminder
 import com.zyke.message.domain.reminders.ReminderDue
@@ -55,14 +59,26 @@ import kotlinx.coroutines.launch
 internal fun GoalsContent(
     goals: List<GoalProgress>,
     onSave: (Goal) -> Unit,
-    onRemove: (String) -> Unit,
-    onAdd: (String, BigDecimal) -> Unit
+    onRemove: (String) -> Unit
 ) {
+    val savings = com.zyke.message.presentation.common.rememberGoalSavings()
+    val contributions by com.zyke.message.presentation.common.rememberGoalContributions()
+    // Goals made before there was a history get what they had saved as an opening entry; idempotent.
+    LaunchedEffect(goals.map { it.goal.id to it.goal.saved }) { savings.reconcile(LocalDate.now()) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
     var topping by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
+    fun history(progress: GoalProgress) = GoalContributions.forGoal(contributions, progress.goal.id)
+    fun removeContribution(entry: GoalContribution) {
+        savings.remove(entry.id)
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            val result = snackbar.showSnackbar("Removed ${DisplayFormatters.rupees(entry.amount)}", actionLabel = "Undo", duration = SnackbarDuration.Long)
+            if (result == SnackbarResult.ActionPerformed) savings.restore(entry)
+        }
+    }
 
     if (goals.isEmpty()) {
         EmptyPlan(
@@ -90,11 +106,11 @@ internal fun GoalsContent(
         val done = goals.filter { it.isReached }
         if (active.isNotEmpty()) {
             SectionHeader("In progress", active.size)
-            active.forEach { GoalCard(it, onEdit = { editing = it.goal.id }, onAddMoney = { topping = it.goal.id }) }
+            active.forEach { GoalCard(it, history(it), ::removeContribution, onEdit = { editing = it.goal.id }, onAddMoney = { topping = it.goal.id }) }
         }
         if (done.isNotEmpty()) {
             SectionHeader("Reached", done.size)
-            done.forEach { GoalCard(it, onEdit = { editing = it.goal.id }, onAddMoney = null) }
+            done.forEach { GoalCard(it, history(it), ::removeContribution, onEdit = { editing = it.goal.id }, onAddMoney = null) }
         }
     }
 
@@ -126,7 +142,7 @@ internal fun GoalsContent(
             hint = "Enter how much to add",
             onPrimary = {
                 val added = value!!
-                onAdd(progress.goal.id, added)
+                savings.add(progress.goal.id, added, LocalDate.now())
                 topping = null
                 scope.launch { snackbar.showSnackbar("Added ${DisplayFormatters.rupees(added)} to ${progress.goal.name}") }
             }
@@ -141,7 +157,13 @@ internal fun GoalsContent(
 }
 
 @Composable
-private fun GoalCard(progress: GoalProgress, onEdit: () -> Unit, onAddMoney: (() -> Unit)?) {
+private fun GoalCard(
+    progress: GoalProgress,
+    history: List<GoalContribution>,
+    onRemoveContribution: (GoalContribution) -> Unit,
+    onEdit: () -> Unit,
+    onAddMoney: (() -> Unit)?
+) {
     val goal = progress.goal
     val tone = when {
         progress.isReached -> Tone.GOOD
@@ -173,6 +195,27 @@ private fun GoalCard(progress: GoalProgress, onEdit: () -> Unit, onAddMoney: (()
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Caption("${DisplayFormatters.rupees(progress.remaining)} to go", Modifier.weight(1f))
                 AppButton("Add money", onAddMoney, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
+            }
+        }
+        GoalHistory(history, onRemoveContribution)
+    }
+}
+
+/** What has been put towards a goal, newest first; a row can be removed (the page offers Undo). */
+@Composable
+private fun GoalHistory(history: List<GoalContribution>, onRemove: (GoalContribution) -> Unit) {
+    if (history.isEmpty()) return
+    var open by rememberSaveable(history.first().goalId) { mutableStateOf(false) }
+    LinkButton(if (open) "Hide history" else "History (${history.size})", { open = !open })
+    if (open) {
+        val format = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+        history.forEach { entry ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(DisplayFormatters.rupees(entry.amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Caption("${format.format(entry.date)} · ${entry.source.label}")
+                }
+                LinkButton("Remove", { onRemove(entry) })
             }
         }
     }

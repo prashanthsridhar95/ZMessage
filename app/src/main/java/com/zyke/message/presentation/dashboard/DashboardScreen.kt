@@ -390,6 +390,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             LimitsCard(state.limits, onManage = LocalOpenSettings.current)
         }
 
+        item(key = "envelopes") {
+            var open by remember { mutableStateOf(false) }
+            EnvelopesEntryCard { open = true }
+            if (open) EnvelopesPage(state.messages, state.cycle, today, state.planInsights?.spendable) { open = false }
+        }
+
         if (state.limitSuggestions.isNotEmpty()) {
             item(key = "limit-suggestions") {
                 LimitSuggestionsCard(

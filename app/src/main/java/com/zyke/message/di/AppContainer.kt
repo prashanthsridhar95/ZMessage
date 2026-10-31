@@ -56,6 +56,9 @@ class AppContainer(context: Context) {
     val wishlist: WishlistRepository = WishlistRepositoryImpl(context)
     val splits: SplitRepository = SplitRepositoryImpl(context)
     val goals: GoalRepository = GoalRepositoryImpl(context)
+    val goalContributions: com.zyke.message.domain.goals.GoalContributionRepository = com.zyke.message.data.repository.GoalContributionRepositoryImpl(context)
+    val goalSavings = com.zyke.message.domain.goals.GoalSavings(goals, goalContributions)
+    val envelopes: com.zyke.message.domain.envelopes.EnvelopeRepository = com.zyke.message.data.repository.EnvelopeRepositoryImpl(context)
     val reminders: ReminderRepository = ReminderRepositoryImpl(context)
     val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
     val messageClassifier = MessageClassifier()
