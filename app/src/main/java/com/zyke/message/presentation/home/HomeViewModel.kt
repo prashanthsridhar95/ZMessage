@@ -91,6 +91,10 @@ class HomeViewModel(
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, asides = setAsideRepository.state.value)
 ) {
 
+    // Declared before init: the first collections below can run at once and reach the memo.
+    private val memos = HashMap<String, Memo>()
+    private var recomputed = 0
+
     private var observeJob: Job? = null
 
     init {
@@ -364,9 +368,6 @@ class HomeViewModel(
         var keys: Array<out Any?>? = null
         var value: Any? = null
     }
-
-    private val memos = HashMap<String, Memo>()
-    private var recomputed = 0
 
     @Suppress("UNCHECKED_CAST")
     private fun <V> memo(name: String, vararg inputs: Any?, compute: () -> V): V {
