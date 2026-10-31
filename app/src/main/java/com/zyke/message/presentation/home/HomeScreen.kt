@@ -473,6 +473,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 }
             }
         }
+        item(key = "marked-paid") { PaidBillsLink(onIntent) }
     }
     }
 }
@@ -708,7 +709,9 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
 private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit {
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val paidBills = rememberPaidBills()
     return { item ->
+        paidBills.record(com.zyke.message.domain.home.PaidBill.from(item, LocalDate.now()))
         onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
         item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
         scope.launch {
@@ -716,6 +719,7 @@ private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                 onIntent(Intent.RestoreAttention(item.markedPaidKey))
                 item.attentionKey?.let { onIntent(Intent.RestoreAttention(it)) }
+                paidBills.remove(item.markedPaidKey)
             }
         }
     }

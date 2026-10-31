@@ -66,6 +66,7 @@ class AppContainer(context: Context) {
     val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context)
     val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.data.repository.ManualEntryRepositoryImpl(context)
     val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.data.repository.SetAsideRepositoryImpl(context)
+    val paidBills: com.zyke.message.domain.home.PaidBillRepository = com.zyke.message.data.repository.PaidBillRepositoryImpl(context)
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository = com.zyke.message.data.repository.WatchlistRepositoryImpl(context)
     val markets = com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
