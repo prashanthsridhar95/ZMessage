@@ -8,7 +8,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -56,6 +62,8 @@ class PageEntry {
     var onBack by mutableStateOf<() -> Unit>({})
     var content by mutableStateOf<@Composable ColumnScope.() -> Unit>({})
     var floating by mutableStateOf<(@Composable BoxScope.() -> Unit)?>(null)
+    var footer by mutableStateOf<(@Composable ColumnScope.() -> Unit)?>(null)
+    var scrollable by mutableStateOf(true)
 }
 
 @Stable
@@ -72,7 +80,16 @@ private const val SLIDE_MS = 240
  * from the side. Sheets opened from it are drawn above it, and Back leaves it.
  */
 @Composable
-fun AppPage(title: String, onBack: () -> Unit, floating: (@Composable BoxScope.() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun AppPage(
+    title: String,
+    onBack: () -> Unit,
+    floating: (@Composable BoxScope.() -> Unit)? = null,
+    /** Pinned under the scrolling content, above the keyboard: where a form's save button lives. */
+    footer: (@Composable ColumnScope.() -> Unit)? = null,
+    /** False when the content scrolls by itself (a lazy list): it then gets the room under the title, unpadded. */
+    scrollable: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit
+) {
     val host = LocalPageHost.current ?: return
     val entry = remember { PageEntry() }
     SideEffect {
@@ -80,6 +97,8 @@ fun AppPage(title: String, onBack: () -> Unit, floating: (@Composable BoxScope.(
         entry.onBack = onBack
         entry.content = content
         entry.floating = floating
+        entry.footer = footer
+        entry.scrollable = scrollable
     }
     DisposableEffect(host, entry) {
         host.entries.add(entry)
@@ -121,10 +140,13 @@ private fun PageLayer(entry: PageEntry) {
                 // Nothing under the page may be touched through it.
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()
+                // The page rises with the keyboard, so the field being typed in and the footer stay in view.
+                .imePadding()
+                .semantics { paneTitle = entry.title }
         ) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.width(56.dp).height(56.dp).clickable(onClickLabel = "Back", onClick = ::leave),
+                    Modifier.width(56.dp).height(56.dp).clickable(role = Role.Button, onClickLabel = "Back", onClick = ::leave),
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.foundation.Image(
@@ -141,10 +163,23 @@ private fun PageLayer(entry: PageEntry) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+            val footer = entry.footer
             Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 24.dp)
+                if (entry.scrollable) {
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+                        .then(if (footer == null) Modifier.navigationBarsPadding() else Modifier).padding(bottom = 24.dp)
+                } else {
+                    Modifier.weight(1f).fillMaxWidth().then(if (footer == null) Modifier.navigationBarsPadding() else Modifier)
+                }
             ) {
                 entry.content(this)
+            }
+            if (footer != null) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 12.dp).navigationBarsPadding().padding(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) { footer() }
             }
         }
         }

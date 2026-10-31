@@ -68,6 +68,8 @@ class SheetEntry {
     var content by mutableStateOf<@Composable ColumnScope.() -> Unit>({})
     var inset by mutableStateOf(20.dp)
     var partial by mutableStateOf(false)
+    /** False while an adaptive sheet is still being measured off-screen: it neither shows nor slides in until true. */
+    var ready by mutableStateOf(true)
 }
 
 /** The sheets that are open, oldest first. They are drawn by [SheetHostLayer], inside the app's own window. */
@@ -78,6 +80,9 @@ class SheetHost {
 
 /** Where sheets are drawn; null in previews and tests, where [AppBottomSheet] falls back to a platform sheet. */
 val LocalSheetHost = staticCompositionLocalOf<SheetHost?> { null }
+
+/** The height in pixels of the window a sheet is drawn in: what "a screenful" means to content deciding if it is too big. */
+val LocalSheetWindowHeight = staticCompositionLocalOf { 0 }
 
 private const val SCRIM_ALPHA = 0.32f
 private const val ENTER_MS = 260
@@ -103,7 +108,7 @@ private fun SheetLayer(entry: SheetEntry) {
     var sheetHeight by remember { mutableIntStateOf(0) }
     val topInset = WindowInsets.statusBars.union(WindowInsets.displayCutout).asPaddingValues().calculateTopPadding()
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { hidden.animateTo(0f, tween(ENTER_MS)) }
+    androidx.compose.runtime.LaunchedEffect(entry.ready) { if (entry.ready) hidden.animateTo(0f, tween(ENTER_MS)) }
 
     fun dismiss() {
         scope.launch {
@@ -143,6 +148,7 @@ private fun SheetLayer(entry: SheetEntry) {
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        val windowPx = constraints.maxHeight
         val maxSheet = if (entry.partial) maxHeight * PARTIAL_HEIGHT else maxHeight - topInset
 
         // The dimmed screen behind; tapping it closes the sheet.
@@ -161,7 +167,7 @@ private fun SheetLayer(entry: SheetEntry) {
                 .offset { IntOffset(0, (hidden.value * sheetHeight).roundToInt()) }
                 .onSizeChanged { sheetHeight = it.height }
                 // Unseen until it has been measured, so it cannot flash at its open position before sliding up.
-                .graphicsLayer { alpha = if (sheetHeight == 0) 0f else 1f }
+                .graphicsLayer { alpha = if (sheetHeight == 0 || !entry.ready) 0f else 1f }
                 .nestedScroll(connection)
                 // Touches on the sheet itself must not fall through to the scrim.
                 .pointerInput(Unit) { detectTapGestures { } }
@@ -196,7 +202,7 @@ private fun SheetLayer(entry: SheetEntry) {
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
                     )
                 }
-                CompositionLocalProvider(LocalContentInset provides entry.inset) {
+                CompositionLocalProvider(LocalContentInset provides entry.inset, LocalSheetWindowHeight provides windowPx) {
                     Column(Modifier.weight(1f, fill = false)) { entry.content(this) }
                 }
             }

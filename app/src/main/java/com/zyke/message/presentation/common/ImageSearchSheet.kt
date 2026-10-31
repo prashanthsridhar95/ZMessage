@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,14 +98,11 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
         }
     }
 
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().height(SHEET_HEIGHT)) {
+    // The results are a whole web page to scroll and tap in: a page, whose web view takes the room under the title.
+    AppPage("Find a picture", onDismiss, scrollable = false) {
+        Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Find a picture", Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Caption("Searching for \"$query\"", maxLines = 1)
-                }
-                AppButton("Cancel", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                Caption("Searching for \"$query\"", Modifier.weight(1f), maxLines = 1)
             }
             if (loading) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
 
@@ -172,5 +170,3 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
         }
     }
 }
-
-private val SHEET_HEIGHT = 640.dp

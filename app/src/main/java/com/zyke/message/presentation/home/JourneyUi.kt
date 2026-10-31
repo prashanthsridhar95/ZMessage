@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import android.widget.Toast
 import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.animation.core.Animatable
@@ -96,20 +97,13 @@ internal fun JourneySheet(message: ClassifiedMessage, onOpenMessage: () -> Unit,
     val shown by animateFloatAsState(scrub ?: real, spring(stiffness = Spring.StiffnessLow), label = "journey")
     val context = LocalContext.current
 
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(journey.route ?: life.title, onDismiss) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column {
                 Caption(journey.mode.label.uppercase())
-                Text(
-                    journey.route ?: life.title,
-                    Modifier.heading(),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
                 if (journey.route != null) Caption(life.title)
             }
 

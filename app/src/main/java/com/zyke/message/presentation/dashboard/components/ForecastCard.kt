@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.compose.foundation.layout.Arrangement
 import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Column
@@ -69,16 +70,10 @@ internal fun ForecastCard(forecast: SpendForecast, modifier: Modifier = Modifier
     }
 
     if (open) {
-        AppBottomSheet({ open = false }) {
+        AdaptiveSheet("Where this is heading", { open = false }, asPage = true) {
             Column(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)
+                Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "Where this is heading",
-                    Modifier.heading().padding(bottom = 12.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
                 ForecastDetails(forecast)
             }
         }

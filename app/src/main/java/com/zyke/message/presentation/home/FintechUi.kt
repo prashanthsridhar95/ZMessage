@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.lifecycle.repeatOnLifecycle
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.common.UnderlineTabs
@@ -426,9 +427,9 @@ internal fun AccountSheet(
     var editingCycle by rememberSaveable { mutableStateOf(false) }
     var removing by rememberSaveable { mutableStateOf(false) }
 
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(account.title, onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -436,7 +437,6 @@ internal fun AccountSheet(
                 AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(onClickLabel = "Change picture", onClick = pick) else Modifier))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(account.title, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
                     Caption("${account.kind.label} •• ${account.last4}")
                 }
                 AppButton("Rename", { naming = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
@@ -641,20 +641,16 @@ internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Uni
         it.content is MessageContent.Otp && it.message.date >= now - CODE_LIST_WINDOW_MS && it.id !in state.userState.archivedIds
     }.take(CODES_SHOWN)
 
-    AppBottomSheet(onDismiss, contentInset = 0.dp) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            Text(
-                "Codes", Modifier.padding(horizontal = 20.dp).heading(),
-                style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary
-            )
+    AdaptiveSheet("Codes", onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
             if (codes.isEmpty()) {
-                Caption("A code shows up here the moment it arrives.", Modifier.padding(horizontal = 20.dp, vertical = 16.dp), maxLines = 2)
+                Caption("A code shows up here the moment it arrives.", Modifier.padding(vertical = 16.dp), maxLines = 2)
             }
             codes.forEach { message ->
                 val otp = message.content as MessageContent.Otp
                 CodeCard(
                     message, now, onCopy = { onCopy(message.id, otp.code) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(vertical = 6.dp)
                 )
             }
         }

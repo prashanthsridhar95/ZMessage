@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.presentation.messages.components.Caption
 
 /**
- * The one shape for entering something: a bottom sheet with a title and a close button, labelled fields that scroll,
+ * The one shape for entering something: a bottom sheet (a page when it is long, see [AdaptiveSheet]) with a title and a close button, labelled fields that scroll,
  * and a footer that stays in view with one filled button to save and, when it applies, a quiet one to remove. While
  * the save button is off, [hint] says what is still missing. The sheet moves up with the keyboard so the field being
  * typed in is never hidden.
@@ -66,50 +66,32 @@ fun FormSheet(
     onSecondary: (() -> Unit)? = null,
     subtitle: String? = null,
     hint: String? = null,
+    /** True for forms known to be long: they open as a page straight away (see [AdaptiveSheet]). */
+    asPage: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                    Text(
-                        title, Modifier.heading(), style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
-                    )
-                    if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp), maxLines = 2)
-                }
-                Box(
-                    Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Close", onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("\u2715", Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
-                }
+    AdaptiveSheet(
+        title = title,
+        onDismiss = onDismiss,
+        asPage = asPage,
+        subtitle = subtitle,
+        contentSpacing = 22.dp,
+        footer = {
+            if (!primaryEnabled && hint != null) {
+                Caption(hint, Modifier.fillMaxWidth().padding(bottom = 4.dp), maxLines = 2, textAlign = TextAlign.Center)
             }
-            Column(
-                Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp)
-            ) {
-                content()
+            AppButton(primaryLabel, onPrimary, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = primaryEnabled)
+            if (secondaryLabel != null && onSecondary != null) {
+                val destructive = secondaryLabel.startsWith("Delete", ignoreCase = true) || secondaryLabel.startsWith("Remove", ignoreCase = true)
+                TextButton(
+                    onClick = onSecondary,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                ) { Text(secondaryLabel, fontWeight = FontWeight.SemiBold) }
             }
-            // The footer does not scroll away: the way to save is always where the thumb expects it.
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (!primaryEnabled && hint != null) {
-                    Caption(hint, Modifier.fillMaxWidth().padding(bottom = 4.dp), maxLines = 2, textAlign = TextAlign.Center)
-                }
-                AppButton(primaryLabel, onPrimary, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = primaryEnabled)
-                if (secondaryLabel != null && onSecondary != null) {
-                    val destructive = secondaryLabel.startsWith("Delete", ignoreCase = true) || secondaryLabel.startsWith("Remove", ignoreCase = true)
-                    TextButton(
-                        onClick = onSecondary,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        colors = ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                    ) { Text(secondaryLabel, fontWeight = FontWeight.SemiBold) }
-                }
-            }
-        }
-    }
+        },
+        content = content
+    )
 }
 
 /** A field with its label above it, so the label stays readable once something is typed; an [error] shows beneath it in red. */

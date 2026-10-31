@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.layout.width
@@ -273,12 +274,11 @@ internal fun MergeSuggestions(item: ClassifiedMessage, candidates: List<Classifi
         style = ButtonStyle.TONAL
     )
     if (open) {
-        AppBottomSheet({ open = false }) {
+        AdaptiveSheet("Similar messages", { open = false }) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Similar messages", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 Caption("Same amount, close in time. Merge the ones that are the same payment so it is counted once.", maxLines = 3)
                 candidates.forEach { other ->
                     val tx = other.content as? MessageContent.Transaction

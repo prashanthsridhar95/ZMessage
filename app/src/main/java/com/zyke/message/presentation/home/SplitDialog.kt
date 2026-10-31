@@ -46,6 +46,7 @@ internal fun SplitDialog(message: ClassifiedMessage, onSave: (Split) -> Unit, on
     FormSheet(
         title = "Split ${DisplayFormatters.rupees(total)}",
         onDismiss = onDismiss,
+        asPage = true,
         primaryLabel = if (friends.isEmpty()) "Split" else "Split with ${DisplayFormatters.count(friends.size, "friend", "friends")}",
         primaryEnabled = friends.isNotEmpty(),
         hint = "Add at least one name",

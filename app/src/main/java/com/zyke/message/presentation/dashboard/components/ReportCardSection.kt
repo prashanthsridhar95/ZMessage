@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
@@ -129,9 +130,9 @@ internal fun ReportCardSummary(card: ReportCard, onOpen: () -> Unit, modifier: M
 /** This month's marks in full: a hero with the overall grade, then a slim card per category. */
 @Composable
 internal fun ReportCardSheet(card: ReportCard, onDismiss: () -> Unit) {
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet("Report card", onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 28.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Hero(card)

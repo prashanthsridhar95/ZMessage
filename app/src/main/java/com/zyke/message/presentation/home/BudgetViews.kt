@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.compose.runtime.ReadOnlyComposable
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.theme.AppColors
@@ -134,9 +135,8 @@ internal fun BudgetCalendarSheet(
     val within = days.count { it.status == DayStatus.UNDER }
     val over = days.count { it.status == DayStatus.OVER }
 
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Caption("DAILY BUDGET STREAK")
+    AdaptiveSheet("Budget streak", onDismiss, asPage = true) {
+        Column(Modifier.fillMaxWidth()) {
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
                 Text(
                     daily.currentStreak.toString(),
@@ -225,14 +225,8 @@ private fun DaySheet(
     planned: List<com.zyke.message.domain.plan.PlanItem>,
     onDismiss: () -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Text(
-                FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(day.date),
-                Modifier.heading(),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+    AdaptiveSheet(FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(day.date), onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
             Caption(
                 when (day.status) {
                     DayStatus.UNDER -> "${DisplayFormatters.rupees(day.spent)} of ${DisplayFormatters.rupees(allowance)} · within budget"
@@ -408,9 +402,8 @@ internal fun QuickAddSheet(
     onDismissItem: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text("Found in your messages", Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+    AdaptiveSheet("Found in your messages", onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
             if (items.isEmpty()) Caption("All done.", Modifier.padding(vertical = 16.dp))
             items.forEachIndexed { index, quick ->
                 if (index > 0) HorizontalDivider()

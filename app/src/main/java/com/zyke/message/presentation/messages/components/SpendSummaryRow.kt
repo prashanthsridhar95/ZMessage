@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
@@ -70,9 +71,9 @@ internal fun SpendSummaryRow(
 /** The month's spending split by category, as tall as its content. */
 @Composable
 internal fun SpendSummarySheet(summary: SpendSummary, onDismiss: () -> Unit) {
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet("Spending by category", onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Column {

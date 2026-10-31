@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.domain.goals.Goals
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.common.ChipOption
@@ -208,12 +209,11 @@ internal fun PlanPage(title: String, onBack: () -> Unit, content: @Composable ()
 /** The sheet a plan tile opens: its card, with room round it. */
 @Composable
 internal fun PlanSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    com.zyke.message.presentation.common.AppBottomSheet(onDismiss) {
+    AdaptiveSheet(title, onDismiss) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(title, Modifier.padding(horizontal = 4.dp).heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             content()
         }
     }

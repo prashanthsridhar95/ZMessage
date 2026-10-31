@@ -52,6 +52,24 @@ Derived data (the feed, the dashboard, the home overview, conversations) is buil
 messages go to the hand-written bank parsers first and then to `GenericTransactionParser`, a best-effort reader
 for other banks' wording. It never throws and parses at most 4096 characters.
 
+## Sheets and pages
+
+Rule: **big content = a page, small content = a sheet.** A page is an `AppPage` (title, back arrow, content that scrolls,
+optional pinned `footer`) drawn by `PageHost` over the screens and slid in from the side, like "Your year". A sheet is
+`AppBottomSheet`, drawn by `SheetHost` over the pages, so a picker opened from a page appears above it, and the snackbar
+(`LocalAppSnackbar`) is drawn above both. Compact pickers and confirmations (up to about five fields, simple choices)
+stay sheets; long forms, detail views with many sections, lists of more than about eight rows, charts with lists and
+multi-step flows are pages.
+
+`AdaptiveSheet(title, onDismiss, asPage = false, autoPage = true, subtitle, footer, contentSpacing) { content }`
+(`presentation/common/AdaptiveSheet.kt`) applies the rule in one place. `asPage = true` is a page from the first frame
+(for content known to be large). Otherwise the sheet is first laid out invisibly (`AppBottomSheet(ready = false)`); if
+header, content and footer together are taller than 85% of the window, the same content is shown as a page and the
+sheet is never seen. The decision is made once and kept over rotation. State kept by the caller survives the switch; state
+remembered inside the content lambda restarts. `FormSheet` is built on it (`asPage` too), so every form adapts. Content
+that scrolls by itself (a lazy list or web view) uses `AppPage(scrollable = false)`. `SheetPolicyTest` keeps bare
+`AppBottomSheet` to the compact allow-list and forbids fixed sheet heights.
+
 ## Quick entry from outside the app
 
 Three doors open the same hand-made entry flow: the "Quick add" home-screen widget (`QuickAddWidget`: two cash

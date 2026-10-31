@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.graphicsLayer
@@ -163,10 +164,8 @@ internal fun SectionCard(
             }
         }
         if (open) {
-            AppBottomSheet({ open = false }) {
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-                    Text(title, Modifier.heading().padding(bottom = 4.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                    if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 12.dp), maxLines = 3)
+            AdaptiveSheet(title, { open = false }, subtitle = subtitle) {
+                Column(Modifier.fillMaxWidth()) {
                     content()
                 }
             }
@@ -199,10 +198,8 @@ internal fun SectionCard(
         }
         if (asSheet) {
             if (open) {
-                AppBottomSheet({ open = false }) {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-                        Text(title, Modifier.heading().padding(bottom = 4.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                        if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 12.dp), maxLines = 3)
+                AdaptiveSheet(title, { open = false }, subtitle = subtitle) {
+                    Column(Modifier.fillMaxWidth()) {
                         content()
                     }
                 }
@@ -800,13 +797,12 @@ internal fun CardBillSheet(
     val previous = bills.earlier.firstOrNull()
     val due = latest.dueDate
 
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(bills.label, onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column {
-                Text(bills.label, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 Caption(
                     if (due != null) DisplayFormatters.dueLabel(due, today) else "Statement · ${dayFmt.format(statementDate(latest))}",
                     color = if (due != null && !due.isBefore(today) && DisplayFormatters.isUrgent(due, today)) {
@@ -987,13 +983,12 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
     val current = entry.cycles.firstOrNull { it.isCurrent } ?: entry.cycles.firstOrNull()
     val previous = entry.cycles.firstOrNull { it !== current }
 
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(entry.card.label, onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column {
-                Text(entry.card.label, Modifier.heading(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 Caption(entry.card.statementDay?.let { "Statement on day $it" } ?: "Calendar months")
             }
 

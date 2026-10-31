@@ -240,6 +240,7 @@ fun MarketPage(onBack: () -> Unit) {
         com.zyke.message.presentation.common.FormSheet(
             title = "Edit watch list",
             onDismiss = { editing = false },
+            asPage = true,
             primaryLabel = "Done",
             primaryEnabled = true,
             onPrimary = { editing = false }

@@ -29,7 +29,7 @@ import androidx.compose.runtime.remember
  * A sheet that holds a long list of choices, such as the filters, can ask for [partial]: it then opens part of the way.
  */
 @Composable
-fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, partial: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, partial: Boolean = false, ready: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     val host = LocalSheetHost.current
     if (host == null) {
         PlatformSheet(onDismiss, contentInset, partial, content)
@@ -42,6 +42,7 @@ fun AppBottomSheet(onDismiss: () -> Unit, contentInset: Dp = 20.dp, partial: Boo
         entry.content = content
         entry.inset = contentInset
         entry.partial = partial
+        entry.ready = ready
     }
     DisposableEffect(host, entry) {
         host.entries.add(entry)

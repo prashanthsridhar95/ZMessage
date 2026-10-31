@@ -372,6 +372,7 @@ private fun EventForm(
     FormSheet(
         title = if (initial == null) "Add an event" else "Edit event",
         onDismiss = onDismiss,
+        asPage = true,
         primaryLabel = "Save",
         primaryEnabled = title.isNotBlank(),
         hint = "Name the event",

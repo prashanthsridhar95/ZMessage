@@ -93,6 +93,7 @@ internal fun CardDialog(
     FormSheet(
         title = if (initial == null) "Add a card or account" else "Edit ${type.label.lowercase()}",
         onDismiss = onDismiss,
+        asPage = true,
         primaryLabel = "Save",
         primaryEnabled = valid,
         onPrimary = {

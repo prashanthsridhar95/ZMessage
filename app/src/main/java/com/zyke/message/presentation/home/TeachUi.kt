@@ -102,6 +102,7 @@ internal fun TeachSheet(message: ClassifiedMessage, onSave: (LearnedTemplate) ->
     FormSheet(
         title = "Teach this message",
         onDismiss = onDismiss,
+        asPage = true,
         primaryLabel = "Teach",
         primaryEnabled = template != null,
         onPrimary = { template?.let(onSave) },

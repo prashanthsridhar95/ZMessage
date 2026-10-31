@@ -70,6 +70,7 @@ internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, o
         title = "Add an entry",
         subtitle = "Money that did not come in a message",
         onDismiss = onDismiss,
+        asPage = true,
         primaryLabel = "Save entry",
         primaryEnabled = value != null && value.signum() > 0 && title.isNotBlank(),
         hint = if (value == null || value.signum() <= 0) "Enter the amount" else "Say what it was for",

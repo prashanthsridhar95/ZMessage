@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.linksIn
 import com.zyke.message.presentation.common.LocalOpenLink
 import android.net.Uri
@@ -112,9 +113,9 @@ internal fun MessageDetailSheet(
     val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, title) else null
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
 
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(title, onDismiss, asPage = true) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -124,14 +125,6 @@ internal fun MessageDetailSheet(
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        modifier = Modifier.heading(),
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1
-                    )
                     Caption("${DateFormatters.detailTimestamp(message.date)} · ${item.category.displayString}", maxLines = 1)
                 }
             }
@@ -357,13 +350,9 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
         onDismiss()
     }
 
-    AppBottomSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    AdaptiveSheet(if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}", onDismiss, asPage = true) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column {
-                Text(
-                    if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}",
-                    Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
-                )
                 Caption(
                     if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
                     Modifier.padding(top = 2.dp), maxLines = 2

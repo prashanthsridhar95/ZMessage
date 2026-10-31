@@ -63,12 +63,12 @@ fun ThreadSheet(
         if (focusIndex >= 0) listState.scrollToItem(focusIndex)
     }
 
-    AppBottomSheet(onDismiss) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // A whole conversation is always big: it is a page, whose list scrolls by itself.
+    com.zyke.message.presentation.common.AppPage(conversation.title(), onDismiss, scrollable = false) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = null, size = 44.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                RowTitle(conversation.title())
                 Caption("${DisplayFormatters.count(conversation.messages.size, "message", "messages")} · ${conversation.address}")
             }
         }

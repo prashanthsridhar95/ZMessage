@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.dashboard.components.DirectionSwitch
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.FintechCard
@@ -408,11 +409,10 @@ private fun CategorySheet(
     onVendor: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AppBottomSheet(onDismiss) {
+    AdaptiveSheet(category.displayString, onDismiss) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)
+            Modifier.fillMaxWidth()
         ) {
-            Text(category.displayString, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             Text(
                 DisplayFormatters.rupees(detail.total),
                 style = MaterialTheme.typography.displaySmall,
