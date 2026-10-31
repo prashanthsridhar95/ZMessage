@@ -30,6 +30,7 @@ class RcsNotificationListener : NotificationListenerService() {
         val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
         if (sender.isNullOrBlank() || body.isNullOrBlank()) return
 
+        com.zyke.message.data.diag.DevLog.d("rcs") { "chat notification kept from ${sbn.packageName}: title ${sender.length} chars, text ${body.length} chars" }
         (application as ZykeMessagesApplication).container.rcsStore.add(sender, body, sbn.postTime)
     }
 
@@ -41,6 +42,7 @@ class RcsNotificationListener : NotificationListenerService() {
         val big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
         // The short and the expanded text are tried in turn; either may be the one that carries the amount.
         val amount = UpiLiteNotification.amount(title, text) ?: UpiLiteNotification.amount(title, big) ?: return false
+        com.zyke.message.data.diag.DevLog.d("rcs") { "UPI Lite top-up kept from ${sbn.packageName}" }
         (application as ZykeMessagesApplication).container.rcsStore.add(UpiLiteNotification.SENDER, UpiLiteNotification.body(amount), sbn.postTime)
         return true
     }

@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.zyke.message.R
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.model.ThemeMode
@@ -94,7 +95,8 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     MARKETS("Market watch", R.drawable.ic_trending_24),
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
     APPEARANCE("Appearance", R.drawable.ic_sun_24),
-    ABOUT("Your data and about", R.drawable.ic_info_24)
+    ABOUT("Your data and about", R.drawable.ic_info_24),
+    DEVELOPER("Developer options", R.drawable.ic_info_24)
 }
 
 /**
@@ -114,6 +116,8 @@ fun SettingsPage(
     val open = SettingsGroup.entries.firstOrNull { it.name == openName }
     val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
+    val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+    val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
 
     com.zyke.message.presentation.common.AppPage("Settings", onDismiss) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -154,16 +158,17 @@ fun SettingsPage(
             ) { openName = it.name }
             SettingsList(
                 "This app",
-                listOf(
-                    SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone",
-                    SettingsGroup.APPEARANCE to state.settings.themeMode.label,
-                    SettingsGroup.ABOUT to "Version $versionName"
-                )
+                buildList {
+                    add(SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone")
+                    add(SettingsGroup.APPEARANCE to state.settings.themeMode.label)
+                    add(SettingsGroup.ABOUT to "Version $versionName")
+                    if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
+                }
             ) { openName = it.name }
         }
     }
 
-    open?.let { group ->
+    open?.takeIf { it != SettingsGroup.DEVELOPER || developer }?.let { group ->
         com.zyke.message.presentation.common.AppPage(group.title, { openName = null }) {
             // This page is about one thing, so its sections show their contents instead of folding away.
             CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
@@ -406,6 +411,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             )
             Caption("Automatic follows your phone", Modifier.padding(top = 8.dp))
         }
+        SettingsGroup.DEVELOPER -> DeveloperContent()
         SettingsGroup.ABOUT -> {
             SectionCard("Take your data with you") {
                 Caption("Nothing leaves the phone unless you share the file yourself.", maxLines = 3)
@@ -440,7 +446,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
             }
             SectionCard("About") {
-                Caption("Version $versionName")
+                VersionRow(versionName)
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
             }
         }
@@ -668,3 +674,120 @@ private fun GroupLabel(text: String) {
         color = MaterialTheme.colorScheme.secondary
     )
 }
+
+/** The version, which also unlocks developer options when tapped seven times, as on Android itself. */
+@Composable
+private fun VersionRow(versionName: String) {
+    val context = LocalContext.current
+    var taps by remember { mutableStateOf(0) }
+    val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+    Column(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "Version") {
+            if (developer) {
+                Toast.makeText(context, "You are already a developer", Toast.LENGTH_SHORT).show()
+            } else {
+                taps += 1
+                when {
+                    taps >= TAPS_TO_UNLOCK -> {
+                        com.zyke.message.data.diag.DevLog.setDeveloperMode(context, true)
+                        Toast.makeText(context, "Developer options are on", Toast.LENGTH_LONG).show()
+                        taps = 0
+                    }
+                    taps >= TAPS_TO_UNLOCK - 3 -> Toast.makeText(context, "${TAPS_TO_UNLOCK - taps} more taps to become a developer", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.padding(vertical = 4.dp)
+    ) {
+        Caption("Version $versionName")
+    }
+}
+
+private const val TAPS_TO_UNLOCK = 7
+
+/**
+ * Developer options: the log file the app writes while this is on, to share when something does not work, and checks
+ * that run the rename and category paths and say where they stop.
+ */
+@Composable
+private fun DeveloperContent() {
+    val context = LocalContext.current
+    val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
+    var refresh by remember { mutableStateOf(0) }
+    var results by remember { mutableStateOf<List<String>>(emptyList()) }
+    var running by remember { mutableStateOf(false) }
+    val sizeKb = remember(refresh, logging) { com.zyke.message.data.diag.DevLog.sizeBytes() / 1024 }
+    val tail = remember(refresh, logging) { com.zyke.message.data.diag.DevLog.tail() }
+
+    SectionCard("Log file") {
+        ToggleRow(
+            title = "Write a log file",
+            description = "Records what the app does while you use it: when things happen, counts and ids. Never message text, amounts, account numbers or names.",
+            checked = logging,
+            onCheckedChange = { com.zyke.message.data.diag.DevLog.setLogging(context, it); refresh += 1 }
+        )
+        Caption("Log size: $sizeKb KB", Modifier.padding(top = 8.dp))
+        AppButton(
+            "Share the log file",
+            {
+                val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
+                runCatching { ReportSharing.share(context, "zyke-log-$stamp.txt", com.zyke.message.data.diag.DevLog.readAll(), "text/plain", "Zyke Message developer log") }
+                    .onFailure { Toast.makeText(context, "Could not share the log", Toast.LENGTH_LONG).show() }
+            },
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            enabled = sizeKb > 0 || tail.isNotEmpty()
+        )
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppButton("Refresh", { refresh += 1 }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+            AppButton("Clear", { com.zyke.message.data.diag.DevLog.clear(); refresh += 1 }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+        }
+    }
+
+    SectionCard("Checks") {
+        Caption("Run these, then share the log. The second sets a test name and category on one message, checks they show up, and puts everything back.", maxLines = 4)
+        AppButton(
+            if (running) "Running\u2026" else "Log a snapshot",
+            {
+                running = true
+                scope.launch { results = com.zyke.message.data.diag.DevTools.snapshot(container); running = false; refresh += 1 }
+            },
+            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && logging
+        )
+        AppButton(
+            if (running) "Running\u2026" else "Test rename and category",
+            {
+                running = true
+                scope.launch { results = com.zyke.message.data.diag.DevTools.selfTest(container); running = false; refresh += 1 }
+            },
+            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && logging
+        )
+        if (!logging) Caption("Turn the log file on to run the checks.", Modifier.padding(top = 8.dp))
+        results.forEach { line ->
+            Text(line, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+
+    SectionCard("Latest lines") {
+        if (tail.isEmpty()) {
+            Caption("Nothing recorded yet.")
+        } else {
+            Text(
+                tail.takeLast(MAX_SHOWN_CHARS),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = androidx.compose.ui.unit.TextUnit(10f, androidx.compose.ui.unit.TextUnitType.Sp)),
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+    }
+
+    SectionCard("Developer mode") {
+        AppButton(
+            "Turn developer options off",
+            { com.zyke.message.data.diag.DevLog.setDeveloperMode(context, false) },
+            Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE
+        )
+        Caption("This stops the log and hides this page. Tap the version seven times to bring it back.", Modifier.padding(top = 8.dp), maxLines = 3)
+    }
+}
+
+private const val MAX_SHOWN_CHARS = 6_000

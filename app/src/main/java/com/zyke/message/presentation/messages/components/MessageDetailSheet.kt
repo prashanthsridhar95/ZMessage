@@ -352,6 +352,7 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
     val matches = available.filter { it.displayString.contains(query.trim(), ignoreCase = true) }
 
     fun choose(category: MessageCategory) {
+        com.zyke.message.data.diag.DevLog.d("ui") { "category sheet: chose $category id=${item.id} forTransaction=$forTransaction alreadyChosen=${chosenHere && item.category == category}" }
         // Choosing the one already chosen takes the choice away.
         set(if (chosenHere && item.category == category) null else category)
         onDismiss()
@@ -425,9 +426,17 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
-        onPrimary = { actions.onRename(item.id, name, forTransaction); onDismiss() },
+        onPrimary = {
+            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: save id=${item.id} forTransaction=$forTransaction nameLength=${name.length}" }
+            actions.onRename(item.id, name, forTransaction)
+            onDismiss()
+        },
         secondaryLabel = if (named) "Remove this name" else null,
-        onSecondary = { actions.onRename(item.id, "", forTransaction); onDismiss() }
+        onSecondary = {
+            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: remove id=${item.id} forTransaction=$forTransaction" }
+            actions.onRename(item.id, "", forTransaction)
+            onDismiss()
+        }
     ) {
         FormField(
             "Name", name, { name = it }, placeholder = CategoryKey.label(item),

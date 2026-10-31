@@ -43,6 +43,7 @@ object ReminderAlarms {
 
     /** Posts every reminder whose moment has come, then sets the alarm for the one after. */
     fun fireDue(context: Context) {
+        com.zyke.message.data.diag.DevLog.d("reminder") { "alarm fired" }
         val app = context.applicationContext
         val container = (app as ZykeMessagesApplication).container
         val done = posted(app).toMutableSet()

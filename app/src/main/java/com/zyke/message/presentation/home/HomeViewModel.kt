@@ -146,10 +146,18 @@ class HomeViewModel(
             is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
             }
-            is Intent.SetMessageCategory -> categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
-            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }
-                ?.let(CategoryKey::of)
-                ?.let { categoryOverrides.set(it, intent.category) }
+            is Intent.SetMessageCategory -> {
+                com.zyke.message.data.diag.DevLog.d("category") { "home: this transaction id=${intent.messageId} -> ${intent.category}" }
+                categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
+            }
+            is Intent.SetCategory -> {
+                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
+                val key = message?.let(CategoryKey::of)
+                com.zyke.message.data.diag.DevLog.d("category") {
+                    "home: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(key)} messagesInState=${currentState().messages.size}"
+                }
+                key?.let { categoryOverrides.set(it, intent.category) }
+            }
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
             is Intent.ShiftCalendar -> reduce { copy(calendarOffset = calendarOffset?.plus(intent.months)?.coerceAtMost(0)) }
@@ -185,10 +193,16 @@ class HomeViewModel(
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
             is Intent.AddQuick -> addQuick(intent.quick)
-            is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
-                val own = CategoryKey.messageKey(message.id)
-                // Naming this one transaction and naming its sender or receiver are two separate things.
-                if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
+            is Intent.Rename -> {
+                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
+                com.zyke.message.data.diag.DevLog.d("nickname") {
+                    "home: rename id=${intent.messageId} onlyThis=${intent.onlyThis} nameLength=${intent.name.length} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
+                }
+                message?.let {
+                    val own = CategoryKey.messageKey(it.id)
+                    // Naming this one transaction and naming its sender or receiver are two separate things.
+                    if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(it)?.let { key -> nicknames.set(key, intent.name) }
+                }
             }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
             Intent.CancelSplit -> reduce { copy(splittingMessageId = null) }

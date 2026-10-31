@@ -9,6 +9,9 @@ class ZykeMessagesApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // First, so everything after it can be recorded when developer mode is on.
+        com.zyke.message.data.diag.DevLog.init(this)
         container = AppContainer(this)
+        com.zyke.message.data.diag.DevLog.d("app") { "container ready" }
     }
 }

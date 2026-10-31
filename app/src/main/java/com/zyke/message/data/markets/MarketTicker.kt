@@ -52,6 +52,7 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
             }
             fetched.forEach { (symbol, quote) -> if (quote != null) quotes[symbol] = quote }
             val reached = fetched.any { it.second != null }
+            com.zyke.message.data.diag.DevLog.d("market") { "refresh: asked ${fetched.size}, got ${fetched.count { it.second != null }}" }
             val now = System.currentTimeMillis()
             _state.update {
                 MarketState(

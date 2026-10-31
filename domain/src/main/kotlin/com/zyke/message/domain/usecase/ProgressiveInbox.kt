@@ -1,5 +1,6 @@
 package com.zyke.message.domain.usecase
 
+import com.zyke.message.domain.diag.DiagLog
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.SmsMessage
 import com.zyke.message.domain.repository.ClassificationCache
@@ -65,6 +66,7 @@ class ProgressiveInbox(
         val syncedThrough = cache.meta(SYNCED_THROUGH)?.toLongOrNull()
         val lastFull = cache.meta(FULL_SYNC_AT)?.toLongOrNull()
         val cached = cache.dateRange()
+        DiagLog.d("sync") { "pass: change=$change cold=$cold paused=${paused()} fullIncomplete=$fullIncomplete quickIncomplete=$quickIncomplete cachedRange=${cached != null} syncedThrough=${syncedThrough != null} lastFull=${lastFull != null}" }
 
         // Reading is paused: show what was remembered and leave the inbox alone.
         if (paused()) {
@@ -81,6 +83,7 @@ class ProgressiveInbox(
         // Coming back to the app: what was read before is remembered, so only what arrived since is read now, and the
         // inbox is checked in full only now and then (that is also how messages deleted elsewhere are noticed).
         if (cold && change != InboxChange.FULL && syncedThrough != null && lastFull != null && cached != null && now - lastFull < VERIFY_EVERY_MS) {
+            DiagLog.d("sync") { "quick pass from memory, newest message read at a known point" }
             incrementalPass(zone, now, syncedThrough, cached)
             return
         }
@@ -133,6 +136,7 @@ class ProgressiveInbox(
 
         // The whole inbox has been read: remember how far, so the next visit can start from here.
         remember(now, full = full)
+        DiagLog.d("sync") { "pass finished: full=$full months=${knownMonths.size} windowsHeld=${windows.size} changed=$changed took=${clock() - now}ms" }
 
         // With the whole inbox seen, what has gone from it (deleted in the messaging app) is forgotten here too.
         if (full && scan.allIds.isNotEmpty()) {

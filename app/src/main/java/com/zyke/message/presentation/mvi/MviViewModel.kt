@@ -23,7 +23,15 @@ abstract class MviViewModel<S, I, E>(initialState: S) : ViewModel() {
     private val _effects = Channel<E>(Channel.BUFFERED)
     val effects: Flow<E> = _effects.receiveAsFlow()
 
-    fun onIntent(intent: I) = handleIntent(intent)
+    fun onIntent(intent: I) {
+        com.zyke.message.data.diag.DevLog.d("intent") { "${this::class.java.simpleName} <- ${intent!!::class.java.simpleName}" }
+        try {
+            handleIntent(intent)
+        } catch (error: Throwable) {
+            com.zyke.message.data.diag.DevLog.e("intent", "${this::class.java.simpleName} failed on ${intent!!::class.java.simpleName}", error)
+            throw error
+        }
+    }
 
     protected abstract fun handleIntent(intent: I)
 

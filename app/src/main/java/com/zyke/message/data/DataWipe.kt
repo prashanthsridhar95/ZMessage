@@ -15,6 +15,7 @@ object DataWipe {
 
     fun wipe(context: Context) {
         val app = context.applicationContext
+        com.zyke.message.data.diag.DevLog.d("wipe") { "deleting all app data" }
         runCatching { app.getSystemService(NotificationManager::class.java)?.cancelAll() }
         runCatching { com.zyke.message.notifications.DigestScheduler(app).apply(false) }
         runCatching { com.zyke.message.notifications.LiveAlerts.setEnabled(app, false) }

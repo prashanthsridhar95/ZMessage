@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.CoroutineScope
 import com.zyke.message.domain.categories.CategoryKey
+import com.zyke.message.domain.diag.DiagLog
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.ai.ModelTransactionParser
@@ -95,7 +96,11 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(categoryOverrides.overrides) { classified, overrides ->
-                classified.map { CategoryKey.apply(it, overrides) }
+                val applied = classified.map { CategoryKey.apply(it, overrides) }
+                DiagLog.d("pipeline") {
+                    "category overrides: ${overrides.size} set, ${applied.count { it.categoryOverridden }} of ${applied.size} messages carry one, ${applied.count { it.categoryOwn }} their own"
+                }
+                applied
             }
             .combine(cardRepository.cards) { classified, cards ->
                 if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }
@@ -118,6 +123,10 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(nicknameRepository.nicknames) { classified, nicknames ->
+                DiagLog.d("pipeline") {
+                    val named = classified.count { it.merchant.renamed }
+                    "nicknames: ${nicknames.size} set, ${classified.count { m -> nicknames.containsKey(CategoryKey.messageKey(m.id)) || CategoryKey.of(m)?.let(nicknames::containsKey) == true }} of ${classified.size} messages match one (before applying), $named already renamed"
+                }
                 if (nicknames.isEmpty()) classified else classified.map { message ->
                     // A name given to this one transaction wins over one given to everything from the same sender or receiver.
                     val own = nicknames[CategoryKey.messageKey(message.id)]

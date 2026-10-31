@@ -40,6 +40,7 @@ class BackfillService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val container = (application as ZykeMessagesApplication).container
+        com.zyke.message.data.diag.DevLog.d("service") { "BackfillService started: ${container.observeMessages.progress.value}" }
         startInForeground(notification(this, container.observeMessages.progress.value))
 
         // Listening is what keeps the shared reading going when no screen is.
@@ -63,6 +64,7 @@ class BackfillService : Service() {
 
     /** Everything is read: take the notification down at once, and make sure no late update can bring it back. */
     private fun finish() {
+        com.zyke.message.data.diag.DevLog.d("service") { "BackfillService finishing (already=$finished)" }
         if (finished) return
         finished = true
         scope.cancel()

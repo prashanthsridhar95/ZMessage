@@ -19,7 +19,11 @@ class CategoryOverrideRepositoryImpl(context: Context) : CategoryOverrideReposit
         val editor = prefs.edit()
         if (category == null) editor.remove(key) else editor.putString(key, category.name)
         editor.apply()
+        val before = _overrides.value.size
         _overrides.value = if (category == null) _overrides.value - key else _overrides.value + (key to category)
+        com.zyke.message.data.diag.DevLog.d("category") {
+            "set key=${com.zyke.message.domain.diag.DiagLog.key(key)} category=$category count $before -> ${_overrides.value.size} storedNow=${prefs.contains(key)}"
+        }
     }
 
     override fun clearAll() {

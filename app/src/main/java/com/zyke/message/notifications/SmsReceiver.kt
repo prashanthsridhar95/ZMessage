@@ -24,6 +24,7 @@ class SmsReceiver : BroadcastReceiver() {
         val body = parts.joinToString("") { it.messageBody.orEmpty() }
         val received = SmsMessage(0L, sender, body, System.currentTimeMillis(), isRead = false)
 
+        com.zyke.message.data.diag.DevLog.d("receiver") { "SMS received from ${com.zyke.message.domain.diag.DiagLog.key(sender)} (${body.length} characters)" }
         LiveAlerts.post(context, container.messageClassifier.classify(received))
         DaysAheadWidget.refresh(context)
     }

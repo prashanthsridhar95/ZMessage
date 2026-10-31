@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
 
     /** One permission prompt for the whole app; every tab is told the answer. */
     private val smsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        com.zyke.message.data.diag.DevLog.d("permission") { "SMS permission result: granted=$granted" }
         messagesViewModel.onIntent(MessagesContract.Intent.PermissionResult(granted))
         if (granted) {
             homeViewModel.onIntent(HomeContract.Intent.ScreenStarted(true))
@@ -320,6 +321,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        com.zyke.message.data.diag.DevLog.d("lifecycle") { "MainActivity started (SMS permission=${has(Manifest.permission.READ_SMS)}, notification access=${hasNotificationAccess()}, paused=${container.settings.settings.value.readingPaused})" }
         lockIfAway()
         // Whatever was deleted or read in the messaging app while this app was away shows up now. A fresh start already
         // reads everything, and a very large inbox is not read again for a quick switch between apps.
@@ -353,6 +355,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        com.zyke.message.data.diag.DevLog.d("lifecycle") { "MainActivity stopped" }
         leftAt = SystemClock.elapsedRealtime()
     }
 

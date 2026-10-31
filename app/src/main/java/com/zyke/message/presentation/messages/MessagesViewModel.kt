@@ -122,13 +122,26 @@ class MessagesViewModel(
             }
             Intent.CancelMerge -> reduce { copy(mergeRequest = null) }
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
-            is Intent.Rename -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
-                val own = CategoryKey.messageKey(message.id)
-                // Naming this one transaction and naming its sender or receiver are two separate things.
-                if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(message)?.let { nicknames.set(it, intent.name) }
+            is Intent.Rename -> {
+                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
+                com.zyke.message.data.diag.DevLog.d("nickname") {
+                    "messages: rename id=${intent.messageId} onlyThis=${intent.onlyThis} nameLength=${intent.name.length} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
+                }
+                message?.let {
+                    val own = CategoryKey.messageKey(it.id)
+                    // Naming this one transaction and naming its sender or receiver are two separate things.
+                    if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(it)?.let { key -> nicknames.set(key, intent.name) }
+                }
             }
-            is Intent.SetMessageCategory -> categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
-            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
+            is Intent.SetMessageCategory -> {
+                com.zyke.message.data.diag.DevLog.d("category") { "messages: this transaction id=${intent.messageId} -> ${intent.category}" }
+                categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
+            }
+            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }.also { message ->
+                com.zyke.message.data.diag.DevLog.d("category") {
+                    "messages: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
+                }
+            }?.let { message ->
                 val key = CategoryKey.of(message) ?: return@let
                 val previous = message.category.takeIf { message.categoryOverridden }
                 categoryOverrides.set(key, intent.category)
