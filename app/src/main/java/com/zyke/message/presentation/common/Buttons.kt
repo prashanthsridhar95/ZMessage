@@ -75,7 +75,8 @@ fun AppButton(
             text = text,
             style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false
         )
     }
 

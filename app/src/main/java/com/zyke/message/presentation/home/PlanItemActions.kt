@@ -1,9 +1,14 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -38,6 +43,9 @@ import com.zyke.message.R
 import com.zyke.message.domain.plan.PlanHide
 import com.zyke.message.domain.plan.PlanKind
 import com.zyke.message.domain.plan.SnoozeOption
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonSize
+import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LocalAppSnackbar
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.home.HomeContract.Intent
@@ -95,6 +103,7 @@ internal class PlanExtraAction(val label: String, val describe: String, val onCl
  * Dismiss and whatever [extras] the kind of item adds), each with a 48dp target and the item's name in its description.
  * An item already out of sight (the bills tab keeps showing every bill) says so and offers Restore instead.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlanItemFrame(
     name: String,
@@ -106,16 +115,16 @@ internal fun PlanItemFrame(
     hide: PlanHide? = null,
     onOpen: (() -> Unit)? = null,
     extras: List<PlanExtraAction> = emptyList(),
-    content: @Composable () -> Unit
+    content: @Composable (more: @Composable () -> Unit) -> Unit
 ) {
     var expanded by rememberSaveable(key) { mutableStateOf(false) }
     var picking by rememberSaveable(key) { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { content() }
+        // The row decides where the button sits (the very end of its top line), so it never takes width from the text or buttons.
+        content {
             IconButton(
                 onClick = { expanded = !expanded },
-                Modifier.semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
+                Modifier.size(48.dp).semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
             ) {
                 Icon(painterResource(R.drawable.baseline_more_horiz_24), contentDescription = "Actions for $name")
             }
@@ -124,7 +133,7 @@ internal fun PlanItemFrame(
             StatusPill(hide.until?.let { "Snoozed until ${DayFormat.format(it)}" } ?: "Dismissed", Tone.NEUTRAL, Modifier.padding(bottom = 4.dp))
         }
         if (expanded) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 onOpen?.let { PlanActionButton("Open", "Open $name", it) }
                 extras.forEach { PlanActionButton(it.label, it.describe, it.onClick) }
                 if (hide == null) {
@@ -222,4 +231,58 @@ internal fun HiddenPlanLink(hidden: List<PlanHide>, handler: PlanActionHandler, 
     var open by rememberSaveable { mutableStateOf(false) }
     com.zyke.message.presentation.common.LinkButton("Snoozed & dismissed (${hidden.size})", { open = true }, modifier)
     if (open) PlanPage("Snoozed & dismissed", { open = false }) { HiddenPlanItems(hidden, handler) }
+}
+
+
+/** A button in a [RowActions] line: one label on one line, never narrower than the label. */
+internal class RowAction(val label: String, val style: ButtonStyle, val onClick: () -> Unit)
+
+/**
+ * The shared shape of a plan, bill or reminder row. Top line: [leading] chip, then title and caption (up to two lines,
+ * so the caption is not cut to "..." while there is room), then the amount, then [more] (the 48dp actions button) at the very end.
+ * Below, on their own full-width line, [actions] sit side by side with equal weight and wrap to a second line when the
+ * labels do not fit, so a button is never squeezed to nothing or to half a label.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PlanRow(
+    title: String,
+    modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
+    caption: (@Composable () -> Unit)? = null,
+    amount: (@Composable () -> Unit)? = null,
+    more: (@Composable () -> Unit)? = null,
+    actions: List<RowAction> = emptyList()
+) {
+    Column(modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            if (leading != null) {
+                Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) { leading() }
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f).heightIn(min = 48.dp), verticalArrangement = Arrangement.Center) {
+                RowTitle(title)
+                caption?.invoke()
+            }
+            if (amount != null) {
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.CenterEnd) { amount() }
+            }
+            if (more != null) more() else Spacer(Modifier.width(8.dp))
+        }
+        if (actions.isNotEmpty()) {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                actions.forEach { action ->
+                    AppButton(
+                        text = action.label, onClick = action.onClick,
+                        modifier = Modifier.weight(1f), style = action.style, size = ButtonSize.COMPACT
+                    )
+                }
+            }
+        }
+    }
 }

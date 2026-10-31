@@ -381,10 +381,12 @@ private fun SummaryPage(
             item(key = "next") {
                 FintechCard {
                     Caption("NEXT DUE")
-                    val nextRow: @Composable () -> Unit = {
-                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                    val nextRow: @Composable (@Composable () -> Unit) -> Unit = { more ->
+                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
                     }
-                    if (next.paidOn != null) nextRow() else PlanItemFrame(next.title, PlanKeys.bill(next), PlanKind.BILL, today, planHandler, content = nextRow)
+                    if (next.paidOn != null) {
+                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                    } else PlanItemFrame(next.title, PlanKeys.bill(next), PlanKind.BILL, today, planHandler, content = nextRow)
                     LinkButton("All bills", { onNavigate(AppTab.BILLS) })
                 }
             }
@@ -440,8 +442,8 @@ private fun SummaryPage(
                                 planHandler.announce("Reminder set for ${agendaItem.title}") { onIntent(Intent.RemoveReminder(reminder.id)) }
                             }
                         )
-                        PlanItemFrame(agendaItem.title, PlanKeys.agenda(agendaItem), PlanKind.AGENDA, today, planHandler, onOpen = open, extras = extras) {
-                            AgendaRow(agendaItem, today, open)
+                        PlanItemFrame(agendaItem.title, PlanKeys.agenda(agendaItem), PlanKind.AGENDA, today, planHandler, onOpen = open, extras = extras) { more ->
+                            AgendaRow(agendaItem, today, open, more)
                         }
                     }
                     HiddenPlanLink(state.planHidden, planHandler)
@@ -508,17 +510,19 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                                 planHandler.announce("Done: ${reminder.title}") { onIntent(Intent.SaveReminder(reminder)) }
                             }
                         }
-                        PlanItemFrame(reminder.title, key, PlanKind.REMINDER, today, planHandler, extras = listOf(done), onOpen = { onIntent(Intent.OpenReminders) }) {
-                            Row(
-                                Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) }.padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    RowTitle(reminder.title)
-                                    Caption(DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (reminder.repeatsMonthly) " \u00B7 every month" else "")
-                                }
-                                reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
-                            }
+                        PlanItemFrame(reminder.title, key, PlanKind.REMINDER, today, planHandler, extras = listOf(done), onOpen = { onIntent(Intent.OpenReminders) }) { more ->
+                            PlanRow(
+                                title = reminder.title,
+                                modifier = Modifier.fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) },
+                                caption = {
+                                    Caption(
+                                        DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (reminder.repeatsMonthly) " \u00B7 every month" else "",
+                                        maxLines = 2
+                                    )
+                                },
+                                amount = reminder.amount?.let { amt -> { AmountText(DisplayFormatters.rupees(amt), MaterialTheme.colorScheme.secondary) } },
+                                more = more
+                            )
                         }
                     }
                     if (state.planReminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
@@ -531,10 +535,12 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 PlainSection("Due") {
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        val row: @Composable () -> Unit = {
-                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                        val row: @Composable (@Composable () -> Unit) -> Unit = { more ->
+                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
                         }
-                        if (item.paidOn != null) row() else {
+                        if (item.paidOn != null) {
+                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                        } else {
                             // Every bill stays on this tab, even an overdue one that was snoozed: it just says so.
                             val key = PlanKeys.bill(item)
                             PlanItemFrame(item.title, key, PlanKind.BILL, today, planHandler, hide = PlanActions.hideFor(key, state.planActions, today), content = row)
@@ -805,32 +811,31 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
 
 /** One thing ahead: an order on its way, a trip, an appointment or a renewal. Tap for the message. */
 @Composable
-private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit) {
+private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit, more: (@Composable () -> Unit)? = null) {
     val life = item.message.content as MessageContent.Life
     val date = item.date
     val soon = date != null && date <= today.plusDays(2)
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        MerchantChip(
-            item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name,
-            description = item.title, size = 44.dp
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            RowTitle(item.title)
-            Caption("${item.kind.label} · ${item.status}")
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = date?.let { whenLabel(it, life, today) } ?: "On the way",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = if (soon) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
-            maxLines = 1
-        )
-    }
+    PlanRow(
+        title = item.title,
+        modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
+        leading = {
+            MerchantChip(
+                item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name,
+                description = item.title, size = 44.dp
+            )
+        },
+        caption = { Caption("${item.kind.label} \u00B7 ${item.status}", maxLines = 2) },
+        amount = {
+            Text(
+                text = date?.let { whenLabel(it, life, today) } ?: "On the way",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (soon) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                maxLines = 1
+            )
+        },
+        more = more
+    )
 }
 
 /** The person says it is paid: the bill goes from the list and the attention strip, and a tap on Undo brings it back. */
@@ -858,49 +863,43 @@ private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit
 }
 
 @Composable
-private fun UpcomingRow(item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onMarkPaid: (UpcomingItem) -> Unit, onPay: (String) -> Unit) {
+private fun UpcomingRow(
+    item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onMarkPaid: (UpcomingItem) -> Unit,
+    more: (@Composable () -> Unit)? = null, onPay: (String) -> Unit
+) {
     val paid = item.paidOn != null
     val urgent = !paid && DisplayFormatters.isUrgent(item.date, today)
     val good = com.zyke.message.presentation.common.limitColors().good
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        MerchantChip(item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, description = item.title, size = 44.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            RowTitle(item.title)
+    // Paid some other way, with no message about it: say so, and it goes. The buttons get their own full-width line.
+    val link = item.paymentLink
+    val actions = if (paid) emptyList() else listOfNotNull(
+        link?.let { RowAction("Pay bill", ButtonStyle.PRIMARY) { onPay(it) } },
+        RowAction("Mark as paid", ButtonStyle.OUTLINE) { onMarkPaid(item) }
+    )
+    PlanRow(
+        title = item.title,
+        modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
+        leading = { MerchantChip(item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, description = item.title, size = 44.dp) },
+        caption = {
             if (paid) {
                 // Paid today: the day shows it done. Tomorrow the row is gone.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("\u2713", color = good, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Paid today",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = good
-                    )
+                    Text("Paid today", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = good)
                 }
             } else {
                 Caption(
-                    (if (item.kind == UpcomingKind.CARD_BILL) "Bill · " else "Auto-debit · ") + DisplayFormatters.dueLabel(item.date, today),
-                    color = if (urgent) MaterialTheme.colorScheme.error else mutedColor()
+                    (if (item.kind == UpcomingKind.CARD_BILL) "Bill \u00B7 " else "Auto-debit \u00B7 ") + DisplayFormatters.dueLabel(item.date, today),
+                    color = if (urgent) MaterialTheme.colorScheme.error else mutedColor(),
+                    maxLines = 2
                 )
             }
-            if (!paid) {
-                // Paid some other way, with no message about it: say so, and it goes.
-                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item.paymentLink?.let { link ->
-                        AppButton(text = "Pay bill", onClick = { onPay(link) }, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
-                    }
-                    AppButton(text = "Mark as paid", onClick = { onMarkPaid(item) }, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
-                }
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(item.paidAmount ?: item.amount), if (paid) good else MaterialTheme.colorScheme.secondary)
-    }
+        },
+        amount = { AmountText(DisplayFormatters.rupees(item.paidAmount ?: item.amount), if (paid) good else MaterialTheme.colorScheme.secondary) },
+        more = more,
+        actions = actions
+    )
 }
 
 @Composable
@@ -980,24 +979,13 @@ private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
 
 @Composable
 private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            RowTitle(share.person.name)
-            Caption("For ${share.split.title}")
-            AppButton(
-                text = "Mark as paid",
-                onClick = onSettle,
-                style = ButtonStyle.TONAL,
-                size = ButtonSize.COMPACT,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary)
-    }
+    PlanRow(
+        title = share.person.name,
+        modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
+        caption = { Caption("For ${share.split.title}", maxLines = 2) },
+        amount = { AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary) },
+        actions = listOf(RowAction("Mark as paid", ButtonStyle.OUTLINE, onSettle))
+    )
 }
 
 @Composable
