@@ -20,7 +20,10 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             appLock = prefs.getBoolean(APP_LOCK, false),
             morningDigest = prefs.getBoolean(MORNING_DIGEST, false),
             liveAlerts = prefs.getBoolean(LIVE_ALERTS, false),
-            readingPaused = prefs.getBoolean(READING_PAUSED, false)
+            readingPaused = prefs.getBoolean(READING_PAUSED, false),
+            weeklySummary = prefs.getBoolean(WEEKLY_SUMMARY, false),
+            headsUp = prefs.getBoolean(HEADS_UP, false),
+            lowBalanceFloor = prefs.getString(LOW_BALANCE_FLOOR, null)?.toBigDecimalOrNull()
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -60,7 +63,25 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(readingPaused = paused)
     }
 
+    override fun setWeeklySummary(enabled: Boolean) {
+        prefs.edit().putBoolean(WEEKLY_SUMMARY, enabled).apply()
+        _settings.value = _settings.value.copy(weeklySummary = enabled)
+    }
+
+    override fun setHeadsUp(enabled: Boolean) {
+        prefs.edit().putBoolean(HEADS_UP, enabled).apply()
+        _settings.value = _settings.value.copy(headsUp = enabled)
+    }
+
+    override fun setLowBalanceFloor(floor: java.math.BigDecimal?) {
+        prefs.edit().apply { if (floor == null) remove(LOW_BALANCE_FLOOR) else putString(LOW_BALANCE_FLOOR, floor.toPlainString()) }.apply()
+        _settings.value = _settings.value.copy(lowBalanceFloor = floor)
+    }
+
     private companion object {
+        const val WEEKLY_SUMMARY = "weekly_summary"
+        const val HEADS_UP = "heads_up"
+        const val LOW_BALANCE_FLOOR = "low_balance_floor"
         const val READING_PAUSED = "reading_paused"
         const val LIVE_ALERTS = "live_alerts"
         const val FETCH_LOGOS = "fetch_logos"

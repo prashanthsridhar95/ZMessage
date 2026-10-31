@@ -86,7 +86,8 @@ class ManifestPolicyTest {
         assertEquals(
             setOf(
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
-                ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver"
+                ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
+                ".notifications.WeeklyReceiver"
             ),
             receivers.names("name").toSet()
         )

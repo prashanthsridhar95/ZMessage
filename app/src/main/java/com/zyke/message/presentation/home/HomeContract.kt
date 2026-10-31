@@ -43,6 +43,7 @@ object HomeContract {
         val plan: MoneyPlan = MoneyPlan(),
         val goalList: List<Goal> = emptyList(),
         val reminderList: List<Reminder> = emptyList(),
+        val loanList: List<com.zyke.message.domain.loans.Loan> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val hiddenAccounts: Set<String> = emptySet(),
         /** What the person has set aside from the totals, and what the app would like them to look at. */
@@ -59,6 +60,8 @@ object HomeContract {
         /** This month's spending, against last month. */
         val thisMonth: Dashboard? = null,
         val upcoming: List<UpcomingItem> = emptyList(),
+        /** What is expected to leave in the next seven days, from every source; null until worked out. */
+        val outflow: com.zyke.message.domain.forecast.UpcomingOutflow? = null,
         /** Budgeted categories, the most used first. */
         val budgetStatus: List<CategoryTotal> = emptyList(),
         val recent: List<ClassifiedMessage> = emptyList(),

@@ -43,6 +43,8 @@ class SettingsViewModel(
     private val onDigestChanged: (Boolean) -> Unit = {},
     /** Called when live alerts are switched on or off, so the SMS receiver can be enabled or disabled. */
     private val onLiveAlertsChanged: (Boolean) -> Unit = {},
+    /** Called when the weekly summary is switched on or off, so its alarm can be set or cancelled. */
+    private val onWeeklySummaryChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
     /** The person's own setup beyond what this screen holds (goals, reminders, events, entries), for the export. */
@@ -93,6 +95,12 @@ class SettingsViewModel(
                 settingsRepository.setMorningDigest(intent.enabled)
                 onDigestChanged(intent.enabled)
             }
+            is Intent.SetWeeklySummary -> {
+                settingsRepository.setWeeklySummary(intent.enabled)
+                onWeeklySummaryChanged(intent.enabled)
+            }
+            is Intent.SetHeadsUp -> settingsRepository.setHeadsUp(intent.enabled)
+            is Intent.SetLowBalanceFloor -> settingsRepository.setLowBalanceFloor(amountOf(intent.text))
             is Intent.SaveCard -> {
                 val card = intent.card
                 if (card.last4.length == LAST_DIGITS && card.last4.all { it.isDigit() }) {
@@ -261,6 +269,7 @@ class SettingsViewModel(
         private val onLogosTurnedOff: () -> Unit = {},
         private val onDigestChanged: (Boolean) -> Unit = {},
         private val onLiveAlertsChanged: (Boolean) -> Unit = {},
+        private val onWeeklySummaryChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
         private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
@@ -270,7 +279,7 @@ class SettingsViewModel(
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, setupExtras = setupExtras
+                onLiveAlertsChanged = onLiveAlertsChanged, onWeeklySummaryChanged = onWeeklySummaryChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, setupExtras = setupExtras
             ) as T
     }
 }

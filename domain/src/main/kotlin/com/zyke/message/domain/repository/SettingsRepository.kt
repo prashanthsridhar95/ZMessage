@@ -20,4 +20,10 @@ interface SettingsRepository {
     fun setLiveAlerts(enabled: Boolean)
 
     fun setReadingPaused(paused: Boolean) = Unit
+
+    fun setWeeklySummary(enabled: Boolean) = Unit
+
+    fun setHeadsUp(enabled: Boolean) = Unit
+
+    fun setLowBalanceFloor(floor: java.math.BigDecimal?) = Unit
 }

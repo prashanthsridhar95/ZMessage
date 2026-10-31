@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Telephony
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.model.SmsMessage
+import kotlinx.coroutines.launch
 
 /**
  * Hears about each new text, only after the person turned on live alerts (the receiver is disabled until then).
@@ -25,7 +26,19 @@ class SmsReceiver : BroadcastReceiver() {
         val received = SmsMessage(0L, sender, body, System.currentTimeMillis(), isRead = false)
 
         com.zyke.message.data.diag.DevLog.d("receiver") { "SMS received from ${com.zyke.message.domain.diag.DiagLog.key(sender)} (${body.length} characters)" }
-        LiveAlerts.post(context, container.messageClassifier.classify(received))
+        val classified = container.messageClassifier.classify(received)
+        LiveAlerts.post(context, classified)
         DaysAheadWidget.refresh(context)
+
+        // The heads-up reads the inbox for what is usual, which takes a moment; keep the receiver alive for it.
+        if (!container.settings.settings.value.headsUp) return
+        val pending = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            try {
+                HeadsUpNotifier.check(context, classified)
+            } finally {
+                pending.finish()
+            }
+        }
     }
 }

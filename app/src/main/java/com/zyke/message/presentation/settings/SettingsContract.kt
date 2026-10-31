@@ -48,6 +48,9 @@ object SettingsContract {
         data class SetAppLock(val enabled: Boolean) : Intent
         data class SetMorningDigest(val enabled: Boolean) : Intent
         data class SetLiveAlerts(val enabled: Boolean) : Intent
+        data class SetWeeklySummary(val enabled: Boolean) : Intent
+        data class SetHeadsUp(val enabled: Boolean) : Intent
+        data class SetLowBalanceFloor(val text: String) : Intent
         data class SaveCard(val card: UserCard) : Intent
         data class DeleteCard(val id: String) : Intent
         /** Sets (or, for a blank value, clears) the daily and monthly limit of a category. */

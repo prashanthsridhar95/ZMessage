@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -268,6 +269,7 @@ private fun messagesSummary(state: State): String {
 }
 
 private fun alertsSummary(state: State): String = when {
+    state.settings.weeklySummary || state.settings.headsUp -> "Summaries and heads-ups on"
     state.settings.morningDigest && state.settings.liveAlerts -> "Morning summary and code buttons on"
     state.settings.morningDigest -> "Morning summary on"
     state.settings.liveAlerts -> "Code buttons on"
@@ -380,6 +382,24 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         SettingsGroup.ALERTS -> SectionCard("Reminders and alerts") {
             MorningDigestToggle(enabled = state.settings.morningDigest, onChange = { onIntent(Intent.SetMorningDigest(it)) })
             LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = 12.dp))
+            Box(Modifier.padding(top = 12.dp)) {
+                MorningDigestToggle(
+                    enabled = state.settings.weeklySummary, onChange = { onIntent(Intent.SetWeeklySummary(it)) },
+                    title = "Weekly summary", description = "Sunday at about 9 AM: the week's spending and what is due next"
+                )
+            }
+            Box(Modifier.padding(top = 12.dp)) {
+                MorningDigestToggle(
+                    enabled = state.settings.headsUp && state.settings.liveAlerts, onChange = { onIntent(Intent.SetHeadsUp(it)) },
+                    title = "Heads-up alerts", description = "A quiet note when a payment is far above usual or leaves an account low. Needs the buttons above"
+                )
+            }
+            var floor by remember { mutableStateOf(state.settings.lowBalanceFloor?.toPlainString().orEmpty()) }
+            com.zyke.message.presentation.common.FormField(
+                "Low balance floor", floor, { floor = it; onIntent(Intent.SetLowBalanceFloor(it)) },
+                modifier = Modifier.padding(top = 12.dp), placeholder = "None", prefix = "\u20b9",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+            )
             Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = 12.dp), maxLines = 2)
         }
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
@@ -562,12 +582,17 @@ private fun AppLockToggle(enabled: Boolean, onChange: (Boolean) -> Unit, modifie
 
 /** The morning digest needs permission to show notifications on newer Android, asked for only when it is switched on. */
 @Composable
-private fun MorningDigestToggle(enabled: Boolean, onChange: (Boolean) -> Unit) {
+private fun MorningDigestToggle(
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+    title: String = "Morning digest",
+    description: String = "A short summary at about 8 AM"
+) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
     ToggleRow(
-        title = "Morning digest",
-        description = "A short summary at about 8 AM",
+        title = title,
+        description = description,
         checked = enabled,
         onCheckedChange = { wanted ->
             val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

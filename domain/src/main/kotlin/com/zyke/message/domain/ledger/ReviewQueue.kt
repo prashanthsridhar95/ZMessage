@@ -68,13 +68,13 @@ object ReviewQueues {
     const val OVERDUE_BILL_MAX_DAYS = 60L
 
     /** A debit this many times the median is unusual. */
-    const val UNUSUAL_FACTOR = 5L
+    const val UNUSUAL_FACTOR = UnusualSpend.FACTOR
 
     /** The median is taken over debits in this many days. */
-    const val UNUSUAL_HISTORY_DAYS = 90L
+    const val UNUSUAL_HISTORY_DAYS = UnusualSpend.HISTORY_DAYS
 
     /** Fewer debits than this and there is no telling what is usual. */
-    const val UNUSUAL_MIN_DEBITS = 10
+    const val UNUSUAL_MIN_DEBITS = UnusualSpend.MIN_DEBITS
 
     /** Only debits this recent are asked about. */
     const val UNUSUAL_ASK_DAYS = 30L
@@ -186,12 +186,7 @@ object ReviewQueues {
             if (m.message.date < nowMs - UNUSUAL_HISTORY_DAYS * DAY_MS || m.message.date > nowMs) return@mapNotNull null
             m to amount
         }
-        if (recent.size < UNUSUAL_MIN_DEBITS) return emptyList()
-        val sorted = recent.map { it.second }.sorted()
-        val mid = sorted.size / 2
-        val median = if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]).divide(BigDecimal(2))
-        if (median.signum() <= 0) return emptyList()
-        val threshold = median.multiply(BigDecimal(UNUSUAL_FACTOR))
+        val threshold = UnusualSpend.threshold(recent.map { it.second }) ?: return emptyList()
         return recent.filter { (m, amount) ->
             amount >= threshold && m.message.date >= nowMs - UNUSUAL_ASK_DAYS * DAY_MS &&
                 !m.categoryOverridden && !m.categoryOwn && unusualKey(m) !in asides.dismissed

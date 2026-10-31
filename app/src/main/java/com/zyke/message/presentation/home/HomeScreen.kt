@@ -284,6 +284,10 @@ private fun SummaryPage(
             }
         }
 
+        state.outflow?.takeIf { !it.isEmpty }?.let { outflow ->
+            item(key = "outflow") { OutflowCard(outflow) { onNavigate(AppTab.BILLS) } }
+        }
+
         item(key = "balance") { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } }
 
         state.daily?.let { daily ->
@@ -926,3 +930,21 @@ private fun FocusCard(text: String, urgent: Boolean) {
 @Composable
 private fun FoldSection(title: String, summary: String, content: @Composable ColumnScope.() -> Unit) =
     SectionCard(title, summary = summary, content = content)
+
+/** One slim card: what leaves in the next seven days and the three biggest items; tapping opens the bills. */
+@Composable
+private fun OutflowCard(outflow: com.zyke.message.domain.forecast.UpcomingOutflow, onClick: () -> Unit) {
+    FintechCard(onClick = onClick) {
+        Caption("NEXT 7 DAYS")
+        Text(
+            com.zyke.message.presentation.format.DisplayFormatters.rupees(outflow.total) + " leaves",
+            style = MaterialTheme.typography.titleMedium
+        )
+        outflow.biggest(3).forEach { item ->
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(item.title, style = MaterialTheme.typography.bodySmall, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(com.zyke.message.presentation.format.DisplayFormatters.rupees(item.amount), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}

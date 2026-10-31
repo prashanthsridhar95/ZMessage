@@ -40,6 +40,10 @@ object BalanceReader {
     fun history(messages: List<ClassifiedMessage>, zone: ZoneId): Map<String, List<AccountBalance>> =
         readings(messages, zone).groupBy { it.account }.mapValues { (_, list) -> list.sortedWith(compareBy({ it.asOf }, { it.messageId })) }
 
+    /** The balance one message states for its account, if it does. */
+    fun statedIn(message: ClassifiedMessage, zone: ZoneId): AccountBalance? =
+        readings(listOf(message), zone).maxByOrNull { it.asOf }
+
     private fun readings(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> {
         val all = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null

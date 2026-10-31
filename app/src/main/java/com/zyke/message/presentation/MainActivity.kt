@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.zyke.message.notifications.DaysAheadWidget
 import com.zyke.message.notifications.DigestScheduler
 import com.zyke.message.notifications.LiveAlerts
+import com.zyke.message.notifications.WeeklyScheduler
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -71,7 +72,7 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
-            container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments
+            container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments, container.loans
         )
     }
 
@@ -81,6 +82,7 @@ class MainActivity : ComponentActivity() {
             onLogosTurnedOff = container.imageStore::clearLogos,
             onDigestChanged = { DigestScheduler(this).apply(it) },
             onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
+            onWeeklySummaryChanged = { WeeklyScheduler(this).apply(it) },
             planRepository = container.moneyPlan,
             hiddenAccounts = container.hiddenAccounts,
             setupExtras = { com.zyke.message.data.export.SetupExport.extras(container) }
@@ -361,6 +363,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
+        container.settings.settings.value.weeklySummary.let { WeeklyScheduler(this).apply(it) }
         DaysAheadWidget.refresh(this)
     }
 
