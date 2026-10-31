@@ -324,7 +324,9 @@ class HomeViewModel(
             val upcoming = memo("upcoming", msgs, now, us.dismissedAttention) {
                 UpcomingBuilder.build(msgs, today, includePaidToday = true, zone = zone, markedPaid = us.dismissedAttention)
             }
-            val review = memo("review", live, updated.asides) { com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone) }
+            val review = memo("review", live, updated.asides, now, us.dismissedAttention) {
+                com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone, now, us.dismissedAttention)
+            }
 
             updated.copy(
                 cycle = cycle,
