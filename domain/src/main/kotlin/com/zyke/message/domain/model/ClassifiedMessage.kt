@@ -29,7 +29,9 @@ data class ClassifiedMessage(
     /** The name was given to this one transaction, not to its sender or receiver. */
     val nicknameOwn: Boolean = false,
     /** Kept out of the income and spending totals, though still in the list: left out by the person, or a transfer between their own accounts. */
-    val setAside: com.zyke.message.domain.ledger.SetAside? = null
+    val setAside: com.zyke.message.domain.ledger.SetAside? = null,
+    /** The format the person taught that this message was read with (it was not understood by the built-in rules). */
+    val learnedTemplateId: String? = null
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

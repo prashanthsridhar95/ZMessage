@@ -68,7 +68,9 @@ class ObserveMessagesUseCase(
     /** Payments the person records by hand; they are read as if they had come in a message. */
     private val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
     /** Payments left out of the totals and transfers between the person's own accounts. */
-    private val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides
+    private val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
+    /** Message formats the person taught; applied to messages the built-in rules left as plain text. */
+    private val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.domain.repository.NoLearnedTemplates
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -114,6 +116,7 @@ class ObserveMessagesUseCase(
                     (classified + entries.map { com.zyke.message.domain.ledger.ManualEntries.toMessage(it, zone) }).sortedByDescending { it.message.date }
                 }
             }
+            .combine(learnedTemplates.templates) { classified, templates -> applyLearned(classified, templates) }
             .combine(categoryOverrides.overrides.combine(tokenRules.rules) { o, t -> o to t }) { classified, (overrides, words) ->
                 val applied = classified.map { CategoryKey.apply(it, overrides, words) }
                 DiagLog.d("pipeline") {
@@ -167,6 +170,19 @@ class ObserveMessagesUseCase(
             // Nothing changed for any message (every one is the same instance): do not wake every screen again.
             .distinctUntilChanged(::sameInstances)
             .flowOn(dispatcher)
+
+    /** Only messages left as plain text that a taught format reads fully are copied; every other one stays the same instance. */
+    private fun applyLearned(classified: List<ClassifiedMessage>, templates: List<com.zyke.message.domain.teach.LearnedTemplate>): List<ClassifiedMessage> {
+        if (templates.isEmpty()) return classified
+        return classified.map { message ->
+            if (message.content != MessageContent.Generic) return@map message
+            val (template, tx) = com.zyke.message.domain.teach.LearnedTemplates.firstMatch(templates, message.message) ?: return@map message
+            val read = classifier.fromLearned(message.message, tx)
+            val category = template.category
+            val filed = if (category == null) read else read.copy(category = category, merchant = read.merchant.copy(category = category))
+            filed.copy(learnedTemplateId = template.id)
+        }
+    }
 
     private fun sameInstances(a: List<ClassifiedMessage>, b: List<ClassifiedMessage>): Boolean {
         if (a === b) return true

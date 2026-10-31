@@ -118,6 +118,9 @@ class MessageClassifier(
     fun fromTransaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage =
         transaction(message, tx).copy(isModelParsed = true)
 
+    /** A message read with a format the person taught: the same record the built-in rules would make. */
+    fun fromLearned(message: SmsMessage, tx: BankTransaction): ClassifiedMessage = transaction(message, tx)
+
     private fun transaction(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
         var merchant = nameIfMissing(merchants.resolve(tx.payee), tx)
         // A mutual-fund SIP is an investment whatever the fund is called.
