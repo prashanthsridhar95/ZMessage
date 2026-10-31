@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
-            container.calendarEvents, container.setAsides, container.manualEntries
+            container.calendarEvents, container.setAsides, container.manualEntries, container.merges
         )
     }
 

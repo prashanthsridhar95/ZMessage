@@ -124,6 +124,9 @@ object HomeContract {
         data class LinkTransfer(val debitId: Long?, val creditId: Long?) : Intent
         /** Says a suggested transfer is not one. */
         data class DismissTransfer(val key: String) : Intent
+        /** Says two messages are one payment; [duplicateId] is folded into [primaryId]. */
+        data class MergeDuplicates(val primaryId: Long, val duplicateId: Long) : Intent
+        data class UnmergeDuplicate(val duplicateId: Long) : Intent
         data class SaveManualEntry(val entry: com.zyke.message.domain.ledger.ManualEntry) : Intent
         data class OpenLink(val url: String) : Intent
         data class OpenMessage(val messageId: Long) : Intent

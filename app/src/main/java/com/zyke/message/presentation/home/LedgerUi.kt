@@ -19,7 +19,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.ledger.ManualEntry
 import com.zyke.message.domain.ledger.ManualKind
+import com.zyke.message.domain.ledger.OverdueBill
 import com.zyke.message.domain.ledger.ReviewQueue
+import com.zyke.message.domain.ledger.ReviewQueues
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.common.AmountField
@@ -38,6 +40,7 @@ import com.zyke.message.presentation.common.SegmentedChoice
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private val SPEND_SUGGESTIONS = listOf("Cash spend", "Auto", "Tea and snacks", "Vegetables", "Tip", "Parking", "Pocket money")
@@ -128,7 +131,7 @@ internal fun ReviewCard(count: Int, onOpen: () -> Unit) {
                     Modifier.padding(top = 4.dp), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
                 )
-                Caption("Possible transfers, messages not understood, payments with no category", maxLines = 2)
+                Caption("Bills, possible duplicates and transfers, large payments, messages not understood", maxLines = 2)
             }
             Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.secondary)
         }
@@ -142,12 +145,68 @@ internal fun ReviewPage(
     onLink: (debitId: Long, creditId: Long) -> Unit,
     onNotTransfer: (String) -> Unit,
     onOpen: (Long) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Folds the second message into the first as one payment. */
+    onMerge: (primaryId: Long, duplicateId: Long) -> Unit = { _, _ -> },
+    onUnmerge: (duplicateId: Long) -> Unit = {},
+    /** The person says the bill was paid; [onUndoPaid] takes that back. */
+    onMarkPaid: (OverdueBill) -> Unit = {},
+    onUndoPaid: (OverdueBill) -> Unit = {}
 ) {
+    val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     AppPage("Needs review", onBack) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (review.isEmpty) {
                 com.zyke.message.presentation.common.EmptyState("All clear", "Nothing needs a look right now. Anything the app is unsure of will appear here.")
+            }
+            if (review.bills.isNotEmpty()) {
+                SectionHeader("Bills that need a look", review.bills.size)
+                review.bills.forEach { bill ->
+                    FintechCard {
+                        RowTitle(bill.label)
+                        Text(
+                            DisplayFormatters.rupees(bill.amount), Modifier.padding(top = 2.dp), style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
+                        )
+                        Caption("Was this bill paid? It was due on ${DueFormat.format(bill.dueDate)} and no payment message was found.", Modifier.padding(top = 2.dp), maxLines = 3)
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppButton("Yes, mark as paid", {
+                                onMarkPaid(bill)
+                                scope.launch {
+                                    val result = snackbar.showSnackbar("Marked ${bill.label} as paid", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+                                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) onUndoPaid(bill)
+                                }
+                            }, Modifier.weight(1f), size = ButtonSize.COMPACT)
+                            AppButton("Open message", { onOpen(bill.message.id) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
+            }
+            if (review.duplicates.isNotEmpty()) {
+                SectionHeader("Possible duplicates", review.duplicates.size)
+                review.duplicates.forEach { candidate ->
+                    FintechCard {
+                        Text(
+                            DisplayFormatters.rupees(candidate.amount), style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
+                        )
+                        Caption("Tap a line to read its message", Modifier.padding(top = 2.dp))
+                        TransferLeg("First", candidate.first, onOpen)
+                        TransferLeg("Second", candidate.second, onOpen)
+                        Caption("If it is one payment, counting it twice overstates your spending.", Modifier.padding(top = 8.dp), maxLines = 2)
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppButton("Same payment", {
+                                onMerge(candidate.first.id, candidate.second.id)
+                                scope.launch {
+                                    val result = snackbar.showSnackbar("Merged into one payment", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+                                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) onUnmerge(candidate.second.id)
+                                }
+                            }, Modifier.weight(1f), size = ButtonSize.COMPACT)
+                            AppButton("Different payments", { onNotTransfer(candidate.key) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
             }
             if (review.transfers.isNotEmpty()) {
                 SectionHeader("Possible transfers", review.transfers.size)
@@ -165,6 +224,25 @@ internal fun ReviewPage(
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppButton("It is a transfer", { onLink(candidate.debit.id, candidate.credit.id) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Not a transfer", { onNotTransfer(candidate.key) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
+            }
+            if (review.unusual.isNotEmpty()) {
+                SectionHeader("Unusually large payments", review.unusual.size)
+                review.unusual.forEach { message ->
+                    val tx = message.content as MessageContent.Transaction
+                    FintechCard(onClick = { onOpen(message.id) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                RowTitle(message.merchant.name)
+                                Caption(stampOf(message) + " \u00B7 far more than you usually pay. Is this right?", maxLines = 2)
+                            }
+                            Text(DisplayFormatters.rupees(tx.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppButton("Open message", { onOpen(message.id) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
+                            AppButton("Looks right", { onNotTransfer(ReviewQueues.unusualKey(message)) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                         }
                     }
                 }
@@ -198,6 +276,8 @@ internal fun ReviewPage(
         }
     }
 }
+
+private val DueFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.getDefault())
 
 private val StampFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", java.util.Locale.getDefault())
 

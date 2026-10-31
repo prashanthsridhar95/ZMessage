@@ -225,7 +225,17 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             onLink = { debit, credit -> onIntent(Intent.LinkTransfer(debit, credit)) },
             onNotTransfer = { onIntent(Intent.DismissTransfer(it)) },
             onOpen = { onIntent(Intent.OpenMessage(it)) },
-            onBack = { reviewOpen = false }
+            onBack = { reviewOpen = false },
+            onMerge = { primary, duplicate -> onIntent(Intent.MergeDuplicates(primary, duplicate)) },
+            onUnmerge = { onIntent(Intent.UnmergeDuplicate(it)) },
+            onMarkPaid = { bill ->
+                onIntent(Intent.DismissAttention(bill.markedPaidKey, forever = true))
+                onIntent(Intent.DismissAttention(bill.attentionKey, forever = true))
+            },
+            onUndoPaid = { bill ->
+                onIntent(Intent.RestoreAttention(bill.markedPaidKey))
+                onIntent(Intent.RestoreAttention(bill.attentionKey))
+            }
         )
     }
 
