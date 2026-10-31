@@ -100,4 +100,51 @@ class MonthlySummaryAndRecurringTest {
         assertNull(items[1].state)
         assertEquals("expected ~12 Nov", items[0].expectedLabel)
     }
+
+    @Test
+    fun heroLine_belowAboveLevelAndNew() {
+        // today is 20 Oct; the same point last month is 20 Sep.
+        val below = MonthlySummary.build(listOf(tx("300", today.minusDays(2)), tx("1000", today.minusDays(31))), now, zone)
+        assertEquals(BigDecimal("-700"), below.spentDelta)
+        assertTrue(below.heroLine.contains("below last month"))
+        assertEquals(-70, below.spentDeltaPercent)
+        val above = MonthlySummary.build(listOf(tx("1500", today.minusDays(2)), tx("1000", today.minusDays(31))), now, zone)
+        assertTrue(above.heroLine.contains("above last month"))
+        assertEquals(50, above.spentDeltaPercent)
+        val fresh = MonthlySummary.build(listOf(tx("200", today)), now, zone)
+        assertNull(fresh.spentDeltaPercent)
+        assertTrue(fresh.heroLine.contains("Nothing was spent"))
+        assertTrue(MonthlySummary.build(emptyList(), now, zone).heroLine.startsWith("No spending"))
+    }
+
+    @Test
+    fun cumulativeSeries_andProjection() {
+        val s = MonthlySummary.build(listOf(tx("100", LocalDate.of(2026, 10, 1)), tx("200", LocalDate.of(2026, 10, 5)), tx("50", LocalDate.of(2026, 9, 30))), now, zone)
+        assertEquals(20, s.cumulativeSpent.size)
+        assertEquals(BigDecimal("100"), s.cumulativeSpent[0])
+        assertEquals(BigDecimal("100"), s.cumulativeSpent[3])
+        assertEquals(BigDecimal("300"), s.cumulativeSpent[4])
+        assertEquals(BigDecimal("300"), s.cumulativeSpent.last())
+        assertEquals(30, s.previousCumulativeSpent.size)
+        assertEquals(BigDecimal("50"), s.previousCumulativeSpent.last())
+        assertEquals(31, s.cycleDays)
+        // 300 over 20 days of 31 = 465
+        assertEquals(BigDecimal("465"), s.projectedSpent)
+        assertEquals(BigDecimal("415"), s.projectedVsLastMonth)
+    }
+
+    @Test
+    fun projection_edgeCases() {
+        assertNull(MonthlySummary.project(BigDecimal("100"), 2, 30))
+        assertNull(MonthlySummary.project(BigDecimal.ZERO, 10, 30))
+        assertEquals(BigDecimal("100"), MonthlySummary.project(BigDecimal("100"), 30, 30))
+        assertEquals(BigDecimal("300"), MonthlySummary.project(BigDecimal("100"), 10, 30))
+    }
+
+    @Test
+    fun cumulative_ignoresOutOfRangeDays() {
+        val start = LocalDate.of(2026, 10, 1)
+        val c = MonthlySummary.cumulative(listOf(start.minusDays(1) to BigDecimal("9"), start.plusDays(1) to BigDecimal("5"), start.plusDays(40) to BigDecimal("7")), start, 3)
+        assertEquals(listOf(BigDecimal.ZERO, BigDecimal("5"), BigDecimal("5")), c)
+    }
 }

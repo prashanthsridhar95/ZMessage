@@ -10,6 +10,7 @@ import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /** How one category's spending moved between two like-for-like windows. */
 data class CategoryChange(
@@ -50,8 +51,41 @@ data class MonthlySummary(
     val previousIncome: BigDecimal,
     val previousSpent: BigDecimal,
     /** Biggest movers first; categories that did not change are left out. */
-    val changes: List<CategoryChange>
+    val changes: List<CategoryChange>,
+    /** Running spend through day 1..n of this cycle (n = days elapsed, today included). */
+    val cumulativeSpent: List<BigDecimal> = emptyList(),
+    /** Running spend through each day of the whole of last cycle. */
+    val previousCumulativeSpent: List<BigDecimal> = emptyList(),
+    /** Days in this cycle, whole. */
+    val cycleDays: Int = 0,
+    /** Run-rate guess of the whole cycle's spend; null while there is too little to go on. */
+    val projectedSpent: BigDecimal? = null
 ) {
+    /** Spent so far minus spent at the same point last month; negative means below last month. */
+    val spentDelta: BigDecimal get() = spent - previousSpent
+
+    /** Whole percent against last month at this point; null when last month had nothing. */
+    val spentDeltaPercent: Int?
+        get() = previousSpent.takeIf { it.signum() > 0 }
+            ?.let { spentDelta.multiply(HUNDRED).divide(it, 0, RoundingMode.HALF_UP).toInt() }
+
+    /** Plain-language headline for the hero. */
+    val heroLine: String
+        get() {
+            val amount = DigestFormat.rupees(spentDelta.abs())
+            return when {
+                previousSpent.signum() <= 0 && spent.signum() <= 0 -> "No spending yet this month or at this point last month"
+                previousSpent.signum() <= 0 -> "Nothing was spent at this point last month; you have spent $amount"
+                spentDelta.signum() < 0 -> "You are $amount below last month at this point"
+                spentDelta.signum() > 0 -> "You are $amount above last month at this point"
+                else -> "You are level with last month at this point"
+            }
+        }
+
+    /** Projected month-end against last month's whole total; null when either is unknown. */
+    val projectedVsLastMonth: BigDecimal?
+        get() = projectedSpent?.let { p -> previousCumulativeSpent.lastOrNull()?.let { p - it } }
+
     val net: BigDecimal get() = income - spent
 
     /** (income - spent) / income as a whole percent; null ("Not available") when nothing came in. */
@@ -70,6 +104,26 @@ data class MonthlySummary(
     companion object {
         private val HUNDRED = BigDecimal(100)
         private const val MAX_CHANGES = 8
+        private const val MIN_DAYS_FOR_PROJECTION = 3
+
+        /** Straight run-rate: spent / elapsed * total. Null before [MIN_DAYS_FOR_PROJECTION] days or with nothing spent. */
+        fun project(spent: BigDecimal, elapsedDays: Int, totalDays: Int): BigDecimal? {
+            if (totalDays <= 0 || elapsedDays <= 0 || spent.signum() <= 0) return null
+            if (elapsedDays >= totalDays) return spent
+            if (elapsedDays < MIN_DAYS_FOR_PROJECTION) return null
+            return spent.multiply(BigDecimal(totalDays)).divide(BigDecimal(elapsedDays), 0, RoundingMode.HALF_UP)
+        }
+
+        /** Running totals for each of [days] days starting at [start]; a day with no spend repeats the total. */
+        fun cumulative(flows: List<Pair<LocalDate, BigDecimal>>, start: LocalDate, days: Int): List<BigDecimal> {
+            val perDay = Array(days.coerceAtLeast(0)) { BigDecimal.ZERO }
+            flows.forEach { (date, amount) ->
+                val i = ChronoUnit.DAYS.between(start, date).toInt()
+                if (i in perDay.indices) perDay[i] = perDay[i] + amount
+            }
+            var running = BigDecimal.ZERO
+            return perDay.map { running += it; running }
+        }
 
         private fun ratePercent(income: BigDecimal, spent: BigDecimal): Int? =
             income.takeIf { it.signum() > 0 }
@@ -94,6 +148,15 @@ data class MonthlySummary(
                 .sortedByDescending { it.delta.abs() }
                 .take(MAX_CHANGES)
 
+            val lastCycle = cycle.shifted(today, -1)
+            val thisCycle = cycle.containing(today)
+            val elapsed = (ChronoUnit.DAYS.between(range.start, range.endInclusive) + 1).toInt()
+            val cycleDays = (ChronoUnit.DAYS.between(thisCycle.start, thisCycle.endInclusive) + 1).toInt()
+            val lastDays = (ChronoUnit.DAYS.between(lastCycle.start, lastCycle.endInclusive) + 1).toInt()
+            val spentFlows = flows.filter { !it.received }
+            val cumThis = cumulative(spentFlows.filter { it.date in range }.map { it.date to it.amount }, range.start, elapsed)
+            val cumPrev = cumulative(spentFlows.filter { it.date in lastCycle }.map { it.date to it.amount }, lastCycle.start, lastDays)
+
             return MonthlySummary(
                 range = range,
                 previousRange = previousRange,
@@ -101,7 +164,11 @@ data class MonthlySummary(
                 spent = current.filter { !it.received }.sumOf { it.amount },
                 previousIncome = previous.filter { it.received }.sumOf { it.amount },
                 previousSpent = previous.filter { !it.received }.sumOf { it.amount },
-                changes = changes
+                changes = changes,
+                cumulativeSpent = cumThis,
+                previousCumulativeSpent = cumPrev,
+                cycleDays = cycleDays,
+                projectedSpent = project(cumThis.lastOrNull() ?: BigDecimal.ZERO, elapsed, cycleDays)
             )
         }
 
