@@ -114,9 +114,6 @@ fun SearchPage(sources: SearchSources, onOpen: (SearchHit) -> Unit, onDismiss: (
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
             singleLine = true,
             placeholder = { Text("Messages, amounts, goals, reminders, accounts") },
-            trailingIcon = if (query.isNotEmpty()) {
-                { TextButton(onClick = { query = "" }) { Text("Clear") } }
-            } else null,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { })
         )

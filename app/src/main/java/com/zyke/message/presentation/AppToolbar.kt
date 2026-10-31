@@ -54,6 +54,10 @@ fun AppToolbar(
                     money.filterCount > 0, money.filterCount, callbacks.onMoneyFilters
                 )
             }
+            // On the Inbox the search button beside it searches the messages; everywhere else this searches everything.
+            if (!(tab == AppTab.INBOX && inbox.buttonsVisible)) {
+                BarIcon(R.drawable.ic_search_24, "Search everything", false, 0, com.zyke.message.presentation.common.LocalOpenSearch.current)
+            }
             BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onOpenSettings)
         }
     }

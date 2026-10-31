@@ -87,10 +87,13 @@ fun AppRoot(
     settings: @Composable (onDismiss: () -> Unit) -> Unit,
     /** A line shown under the toolbar on every tab, e.g. while older messages are still being read. */
     topNote: @Composable () -> Unit = {},
+    /** The search page, over whatever tab is showing; it is only composed while open. [navigate] changes tab. */
+    search: @Composable (onDismiss: () -> Unit, navigate: (AppTab) -> Unit) -> Unit = { _, _ -> },
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val web = remember { WebSession(context) }
     androidx.compose.runtime.DisposableEffect(web) { onDispose { web.close() } }
@@ -108,6 +111,7 @@ fun AppRoot(
         com.zyke.message.presentation.common.LocalPageHost provides pageHost,
         LocalAppSnackbar provides snackbar,
         LocalOpenSettings provides { showSettings = true },
+        com.zyke.message.presentation.common.LocalOpenSearch provides { showSearch = true },
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
     Box(Modifier.fillMaxSize()) {
@@ -138,6 +142,7 @@ fun AppRoot(
         }
         }
         if (showSettings) settings { showSettings = false }
+        if (showSearch) search({ showSearch = false }) { tab = it }
         if (web.isOpen && !web.minimised) LinkSheet(web)
     }
     // Drawn after the screens, so over them; the minimised page and the snackbar are drawn after the sheets, so over those.

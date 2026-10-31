@@ -249,6 +249,31 @@ class MainActivity : ComponentActivity() {
                     },
                     settings = { onDismiss ->
                         SettingsRoute(settingsViewModel, versionName, onDismiss)
+                    },
+                    search = { onDismiss, navigate ->
+                        com.zyke.message.presentation.search.SearchRoute(
+                            home = homeViewModel.state,
+                            watchlist = container.watchlist,
+                            onOpen = { hit ->
+                                val intent = when (hit.kind) {
+                                    com.zyke.message.domain.search.SearchKind.MESSAGE,
+                                    com.zyke.message.domain.search.SearchKind.HAND_MADE ->
+                                        hit.messageId?.let { HomeContract.Intent.OpenMessage(it) }
+                                    com.zyke.message.domain.search.SearchKind.ACCOUNT -> HomeContract.Intent.OpenAccount(hit.id)
+                                    com.zyke.message.domain.search.SearchKind.GOAL -> HomeContract.Intent.OpenGoals
+                                    com.zyke.message.domain.search.SearchKind.REMINDER -> HomeContract.Intent.OpenReminders
+                                    com.zyke.message.domain.search.SearchKind.EVENT -> HomeContract.Intent.OpenAgenda
+                                    com.zyke.message.domain.search.SearchKind.STOCK -> null
+                                }
+                                if (intent != null) {
+                                    onDismiss()
+                                    // Home draws the sheets and pages these open.
+                                    navigate(AppTab.HOME)
+                                    homeViewModel.onIntent(intent)
+                                }
+                            },
+                            onDismiss = onDismiss
+                        )
                     }
                 ) { tab, modifier, navigate ->
                     when (tab) {
