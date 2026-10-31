@@ -48,7 +48,7 @@ class DashboardViewModel(
     insightsFilter.load().let { saved ->
         State(
             now = clock.instant(), budgets = budgetRepository.budgets.value, cards = cardRepository.cards.value, plan = planRepository.plan.value,
-            period = saved.period, customRange = saved.customRange, source = saved.source
+            period = saved.period, customRange = saved.customRange, source = saved.source, direction = saved.direction
         )
     }
 ) {
@@ -107,7 +107,10 @@ class DashboardViewModel(
                     copy(period = DashboardPeriod.CUSTOM, customRange = cycle.shifted(today, offset), cycleOffset = offset, expandedVendor = null)
                 }
             }
-            is Intent.SelectDirection -> reduceDashboard { copy(direction = intent.direction, expandedVendor = null) }
+            is Intent.SelectDirection -> {
+                reduceDashboard { copy(direction = intent.direction, expandedVendor = null, showAllVendors = false) }
+                saveFilter()
+            }
             is Intent.SelectCategory -> reduceDashboard {
                 copy(category = if (category == intent.category) null else intent.category, expandedVendor = null)
             }
@@ -169,7 +172,8 @@ class DashboardViewModel(
         val saved = com.zyke.message.domain.repository.SavedInsightsFilter(
             period = if (now.cycleOffset != 0) DashboardPeriod.THIS_MONTH else now.period,
             customRange = now.customRange.takeIf { now.period == DashboardPeriod.CUSTOM && now.cycleOffset == 0 },
-            source = now.source
+            source = now.source,
+            direction = now.direction
         )
         // Written to disk away from the main thread.
         viewModelScope.launch(ioContext) { insightsFilter.save(saved) }

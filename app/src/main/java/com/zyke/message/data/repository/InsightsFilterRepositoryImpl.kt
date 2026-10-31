@@ -21,7 +21,9 @@ class InsightsFilterRepositoryImpl(context: Context) : InsightsFilterRepository 
         SavedInsightsFilter(
             period = if (period == DashboardPeriod.CUSTOM && range == null) DashboardPeriod.THIS_MONTH else period,
             customRange = range,
-            source = SourceFilter(kind, prefs.getString(LAST4, null))
+            source = SourceFilter(kind, prefs.getString(LAST4, null)),
+            direction = prefs.getString(DIRECTION, null)?.let { name -> com.zyke.message.domain.dashboard.FlowDirection.entries.firstOrNull { it.name == name } }
+                ?: com.zyke.message.domain.dashboard.FlowDirection.SPENT
         )
     }.getOrDefault(SavedInsightsFilter())
 
@@ -32,6 +34,7 @@ class InsightsFilterRepositoryImpl(context: Context) : InsightsFilterRepository 
             .putString(END, filter.customRange?.endInclusive?.toString())
             .putString(SOURCE, filter.source.kind.name)
             .putString(LAST4, filter.source.last4)
+            .putString(DIRECTION, filter.direction.name)
             .apply()
     }
 
@@ -41,5 +44,6 @@ class InsightsFilterRepositoryImpl(context: Context) : InsightsFilterRepository 
         const val END = "end"
         const val SOURCE = "source"
         const val LAST4 = "last4"
+        const val DIRECTION = "direction"
     }
 }

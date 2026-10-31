@@ -1,6 +1,23 @@
 package com.zyke.message.presentation.review
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -90,7 +107,7 @@ internal fun YearPage(messages: List<ClassifiedMessage>, year: Int, onBack: () -
 
             SectionHeader("Month by month")
             FintechCard {
-                MonthBars(review)
+                MonthBars(review, LocalDate.now(zone))
             }
 
             if (review.topCategories.isNotEmpty()) {
@@ -122,7 +139,7 @@ internal fun YearPage(messages: List<ClassifiedMessage>, year: Int, onBack: () -
                 "Share as a picture",
                 {
                     DevLog.d("YearPage") { "sharing year card" }
-                    val png = YearCardImage.png(review)
+                    val png = YearCardImage.png(review, LocalDate.now(zone))
                     ReportSharing.sharePng(context, "zyke-your-${review.year}.png", png, "Your ${review.year}")
                 },
                 Modifier.fillMaxWidth()
@@ -174,33 +191,91 @@ private fun RankRow(name: String, amount: String, fraction: Float, color: androi
     }
 }
 
+/** Smallest width a month gets, so a 3-letter name always fits and the chart scrolls sideways instead of squeezing. */
+private val MONTH_SLOT = 48.dp
+private val CHART_HEIGHT = 120.dp
+
+/** "Mar", the month's short name. */
+private fun shortMonth(month: java.time.Month): String = month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+
 @Composable
-private fun MonthBars(review: YearInReview) {
-    val max = review.months.maxOf { it.spent }
+private fun MonthBars(review: YearInReview, today: LocalDate?) {
+    val months = remember(review, today) { review.monthsToShow(today) }
+    if (months.isEmpty()) {
+        Caption("No months to show yet", maxLines = 1)
+        return
+    }
+    val max = months.maxOf { it.spent }
     val bar = MaterialTheme.colorScheme.primary
     val peak = ChartColors.warning
     val busiest = review.busiestMonth
-    val months = review.months
-    Canvas(Modifier.fillMaxWidth().height(120.dp)) {
-        val slot = size.width / months.size
-        months.forEachIndexed { i, m ->
-            val fraction = if (max.signum() > 0) m.spent.divide(max, 4, RoundingMode.HALF_UP).toFloat() else 0f
-            val h = maxOf(size.height * fraction, 3.dp.toPx())
-            drawRoundRect(
-                if (m.month == busiest) peak else bar,
-                Offset(i * slot + slot * 0.15f, size.height - h),
-                Size(slot * 0.7f, h),
-                CornerRadius(4.dp.toPx())
+    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
+    var selected by rememberSaveable { mutableStateOf<Int?>(null) }
+    val scroll = rememberScrollState()
+    // Opens at the latest month, which is the one most worth seeing.
+    LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+
+    val chosen = selected?.let(months::getOrNull)
+    Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (chosen == null) {
+            Caption("Tap a month to see what you spent", maxLines = 1)
+        } else {
+            val inProgress = review.isMonthInProgress(chosen.month, today)
+            Caption(shortMonth(chosen.month) + (if (inProgress) " so far" else "") + " \u00B7 ", maxLines = 1)
+            com.zyke.message.presentation.common.PrivateAmount(
+                DisplayFormatters.rupees(chosen.spent),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
             )
+            Caption(" spent", maxLines = 1)
         }
     }
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        months.forEach {
-            Caption(
-                it.month.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
-                Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+    Row(Modifier.fillMaxWidth().horizontalScroll(scroll).padding(top = 8.dp)) {
+        months.forEachIndexed { i, m ->
+            val fraction = if (max.signum() > 0) m.spent.divide(max, 4, RoundingMode.HALF_UP).toFloat() else 0f
+            val inProgress = review.isMonthInProgress(m.month, today)
+            val isSelected = selected == i
+            val color = when {
+                m.month == busiest -> peak
+                else -> bar
+            }
+            val amountWords = if (privacy.hidden) "amount hidden" else "${DisplayFormatters.rupees(m.spent)} spent"
+            Column(
+                Modifier
+                    .width(MONTH_SLOT)
+                    .selectable(
+                        selected = isSelected, role = Role.Button,
+                        onClick = { selected = if (isSelected) null else i }
+                    )
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${shortMonth(m.month)}${if (inProgress) " so far" else ""}: $amountWords"
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(Modifier.fillMaxWidth().height(CHART_HEIGHT), contentAlignment = Alignment.BottomCenter) {
+                    Box(
+                        Modifier
+                            .width(28.dp)
+                            .height(maxOf(CHART_HEIGHT * fraction, 3.dp))
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            // The month still going on is lighter: it is only the part of it so far.
+                            .background(color.copy(alpha = if (inProgress) 0.45f else if (selected != null && !isSelected) 0.6f else 1f))
+                    )
+                }
+                Text(
+                    shortMonth(m.month),
+                    Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected || inProgress) FontWeight.Bold else FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1
+                )
+                Box(Modifier.heightIn(min = 12.dp))
+            }
         }
+    }
+    if (months.any { review.isMonthInProgress(it.month, today) }) {
+        Caption("The lighter bar is this month so far", Modifier.padding(top = 4.dp), maxLines = 1)
     }
 }

@@ -110,6 +110,55 @@ class DashboardViewModelTest {
         assertTrue(vm.state.value.dashboard!!.isEmpty)
     }
 
+    private class RecordingFilter(var saved: com.zyke.message.domain.repository.SavedInsightsFilter = com.zyke.message.domain.repository.SavedInsightsFilter()) :
+        com.zyke.message.domain.repository.InsightsFilterRepository {
+        override fun load() = saved
+        override fun save(filter: com.zyke.message.domain.repository.SavedInsightsFilter) { saved = filter }
+    }
+
+    private val salary = SmsMessage(
+        20, "AD-HDFCBK",
+        "Credit Alert!\nRs.9000.00 credited to HDFC Bank A/c xx9876 on 01-02-25 from VPA salary@okaxis (UPI 123456789)",
+        now.toEpochMilli() - 3 * day, true
+    )
+
+    @Test
+    fun spentReceivedSwitch_changesEveryListBelow_eachTimeIncludingBackAgain() {
+        val filter = RecordingFilter()
+        val vm = DashboardViewModel(
+            ObserveMessagesUseCase(FakeRepo(flow { emit(inbox + salary) }), MessageClassifier(), Dispatchers.Unconfined), FakeBudgets(), clock,
+            insightsFilter = filter, deriveContext = Dispatchers.Unconfined
+        )
+        vm.onIntent(Intent.ScreenStarted(true))
+        val spent = vm.state.value.dashboard!!
+        assertEquals(FlowDirection.SPENT, spent.direction)
+        assertEquals(1300.0, spent.total.toDouble(), 0.001)
+
+        vm.onIntent(Intent.SelectDirection(FlowDirection.RECEIVED))
+        val received = vm.state.value.dashboard!!
+        assertEquals(FlowDirection.RECEIVED, received.direction)
+        assertEquals(9000.0, received.total.toDouble(), 0.001)
+        assertEquals(listOf("salary@okaxis"), received.vendors.map { it.key })
+        assertEquals(9000.0, received.categories.sumOf { it.total.toDouble() }, 0.001)
+        assertEquals(FlowDirection.RECEIVED, filter.saved.direction)
+
+        vm.onIntent(Intent.SelectDirection(FlowDirection.SPENT))
+        assertEquals(1300.0, vm.state.value.dashboard!!.total.toDouble(), 0.001)
+        assertEquals(2, vm.state.value.dashboard!!.vendors.size)
+    }
+
+    @Test
+    fun theChosenDirection_isRestoredWhenTheScreenIsRebuilt() {
+        val vm = DashboardViewModel(
+            ObserveMessagesUseCase(FakeRepo(flow { emit(inbox + salary) }), MessageClassifier(), Dispatchers.Unconfined), FakeBudgets(), clock,
+            insightsFilter = RecordingFilter(com.zyke.message.domain.repository.SavedInsightsFilter(direction = FlowDirection.RECEIVED)),
+            deriveContext = Dispatchers.Unconfined
+        )
+        vm.onIntent(Intent.ScreenStarted(true))
+        assertEquals(FlowDirection.RECEIVED, vm.state.value.direction)
+        assertEquals(9000.0, vm.state.value.dashboard!!.total.toDouble(), 0.001)
+    }
+
     @Test
     fun vendorExpansion_togglesAndResetsOnFilterChange() {
         val vm = vm()

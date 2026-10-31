@@ -52,6 +52,24 @@ data class YearInReview(
 
     val isEmpty: Boolean get() = transactionCount == 0
 
+    /**
+     * The months worth drawing, January first: in the current year only those that have started (so a year that is ten
+     * months in shows ten bars), in a past year those up to the last month that has any money moving, and nothing for
+     * a year that has not begun. [today] is null when it is not known, which reads as a past year.
+     */
+    fun monthsToShow(today: LocalDate?): List<YearMonth> {
+        val lastWithData = months.indexOfLast { it.spent.signum() > 0 || it.income.signum() > 0 } + 1
+        val count = when {
+            today == null || today.year > year -> lastWithData
+            today.year == year -> today.monthValue
+            else -> 0
+        }
+        return months.take(count)
+    }
+
+    /** True for the month that is still going on, whose bar is only the part of it so far. */
+    fun isMonthInProgress(month: Month, today: LocalDate?): Boolean = today != null && today.year == year && today.month == month
+
     companion object {
         private val HUNDRED = BigDecimal(100)
         private const val TOP = 5

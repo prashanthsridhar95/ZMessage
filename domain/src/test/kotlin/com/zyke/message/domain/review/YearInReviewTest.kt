@@ -95,4 +95,39 @@ class YearInReviewTest {
         assertEquals(2, YearInReview.monthsWithData(msgs, 2025, zone))
         assertEquals(0, YearInReview.monthsWithData(msgs, 2024, zone))
     }
+
+    private fun yearWithData(vararg months: Int) =
+        YearInReview.build(months.map { tx("100", LocalDate.of(2025, it, 5)) }, 2025, zone, null)
+
+    @Test
+    fun monthsToShow_currentYear_stopsAtTheMonthThatIsGoingOn() {
+        val review = yearWithData(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        val shown = review.monthsToShow(LocalDate.of(2025, 10, 31))
+        assertEquals(10, shown.size)
+        assertEquals(Month.OCTOBER, shown.last().month)
+        assertTrue(review.isMonthInProgress(Month.OCTOBER, LocalDate.of(2025, 10, 31)))
+        assertTrue(!review.isMonthInProgress(Month.SEPTEMBER, LocalDate.of(2025, 10, 31)))
+    }
+
+    @Test
+    fun monthsToShow_currentYear_keepsAQuietCurrentMonthButNoFutureOnes() {
+        val review = yearWithData(1, 2)
+        assertEquals(4, review.monthsToShow(LocalDate.of(2025, 4, 2)).size)
+    }
+
+    @Test
+    fun monthsToShow_pastYear_runsToTheLastMonthWithMoneyMoving() {
+        val review = yearWithData(1, 3, 8)
+        val shown = review.monthsToShow(LocalDate.of(2026, 2, 1))
+        assertEquals(8, shown.size)
+        assertEquals(Month.AUGUST, shown.last().month)
+        assertTrue(shown.none { review.isMonthInProgress(it.month, LocalDate.of(2026, 2, 1)) })
+        assertEquals(8, review.monthsToShow(null).size)
+    }
+
+    @Test
+    fun monthsToShow_aYearThatHasNotBegunOrHasNoData_isEmpty() {
+        assertTrue(yearWithData(1, 2).monthsToShow(LocalDate.of(2024, 12, 31)).isEmpty())
+        assertTrue(YearInReview.build(emptyList(), 2025, zone, null).monthsToShow(null).isEmpty())
+    }
 }

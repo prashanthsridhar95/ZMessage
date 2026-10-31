@@ -40,7 +40,7 @@ internal object YearCardImage {
             textAlign = align
         }
 
-    fun render(review: YearInReview): Bitmap {
+    fun render(review: YearInReview, today: java.time.LocalDate? = null): Bitmap {
         val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bitmap)
         c.drawColor(BG)
@@ -60,16 +60,21 @@ internal object YearCardImage {
         // Month bars.
         val chartTop = 470f
         val chartBottom = 800f
-        val max = review.months.maxOf { it.spent }.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
-        val slot = (W - 2 * PAD) / 12f
+        // Only the months that have started, the same rule as the page: no empty bars for months still to come.
+        val shown = review.monthsToShow(today)
+        val max = shown.maxOfOrNull { it.spent }?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
+        val slot = (W - 2 * PAD) / shown.size.coerceAtLeast(1).coerceAtLeast(6)
         val label = paint(24f, MUTED, align = Paint.Align.CENTER)
-        review.months.forEachIndexed { i, m ->
+        shown.forEachIndexed { i, m ->
             val x = PAD + i * slot
             val height = (chartBottom - chartTop) * m.spent.divide(max, 4, java.math.RoundingMode.HALF_UP).toFloat()
             val bar = RectF(x + 6f, chartBottom - maxOf(height, 4f), x + slot - 6f, chartBottom)
-            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (m.month == review.busiestMonth) ACCENT else BAR }
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (m.month == review.busiestMonth) ACCENT else BAR
+                if (review.isMonthInProgress(m.month, today)) alpha = 115
+            }
             c.drawRoundRect(bar, 8f, 8f, fill)
-            c.drawText(m.month.getDisplayName(TextStyle.NARROW, Locale.getDefault()), x + slot / 2f, chartBottom + 36f, label)
+            c.drawText(m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()), x + slot / 2f, chartBottom + 36f, label)
         }
 
         // Top categories.
@@ -92,8 +97,8 @@ internal object YearCardImage {
         return bitmap
     }
 
-    fun png(review: YearInReview): ByteArray {
-        val bitmap = render(review)
+    fun png(review: YearInReview, today: java.time.LocalDate? = null): ByteArray {
+        val bitmap = render(review, today)
         try {
             val out = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, out)

@@ -2,6 +2,12 @@ package com.zyke.message.presentation.dashboard
 
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.dashboard.components.DirectionSwitch
+import com.zyke.message.presentation.dashboard.components.DirectionHeader
+import com.zyke.message.presentation.dashboard.components.scopeCaption
+import com.zyke.message.presentation.dashboard.components.periodName
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.CardCycleSheet
@@ -237,13 +243,11 @@ private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: 
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
-    val categories = dashboard.categories
-    val ranking = remember(categories) { categories.map { it.category } }
     val received = state.direction == FlowDirection.RECEIVED
-    val categoryTotal = remember(categories) { categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total } }
     var showYear by remember { mutableStateOf(false) }
     val reviewYear = remember(state.messages, today) {
         com.zyke.message.presentation.review.yearToReview(state.messages, today, ZoneId.systemDefault())
@@ -318,70 +322,96 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         if (!dashboard.isEmpty) {
-            item(key = "label-spending") {
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GroupLabel(if (received) "Income" else "Spending", Modifier.weight(1f))
-                    DirectionSwitch(state.direction, { onIntent(Intent.SelectDirection(it)) })
-                }
+            // The switch and what it covers stay at the top while the sections it drives scroll under it.
+            stickyHeader(key = "label-spending") {
+                DirectionHeader(
+                    direction = state.direction,
+                    caption = scopeCaption(
+                        dashboard.direction, periodName(dashboard.range),
+                        listOfNotNull(state.category?.displayString, state.source.takeIf { it.isActive }?.let { sourceLabel(it, state.cards) })
+                    ),
+                    onSelect = { onIntent(Intent.SelectDirection(it)) }
+                )
             }
 
+            // The figures fade from the old side to the new one, and each section reads the figures it is fading to.
             item(key = "categories") {
-                SectionCard(
-                    stringResource(R.string.dashboard_by_category),
-                    summary = dashboard.categories.firstOrNull()?.let { "${it.category.displayString} ${DisplayFormatters.rupees(it.total)}" }
-                ) {
-                    dashboard.categories.forEachIndexed { index, item ->
-                        if (index > 0) HorizontalDivider()
-                        CategoryRow(
-                            item = item,
-                            total = categoryTotal,
-                            color = ChartColors.forRank(index),
-                            selected = false,
-                            // Limits are set in Settings; here they are only shown.
-                            canSetBudget = false,
-                            direction = state.direction,
-                            onClick = { onIntent(Intent.OpenCategory(item.category)) },
-                            onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
-                        )
+                FadeBetweenDirections(dashboard) { shown ->
+                    val shownTotal = shown.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
+                    SectionCard(
+                        stringResource(R.string.dashboard_by_category),
+                        summary = shown.categories.firstOrNull()?.let { "${it.category.displayString} ${DisplayFormatters.rupees(it.total)}" }
+                    ) {
+                        shown.categories.forEachIndexed { index, item ->
+                            if (index > 0) HorizontalDivider()
+                            CategoryRow(
+                                item = item,
+                                total = shownTotal,
+                                color = ChartColors.forRank(index),
+                                selected = false,
+                                // Limits are set in Settings; here they are only shown.
+                                canSetBudget = false,
+                                direction = shown.direction,
+                                onClick = { onIntent(Intent.OpenCategory(item.category)) },
+                                onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
+                            )
+                        }
                     }
                 }
             }
 
             item(key = "vendors") {
-                val vendors = if (state.showAllVendors) dashboard.vendors else dashboard.vendors.take(COLLAPSED_VENDORS)
-                SectionCard(
-                    stringResource(if (received) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor),
-                    summary = dashboard.vendors.firstOrNull()?.let { it.merchant.name }
-                ) {
-                    vendors.forEachIndexed { index, vendor ->
-                        if (index > 0) HorizontalDivider()
-                        VendorRow(
-                            vendor = vendor,
-                            total = dashboard.total,
-                            expanded = state.expandedVendor == vendor.key,
-                            direction = state.direction,
-                            onClick = { onIntent(Intent.ToggleVendor(vendor.key)) }
-                        )
-                    }
-                    if (dashboard.vendors.size > COLLAPSED_VENDORS) {
-                        LinkButton(
-                            text = if (state.showAllVendors) stringResource(R.string.show_fewer)
-                            else stringResource(R.string.show_all_vendors, dashboard.vendors.size),
-                            onClick = { onIntent(Intent.ToggleShowAllVendors) }
-                        )
+                FadeBetweenDirections(dashboard) { shown ->
+                    val shownReceived = shown.direction == FlowDirection.RECEIVED
+                    val vendors = if (state.showAllVendors) shown.vendors else shown.vendors.take(COLLAPSED_VENDORS)
+                    SectionCard(
+                        stringResource(if (shownReceived) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor),
+                        summary = shown.vendors.firstOrNull()?.let { it.merchant.name },
+                        // Both titles are the same section: it must not fold shut when the switch moves.
+                        stateKey = "vendors"
+                    ) {
+                        vendors.forEachIndexed { index, vendor ->
+                            if (index > 0) HorizontalDivider()
+                            VendorRow(
+                                vendor = vendor,
+                                total = shown.total,
+                                expanded = state.expandedVendor == vendor.key,
+                                direction = shown.direction,
+                                onClick = { onIntent(Intent.ToggleVendor(vendor.key)) }
+                            )
+                        }
+                        if (shown.vendors.size > COLLAPSED_VENDORS) {
+                            LinkButton(
+                                text = if (state.showAllVendors) stringResource(R.string.show_fewer)
+                                else stringResource(R.string.show_all_vendors, shown.vendors.size),
+                                onClick = { onIntent(Intent.ToggleShowAllVendors) }
+                            )
+                        }
                     }
                 }
             }
 
             item(key = "trend") {
-                SectionCard(stringResource(if (received) R.string.dashboard_trend_received else R.string.dashboard_trend)) {
-                    TrendChart(dashboard.trend, dashboard.trendUnit, ranking)
-                    ChartLegend(ranking, Modifier.padding(top = 12.dp))
+                FadeBetweenDirections(dashboard) { shown ->
+                    val shownRanking = shown.categories.map { it.category }
+                    SectionCard(
+                        stringResource(if (shown.direction == FlowDirection.RECEIVED) R.string.dashboard_trend_received else R.string.dashboard_trend),
+                        stateKey = "trend"
+                    ) {
+                        TrendChart(shown.trend, shown.trendUnit, shownRanking)
+                        ChartLegend(shownRanking, Modifier.padding(top = 12.dp))
+                    }
                 }
             }
         }
 
-        item(key = "label-planning") { GroupLabel("Planning", Modifier.padding(top = 8.dp)) }
+        // Planning is about spending whichever side is chosen above, and says so; this header also takes over from the switch.
+        stickyHeader(key = "label-planning") {
+            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(top = 8.dp, bottom = 4.dp)) {
+                GroupLabel("Planning")
+                Caption("Always about spending, whichever side is chosen above", Modifier.padding(start = 4.dp), maxLines = 2)
+            }
+        }
 
         item(key = "plan") {
             PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
@@ -398,6 +428,20 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     }
 }
 
+
+/**
+ * Fades the sections under the Spent / Received switch from the old figures to the new ones. The content is told which
+ * figures it is showing, so while it fades out it still shows the side it was drawn for.
+ */
+@Composable
+private fun FadeBetweenDirections(dashboard: Dashboard, content: @Composable (Dashboard) -> Unit) {
+    androidx.compose.animation.AnimatedContent(
+        targetState = dashboard,
+        contentKey = { it.direction },
+        transitionSpec = { androidx.compose.animation.fadeIn(tween(Motion.STANDARD_MS)) togetherWith androidx.compose.animation.fadeOut(tween(Motion.STANDARD_MS)) },
+        label = "direction-figures"
+    ) { shown -> content(shown) }
+}
 
 /** What went into one category: its total, then who the money went to (or came from), each opening to its payments. */
 @Composable

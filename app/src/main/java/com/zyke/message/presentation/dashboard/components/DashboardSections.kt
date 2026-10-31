@@ -139,6 +139,8 @@ internal fun SectionCard(
     subtitle: String? = null,
     summary: String? = null,
     startOpen: Boolean = false,
+    /** What the open/closed choice is remembered under; keep it fixed when the title changes with the data. */
+    stateKey: String = title,
     content: @Composable ColumnScope.() -> Unit
 ) {
     if (LocalSectionsInline.current) {
@@ -150,7 +152,7 @@ internal fun SectionCard(
         return
     }
     val asSheet = LocalSectionsAsSheets.current && !startOpen
-    var open by rememberSaveable(title) { mutableStateOf(startOpen) }
+    var open by rememberSaveable(stateKey) { mutableStateOf(startOpen) }
     if (asSheet) {
         // A tile on the page; its detail is in a sheet.
         FintechCard(modifier, onClick = { open = true }) {
