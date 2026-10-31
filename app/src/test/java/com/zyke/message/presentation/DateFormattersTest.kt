@@ -47,7 +47,7 @@ class DisplayFormattersTest {
     fun rupeesAndTime() {
         val fmt = com.zyke.message.presentation.format.DisplayFormatters
         assertEquals("₹12345", fmt.rupees("12345").replace(",", ""))
-        assertEquals("₹750.5", fmt.rupees(java.math.BigDecimal("750.50")).replace(",", ""))
+        assertEquals("₹750.50", fmt.rupees(java.math.BigDecimal("750.50")).replace(",", ""))
         assertEquals("2:30 PM", fmt.time(
             ZonedDateTime.of(2025, 3, 5, 14, 30, 0, 0, ZoneId.of("UTC")).toInstant().toEpochMilli(),
             ZoneId.of("UTC"), Locale.ENGLISH
