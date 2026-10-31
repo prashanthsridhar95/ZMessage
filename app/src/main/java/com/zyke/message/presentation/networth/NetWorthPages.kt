@@ -88,7 +88,7 @@ private fun sourceText(line: NetWorthLine): String {
 internal fun NetWorthPage(accounts: List<AccountSummary>, messages: List<ClassifiedMessage>, onBack: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val items by container.netWorth.items.collectAsState()
-    val loans by container.loans.collectAsState()
+    val loans by container.loans.loans.collectAsState()
     val today = remember { LocalDate.now() }
     val debits = remember(messages) { Loans.debitsFrom(messages, ZoneId.systemDefault()) }
     val statuses = remember(loans, debits, today) { Loans.statuses(loans, today, debits) }
