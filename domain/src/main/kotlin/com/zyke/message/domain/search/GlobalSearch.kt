@@ -3,24 +3,36 @@ package com.zyke.message.domain.search
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.domain.calendar.CalendarEvent
 import com.zyke.message.domain.feed.FeedBuilder
+import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.goals.Goal
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.markets.StockDirectory
 import com.zyke.message.domain.markets.WatchSymbol
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.MerchantLogo
 import com.zyke.message.domain.model.MessageContent
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import com.zyke.message.domain.reminders.Reminder
 import java.math.BigDecimal
 
-/** What a search result is, in the order the groups are shown. */
-enum class SearchKind(val label: String) {
-    MESSAGE("Messages"),
-    HAND_MADE("Hand-made entries"),
-    ACCOUNT("Accounts and cards"),
-    GOAL("Goals"),
-    REMINDER("Reminders"),
-    EVENT("Calendar"),
-    STOCK("Stocks you watch")
+/** Which chip along the top narrows to a kind of result. */
+enum class SearchScope(val label: String) {
+    ALL("All"), PAYMENTS("Payments"), ACCOUNTS("Accounts"), BILLS("Bills"), TAGS("Tags")
+}
+
+/** What a search result is, in the order the groups are shown. A kind with no [scope] only shows under All. */
+enum class SearchKind(val label: String, val scope: SearchScope?) {
+    MESSAGE("Payments & messages", SearchScope.PAYMENTS),
+    HAND_MADE("Hand-made entries", SearchScope.PAYMENTS),
+    ACCOUNT("Accounts & cards", SearchScope.ACCOUNTS),
+    REMINDER("Bills & reminders", SearchScope.BILLS),
+    GOAL("Goals & plans", SearchScope.BILLS),
+    EVENT("Calendar", SearchScope.BILLS),
+    TAG("Tags & notes", SearchScope.TAGS),
+    STOCK("Stocks you watch", null),
+    PAGE("Jump to", null)
 }
 
 /** One result. [messageId] is set for messages and hand-made entries, so the app can open them. */
@@ -31,7 +43,14 @@ data class SearchHit(
     val subtitle: String,
     val messageId: Long? = null,
     /** 0 is the best match. */
-    val rank: Int = 0
+    val rank: Int = 0,
+    /** For payments: when it happened, the amount as read, and whether money came in. Null for other kinds. */
+    val date: Long? = null,
+    val amount: String? = null,
+    val credit: Boolean = false,
+    val category: String? = null,
+    val logo: MerchantLogo? = null,
+    val imageKey: String? = null
 )
 
 /** The hits of one kind, at most the limit; [total] counts all that matched. */
@@ -63,20 +82,52 @@ data class SearchSources(
 object GlobalSearch {
     const val DEFAULT_LIMIT = 5
 
-    fun search(query: String, sources: SearchSources, limit: Int = DEFAULT_LIMIT): SearchResults {
-        val needle = query.trim()
-        if (needle.isEmpty()) return SearchResults.EMPTY
+    /**
+     * [scope] narrows to one kind of result. Phrases such as "food this month" or ">5000" become filters on the payments;
+     * when they match nothing, the whole query is searched as plain words instead.
+     */
+    fun search(
+        query: String,
+        sources: SearchSources,
+        limit: Int = DEFAULT_LIMIT,
+        scope: SearchScope = SearchScope.ALL,
+        today: LocalDate = LocalDate.now(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): SearchResults {
+        val parsed = SearchQueryParser.parse(query, today)
+        if (parsed.isBlank) return SearchResults.EMPTY
+        if (parsed.hasFilters) {
+            val filtered = run(parsed, parsed.text, sources, limit, scope, zone)
+            if (!filtered.isEmpty) return filtered
+        }
+        return run(null, query.trim(), sources, limit, scope, zone)
+    }
+
+    private fun run(
+        filters: ParsedSearch?,
+        needle: String,
+        sources: SearchSources,
+        limit: Int,
+        scope: SearchScope,
+        zone: ZoneId
+    ): SearchResults {
         val amount = amountQuery(needle)
-        val groups = listOf(
-            group(SearchKind.MESSAGE, messageHits(needle, amount, sources.messages, hand = false), limit),
-            group(SearchKind.HAND_MADE, messageHits(needle, amount, sources.messages, hand = true), limit),
-            group(SearchKind.ACCOUNT, accountHits(needle, amount, sources.accounts), limit),
-            group(SearchKind.GOAL, goalHits(needle, amount, sources.goals), limit),
-            group(SearchKind.REMINDER, reminderHits(needle, amount, sources.reminders), limit),
-            group(SearchKind.EVENT, eventHits(needle, sources.events), limit),
-            group(SearchKind.STOCK, stockHits(needle, sources.watched), limit)
-        )
-        return SearchResults(groups.filterNotNull())
+        fun wanted(kind: SearchKind) = scope == SearchScope.ALL || kind.scope == scope
+        val groups = mutableListOf<SearchGroup?>()
+        if (wanted(SearchKind.MESSAGE)) groups += group(SearchKind.MESSAGE, messageHits(needle, amount, sources.messages, false, filters, zone), limit)
+        if (wanted(SearchKind.HAND_MADE)) groups += group(SearchKind.HAND_MADE, messageHits(needle, amount, sources.messages, true, filters, zone), limit)
+        // Filters such as a month or a category only mean something for payments.
+        if (filters == null) {
+            if (wanted(SearchKind.ACCOUNT)) groups += group(SearchKind.ACCOUNT, accountHits(needle, amount, sources.accounts), limit)
+            if (wanted(SearchKind.REMINDER)) groups += group(SearchKind.REMINDER, reminderHits(needle, amount, sources.reminders), limit)
+            if (wanted(SearchKind.GOAL)) groups += group(SearchKind.GOAL, goalHits(needle, amount, sources.goals), limit)
+            if (wanted(SearchKind.EVENT)) groups += group(SearchKind.EVENT, eventHits(needle, sources.events), limit)
+            if (wanted(SearchKind.TAG)) groups += group(SearchKind.TAG, tagHits(needle, sources.messages), limit)
+            if (wanted(SearchKind.STOCK)) groups += group(SearchKind.STOCK, stockHits(needle, sources.watched), limit)
+            if (wanted(SearchKind.PAGE)) groups += group(SearchKind.PAGE, SearchPages.hits(needle), limit)
+        }
+        // A page the person named ("settings") comes first; any other page match is a footnote.
+        return SearchResults(groups.filterNotNull().sortedBy { if (it.kind == SearchKind.PAGE && it.hits.first().rank <= 1) 0 else 1 })
     }
 
     private fun group(kind: SearchKind, hits: List<SearchHit>, limit: Int): SearchGroup? =
@@ -121,13 +172,16 @@ object GlobalSearch {
         else -> null
     }
 
-    private fun messageHits(needle: String, amount: String?, messages: List<ClassifiedMessage>, hand: Boolean): List<SearchHit> =
+    private fun messageHits(
+        needle: String, amount: String?, messages: List<ClassifiedMessage>, hand: Boolean, filters: ParsedSearch?, zone: ZoneId
+    ): List<SearchHit> =
         messages.mapNotNull { m ->
             if (ManualEntries.isManual(m) != hand) return@mapNotNull null
             val content = m.content
+            if (filters != null && !passes(m, filters, zone)) return@mapNotNull null
             val payee = (content as? MessageContent.Transaction)?.payee
             val shown = m.merchant.name
-            val rank = listOfNotNull(
+            val rank = if (needle.isEmpty()) 0 else listOfNotNull(
                 best(needle, shown, payee),
                 amountRank(amount, amountOf(content)),
                 best(needle, m.category.displayString)?.plus(CATEGORY_PENALTY),
@@ -139,9 +193,46 @@ object GlobalSearch {
             val sub = listOfNotNull(m.category.displayString, money).joinToString(" · ")
             SearchHit(
                 if (hand) SearchKind.HAND_MADE else SearchKind.MESSAGE, m.id.toString(), shown, sub,
-                messageId = m.id, rank = rank
+                messageId = m.id, rank = rank, date = m.message.date, amount = amountOf(content),
+                credit = (content as? MessageContent.Transaction)?.isReceived == true,
+                category = m.category.displayString, logo = m.merchant.logo, imageKey = m.merchant.imageKey
             ) to m.message.date
         }.sortedWith(compareBy({ it.first.rank }, { -it.second })).map { it.first }
+
+    /** Whether a message is inside the time span, category, type and amount bounds the query asked for. */
+    private fun passes(m: ClassifiedMessage, f: ParsedSearch, zone: ZoneId): Boolean {
+        if (f.category != null && m.category != f.category) return false
+        if (f.smart != SmartFilter.ALL && !FeedBuilder.bucket(m, f.smart)) return false
+        val from = f.from
+        val to = f.to
+        if (from != null && to != null) {
+            val day = LocalDate.ofInstant(Instant.ofEpochMilli(m.message.date), zone)
+            if (day.isBefore(from) || day.isAfter(to)) return false
+        }
+        if (f.minAmount != null || f.maxAmount != null) {
+            val value = amountOf(m.content)?.replace(",", "")?.trim()?.toBigDecimalOrNull() ?: return false
+            if (f.minAmount != null && value < f.minAmount) return false
+            if (f.maxAmount != null && value > f.maxAmount) return false
+        }
+        return true
+    }
+
+    /** Each tag that matches, with how many payments carry it; and payments whose own note matches. */
+    private fun tagHits(needle: String, messages: List<ClassifiedMessage>): List<SearchHit> {
+        val tags = LinkedHashMap<String, Int>()
+        val notes = mutableListOf<SearchHit>()
+        for (m in messages) {
+            m.tags.forEach { tags[it] = (tags[it] ?: 0) + 1 }
+            val note = m.note ?: continue
+            val rank = rank(needle, note) ?: continue
+            notes += SearchHit(SearchKind.TAG, "note-${m.id}", note, m.merchant.name, messageId = m.id, rank = rank + NOTE_PENALTY, date = m.message.date)
+        }
+        val tagHits = tags.mapNotNull { (tag, count) ->
+            val rank = rank(needle, tag) ?: return@mapNotNull null
+            SearchHit(SearchKind.TAG, "tag-$tag", tag, if (count == 1) "1 payment" else "$count payments", rank = rank)
+        }
+        return tagHits + notes
+    }
 
     private fun accountHits(needle: String, amount: String?, accounts: List<AccountSummary>): List<SearchHit> =
         accounts.mapNotNull { a ->

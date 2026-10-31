@@ -113,7 +113,7 @@ object FeedBuilder {
         return event is FastTagEvent.Activated || event is FastTagEvent.RechargeNeeded
     }
 
-    private fun bucket(message: ClassifiedMessage, filter: SmartFilter): Boolean {
+    internal fun bucket(message: ClassifiedMessage, filter: SmartFilter): Boolean {
         val content = message.content
         return when (filter) {
             SmartFilter.ALL -> !message.isPromotional
