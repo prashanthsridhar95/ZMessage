@@ -38,7 +38,7 @@ import java.util.Locale
  * card would be needed to get there, and the categories where spending less would help most.
  */
 @Composable
-internal fun ForecastCard(forecast: SpendForecast, modifier: Modifier = Modifier) {
+internal fun ForecastCard(forecast: SpendForecast, modifier: Modifier = Modifier, runway: com.zyke.message.domain.plan.SalaryRunway? = null) {
     val colors = limitColors()
     var open by rememberSaveable { mutableStateOf(false) }
     val end = forecast.endBalance
@@ -67,6 +67,8 @@ internal fun ForecastCard(forecast: SpendForecast, modifier: Modifier = Modifier
             }
             Text("\u203A", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.secondary)
         }
+        // How long the plan's money lasts is a second way of reading the same pace, so it sits in this card.
+        if (runway != null) SalaryStrip(runway, Modifier.padding(top = 14.dp))
     }
 
     if (open) {

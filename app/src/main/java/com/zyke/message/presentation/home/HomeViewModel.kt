@@ -90,6 +90,7 @@ class HomeViewModel(
     private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
     private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
     private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
+    private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -97,7 +98,8 @@ class HomeViewModel(
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
         plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, loanList = loanRepository.loans.value, asides = setAsideRepository.state.value,
-        planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value)
+        planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value,
+        cancelledSubs = cancelledSubscriptions.cancelled.value)
 ) {
 
     // Declared before init: the first collections below can run at once and reach the memo.
@@ -141,6 +143,7 @@ class HomeViewModel(
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
         viewModelScope.launch { hiddenAccounts.hidden.collect { keys -> reduceHome { copy(hiddenAccounts = keys) } } }
         viewModelScope.launch { recurring.states.collect { states -> reduce { copy(recurringStates = states) } } }
+        viewModelScope.launch { cancelledSubscriptions.cancelled.collect { cancelled -> reduceHome { copy(cancelledSubs = cancelled) } } }
         viewModelScope.launch { calendarEvents.events.collect { events -> reduceHome { copy(events = events) } } }
         viewModelScope.launch { pfAccounts.keys.collect { keys -> reduceHome { copy(pfAccountKeys = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
@@ -231,6 +234,10 @@ class HomeViewModel(
             is Intent.RemoveEvent -> calendarEvents.remove(intent.id)
             Intent.OpenGoals -> reduce { copy(showGoals = true) }
             Intent.CloseGoals -> reduce { copy(showGoals = false) }
+            Intent.OpenSubscriptions -> reduce { copy(showSubscriptions = true) }
+            Intent.CloseSubscriptions -> reduce { copy(showSubscriptions = false) }
+            is Intent.CancelSubscription -> cancelledSubscriptions.markCancelled(intent.key, intent.on)
+            is Intent.RestoreSubscription -> cancelledSubscriptions.clear(intent.key)
             Intent.OpenReminders -> reduce { copy(showReminders = true) }
             Intent.CloseReminders -> reduce { copy(showReminders = false) }
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
@@ -398,8 +405,8 @@ class HomeViewModel(
                     }
                 }
                 val review = part {
-                    memo("review", live, updated.asides, now, us.dismissedAttention) {
-                        com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone, now, us.dismissedAttention)
+                    memo("review", live, updated.asides, now, us.dismissedAttention, updated.cancelledSubs) {
+                        com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone, now, us.dismissedAttention, updated.cancelledSubs)
                     }
                 }
                 val providentFund = part { memo("pf", live) { com.zyke.message.domain.pf.ProvidentFunds.find(live, zone) } }
@@ -471,12 +478,16 @@ class HomeViewModel(
                 PlanActions.visible(reminders, hides, today) { PlanKeys.reminder(it.reminder) }
             }
             val planHidden = memo("planHidden", hides, today) { PlanActions.hidden(hides, today) }
-            val outflow = memo("outflow", upcoming, updated.loanList, updated.reminderList, updated.plan, live, updated.recurringStates, today) {
+            val outflow = memo("outflow", upcoming, updated.loanList, updated.reminderList, updated.plan, live, updated.recurringStates, updated.cancelledSubs, today) {
                 com.zyke.message.domain.forecast.UpcomingOutflows.build(
                     from = today, upcoming = upcoming, loans = updated.loanList, reminders = updated.reminderList, plan = updated.plan,
                     // The same subscriptions the part above found for these messages and this moment.
-                    recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(subscriptions, updated.recurringStates)
+                    recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(subscriptions, updated.recurringStates, updated.cancelledSubs.keys)
                 )
+            }
+            // The subscriptions page: every recurring charge with its yearly cost, state, hints and how to stop it.
+            val subscriptionOverview = memo("subscriptionOverview", subscriptions, updated.recurringStates, updated.cancelledSubs, live, today) {
+                com.zyke.message.domain.insights.SubscriptionOverview.build(subscriptions, updated.recurringStates, updated.cancelledSubs, today, live, zone)
             }
             val budgetStatus = memo("budgetStatus", dashboard) {
                 dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
@@ -485,7 +496,7 @@ class HomeViewModel(
                 copy(
                     cycle = cycle, daily = daily, dailySuggestion = dailySuggestion, goals = goals, reminders = reminders, providentFund = providentFund,
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
-                    subscriptions = subscriptions, attention = attention, review = review, thisMonth = dashboard,
+                    subscriptions = subscriptions, subscriptionOverview = subscriptionOverview, attention = attention, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
                     agenda = agenda, unreadCount = unread,
                     planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders, planHidden = planHidden
@@ -539,7 +550,8 @@ class HomeViewModel(
         private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations,
         private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
         private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
-        private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride
+        private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
+        private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -549,7 +561,8 @@ class HomeViewModel(
                 planRepository = planRepository, cardRepository = cardRepository,
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
-                recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride
+                recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride,
+                cancelledSubscriptions = cancelledSubscriptions
             ) as T
     }
 

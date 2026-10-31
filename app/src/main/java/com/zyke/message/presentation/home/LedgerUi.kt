@@ -157,7 +157,9 @@ internal fun ReviewPage(
     /** The person shows the app how to read a message it did not understand. */
     onTeach: (com.zyke.message.domain.teach.LearnedTemplate) -> Unit = {},
     taught: List<TaughtFormat> = emptyList(),
-    onDeleteTaught: (TaughtFormat) -> Unit = {}
+    onDeleteTaught: (TaughtFormat) -> Unit = {},
+    /** The person still uses a subscription they had marked as cancelled. */
+    onStillUsing: (com.zyke.message.domain.insights.CancelledCharge) -> Unit = {}
 ) {
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -190,6 +192,32 @@ internal fun ReviewPage(
                             }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Open message", { onOpen(bill.message.id) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                         }
+                    }
+                }
+            }
+            if (review.cancelledCharges.isNotEmpty()) {
+                SectionHeader("Charged after you cancelled", review.cancelledCharges.size)
+                review.cancelledCharges.forEach { charge ->
+                    val amount = DisplayFormatters.rupees(charge.amount)
+                    FintechCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                RowTitle(charge.name)
+                                Caption(
+                                    stampOf(charge.message) + " \u00B7 you marked it cancelled on ${CancelledFormat.format(charge.cancelledOn)}. Was this expected?",
+                                    maxLines = 3
+                                )
+                            }
+                            com.zyke.message.presentation.messages.components.AmountText(amount, MaterialTheme.colorScheme.error)
+                        }
+                        ActionButtons(
+                            listOf(
+                                RowAction("Open message", ButtonStyle.PRIMARY) { onOpen(charge.message.id) },
+                                RowAction("Still using it", ButtonStyle.OUTLINE) { onStillUsing(charge) },
+                                RowAction("Looks fine", ButtonStyle.OUTLINE) { onNotTransfer(charge.reviewKey) }
+                            ),
+                            Modifier.padding(top = 10.dp)
+                        )
                     }
                 }
             }
@@ -293,6 +321,7 @@ internal fun ReviewPage(
 }
 
 private val DueFormat = FormatCache.pattern("d MMM yyyy", java.util.Locale.getDefault())
+private val CancelledFormat = FormatCache.pattern("d MMM", java.util.Locale.getDefault())
 
 private val StampFormat = FormatCache.pattern("d MMM yyyy, h:mm a", java.util.Locale.getDefault())
 

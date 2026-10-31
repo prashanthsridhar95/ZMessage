@@ -12,6 +12,7 @@ object SearchPages {
     const val CALENDAR = "calendar"
     const val GOALS = "goals"
     const val REMINDERS = "reminders"
+    const val SUBSCRIPTIONS = "subscriptions"
 
     val all = listOf(
         SearchPageEntry(ACCOUNTS, "Accounts", "Bank accounts and cards", listOf("bank", "card", "balance")),
@@ -21,7 +22,11 @@ object SearchPages {
         SearchPageEntry(SETTINGS, "Settings", "Look, privacy, backup and alerts", listOf("theme", "dark", "privacy", "hide amounts", "backup", "restore", "notifications", "language")),
         SearchPageEntry(CALENDAR, "Calendar", "Your month at a glance", listOf("agenda", "events")),
         SearchPageEntry(GOALS, "Goals", "What you are saving for", listOf("saving", "plan", "target")),
-        SearchPageEntry(REMINDERS, "Reminders", "Things to pay or renew", listOf("due", "renewal"))
+        SearchPageEntry(REMINDERS, "Reminders", "Things to pay or renew", listOf("due", "renewal")),
+        SearchPageEntry(
+            SUBSCRIPTIONS, "Subscriptions", "What repeats, what it costs a year, and how to stop it",
+            listOf("subscription", "cancel", "netflix", "autopay", "mandate", "recurring", "yearly cost")
+        )
     )
 
     /** The tiles shown when nothing is typed. */

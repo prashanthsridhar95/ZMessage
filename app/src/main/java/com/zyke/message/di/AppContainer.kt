@@ -86,6 +86,7 @@ class AppContainer(context: Context) {
     val netWorth: com.zyke.message.domain.repository.NetWorthRepository by lazy { com.zyke.message.data.repository.NetWorthRepositoryImpl(context) }
     val loans: com.zyke.message.domain.repository.LoanRepository by lazy { com.zyke.message.data.repository.LoanRepositoryImpl(context) }
     val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository by lazy { com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context) }
+    val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository by lazy { com.zyke.message.data.repository.CancelledSubscriptionRepositoryImpl(context) }
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
@@ -113,7 +114,7 @@ class AppContainer(context: Context) {
         val parts = listOf<() -> Any?>(
             { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
             { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts },
-            { providentFundAccounts }, { setAsides }, { manualEntries }, { recurringPayments }, { loans }, { imageStore },
+            { providentFundAccounts }, { setAsides }, { manualEntries }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
             { classificationCache }, { observeMessages }
         )
         for (part in parts) appScope.launch { runCatching { part() } }

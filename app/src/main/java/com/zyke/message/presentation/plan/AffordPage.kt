@@ -65,7 +65,7 @@ internal fun AffordPage(state: State, onIntent: (Intent) -> Unit, onBack: () -> 
             val outflows = UpcomingOutflows.build(
                 from = today, days = state.cycle.daysLeft(today).toLong().coerceAtLeast(1), upcoming = state.upcoming,
                 loans = state.loanList, reminders = state.reminderList, plan = state.plan,
-                recurring = RecurringPayments.arrange(state.subscriptions, state.recurringStates)
+                recurring = RecurringPayments.arrange(state.subscriptions, state.recurringStates, state.cancelledSubs.keys)
             )
             Affordability.check(
                 it, state.messages, state.plan, state.goalList, outflows, state.now, zone, state.cycle,

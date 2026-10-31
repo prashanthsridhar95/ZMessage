@@ -107,6 +107,25 @@ none exist, and carry-over choices and moves are copied (`BudgetMigration`, pure
 place. `PrefsBackup` copies every prefs file, so backups carry the unified store, and a backup made before the merge
 restores and migrates on the next start. See `docs/UNIFICATION.md` for the other overlaps that were audited.
 
+## Subscriptions and the salary strip
+
+`Subscriptions.find` stays the one detector of repeating charges; it now also keeps the charge before the latest and the
+first one of the run. `SubscriptionOverview.build` (`:domain`, pure, tested) lays them against the person's confirm/ignore
+answers (`RecurringConfirmationRepository`) and cancelled marks (`CancelledSubscriptionRepository`, prefs
+`cancelled_subscriptions`, key to epoch day, copied by `PrefsBackup`): yearly and monthly cost by `Cadence`, state
+(Active/Paused/Cancelled; only Active is in the totals), a price-went-up flag above 3%, and modest question hints (new,
+similar service from a small curated `ServiceKinds` list). `PaymentChannels.infer` reads the channel from the words of the
+payment's own messages and `CancelGuides` gives the matching generic steps and the copy-able reference (name, amount,
+cadence, last charge, last four digits; never message text). The page is `SubscriptionsPage` (Home's sheets, opened by
+`OpenSubscriptions` from Bills, Insights or Search), built in `HomeViewModel` as one memoised part. The Google Play link is
+a plain `ACTION_VIEW` handed to the phone (`openExternally`); the app makes no request of its own. A debit to a payee marked
+cancelled, on a later day and of about the usual size, is found by `CancelledCharges` and raised in `ReviewQueue`
+(`cancelledCharges`) and as a `HeadsUps` note. `RecurringPayments.arrange(..., cancelled)` drops cancelled ones from the
+upcoming-payments lists.
+
+`SalaryRunways.project` (`:domain`, pure, tested) projects the day the plan's spendable money runs out at this cycle's
+pace, from `PlanInsights`; `SalaryStrip` draws it inside the Insights forecast card (or on its own without a forecast).
+
 ## Quality gates
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`

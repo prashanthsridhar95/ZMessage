@@ -79,6 +79,10 @@ object HomeContract {
         val subscriptions: List<Subscription> = emptyList(),
         /** What the person said about each recurring payment, by [Subscription.key]. */
         val recurringStates: Map<String, com.zyke.message.domain.repository.RecurringState> = emptyMap(),
+        /** Subscriptions the person marked as cancelled, by [Subscription.key], with the day. */
+        val cancelledSubs: Map<String, java.time.LocalDate> = emptyMap(),
+        /** Every recurring charge with its yearly cost, state, hints and cancel guide. */
+        val subscriptionOverview: com.zyke.message.domain.insights.SubscriptionOverview = com.zyke.message.domain.insights.SubscriptionOverview(emptyList()),
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
         val daily: DailyBudgetStatus? = null,
         /** What the plan or past spending suggests as the daily budget (never the person's own figure); null with too little to go on. */
@@ -121,6 +125,8 @@ object HomeContract {
         val showAgenda: Boolean = false,
         val events: List<com.zyke.message.domain.calendar.CalendarEvent> = emptyList(),
         val showReminders: Boolean = false,
+        /** The subscriptions page is open. */
+        val showSubscriptions: Boolean = false,
         /** The trip whose scene is open. */
         val journeyMessageId: Long? = null,
         /** The payment being split with friends, while its dialog is open. */
@@ -188,6 +194,11 @@ object HomeContract {
         data class RemoveEvent(val id: String) : Intent
         data object OpenGoals : Intent
         data object CloseGoals : Intent
+        data object OpenSubscriptions : Intent
+        data object CloseSubscriptions : Intent
+        /** Says the subscription was cancelled, on [on]; [RestoreSubscription] takes it back. */
+        data class CancelSubscription(val key: String, val on: java.time.LocalDate) : Intent
+        data class RestoreSubscription(val key: String) : Intent
         data object OpenReminders : Intent
         data object CloseReminders : Intent
         data object OpenCodes : Intent

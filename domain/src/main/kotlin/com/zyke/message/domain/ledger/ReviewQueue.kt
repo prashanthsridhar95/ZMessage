@@ -51,9 +51,11 @@ data class ReviewQueue(
     /** Card bills past their due date with no payment found. */
     val bills: List<OverdueBill> = emptyList(),
     /** Debits far above what the person usually pays. */
-    val unusual: List<ClassifiedMessage> = emptyList()
+    val unusual: List<ClassifiedMessage> = emptyList(),
+    /** Charges that came after the person marked their subscription as cancelled. */
+    val cancelledCharges: List<com.zyke.message.domain.insights.CancelledCharge> = emptyList()
 ) {
-    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size
+    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size + cancelledCharges.size
     val isEmpty: Boolean get() = count == 0
 }
 
@@ -89,7 +91,8 @@ object ReviewQueues {
         asides: SetAsides,
         zone: ZoneId,
         now: Instant = Instant.now(),
-        dismissed: Set<String> = emptySet()
+        dismissed: Set<String> = emptySet(),
+        cancelled: Map<String, LocalDate> = emptyMap()
     ): ReviewQueue {
         val live = messages.filter { !it.isPromotional && !it.isMuted && it.setAside == null }
 
@@ -113,7 +116,10 @@ object ReviewQueues {
         val bills = overdueBills(live, dismissed, now, zone)
         val unusual = unusual(txs, asides, now).filter { u -> uncategorised.none { it.id == u.id } }
 
-        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual)
+        val cancelledCharges = com.zyke.message.domain.insights.CancelledCharges.find(live, cancelled, zone, now)
+            .filter { it.reviewKey !in asides.dismissed }.take(MAX_PER_KIND)
+
+        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual, cancelledCharges)
     }
 
     /**

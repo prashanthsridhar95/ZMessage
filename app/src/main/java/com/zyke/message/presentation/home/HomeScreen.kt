@@ -262,6 +262,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
                 ledger.withUndo("Not a transfer") { ledger.restoreSuggestion(key) }
             },
             onOpen = { onIntent(Intent.OpenMessage(it)) },
+            onStillUsing = { onIntent(Intent.RestoreSubscription(it.key)) },
             onBack = { reviewOpen = false },
             onMerge = { primary, duplicate -> onIntent(Intent.MergeDuplicates(primary, duplicate)) },
             onUnmerge = { onIntent(Intent.UnmergeDuplicate(it)) },
@@ -466,8 +467,8 @@ private const val REMINDERS_SHOWN = 4
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
     val markPaid = rememberMarkPaid(onIntent)
     val planHandler = rememberPlanActionHandler(onIntent)
-    val recurringArranged = remember(state.subscriptions, state.recurringStates) {
-        com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
+    val recurringArranged = remember(state.subscriptions, state.recurringStates, state.cancelledSubs) {
+        com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates, state.cancelledSubs.keys)
     }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
@@ -585,8 +586,12 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                             onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) }
                         ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
                     }
+                    LinkButton("Yearly cost and how to cancel", { onIntent(Intent.OpenSubscriptions) })
                 }
             }
+        } else if (state.subscriptionOverview.lines.isNotEmpty()) {
+            // Everything that repeats was cancelled or is paused: the full list is still one tap away.
+            item(key = "subscriptions-link") { LinkButton("Subscriptions", { onIntent(Intent.OpenSubscriptions) }) }
         }
         item(key = "marked-paid") { PaidBillsLink(onIntent) }
     }
@@ -647,6 +652,8 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             onDismiss = { onIntent(Intent.CloseAgenda) }
         )
     }
+
+    if (state.showSubscriptions) SubscriptionsPage(state, onIntent) { onIntent(Intent.CloseSubscriptions) }
 
     if (state.showReminders) {
         PlanPage("Reminders", { onIntent(Intent.CloseReminders) }) {
@@ -984,7 +991,7 @@ private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit)
         modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
         caption = { Caption("For ${share.split.title}", maxLines = 2) },
         amount = { AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary) },
-        actions = listOf(RowAction("Mark as paid", ButtonStyle.OUTLINE, onSettle))
+        actions = listOf(RowAction("Mark as paid", ButtonStyle.OUTLINE) { onSettle() })
     )
 }
 

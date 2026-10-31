@@ -317,8 +317,25 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         }
 
         // Right under the headline numbers: where this is all heading is the first thing worth knowing.
-        state.forecast?.let { forecast ->
-            item(key = "forecast") { ForecastCard(forecast) }
+        // The salary strip belongs to the forecast: inside its card when there is one, on its own when there is not.
+        if (state.forecast != null || state.salaryRunway != null) {
+            item(key = "forecast") {
+                val forecast = state.forecast
+                if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway)
+                else state.salaryRunway?.let { com.zyke.message.presentation.dashboard.components.SalaryStripCard(it) }
+            }
+        }
+        item(key = "subscriptions-entry") {
+            val open = com.zyke.message.presentation.common.LocalOpenSubscriptions.current
+            com.zyke.message.presentation.common.FintechCard(onClick = open) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        com.zyke.message.presentation.messages.components.RowTitle("Subscriptions")
+                        com.zyke.message.presentation.messages.components.Caption("What repeats, what it costs a year, and how to stop it", maxLines = 2)
+                    }
+                    androidx.compose.material3.Text("\u203A", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.secondary)
+                }
+            }
         }
 
         if (!dashboard.isEmpty) {

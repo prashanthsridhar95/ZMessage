@@ -73,7 +73,8 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.userMessageState, container.budgets, container.categoryOverrides, container.mutedSenders,
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
-            container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments, container.loans, container.planActions, container.dailyBudgetOverride
+            container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments, container.loans, container.planActions, container.dailyBudgetOverride,
+            container.cancelledSubscriptions
         )
     }
 
@@ -289,6 +290,7 @@ class MainActivity : ComponentActivity() {
                         SettingsRoute(settingsViewModel, versionName, onDismiss)
                     },
                     onOpenMessage = { homeViewModel.onIntent(HomeContract.Intent.OpenMessage(it)) },
+                    onOpenSubscriptions = { homeViewModel.onIntent(HomeContract.Intent.OpenSubscriptions) },
                     search = { onDismiss, navigate ->
                         val openSettings = com.zyke.message.presentation.common.LocalOpenSettings.current
                         com.zyke.message.presentation.search.SearchRoute(
@@ -322,6 +324,7 @@ class MainActivity : ComponentActivity() {
                                         com.zyke.message.domain.search.SearchPages.CALENDAR -> home(HomeContract.Intent.OpenCalendar)
                                         com.zyke.message.domain.search.SearchPages.GOALS -> home(HomeContract.Intent.OpenGoals)
                                         com.zyke.message.domain.search.SearchPages.REMINDERS -> home(HomeContract.Intent.OpenReminders)
+                                        com.zyke.message.domain.search.SearchPages.SUBSCRIPTIONS -> home(HomeContract.Intent.OpenSubscriptions)
                                     }
                                 }
                             },

@@ -26,7 +26,10 @@ internal object HeadsUpNotifier {
         val settings = container.settings.settings.value
         if (!settings.liveAlerts || !settings.headsUp || settings.readingPaused || !LiveAlerts.canNotify(context)) return
         val history = runCatching { container.observeMessages().first() }.getOrNull() ?: return
-        val found = HeadsUps.evaluate(message, history, settings.lowBalanceFloor, ZoneId.systemDefault(), System.currentTimeMillis())
+        val found = HeadsUps.evaluate(
+            message, history, settings.lowBalanceFloor, ZoneId.systemDefault(), System.currentTimeMillis(),
+            container.cancelledSubscriptions.cancelled.value
+        )
         com.zyke.message.data.diag.DevLog.d("receiver") { "heads-up checked: ${found.size} found" }
         found.forEach { post(context, message, it) }
     }

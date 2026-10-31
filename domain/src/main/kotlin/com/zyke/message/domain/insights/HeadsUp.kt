@@ -8,7 +8,7 @@ import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
 import java.time.ZoneId
 
-enum class HeadsUpKind { UNUSUAL_SPEND, LOW_BALANCE }
+enum class HeadsUpKind { UNUSUAL_SPEND, LOW_BALANCE, CANCELLED_CHARGE }
 
 /** What to tell the person about a payment that has just arrived. The amounts are for the unlocked phone only. */
 data class HeadsUp(val kind: HeadsUpKind, val title: String, val text: String)
@@ -22,12 +22,22 @@ object HeadsUps {
         history: List<ClassifiedMessage>,
         lowBalanceFloor: BigDecimal?,
         zone: ZoneId,
-        nowMs: Long = message.message.date
+        nowMs: Long = message.message.date,
+        cancelled: Map<String, java.time.LocalDate> = emptyMap()
     ): List<HeadsUp> {
         val tx = message.content as? MessageContent.Transaction ?: return emptyList()
         if (tx.isReceived || tx.isCardPayment) return emptyList()
         val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return emptyList()
         val result = mutableListOf<HeadsUp>()
+
+        // A charge from a subscription the person said they cancelled.
+        CancelledCharges.check(message, history.filter { it.message.body != message.message.body }, cancelled, zone)?.let {
+            result += HeadsUp(
+                HeadsUpKind.CANCELLED_CHARGE,
+                "Charged after you cancelled",
+                "${it.name} charged ${money(it.amount)} after you marked it cancelled."
+            )
+        }
 
         // The person's usual: debits in the last 90 days, not counting this one (it may already be in the inbox).
         val usual = history.mapNotNull { m ->

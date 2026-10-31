@@ -18,7 +18,13 @@ data class Subscription(
     val nextDue: LocalDate,
     val times: Int,
     /** The payment's own message, to open. */
-    val messageId: Long
+    val messageId: Long,
+    /** How often it comes round. Detection finds monthly ones; the overview can convert any cadence to a yearly cost. */
+    val cadence: Cadence = Cadence.MONTHLY,
+    /** The charge before the latest one, to spot a price rise; null when not known. */
+    val previousAmount: BigDecimal? = null,
+    /** The earliest charge of the run that was recognised. */
+    val firstPaid: LocalDate? = null
 ) {
     fun daysUntilDue(today: LocalDate): Long = ChronoUnit.DAYS.between(today, nextDue)
 
@@ -72,7 +78,11 @@ object Subscriptions {
         // A subscription that has stopped is not "due"; give it a month's grace and then drop it.
         if (next.isBefore(today.minusDays(MAX_GAP))) return null
         while (next.isBefore(today)) next = next.plusMonths(1)
-        return Subscription(last.name, last.amount.setScale(0, RoundingMode.HALF_UP), last.date, next, perMonth.size, last.messageId)
+        val previous = perMonth[perMonth.size - 2]
+        return Subscription(
+            last.name, last.amount.setScale(0, RoundingMode.HALF_UP), last.date, next, perMonth.size, last.messageId,
+            Cadence.MONTHLY, previous.amount.setScale(0, RoundingMode.HALF_UP), perMonth.first().date
+        )
     }
 
     fun keyFor(payee: String) = key(payee)

@@ -2,6 +2,7 @@ package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
@@ -235,7 +236,7 @@ internal fun HiddenPlanLink(hidden: List<PlanHide>, handler: PlanActionHandler, 
 
 
 /** A button in a [RowActions] line: one label on one line, never narrower than the label. */
-internal class RowAction(val label: String, val style: ButtonStyle, val onClick: () -> Unit)
+internal class RowAction(val label: String, val style: ButtonStyle, val description: String? = null, val onClick: () -> Unit)
 
 /**
  * The shared shape of a plan, bill or reminder row. Top line: [leading] chip, then title and caption (up to two lines,
@@ -252,7 +253,9 @@ internal fun PlanRow(
     caption: (@Composable () -> Unit)? = null,
     amount: (@Composable () -> Unit)? = null,
     more: (@Composable () -> Unit)? = null,
-    actions: List<RowAction> = emptyList()
+    actions: List<RowAction> = emptyList(),
+    /** Under the top line and above the buttons, across the full width: pills, notes. */
+    below: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     Column(modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.Top) {
@@ -270,19 +273,28 @@ internal fun PlanRow(
             }
             if (more != null) more() else Spacer(Modifier.width(8.dp))
         }
-        if (actions.isNotEmpty()) {
-            FlowRow(
-                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                actions.forEach { action ->
-                    AppButton(
-                        text = action.label, onClick = action.onClick,
-                        modifier = Modifier.weight(1f), style = action.style, size = ButtonSize.COMPACT
-                    )
-                }
-            }
+        below?.invoke(this)
+        if (actions.isNotEmpty()) ActionButtons(actions, Modifier.padding(top = 6.dp, bottom = 4.dp))
+    }
+}
+
+/** Buttons on their own full-width line, equal weight, wrapping to a second line when the labels do not fit. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ActionButtons(actions: List<RowAction>, modifier: Modifier = Modifier) {
+    FlowRow(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        actions.forEach { action ->
+            AppButton(
+                text = action.label, onClick = action.onClick,
+                modifier = Modifier.weight(1f).then(
+                    if (action.description != null) Modifier.semantics { contentDescription = action.description } else Modifier
+                ),
+                style = action.style, size = ButtonSize.COMPACT
+            )
         }
     }
 }

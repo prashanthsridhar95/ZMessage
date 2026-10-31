@@ -214,6 +214,9 @@ class DashboardViewModel(
         val planInsights = memos.of("planInsights", updated.plan, messages, now, cycle) {
             PlanInsightsBuilder.build(updated.plan, messages, now, zone, cycle)
         }
+        val salaryRunway = memos.of("salaryRunway", planInsights, now, cycle) {
+            com.zyke.message.domain.plan.SalaryRunways.project(planInsights, LocalDate.ofInstant(now, zone), cycle)
+        }
         val archived = archivedIds()
         val hidden = hiddenAccounts.hidden.value
         val pfKeys = pfAccounts.keys.value
@@ -283,7 +286,7 @@ class DashboardViewModel(
                 expenseTrend = built.expenseTrend, incomeTrend = built.incomeTrend, reportCard = built.reportCard,
                 monthlySummary = built.monthlySummary, cardBills = built.cardBills, cardCycles = built.cardCycles,
                 limits = built.limits, sourceOptions = built.sourceOptions, planInsights = planInsights,
-                forecast = built.forecast
+                forecast = built.forecast, salaryRunway = salaryRunway
             )
         }
     }

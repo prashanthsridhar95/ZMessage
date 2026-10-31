@@ -606,7 +606,7 @@ private fun KindTile(hit: SearchHit) {
 
 private fun pageIcon(key: String): Int = when (key) {
     SearchPages.ACCOUNTS -> R.drawable.ic_accounts_24
-    SearchPages.BILLS, SearchPages.REMINDERS -> R.drawable.baseline_receipt_24
+    SearchPages.BILLS, SearchPages.REMINDERS, SearchPages.SUBSCRIPTIONS -> R.drawable.baseline_receipt_24
     SearchPages.INSIGHTS -> R.drawable.ic_insights_24
     SearchPages.MESSAGES -> R.drawable.baseline_message_24
     SearchPages.SETTINGS -> R.drawable.baseline_settings_24
