@@ -40,6 +40,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
@@ -145,7 +146,16 @@ class ObserveMessagesUseCase(
             }
             .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
             .map(CategorySuggester::annotate)
+            // Nothing changed for any message (every one is the same instance): do not wake every screen again.
+            .distinctUntilChanged(::sameInstances)
             .flowOn(dispatcher)
+
+    private fun sameInstances(a: List<ClassifiedMessage>, b: List<ClassifiedMessage>): Boolean {
+        if (a === b) return true
+        if (a.size != b.size) return false
+        for (i in a.indices) if (a[i] !== b[i]) return false
+        return true
+    }
 
     /** A small inbox, or a repository that cannot read by month: read all of it at once. */
     private fun whole(): Flow<List<ClassifiedMessage>> =
