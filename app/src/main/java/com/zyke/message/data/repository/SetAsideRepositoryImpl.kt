@@ -21,7 +21,8 @@ class SetAsideRepositoryImpl(context: Context) : SetAsideRepository {
 
     override fun link(outId: Long?, inId: Long?) {
         if (outId == null && inId == null) return
-        val without = _state.value.transfers.filter { it.outId != outId && it.inId != inId }
+        // A message is in one transfer at most: drop any earlier link that shares a leg with this one.
+        val without = _state.value.transfers.filter { !(outId != null && it.outId == outId) && !(inId != null && it.inId == inId) }
         write(_state.value.copy(transfers = without + TransferLink(outId, inId)))
     }
 
