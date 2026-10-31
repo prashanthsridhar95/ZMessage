@@ -227,8 +227,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 val deck = cards.map { DeckCard(it.key, it.faceCard(), cardFooter(it, deckToday)) }
                 com.zyke.message.presentation.common.CardDeck(
                     deck, deckState,
-                    onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
-                    modifier = Modifier.padding(horizontal = (-16).dp)
+                    onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) }
                 )
             }
             val front = cards.getOrNull(deckState.currentPage.coerceIn(0, cards.lastIndex))
