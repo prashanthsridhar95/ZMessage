@@ -31,6 +31,8 @@ class SetAsideRepositoryImpl(context: Context) : SetAsideRepository {
 
     override fun dismissSuggestion(key: String) = write(_state.value.copy(dismissed = _state.value.dismissed + key))
 
+    override fun restoreSuggestion(key: String) = write(_state.value.copy(dismissed = _state.value.dismissed - key))
+
     private fun write(state: SetAsides) {
         _state.value = state
         val transfers = JSONArray()

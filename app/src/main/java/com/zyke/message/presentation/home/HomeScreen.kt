@@ -220,10 +220,17 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 
     if (entryOpen) ManualEntrySheet(today, onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false }, onDismiss = { entryOpen = false })
     if (reviewOpen) {
+        val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
         ReviewPage(
             review = state.review,
-            onLink = { debit, credit -> onIntent(Intent.LinkTransfer(debit, credit)) },
-            onNotTransfer = { onIntent(Intent.DismissTransfer(it)) },
+            onLink = { debit, credit ->
+                onIntent(Intent.LinkTransfer(debit, credit))
+                ledger.withUndo("Marked as a transfer") { ledger.unlinkTransfer(debit, credit) }
+            },
+            onNotTransfer = { key ->
+                onIntent(Intent.DismissTransfer(key))
+                ledger.withUndo("Not a transfer") { ledger.restoreSuggestion(key) }
+            },
             onOpen = { onIntent(Intent.OpenMessage(it)) },
             onBack = { reviewOpen = false },
             onMerge = { primary, duplicate -> onIntent(Intent.MergeDuplicates(primary, duplicate)) },

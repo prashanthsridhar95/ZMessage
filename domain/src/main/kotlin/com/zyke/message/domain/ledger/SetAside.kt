@@ -43,6 +43,8 @@ interface SetAsideRepository {
     fun unlink(id: Long)
     /** Remembers that this suggestion is not a transfer. */
     fun dismissSuggestion(key: String)
+    /** Takes back [dismissSuggestion]. */
+    fun restoreSuggestion(key: String) = Unit
 }
 
 object NoSetAsides : SetAsideRepository {
