@@ -151,10 +151,18 @@ internal fun ReviewPage(
     onUnmerge: (duplicateId: Long) -> Unit = {},
     /** The person says the bill was paid; [onUndoPaid] takes that back. */
     onMarkPaid: (OverdueBill) -> Unit = {},
-    onUndoPaid: (OverdueBill) -> Unit = {}
+    onUndoPaid: (OverdueBill) -> Unit = {},
+    /** The person shows the app how to read a message it did not understand. */
+    onTeach: (com.zyke.message.domain.teach.LearnedTemplate) -> Unit = {},
+    taught: List<TaughtFormat> = emptyList(),
+    onDeleteTaught: (TaughtFormat) -> Unit = {}
 ) {
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var teaching by androidx.compose.runtime.remember { mutableStateOf<com.zyke.message.domain.model.ClassifiedMessage?>(null) }
+    teaching?.let { message ->
+        TeachSheet(message, onSave = { onTeach(it); teaching = null }, onDismiss = { teaching = null })
+    }
     AppPage("Needs review", onBack) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (review.isEmpty) {
@@ -265,14 +273,19 @@ internal fun ReviewPage(
             if (review.unclear.isNotEmpty()) {
                 SectionHeader("Messages not understood", review.unclear.size)
                 review.unclear.forEach { message ->
-                    FintechCard(onClick = { onOpen(message.id) }) {
+                    FintechCard(onClick = { teaching = message }) {
                         RowTitle(message.merchant.name)
                         Caption(stampOf(message), Modifier.padding(top = 2.dp))
                         Caption(message.message.body.replace(Regex("\\s+"), " ").trim(), Modifier.padding(top = 2.dp), maxLines = 2)
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppButton("Teach the app", { teaching = message }, Modifier.weight(1f), size = ButtonSize.COMPACT)
+                            AppButton("Open message", { onOpen(message.id) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
                     }
                 }
-                Caption("Share a parsing report from Settings so these can be taught.", maxLines = 2)
+                Caption("Tap one to show the app where the amount is. It then reads that kind of message on its own.", maxLines = 2)
             }
+            TaughtFormats(taught, onDeleteTaught)
         }
     }
 }

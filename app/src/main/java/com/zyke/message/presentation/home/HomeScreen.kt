@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -221,6 +222,12 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     if (entryOpen) ManualEntrySheet(today, onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false }, onDismiss = { entryOpen = false })
     if (reviewOpen) {
         val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+        val store = rememberLearnedTemplates()
+        val templates by store.templates.collectAsState()
+        val taught = remember(templates, state.messages) {
+            val counts = state.messages.groupingBy { it.learnedTemplateId }.eachCount()
+            templates.map { TaughtFormat(it, counts[it.id] ?: 0) }
+        }
         ReviewPage(
             review = state.review,
             onLink = { debit, credit ->
@@ -242,6 +249,13 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             onUndoPaid = { bill ->
                 onIntent(Intent.RestoreAttention(bill.markedPaidKey))
                 onIntent(Intent.RestoreAttention(bill.attentionKey))
+            },
+            onTeach = { store.add(it) },
+            taught = taught,
+            onDeleteTaught = { format ->
+                val index = templates.indexOfFirst { it.id == format.template.id }
+                store.remove(format.template.id)
+                ledger.withUndo("Taught format deleted") { store.add(format.template, index) }
             }
         )
     }

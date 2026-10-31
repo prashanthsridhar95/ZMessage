@@ -61,6 +61,7 @@ class AppContainer(context: Context) {
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
     val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
+    val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context)
     val merges: MergeRepository = MergeRepositoryImpl(context)
     val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.data.repository.CalendarEventRepositoryImpl(context)
     val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.data.repository.InsightsFilterRepositoryImpl(context)
@@ -89,7 +90,7 @@ class AppContainer(context: Context) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides
+        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates
     )
 
     private fun cacheTag(context: Context): String {
