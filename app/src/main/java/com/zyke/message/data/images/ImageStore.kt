@@ -82,6 +82,16 @@ class ImageStore(
         return true
     }
 
+    /** Gives [toKey] the same chosen picture as [fromKey], as its own copy, so changing one later leaves the other alone. */
+    suspend fun copyChosen(fromKey: String, toKey: String): Boolean = withContext(Dispatchers.IO) {
+        val source = File(chosenDir, fileName(fromKey))
+        if (!source.exists()) return@withContext false
+        runCatching { source.copyTo(File(chosenDir, fileName(toKey)), overwrite = true) }.onFailure { return@withContext false }
+        cache.remove(CHOSEN + toKey)
+        updateKeys(_keys.value + toKey)
+        true
+    }
+
     fun removeChosen(key: String) {
         File(chosenDir, fileName(key)).delete()
         cache.remove(CHOSEN + key)

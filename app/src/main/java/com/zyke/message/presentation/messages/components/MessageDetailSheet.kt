@@ -417,14 +417,40 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
     // A name for this transaction, or for the sender or receiver: each is kept and cleared on its own.
     val named = if (forTransaction) item.nicknameOwn else item.merchant.renamed && !item.nicknameOwn
     var name by rememberSaveable { mutableStateOf(if (named) shownName else "") }
+    val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val nicknames by container.nicknames.nicknames.collectAsState()
+    val categories by container.categoryOverrides.overrides.collectAsState()
+    val pictureKeys by container.imageStore.keysWithImage.collectAsState()
+
+    // What the thing being named is filed under: this one payment, or its sender or receiver.
+    val targetKey = if (forTransaction) CategoryKey.messageKey(item.id) else CategoryKey.of(item)
+    // Names already given, best fit to what is typed first, never counting this thing's own current name.
+    val suggestions = androidx.compose.runtime.remember(name, nicknames, targetKey) {
+        com.zyke.message.domain.nickname.NicknameSuggestions.suggest(name, nicknames.filterKeys { it != targetKey })
+    }
+    // If the name is one already used, what it already has, which this one will take too.
+    val inherited = androidx.compose.runtime.remember(name, nicknames, categories, pictureKeys, targetKey) {
+        targetKey?.let { com.zyke.message.domain.nickname.NicknameSuggestions.inherit(name, it, nicknames, categories, pictureKeys) }
+    }
+
     FormSheet(
         title = if (forTransaction) "Name this transaction" else "Name ${CategoryKey.label(item)}",
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
         onPrimary = {
-            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: save id=${item.id} forTransaction=$forTransaction nameLength=${name.length}" }
+            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: save id=${item.id} forTransaction=$forTransaction nameLength=${name.length} inherits=${inherited != null}" }
             actions.onRename(item.id, name, forTransaction)
+            // A name that is already in use brings its category and picture along, unless this one has its own already.
+            if (inherited != null && targetKey != null) {
+                inherited.category?.let { category ->
+                    if (container.categoryOverrides.overrides.value[targetKey] == null) container.categoryOverrides.set(targetKey, category)
+                }
+                inherited.imageKey?.let { source ->
+                    if (targetKey !in container.imageStore.keysWithImage.value) scope.launch { container.imageStore.copyChosen(source, targetKey) }
+                }
+            }
             onDismiss()
         },
         secondaryLabel = if (named) "Remove this name" else null,
@@ -436,8 +462,20 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
     ) {
         FormField(
             "Name", name, { name = it }, placeholder = CategoryKey.label(item),
-            supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears"
+            supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears",
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
         )
+        if (suggestions.isNotEmpty()) {
+            FormGroup(if (name.isBlank()) "Names you have used" else "Names you have used that fit") {
+                com.zyke.message.presentation.common.SuggestionRow(
+                    suggestions.map { if (it.uses > 1) "${it.name} \u00B7 ${it.uses}" else it.name }
+                ) { picked -> name = suggestions.first { (if (it.uses > 1) "${it.name} \u00B7 ${it.uses}" else it.name) == picked }.name }
+            }
+        }
+        inherited?.let { details ->
+            val parts = listOfNotNull(details.category?.let { "the category ${it.displayString}" }, details.imageKey?.let { "its picture" })
+            Caption("\"${name.trim()}\" is already in use: this will also take ${parts.joinToString(" and ")}.", maxLines = 3)
+        }
     }
 }
 
