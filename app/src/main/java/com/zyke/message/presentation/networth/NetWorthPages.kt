@@ -2,7 +2,15 @@ package com.zyke.message.presentation.networth
 
 import androidx.compose.foundation.layout.Arrangement
 import com.zyke.message.presentation.format.FormatCache
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -77,6 +85,52 @@ private fun sourceText(line: NetWorthLine): String {
         LineSource.MESSAGES -> "From your messages$asOf"
         LineSource.ENTERED -> "Entered by you$asOf"
         LineSource.LOANS -> "Worked out from your loan$asOf"
+    }
+}
+
+/**
+ * The Accounts tab's net-worth card: the figure itself (assets minus liabilities), a bar of how the two compare, and a
+ * tap that opens the full page. It reads the same sources as [NetWorthPage] so the two always agree.
+ */
+@Composable
+internal fun NetWorthCard(accounts: List<AccountSummary>, messages: List<ClassifiedMessage>, onOpen: () -> Unit) {
+    val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
+    val items by container.netWorth.items.collectAsState()
+    val loans by container.loans.loans.collectAsState()
+    val today = remember { LocalDate.now() }
+    val debits = remember(messages) { Loans.debitsFrom(messages, ZoneId.systemDefault()) }
+    val report = remember(items, accounts, loans, debits, today) {
+        NetWorth.build(items, accounts, Loans.statuses(loans, today, debits), today)
+    }
+    val assets = report.totalAssets
+    val liabilities = report.totalLiabilities
+    val total = assets + liabilities
+    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden
+    val figure = DisplayFormatters.rupees(report.netWorth)
+    val summary = if (privacy) "Net worth, amount hidden. Opens details." else
+        "Net worth $figure. Assets ${DisplayFormatters.rupees(assets)}, liabilities ${DisplayFormatters.rupees(liabilities)}. Opens details."
+    FintechCard(Modifier.semantics { contentDescription = summary }, onClick = onOpen) {
+        Caption("NET WORTH")
+        com.zyke.message.presentation.common.PrivateAmount(
+            figure, Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold,
+            color = if (report.netWorth.signum() < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            maxLines = 1
+        )
+        if (total.signum() > 0) {
+            val assetShare = assets.divide(total, 4, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0.02f, 0.98f)
+            Row(Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
+                Box(Modifier.weight(assetShare).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                Box(Modifier.weight(1f - assetShare).fillMaxHeight().background(MaterialTheme.colorScheme.error))
+            }
+            Row(Modifier.padding(top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Caption("Assets ${DisplayFormatters.rupees(assets)}".let { if (privacy) "Assets" else it })
+                Caption("Liabilities ${DisplayFormatters.rupees(liabilities)}".let { if (privacy) "Liabilities" else it })
+            }
+        } else {
+            Caption("Add deposits, funds, gold and loans for a fuller picture", Modifier.padding(top = 4.dp), maxLines = 2)
+        }
+        if (report.staleCount > 0) StatusPill("Some values are out of date", Tone.WARN, Modifier.padding(top = 8.dp))
     }
 }
 

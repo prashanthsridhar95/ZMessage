@@ -135,7 +135,6 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val banks = overview.accounts.filter { !it.isCard && !it.isProvidentFund }
     val funds = overview.accounts.filter { it.isProvidentFund }
     val cards = overview.accounts.filter { it.isCard }
-    val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     var tab by rememberSaveable { mutableStateOf(0) }
     val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
@@ -146,6 +145,15 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     }
     val pf = state.providentFund
     var showNetWorth by rememberSaveable { mutableStateOf(false) }
+    var renamingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var leavingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val zone = remember { ZoneId.systemDefault() }
+    val today = deckToday
+    // Recent balance readings per account, for the trend line: worked out once per change of messages, not per frame.
+    val series = remember(state.messages) {
+        BalanceReader.history(state.messages, zone).mapValues { (_, list) -> com.zyke.message.domain.accounts.AccountInsights.balanceSeries(list) }
+    }
+    val openSettings = com.zyke.message.presentation.common.LocalOpenSettings.current
     if (showNetWorth) {
         com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
     }
@@ -156,11 +164,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "net-worth") {
-            FintechCard(onClick = { showNetWorth = true }) {
-                Caption("NET WORTH")
-                RowTitle("What you have, minus what you owe", Modifier.padding(top = 4.dp))
-                Caption("Add deposits, funds, gold and loans for a fuller picture", maxLines = 2)
-            }
+            com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
         }
         item(key = "total") { BalanceHero(overview, onOpen = {}) }
 
@@ -240,14 +244,58 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
             val front = cards.getOrNull(deckState.currentPage.coerceIn(0, cards.lastIndex))
             if (front != null) {
-                item(key = "card-front-" + front.key) { AccountTile(front, byId[front.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(front.key)) } }
+                item(key = "card-front-" + front.key) {
+                    CardStatusPanel(
+                        front, today,
+                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(front.key)) },
+                        onRename = { renamingKey = front.key },
+                        onLeaveOut = { leavingKey = front.key }
+                    )
+                }
+            }
+            item(key = "add-card") {
+                AppButton("Add or edit cards", openSettings, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
             }
         } else {
             shown.forEach { account ->
-                item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
+                item(key = account.key) {
+                    BankAccountTile(
+                        account, series[account.last4].orEmpty(), today,
+                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(account.key)) },
+                        onRename = { renamingKey = account.key },
+                        onLeaveOut = { leavingKey = account.key }
+                    )
+                }
             }
         }
 
+    }
+
+    renamingKey?.let { key ->
+        val target = overview.accounts.firstOrNull { it.key == key }
+        if (target == null) renamingKey = null else {
+            var name by rememberSaveable(key) { mutableStateOf(target.userCard?.name.orEmpty()) }
+            com.zyke.message.presentation.common.FormSheet(
+                title = "Name this account", onDismiss = { renamingKey = null },
+                primaryLabel = "Save", primaryEnabled = name.isNotBlank(), hint = "Type a name",
+                onPrimary = { onIntent(HomeContract.Intent.NameAccount(key, name)); renamingKey = null }
+            ) {
+                com.zyke.message.presentation.common.FormField(
+                    "Name", name, { name = it }, placeholder = "e.g. Salary account",
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                )
+            }
+        }
+    }
+    leavingKey?.let { key ->
+        val target = overview.accounts.firstOrNull { it.key == key }
+        if (target == null) leavingKey = null else AlertDialog(
+            onDismissRequest = { leavingKey = null },
+            title = { Text("Leave out ${target.title}?") },
+            text = { Text("It will be left out of your accounts and totals. Its messages stay in your inbox.") },
+            confirmButton = { AppButton("Leave out", { leavingKey = null; onIntent(HomeContract.Intent.RemoveAccount(key)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            dismissButton = { AppButton("Cancel", { leavingKey = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        )
     }
 }
 
@@ -330,57 +378,6 @@ private fun SectionLabel(text: String) {
         text, Modifier.padding(start = 4.dp, top = 12.dp).heading(),
         style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
     )
-}
-
-@Composable
-private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onOpen: () -> Unit) {
-    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
-    // Local copies: these come from another module, so they cannot be smart-cast after a null check.
-    val due = account.dueDate
-    val asOf = account.balanceAsOf
-    FintechCard(onClick = onOpen) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AccountChip(account, 44.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                RowTitle(account.title)
-                Caption("${account.kind.label} •• ${account.last4}")
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                // Once the bill is paid, what is owed is what has been spent since, not the bill that was just settled.
-                val showUnbilled = account.billPaid && account.unbilled != null
-                val headline = when {
-                    showUnbilled -> account.unbilled
-                    account.isCard -> account.dueAmount
-                    else -> account.balance
-                }
-                com.zyke.message.presentation.common.PrivateAmount(
-                    headline?.let { DisplayFormatters.rupees(it) } ?: "—",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
-                )
-                Caption(
-                    when {
-                        showUnbilled -> "unbilled \u00B7 last bill paid"
-                        account.isCard && due != null -> "due ${dayFormat.format(due)}"
-                        account.isCard -> "latest bill"
-                        asOf != null && account.balanceAdjustment != null -> "stated ${dayFormat.format(asOf)}, plus later payments"
-                        asOf != null -> "as of ${dayFormat.format(asOf)}"
-                        else -> "balance not stated"
-                    }
-                )
-            }
-        }
-        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("Spent", DisplayFormatters.rupees(account.spent))
-            Stat("Received", DisplayFormatters.rupees(account.received))
-            Stat("Payments", account.activityCount.toString())
-        }
-    }
 }
 
 @Composable
@@ -690,7 +687,7 @@ private const val ACCOUNT_PICTURE_PREFIX = "acct:"
  * name of whoever was paid in the account's latest message.
  */
 @Composable
-private fun AccountChip(account: AccountSummary, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+internal fun AccountChip(account: AccountSummary, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     val store = LocalImageStore.current
     val keys by (store?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet())).collectAsState()
     val key = ACCOUNT_PICTURE_PREFIX + account.key
