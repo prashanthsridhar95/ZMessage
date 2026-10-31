@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zyke Message</string>
+    <string name="tile_label">Today left</string>
+    <string name="complication_label">Today left</string>
+    <string name="empty_title">Open Zyke Message on your phone</string>
+</resources>

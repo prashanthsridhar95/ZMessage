@@ -47,6 +47,7 @@ import com.zyke.message.presentation.settings.SettingsRoute
 import com.zyke.message.presentation.settings.SettingsViewModel
 import com.zyke.message.presentation.theme.ZykeMessageTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -158,6 +159,16 @@ class MainActivity : ComponentActivity() {
                 container.reminders.reminders.collect {
                     com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
                     DaysAheadWidget.refresh(this@MainActivity)
+                }
+            }
+        }
+        // The paired watch (if any) gets a small snapshot when the app comes to the front and whenever what it shows changes.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                kotlinx.coroutines.flow.combine(homeViewModel.state, container.settings.settings) { home, settings ->
+                    com.zyke.message.wear.WatchSnapshots.from(home, settings.hideAmounts)
+                }.flowOn(kotlinx.coroutines.Dispatchers.Default).collect { snapshot ->
+                    if (snapshot != null) container.wearSync.offer(snapshot)
                 }
             }
         }

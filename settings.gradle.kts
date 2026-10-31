@@ -22,3 +22,7 @@ dependencyResolutionManagement {
 rootProject.name = "Zyke Message"
 include(":app")
 include(":domain")
+
+// Wear OS watch app. Off by default so the normal build never needs the Wear libraries; build it with
+//   ./gradlew -PwithWear=true :wear:assembleDebug :app:assembleDebug
+if (providers.gradleProperty("withWear").orNull == "true") include(":wear")

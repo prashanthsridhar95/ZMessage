@@ -62,6 +62,18 @@ turns the incoming intent into an `EntryRequest` and Home takes it. Shared text 
 `QuickEntryParser` (`:domain`) into amount, title and income/expense, then pre-fills `ManualEntrySheet`; the person
 still confirms. Voice entry is the keyboard's own dictation into the sheet.
 
+## Watch (Wear OS)
+
+`WatchSnapshot` (`:domain`, `domain/wear`) is the pure, unit-tested description of what the watch shows, built from what
+Home already worked out (`WatchSnapshots` in `:app`), with a stable flat string-map wire form (`toMap`/`fromMap`) and
+`shouldPush` (send only on a change or after 30 minutes). Hidden amounts ("Hide amounts") are not sent at all. In `:app`,
+`WearSync` is called from MainActivity while it is started (so on foreground, after a sync, and when settings change) and
+hands snapshots to a `WatchLink`. The default build uses `NoWatchLink` (`src/wearOff`); `-PwithWear=true` swaps in
+`src/wearOn` (`DataLayerWatchLink`, Wear Data Layer, adds `play-services-wearable`) and includes the `:wear` module
+(Compose for Wear OS home screen, a tile and a complication, all reading the Data Layer copy; same application id as
+the phone, `minSdk` 30). Without the flag the existing build, CI and `ManifestPolicyTest` are untouched; `WearPolicyTest`
+keeps the normal build free of Play services and the watch manifest free of permissions.
+
 ## Quality gates
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`

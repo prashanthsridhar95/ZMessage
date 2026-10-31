@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Optional watch support: -PwithWear=true compiles the Wear OS Data Layer link (needs play-services-wearable).
+val withWear = providers.gradleProperty("withWear").orNull == "true"
+
 android {
     namespace = "com.zyke.message"
     compileSdk = 35
@@ -56,6 +59,7 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    sourceSets.getByName("main").java.srcDir(if (withWear) "src/wearOn/java" else "src/wearOff/java")
     buildFeatures {
         compose = true
     }
@@ -82,6 +86,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    if (withWear) implementation("com.google.android.gms:play-services-wearable:18.2.0")
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

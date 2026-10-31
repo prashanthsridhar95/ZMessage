@@ -44,6 +44,8 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
 /** Manual dependency container; one instance lives in the Application. */
 class AppContainer(context: Context) {
+    /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
+    val wearSync = com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context))
     val rcsStore = RcsMessageStore(context.applicationContext)
     private val smsDataSource = SmsDataSource(context.applicationContext.contentResolver, rcsStore)
 
