@@ -133,12 +133,23 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         else -> emptyList()
     }
     val pf = state.providentFund
+    var showNetWorth by rememberSaveable { mutableStateOf(false) }
+    if (showNetWorth) {
+        com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
+    }
 
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item(key = "net-worth") {
+            FintechCard(onClick = { showNetWorth = true }) {
+                Caption("NET WORTH")
+                RowTitle("What you have, minus what you owe", Modifier.padding(top = 4.dp))
+                Caption("Add deposits, funds, gold and loans for a fuller picture", maxLines = 2)
+            }
+        }
         item(key = "total") { BalanceHero(overview, onOpen = {}) }
 
         item(key = "tabs") {
