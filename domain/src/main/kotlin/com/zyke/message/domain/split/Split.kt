@@ -15,14 +15,29 @@ data class SplitPerson(
     val settledByHand: Boolean = false
 )
 
-/** A payment the person made for a group and wants to get a part of back. */
+/** Who paid the bill. */
+enum class SplitPayer {
+    /** The person paid; the friends owe them their shares. */
+    ME,
+
+    /** A friend paid; the person owes the friend named in [Split.people] their share. */
+    FRIEND;
+
+    companion object {
+        /** Reads a stored value; anything missing or unknown is [ME], which is how every older split was made. */
+        fun parse(value: String?): SplitPayer = entries.firstOrNull { it.name == value } ?: ME
+    }
+}
+
+/** A payment the person made for a group and wants to get a part of back, or one a friend made that the person owes a part of. */
 data class Split(
     val id: String,
     /** The payment's message; the splits shows its title and total. */
     val messageId: Long,
     val title: String,
     val total: BigDecimal,
-    val people: List<SplitPerson>
+    val people: List<SplitPerson>,
+    val paidBy: SplitPayer = SplitPayer.ME
 )
 
 /** A person's share, and whether it has come back. */
@@ -49,7 +64,7 @@ object SplitInsights {
             val paidAt = byId[split.messageId]?.message?.date ?: 0L
             split.people.map { person ->
                 val words = person.name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
-                val match = if (person.settledByHand) {
+                val match = if (person.settledByHand || split.paidBy == SplitPayer.FRIEND) {
                     null
                 } else {
                     credits.firstOrNull { credit ->
@@ -66,9 +81,9 @@ object SplitInsights {
         }
     }
 
-    /** What is still owed in total. */
+    /** What is still owed to the person in total; what they owe friends is not counted. */
     fun outstanding(shares: List<SplitShare>): BigDecimal =
-        shares.filter { !it.settled }.fold(BigDecimal.ZERO) { sum, s -> sum + s.person.share }
+        shares.filter { !it.settled && it.split.paidBy == SplitPayer.ME }.fold(BigDecimal.ZERO) { sum, s -> sum + s.person.share }
 
     private class Credit(val id: Long, val date: Long, val amount: BigDecimal, val who: String)
 }

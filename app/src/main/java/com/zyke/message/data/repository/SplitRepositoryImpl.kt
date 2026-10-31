@@ -3,6 +3,7 @@ package com.zyke.message.data.repository
 import android.content.Context
 import com.zyke.message.domain.repository.SplitRepository
 import com.zyke.message.domain.split.Split
+import com.zyke.message.domain.split.SplitPayer
 import com.zyke.message.domain.split.SplitPerson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +38,7 @@ class SplitRepositoryImpl(context: Context) : SplitRepository {
             array.put(
                 JSONObject()
                     .put("id", split.id).put("message", split.messageId).put("title", split.title)
-                    .put("total", split.total.toPlainString()).put("people", people)
+                    .put("total", split.total.toPlainString()).put("people", people).put("paidBy", split.paidBy.name)
             )
         }
         prefs.edit().putString(KEY, array.toString()).apply()
@@ -54,7 +55,8 @@ class SplitRepositoryImpl(context: Context) : SplitRepository {
                 val share = person.optString("share").toBigDecimalOrNull() ?: return@mapNotNull null
                 SplitPerson(person.getString("name"), share, person.optBoolean("settled"))
             }
-            Split(json.getString("id"), json.getLong("message"), json.getString("title"), total, people)
+            // Splits saved before "who paid" existed have no paidBy; they were all paid by the person.
+            Split(json.getString("id"), json.getLong("message"), json.getString("title"), total, people, SplitPayer.parse(json.optString("paidBy", null)))
         }
     }.getOrDefault(emptyList())
 
