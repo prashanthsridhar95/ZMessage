@@ -20,6 +20,9 @@ data class Subscription(
     val messageId: Long
 ) {
     fun daysUntilDue(today: LocalDate): Long = ChronoUnit.DAYS.between(today, nextDue)
+
+    /** Stable identity for the person's confirm / ignore choice. */
+    val key: String get() = Subscriptions.keyFor(payee)
 }
 
 /**
@@ -70,6 +73,8 @@ object Subscriptions {
         while (next.isBefore(today)) next = next.plusMonths(1)
         return Subscription(last.name, last.amount.setScale(0, RoundingMode.HALF_UP), last.date, next, perMonth.size, last.messageId)
     }
+
+    fun keyFor(payee: String) = key(payee)
 
     private fun key(payee: String) = payee.lowercase().replace(Regex("[^a-z@. ]+"), " ").replace(Regex("\\s+"), " ").trim()
 
