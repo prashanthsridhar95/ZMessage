@@ -81,6 +81,7 @@ class HomeViewModel(
     private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
     private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
     private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
+    private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges,
     private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
@@ -125,6 +126,8 @@ class HomeViewModel(
             is Intent.RestoreAttention -> userStateRepository.restoreAttention(intent.key)
             is Intent.LinkTransfer -> setAsideRepository.link(intent.debitId, intent.creditId)
             is Intent.DismissTransfer -> setAsideRepository.dismissSuggestion(intent.key)
+            is Intent.MergeDuplicates -> merges.merge(intent.primaryId, intent.duplicateId)
+            is Intent.UnmergeDuplicate -> merges.unmerge(intent.duplicateId)
             is Intent.SaveManualEntry -> manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it })
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
@@ -278,8 +281,9 @@ class HomeViewModel(
 
     private fun reduceHome(change: State.() -> State) {
         val started = System.nanoTime()
+        recomputed = 0
         reduceHomeNow(change)
-        com.zyke.message.data.diag.DevLog.d("home") { "state rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
+        com.zyke.message.data.diag.DevLog.d("home") { "state rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages, $recomputed of ${memos.size} parts recomputed)" }
     }
 
     private fun reduceHomeNow(change: State.() -> State) = reduce {
@@ -289,44 +293,85 @@ class HomeViewModel(
         } else {
             val zone = clock.zone
             val today = LocalDate.ofInstant(updated.now, zone)
-            val live = updated.messages.filter { it.id !in updated.userState.archivedIds }
-            val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, zone)
-            val dashboard = DashboardBuilder.build(updated.messages, DashboardQuery(), updated.now, zone, updated.budgets, cycle)
-
-            val limits = SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, updated.now, zone, cycle)
-            val balances = BalanceReader.latest(live, zone)
-
-            val insights = PlanInsightsBuilder.build(updated.plan, live, updated.now, zone, cycle)
-            val allowance = DailyBudgets.allowance(insights, today, cycle)
+            val now = updated.now
+            val msgs = updated.messages
+            val us = updated.userState
+            val live = memo("live", msgs, us.archivedIds) { msgs.filter { it.id !in us.archivedIds } }
+            val cycle = memo("cycle", updated.plan, msgs, now) { CycleRule.resolve(updated.plan, msgs, now, zone) }
+            val dashboard = memo("dashboard", msgs, updated.budgets, cycle, now) {
+                DashboardBuilder.build(msgs, DashboardQuery(), now, zone, updated.budgets, cycle)
+            }
+            val limits = memo("limits", live, updated.budgets, updated.dailyBudgets, now, cycle) {
+                SpendingLimits.build(live, updated.budgets, updated.dailyBudgets, now, zone, cycle)
+            }
+            val balances = memo("balances", live) { BalanceReader.latest(live, zone) }
+            val insights = memo("insights", updated.plan, live, now, cycle) { PlanInsightsBuilder.build(updated.plan, live, now, zone, cycle) }
+            val daily = memo("daily", insights, cycle, live, now, updated.plan.items) {
+                DailyBudgets.allowance(insights, today, cycle)?.let { DailyBudgets.status(live, it, now, zone, updated.plan.items) }
+            }
+            val accounts = memo("accounts", live, updated.cards, now, cycle, updated.hiddenAccounts, updated.pfAccountKeys) {
+                Accounts.build(live, updated.cards, now, zone, cycle, updated.hiddenAccounts, updated.pfAccountKeys)
+            }
+            val quickAdds = memo("quickAdds", live, updated.plan, updated.cards, us.dismissedAttention, now, updated.budgets) {
+                QuickAdds.find(live, updated.plan, updated.cards, us.dismissedAttention, now, zone, updated.budgets)
+            }
+            val nudges = memo("nudges", limits, now, cycle, live, balances) {
+                (PaceNudges.build(limits, emptyList(), now, zone, cycle) + LowBalance.warnings(live, balances, today)).take(MAX_NUDGES)
+            }
+            val attention = memo("attention", live, us.dismissedAttention, now, us.dismissedAt) {
+                AttentionBuilder.build(live.filter { !it.isPromotional }, us.dismissedAttention, now, zone, us.dismissedAt)
+            }
+            val upcoming = memo("upcoming", msgs, now, us.dismissedAttention) {
+                UpcomingBuilder.build(msgs, today, includePaidToday = true, zone = zone, markedPaid = us.dismissedAttention)
+            }
+            val review = memo("review", live, updated.asides) { com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone) }
 
             updated.copy(
                 cycle = cycle,
-                daily = allowance?.let { DailyBudgets.status(live, it, updated.now, zone, updated.plan.items) },
+                daily = daily,
                 goals = Goals.all(updated.goalList, today),
                 reminders = Reminders.upcoming(updated.reminderList, today),
-                providentFund = com.zyke.message.domain.pf.ProvidentFunds.find(live, zone),
-                accounts = Accounts.build(live, updated.cards, updated.now, zone, cycle, updated.hiddenAccounts, updated.pfAccountKeys),
-                quickAdds = QuickAdds.find(live, updated.plan, updated.cards, updated.userState.dismissedAttention, updated.now, zone, updated.budgets),
-                nudges = (PaceNudges.build(limits, emptyList(), updated.now, zone, cycle) + LowBalance.warnings(live, balances, today))
-                    .take(MAX_NUDGES),
-                refunds = RefundTracker.build(live, updated.now, zone),
-                owed = SplitInsights.build(updated.splits, updated.messages, zone).filter { !it.settled },
-                subscriptions = Subscriptions.find(live, updated.now, zone),
-                attention = AttentionBuilder.build(
-                    live.filter { !it.isPromotional }, updated.userState.dismissedAttention, updated.now, zone, updated.userState.dismissedAt
-                ),
-                review = com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone),
+                providentFund = memo("pf", live) { com.zyke.message.domain.pf.ProvidentFunds.find(live, zone) },
+                accounts = accounts,
+                quickAdds = quickAdds,
+                nudges = nudges,
+                refunds = memo("refunds", live, now) { RefundTracker.build(live, now, zone) },
+                owed = memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled } },
+                subscriptions = memo("subs", live, now) { Subscriptions.find(live, now, zone) },
+                attention = attention,
+                review = review,
                 thisMonth = dashboard,
-                upcoming = UpcomingBuilder.build(updated.messages, today, includePaidToday = true, zone = zone, markedPaid = updated.userState.dismissedAttention),
-                budgetStatus = dashboard.categories
-                    .filter { it.budget != null }
-                    .sortedByDescending { it.usedFraction ?: 0.0 },
-                recent = live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT),
-                alerts = SpendAlerts.find(live, updated.now.toEpochMilli()),
-                agenda = LifeAgenda.build(live.filter { !it.isPromotional }, today, zone),
-                unreadCount = live.count { !it.message.isRead && it.id !in updated.userState.readIds }
+                upcoming = upcoming,
+                budgetStatus = memo("budgetStatus", dashboard) {
+                    dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
+                },
+                recent = memo("recent", live) { live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT) },
+                alerts = memo("alerts", live, now) { SpendAlerts.find(live, now.toEpochMilli()) },
+                agenda = memo("agenda", live, now) { LifeAgenda.build(live.filter { !it.isPromotional }, today, zone) },
+                unreadCount = memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } }
             )
         }
+    }
+
+    /** Remembers the last answer of a derived part and gives it back while none of its inputs is a different object. */
+    private class Memo {
+        var keys: Array<out Any?>? = null
+        var value: Any? = null
+    }
+
+    private val memos = HashMap<String, Memo>()
+    private var recomputed = 0
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <V> memo(name: String, vararg inputs: Any?, compute: () -> V): V {
+        val m = memos.getOrPut(name) { Memo() }
+        val previous = m.keys
+        if (previous != null && previous.size == inputs.size && inputs.indices.all { previous[it] === inputs[it] }) return m.value as V
+        recomputed++
+        val result = compute()
+        m.keys = inputs
+        m.value = result
+        return result
     }
 
     class Factory(
@@ -346,7 +391,8 @@ class HomeViewModel(
         private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
         private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
         private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
-        private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries
+        private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
+        private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -355,7 +401,7 @@ class HomeViewModel(
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
-                setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository
+                setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges
             ) as T
     }
 
