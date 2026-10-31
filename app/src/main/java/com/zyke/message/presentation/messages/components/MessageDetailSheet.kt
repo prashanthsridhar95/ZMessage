@@ -249,11 +249,7 @@ internal fun MessageDetailSheet(
                 val manual = com.zyke.message.domain.ledger.ManualEntries.isManual(item)
                 SettingsGroup("In your totals") {
                     Caption(
-                        when (item.setAside) {
-                            com.zyke.message.domain.ledger.SetAside.TRANSFER -> "A transfer between your own accounts: not counted as income or spending"
-                            com.zyke.message.domain.ledger.SetAside.EXCLUDED -> "Left out: not counted in income, spending or limits"
-                            null -> if ((content as MessageContent.Transaction).isCardPayment) "A card bill payment: not counted as spending" else "Counted in your income and spending"
-                        },
+                        com.zyke.message.domain.ledger.CountedReason.explain(item),
                         maxLines = 3
                     )
                     if (item.setAside != com.zyke.message.domain.ledger.SetAside.TRANSFER) {

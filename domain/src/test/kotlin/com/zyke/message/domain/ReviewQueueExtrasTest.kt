@@ -80,12 +80,12 @@ class ReviewQueueExtrasTest {
     @Test
     fun aLargeDebit_isAskedAboutOnlyWithEnoughHistory_andNotWhenCategorisedOrConfirmed() {
         val usual = (1..10L).map { tx(it, "200.00", nowMs - (it + 40) * day, account = "1", payee = "P$it") }
-        val big = tx(50, "1500.00", nowMs - 2 * day, account = "2", payee = "BIGSHOP")
+        val big = tx(50, "1500.00", nowMs - 2 * day, account = "2", payee = "BIGSHOP", category = MessageCategory.SHOPPING)
         assertEquals(listOf(50L), build(usual + big).unusual.map { it.id })
         assertTrue(build(usual.take(5) + big).unusual.isEmpty())
         assertTrue(build(usual + tx(50, "1500.00", nowMs - 2 * day, category = MessageCategory.SHOPPING, overridden = true)).unusual.isEmpty())
         assertTrue(build(usual + big, SetAsides(dismissed = setOf(ReviewQueues.unusualKey(big)))).unusual.isEmpty())
         // 4x the median is not unusual enough.
-        assertTrue(build(usual + tx(50, "800.00", nowMs - 2 * day, account = "2", payee = "X")).unusual.isEmpty())
+        assertTrue(build(usual + tx(50, "800.00", nowMs - 2 * day, account = "2", payee = "X", category = MessageCategory.SHOPPING)).unusual.isEmpty())
     }
 }
