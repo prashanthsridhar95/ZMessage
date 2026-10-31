@@ -15,7 +15,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val _settings = MutableStateFlow(
         AppSettings(
             screenProtection = prefs.getBoolean(SCREEN_PROTECTION, false),
-            themeMode = ThemeMode.entries.firstOrNull { it.name == prefs.getString(THEME_MODE, null) } ?: ThemeMode.SYSTEM,
+            themeMode = ThemeMode.fromStored(prefs.getString(THEME_MODE, null)),
             fetchLogos = prefs.getBoolean(FETCH_LOGOS, true),
             appLock = prefs.getBoolean(APP_LOCK, false),
             morningDigest = prefs.getBoolean(MORNING_DIGEST, false),
@@ -23,7 +23,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             readingPaused = prefs.getBoolean(READING_PAUSED, false),
             weeklySummary = prefs.getBoolean(WEEKLY_SUMMARY, false),
             headsUp = prefs.getBoolean(HEADS_UP, false),
-            lowBalanceFloor = prefs.getString(LOW_BALANCE_FLOOR, null)?.toBigDecimalOrNull()
+            lowBalanceFloor = prefs.getString(LOW_BALANCE_FLOOR, null)?.toBigDecimalOrNull(),
+            hideAmounts = prefs.getBoolean(HIDE_AMOUNTS, false),
+            accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null))
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -78,7 +80,19 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(lowBalanceFloor = floor)
     }
 
+    override fun setHideAmounts(enabled: Boolean) {
+        prefs.edit().putBoolean(HIDE_AMOUNTS, enabled).apply()
+        _settings.value = _settings.value.copy(hideAmounts = enabled)
+    }
+
+    override fun setAccent(accent: com.zyke.message.domain.model.AccentColor) {
+        prefs.edit().putString(ACCENT, accent.name).apply()
+        _settings.value = _settings.value.copy(accent = accent)
+    }
+
     private companion object {
+        const val HIDE_AMOUNTS = "hide_amounts"
+        const val ACCENT = "accent"
         const val WEEKLY_SUMMARY = "weekly_summary"
         const val HEADS_UP = "heads_up"
         const val LOW_BALANCE_FLOOR = "low_balance_floor"

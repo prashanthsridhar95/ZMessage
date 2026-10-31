@@ -58,6 +58,11 @@ fun AppToolbar(
             if (!(tab == AppTab.INBOX && inbox.buttonsVisible)) {
                 BarIcon(R.drawable.ic_search_24, "Search everything", false, 0, com.zyke.message.presentation.common.LocalOpenSearch.current)
             }
+            val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
+            BarIcon(
+                if (privacy.hidden) R.drawable.ic_visibility_off_24 else R.drawable.ic_visibility_24,
+                if (privacy.hidden) "Amounts hidden, tap to show" else "Hide amounts", privacy.hidden, 0, privacy.toggle
+            )
             BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onOpenSettings)
         }
     }

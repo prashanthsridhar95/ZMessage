@@ -80,7 +80,7 @@ internal fun TodayBudget(daily: DailyBudgetStatus) {
 
     Column(Modifier.fillMaxWidth()) {
         Caption("TODAY'S BUDGET")
-        Text(
+        com.zyke.message.presentation.common.PrivateAmount(
             DisplayFormatters.rupees(if (over) daily.leftToday.negate() else daily.leftToday),
             Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.displayMedium,

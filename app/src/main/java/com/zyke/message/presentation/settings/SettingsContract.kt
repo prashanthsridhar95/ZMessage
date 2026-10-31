@@ -44,6 +44,8 @@ object SettingsContract {
         data class ScreenStarted(val permissionGranted: Boolean) : Intent
         data class SetScreenProtection(val enabled: Boolean) : Intent
         data class SetThemeMode(val mode: ThemeMode) : Intent
+        data class SetAccent(val accent: com.zyke.message.domain.model.AccentColor) : Intent
+        data class SetHideAmounts(val enabled: Boolean) : Intent
         data class SetFetchLogos(val enabled: Boolean) : Intent
         data class SetAppLock(val enabled: Boolean) : Intent
         data class SetMorningDigest(val enabled: Boolean) : Intent

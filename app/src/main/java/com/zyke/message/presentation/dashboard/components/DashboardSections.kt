@@ -231,7 +231,7 @@ internal fun CollapsedHeroBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        com.zyke.message.presentation.common.PrivateAmount(
             modifier = Modifier.weight(1f).padding(end = 12.dp),
             text = rememberAnimatedRupees(dashboard.total),
             style = MaterialTheme.typography.titleLarge,
@@ -385,7 +385,7 @@ internal fun HeroCard(
             color = onHero.copy(alpha = 0.8f),
             maxLines = 1
         )
-        Text(
+        com.zyke.message.presentation.common.PrivateAmount(
             modifier = Modifier.padding(top = 4.dp),
             text = rememberAnimatedRupees(dashboard.total),
             style = MaterialTheme.typography.displaySmall,

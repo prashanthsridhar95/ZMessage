@@ -163,7 +163,7 @@ fun SettingsPage(
                 "This app",
                 buildList {
                     add(SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone")
-                    add(SettingsGroup.APPEARANCE to state.settings.themeMode.label)
+                    add(SettingsGroup.APPEARANCE to state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else "")
                     add(SettingsGroup.ABOUT to "Version $versionName")
                     if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
                 }
@@ -406,6 +406,13 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {
             Caption("Messages stay on this phone", maxLines = 5)
             ToggleRow(
+                title = "Hide amounts until tapped",
+                description = "Big money figures show as dots. Tap one to see it for 5 seconds.",
+                checked = state.settings.hideAmounts,
+                onCheckedChange = { onIntent(Intent.SetHideAmounts(it)) },
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            ToggleRow(
                 title = "Block screenshots",
                 description = "Also hides the recent-apps view",
                 checked = state.settings.screenProtection,
@@ -427,12 +434,19 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             )
         }
         SettingsGroup.APPEARANCE -> SectionCard("Theme") {
-            com.zyke.message.presentation.common.SegmentedChoice(
+            com.zyke.message.presentation.common.ChoiceCards(
                 choices = ThemeMode.entries.map { com.zyke.message.presentation.common.Choice(it, it.label) },
                 selected = state.settings.themeMode,
                 onSelect = { onIntent(Intent.SetThemeMode(it)) }
             )
-            Caption("Automatic follows your phone", Modifier.padding(top = 8.dp))
+            Caption("Automatic follows your phone. True black is pure black, easy on OLED screens.", Modifier.padding(top = 8.dp), maxLines = 3)
+            Caption("COLOUR", Modifier.padding(top = 16.dp))
+            com.zyke.message.presentation.theme.AccentSwatches(
+                selected = state.settings.accent,
+                onSelect = { onIntent(Intent.SetAccent(it)) },
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Caption("Default uses your phone's wallpaper colours where it has them", Modifier.padding(top = 8.dp), maxLines = 2)
         }
         SettingsGroup.DEVELOPER -> DeveloperContent()
         SettingsGroup.ABOUT -> {

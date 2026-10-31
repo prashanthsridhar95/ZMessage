@@ -240,7 +240,7 @@ internal fun CategoryTag(category: MessageCategory, modifier: Modifier = Modifie
 /** Big right-aligned figure such as "- ₹500". */
 @Composable
 internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifier) {
-    Text(
+    com.zyke.message.presentation.common.PrivateAmount(
         modifier = modifier,
         text = text,
         textAlign = TextAlign.End,

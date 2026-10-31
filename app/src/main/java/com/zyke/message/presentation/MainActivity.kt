@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
             val darkTheme = when (appSettings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
+                ThemeMode.DARK, ThemeMode.BLACK -> true
             }
             // The bar icons follow the app's theme, not the phone's: a Day theme on a dark phone needs dark icons.
             val view = LocalView.current
@@ -193,8 +193,15 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !darkTheme
                 }
             }
-            CompositionLocalProvider(LocalImageStore provides container.imageStore) {
-            ZykeMessageTheme(darkTheme = darkTheme) {
+            CompositionLocalProvider(
+                LocalImageStore provides container.imageStore,
+                com.zyke.message.presentation.common.LocalPrivacyMode provides remember(appSettings.hideAmounts) {
+                    com.zyke.message.presentation.common.PrivacyState(appSettings.hideAmounts) {
+                        container.settings.setHideAmounts(!container.settings.settings.value.hideAmounts)
+                    }
+                }
+            ) {
+            ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent) {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
                 androidx.compose.runtime.LaunchedEffect(locked) { if (!locked) startPermissionFlow() }

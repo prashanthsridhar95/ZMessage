@@ -82,6 +82,8 @@ class SettingsViewModel(
             is Intent.ScreenStarted -> if (intent.permissionGranted) startObserving()
             is Intent.SetScreenProtection -> settingsRepository.setScreenProtection(intent.enabled)
             is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
+            is Intent.SetAccent -> settingsRepository.setAccent(intent.accent)
+            is Intent.SetHideAmounts -> settingsRepository.setHideAmounts(intent.enabled)
             is Intent.SetFetchLogos -> {
                 settingsRepository.setFetchLogos(intent.enabled)
                 if (!intent.enabled) onLogosTurnedOff()

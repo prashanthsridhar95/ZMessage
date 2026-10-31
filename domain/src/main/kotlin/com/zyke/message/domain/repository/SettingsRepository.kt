@@ -26,4 +26,8 @@ interface SettingsRepository {
     fun setHeadsUp(enabled: Boolean) = Unit
 
     fun setLowBalanceFloor(floor: java.math.BigDecimal?) = Unit
+
+    fun setHideAmounts(enabled: Boolean) = Unit
+
+    fun setAccent(accent: com.zyke.message.domain.model.AccentColor) = Unit
 }

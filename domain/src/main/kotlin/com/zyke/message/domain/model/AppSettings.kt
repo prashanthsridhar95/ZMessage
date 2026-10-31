@@ -19,5 +19,8 @@ data class AppSettings(
     /** Off until chosen: a quiet heads-up when a new payment is far above usual or leaves an account low. Needs live alerts. */
     val headsUp: Boolean = false,
     /** An account balance below this (stated by a new payment) triggers a heads-up; null means no floor. */
-    val lowBalanceFloor: java.math.BigDecimal? = null
+    val lowBalanceFloor: java.math.BigDecimal? = null,
+    /** Shows the big money figures as dots until tapped. */
+    val hideAmounts: Boolean = false,
+    val accent: AccentColor = AccentColor.DEFAULT
 )

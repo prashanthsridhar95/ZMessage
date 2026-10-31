@@ -76,7 +76,7 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
         Caption("TOTAL BALANCE")
         val total = overview.totalBalance
         if (total != null) {
-            Text(
+            com.zyke.message.presentation.common.PrivateAmount(
                 rememberAnimatedRupees(total),
                 Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.displayMedium,
@@ -314,7 +314,7 @@ private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onO
                     account.isCard -> account.dueAmount
                     else -> account.balance
                 }
-                Text(
+                com.zyke.message.presentation.common.PrivateAmount(
                     headline?.let { DisplayFormatters.rupees(it) } ?: "—",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
