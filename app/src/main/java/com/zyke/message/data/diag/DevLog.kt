@@ -27,6 +27,9 @@ object DevLog {
     private const val LOGGING = "logging"
     private const val MAX_BYTES = 1_500_000L
     private const val TAIL_LINES = 150
+    private const val EXIT_HISTORY = 6
+    private const val EXIT_TRACE_CHARS = 8_000
+    private const val FLUSH_WAIT_MS = 800L
 
     private val writer = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "dev-log").apply { isDaemon = true } }
     private val stamp = object : ThreadLocal<SimpleDateFormat>() {
@@ -114,6 +117,50 @@ object DevLog {
             "I", "session",
             "app ${info?.versionName} (${info?.longVersionCode}) · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}"
         )
+        recordHowEarlierRunsEnded(app)
+    }
+
+    /**
+     * Android keeps a short history of how this app's earlier runs ended, including what the app itself cannot write
+     * down: a crash in native code, an app-not-responding, being stopped for memory, being killed by the system. It is
+     * copied into the log here, so such an ending shows up even though the app was not alive to record it.
+     */
+    private fun recordHowEarlierRunsEnded(app: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            write("I", "exit", "this Android version does not keep a history of how the app ended")
+            return
+        }
+        runCatching {
+            val manager = app.getSystemService(android.app.ActivityManager::class.java)
+            val exits = manager.getHistoricalProcessExitReasons(app.packageName, 0, EXIT_HISTORY)
+            if (exits.isEmpty()) write("I", "exit", "no earlier run ended abnormally on record")
+            exits.forEach { exit ->
+                val reason = when (exit.reason) {
+                    android.app.ApplicationExitInfo.REASON_CRASH -> "CRASH (an uncaught exception)"
+                    android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE (a crash in native code)"
+                    android.app.ApplicationExitInfo.REASON_ANR -> "ANR (the app stopped responding)"
+                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (stopped by the system for memory)"
+                    android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+                    android.app.ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INITIALIZATION_FAILURE (failed while starting)"
+                    android.app.ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED (killed by a signal)"
+                    android.app.ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED (force stopped)"
+                    android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+                    android.app.ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DEPENDENCY_DIED"
+                    android.app.ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE (a permission was changed, which restarts the app)"
+                    android.app.ApplicationExitInfo.REASON_EXIT_SELF -> "EXIT_SELF"
+                    else -> "OTHER(${exit.reason})"
+                }
+                write(
+                    "I", "exit",
+                    "${stamp.get()!!.format(Date(exit.timestamp))} ended: $reason · status=${exit.status} · importance=${exit.importance} · memory(pss)=${exit.pss / 1024}MB · ${exit.description.orEmpty()}"
+                )
+                // A native crash or an app-not-responding comes with the stack of what the app was doing.
+                if (exit.reason == android.app.ApplicationExitInfo.REASON_ANR || exit.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE) {
+                    runCatching { exit.traceInputStream?.use { it.readBytes().toString(Charsets.UTF_8).take(EXIT_TRACE_CHARS) } }
+                        .getOrNull()?.takeIf { it.isNotBlank() }?.let { write("I", "exit-trace", "\n$it") }
+                }
+            }
+        }.onFailure { write("E", "exit", "could not read how earlier runs ended: ${it.javaClass.simpleName}") }
     }
 
     private fun installCrashHandler() {
@@ -125,7 +172,9 @@ object DevLog {
     private class CrashLogger(private val previous: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {
         override fun uncaughtException(thread: Thread, error: Throwable) {
             runCatching {
-                // Written straight away: the process is about to end.
+                // First let the lines already queued reach the file, so the lead-up to the crash is not lost.
+                runCatching { writer.submit { }.get(FLUSH_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS) }
+                // Then the crash itself, straight away: the process is about to end.
                 current()?.appendText("${stamp.get()!!.format(Date())} E/crash [${thread.name}] ${error.javaClass.name}: ${error.message}\n${error.stackTraceToString().take(6000)}\n")
             }
             previous?.uncaughtException(thread, error)
