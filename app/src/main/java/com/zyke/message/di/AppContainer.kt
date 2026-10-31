@@ -70,6 +70,8 @@ class AppContainer(context: Context) {
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository = com.zyke.message.data.repository.WatchlistRepositoryImpl(context)
     val markets = com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
+    val netWorth: com.zyke.message.domain.repository.NetWorthRepository = com.zyke.message.data.repository.NetWorthRepositoryImpl(context)
+    val loans: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.data.repository.LoanRepositoryImpl(context)
     val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context)
 
     /**
