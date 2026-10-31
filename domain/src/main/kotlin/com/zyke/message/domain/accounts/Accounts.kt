@@ -6,6 +6,7 @@ import com.zyke.message.domain.insights.BalanceReader
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserCard
 import java.math.BigDecimal
@@ -164,6 +165,10 @@ object Accounts {
                         if (tx.isReceived && !date.isBefore(from)) sum + amount else sum
                     }
                 }?.takeIf { it.signum() > 0 }
+                // A payment made from a bank account may never have reached the card's own messages: the bank's debit note counts too.
+                val newestBill = rows.filter { it.message.content is MessageContent.CardBill }.maxByOrNull { it.message.message.date }?.message
+                val viaMessages = newestBill?.let { BillPayments.find(it, it.content as MessageContent.CardBill, messages, zone) }?.amount
+                if (viaMessages != null && (paidSinceBill == null || viaMessages > paidSinceBill!!)) paidSinceBill = viaMessages
             }
 
             val markedFund = "${kind.name.lowercase()}-$last4" in providentFunds
