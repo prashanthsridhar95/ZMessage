@@ -9,6 +9,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+private val NON_WORD = Regex("[^a-z0-9]+")
+
 /** Where one planned item stands this month. */
 data class PlanItemStatus(
     val item: PlanItem,
@@ -183,7 +185,7 @@ object PlanMatching {
 
     /** @param who the payee and merchant names, lower case */
     fun matches(item: PlanItem, who: String, amount: BigDecimal): Boolean {
-        val words = item.name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= MIN_WORD }
+        val words = item.name.lowercase().split(NON_WORD).filter { it.length >= MIN_WORD }
         val named = words.any { it in who }
         val gap = (amount - item.amount).abs()
         // To the right name, an amount near the plan is enough; otherwise it has to be almost exactly the plan.

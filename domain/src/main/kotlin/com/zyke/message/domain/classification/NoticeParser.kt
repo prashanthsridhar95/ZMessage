@@ -33,10 +33,12 @@ object NoticeParser {
     private val AMOUNT = Regex("(?i)(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
 
     /** An EPF / PF passbook message, which says what went in and often the balance. */
-    fun isProvidentFund(body: String) = RULES.first().first.containsMatchIn(body.replace(Regex("[\\s\\u00a0]+"), " "))
+    private val SPACES_NBSP = Regex("[\\s\\u00a0]+")
+
+    fun isProvidentFund(body: String) = RULES.first().first.containsMatchIn(body.replace(SPACES_NBSP, " "))
 
     fun detect(body: String): Pair<NoticeKind, String?>? {
-        val flat = body.replace(Regex("[\\s\\u00a0]+"), " ")
+        val flat = body.replace(SPACES_NBSP, " ")
         val kind = RULES.firstOrNull { (rule, _) -> rule.containsMatchIn(flat) }?.second ?: return null
         val amount = AMOUNT.find(flat)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')
         return kind to amount

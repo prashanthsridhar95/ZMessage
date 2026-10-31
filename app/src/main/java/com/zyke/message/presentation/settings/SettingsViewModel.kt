@@ -48,15 +48,18 @@ class SettingsViewModel(
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
     /** The person's own setup beyond what this screen holds (goals, reminders, events, entries), for the export. */
-    private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
+    private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() },
+    /** Where limits and diagnostics are worked out; never the main thread outside tests. */
+    private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
     State(settings = settingsRepository.settings.value, cards = cardRepository.cards.value, plan = planRepository.plan.value)
 ) {
 
     private var observeJob: Job? = null
-    private var inbox: List<ClassifiedMessage> = emptyList()
+    @Volatile private var inbox: List<ClassifiedMessage> = emptyList()
 
     init {
+        startDeriving("settings", deriveContext) { snapshot -> deriveLimits(snapshot) }
         viewModelScope.launch {
             settingsRepository.settings.collect { settings -> reduce { copy(settings = settings) } }
         }
@@ -206,15 +209,18 @@ class SettingsViewModel(
                 .catch { reduce { copy(diagnostics = null) } }
                 .collect { messages ->
                     inbox = messages
-                    reduce { copy(diagnostics = DiagnosticsBuilder.build(messages)) }
+                    val diagnostics = kotlinx.coroutines.withContext(deriveContext) { DiagnosticsBuilder.build(messages) }
+                    reduce { copy(diagnostics = diagnostics) }
                     recomputeLimits()
                 }
         }
     }
 
     /** Where each limit stands, from the latest inbox and the limits as they are now. */
-    private fun recomputeLimits() {
-        val state = currentState()
+    private fun recomputeLimits() = requestDerive()
+
+    private fun deriveLimits(state: State): State.() -> State {
+        val inbox = inbox
         val cycle = CycleRule.resolve(state.plan, inbox, clock.instant(), clock.zone)
         val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle)
         val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
@@ -225,7 +231,7 @@ class SettingsViewModel(
         val spendable = com.zyke.message.domain.plan.PlanInsightsBuilder.build(state.plan, inbox, clock.instant(), clock.zone, cycle)?.spendable
         val suggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(inbox, state.monthlyLimits, spendable, clock.instant(), clock.zone, cycle)
         val cardSpend = com.zyke.message.domain.accounts.CardSpend.status(accounts, state.plan.cardSpendLimit)
-        reduce {
+        return {
             copy(
                 limits = limits, spottedSalary = spotted, cycleRange = range, accounts = accounts,
                 spendable = spendable, limitSuggestions = suggestions, cardSpend = cardSpend

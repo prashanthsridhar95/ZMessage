@@ -12,6 +12,7 @@ object DebitPayments {
     private const val LATE_DAYS = 7L
     private val TOLERANCE = BigDecimal("0.02")
     private val ONE = BigDecimal.ONE
+    private val NON_WORD = Regex("[^a-z0-9]+")
 
     /**
      * The debit that followed the announcement: money sent for about the announced amount, to the same name, from
@@ -25,7 +26,7 @@ object DebitPayments {
         messages: List<ClassifiedMessage>,
         zone: ZoneId
     ): BillPayment? {
-        val words = payee.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
+        val words = payee.lowercase().split(NON_WORD).filter { it.length >= 3 }
         val room = amount.multiply(TOLERANCE).max(ONE)
         return messages
             .filter { it.message.date > announcement.message.date && it.id != announcement.id }

@@ -84,7 +84,9 @@ class HomeViewModel(
     private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges,
     private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
     private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations,
-    private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans
+    private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
+    /** Where the derived parts of the state are worked out; never the main thread outside tests. */
+    deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
@@ -98,7 +100,20 @@ class HomeViewModel(
 
     private var observeJob: Job? = null
 
+    /** Writes the person's choices to disk one after another, away from the main thread. */
+    private val writes = kotlinx.coroutines.channels.Channel<() -> Unit>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+
+    private fun io(write: () -> Unit) {
+        writes.trySend(write)
+    }
+
     init {
+        startDeriving("home", deriveContext) { snapshot -> derive(snapshot) }
+        viewModelScope.launch(deriveContext) {
+            for (write in writes) {
+                runCatching { write() }.onFailure { com.zyke.message.data.diag.DevLog.e("write", "a saved choice could not be written", it) }
+            }
+        }
         viewModelScope.launch {
             userStateRepository.state.collect { userState -> reduceHome { copy(userState = userState) } }
         }
@@ -127,39 +142,41 @@ class HomeViewModel(
             is Intent.ScreenStarted ->
                 if (intent.permissionGranted) startObserving() else reduce { copy(isLoading = false, permissionMissing = true) }
             is Intent.CopyOtp -> {
-                userStateRepository.markRead(intent.messageId)
+                io { userStateRepository.markRead(intent.messageId) }
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
-            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
-            is Intent.RestoreAttention -> userStateRepository.restoreAttention(intent.key)
-            is Intent.LinkTransfer -> setAsideRepository.link(intent.debitId, intent.creditId)
-            is Intent.DismissTransfer -> setAsideRepository.dismissSuggestion(intent.key)
-            is Intent.MergeDuplicates -> merges.merge(intent.primaryId, intent.duplicateId)
-            is Intent.UnmergeDuplicate -> merges.unmerge(intent.duplicateId)
-            is Intent.SaveManualEntry -> manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it })
+            is Intent.DismissAttention -> io { userStateRepository.dismissAttention(intent.key, intent.forever) }
+            is Intent.RestoreAttention -> io { userStateRepository.restoreAttention(intent.key) }
+            is Intent.LinkTransfer -> io { setAsideRepository.link(intent.debitId, intent.creditId) }
+            is Intent.DismissTransfer -> io { setAsideRepository.dismissSuggestion(intent.key) }
+            is Intent.MergeDuplicates -> io { merges.merge(intent.primaryId, intent.duplicateId) }
+            is Intent.UnmergeDuplicate -> io { merges.unmerge(intent.duplicateId) }
+            is Intent.SaveManualEntry -> io { manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it }) }
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
-                userStateRepository.markRead(intent.messageId)
+                io { userStateRepository.markRead(intent.messageId) }
                 reduce { copy(detailMessageId = intent.messageId) }
             }
             Intent.CloseMessage -> reduce { copy(detailMessageId = null) }
             is Intent.OpenBudget -> reduce { copy(budgetDetail = intent.category) }
             Intent.CloseBudget -> reduce { copy(budgetDetail = null) }
-            is Intent.TogglePin -> userStateRepository.setPinned(
-                intent.messageId,
-                intent.messageId !in currentState().userState.pinnedIds
-            )
+            is Intent.TogglePin -> {
+                val pin = intent.messageId !in currentState().userState.pinnedIds
+                io { userStateRepository.setPinned(intent.messageId, pin) }
+            }
             is Intent.Archive -> {
                 reduce { copy(detailMessageId = null) }
-                userStateRepository.setArchived(intent.messageId, true)
+                io { userStateRepository.setArchived(intent.messageId, true) }
             }
-            is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.Unarchive -> io { userStateRepository.setArchived(intent.messageId, false) }
             is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
-                mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
+                val sender = SenderKey.of(message.message.sender)
+                val mute = !message.isMuted
+                io { mutedSenders.setMuted(sender, mute) }
             }
             is Intent.SetMessageCategory -> {
                 com.zyke.message.data.diag.DevLog.d("category") { "home: this transaction id=${intent.messageId} -> ${intent.category}" }
-                categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
+                io { categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category) }
             }
             is Intent.SetCategory -> {
                 val message = currentState().messages.firstOrNull { it.id == intent.messageId }
@@ -167,7 +184,7 @@ class HomeViewModel(
                 com.zyke.message.data.diag.DevLog.d("category") {
                     "home: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(key)} messagesInState=${currentState().messages.size}"
                 }
-                key?.let { categoryOverrides.set(it, intent.category) }
+                key?.let { io { categoryOverrides.set(it, intent.category) } }
             }
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
@@ -204,7 +221,7 @@ class HomeViewModel(
             is Intent.IgnoreRecurring -> recurring.set(intent.key, com.zyke.message.domain.repository.RecurringState.IGNORED)
             Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
-            is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
+            is Intent.DismissQuick -> io { userStateRepository.dismissAttention(intent.key) }
             is Intent.AddQuick -> addQuick(intent.quick)
             is Intent.Rename -> {
                 val message = currentState().messages.firstOrNull { it.id == intent.messageId }
@@ -214,7 +231,7 @@ class HomeViewModel(
                 message?.let {
                     val own = CategoryKey.messageKey(it.id)
                     // Naming this one transaction and naming its sender or receiver are two separate things.
-                    if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(it)?.let { key -> nicknames.set(key, intent.name) }
+                    if (intent.onlyThis) io { nicknames.set(own, intent.name) } else CategoryKey.of(it)?.let { key -> io { nicknames.set(key, intent.name) } }
                 }
             }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
@@ -285,18 +302,23 @@ class HomeViewModel(
         }
     }
 
+    /** Applies the change at once; the derived parts follow from the worker thread, so the main thread never waits for them. */
     private fun reduceHome(change: State.() -> State) {
-        val started = System.nanoTime()
-        recomputed = 0
-        reduceHomeNow(change)
-        com.zyke.message.data.diag.DevLog.d("home") { "state rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages, $recomputed of ${memos.size} parts recomputed)" }
+        reduce(change)
+        requestDerive()
     }
 
-    private fun reduceHomeNow(change: State.() -> State) = reduce {
-        val updated = change()
-        if (!updated.hasLoaded) {
-            updated
-        } else {
+    private fun derive(updated: State): State.() -> State {
+        if (!updated.hasLoaded) return { this }
+        val started = System.nanoTime()
+        recomputed = 0
+        val patch = deriveNow(updated)
+        com.zyke.message.data.diag.DevLog.d("home") { "state rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages, $recomputed of ${memos.size} parts recomputed)" }
+        return patch
+    }
+
+    private fun deriveNow(updated: State): State.() -> State {
+        run {
             val zone = clock.zone
             val today = LocalDate.ofInstant(updated.now, zone)
             val now = updated.now
@@ -334,38 +356,36 @@ class HomeViewModel(
                 com.zyke.message.domain.ledger.ReviewQueues.build(live, updated.asides, zone, now, us.dismissedAttention)
             }
 
-            updated.copy(
-                cycle = cycle,
-                daily = daily,
-                goals = Goals.all(updated.goalList, today),
-                reminders = Reminders.upcoming(updated.reminderList, today),
-                providentFund = memo("pf", live) { com.zyke.message.domain.pf.ProvidentFunds.find(live, zone) },
-                accounts = accounts,
-                quickAdds = quickAdds,
-                nudges = nudges,
-                refunds = memo("refunds", live, now) { RefundTracker.build(live, now, zone) },
-                owed = memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled && it.split.paidBy == com.zyke.message.domain.split.SplitPayer.ME } },
-                subscriptions = memo("subs", live, now) { Subscriptions.find(live, now, zone) },
-                attention = attention,
-                review = review,
-                thisMonth = dashboard,
-                upcoming = upcoming,
-                outflow = memo("outflow", upcoming, updated.loanList, updated.reminderList, updated.plan, live, updated.recurringStates, today) {
-                    com.zyke.message.domain.forecast.UpcomingOutflows.build(
-                        from = today, upcoming = upcoming, loans = updated.loanList, reminders = updated.reminderList, plan = updated.plan,
-                        recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(
-                            com.zyke.message.domain.insights.Subscriptions.find(live, now, zone), updated.recurringStates
-                        )
+            val goals = Goals.all(updated.goalList, today)
+            val reminders = Reminders.upcoming(updated.reminderList, today)
+            val providentFund = memo("pf", live) { com.zyke.message.domain.pf.ProvidentFunds.find(live, zone) }
+            val refunds = memo("refunds", live, now) { RefundTracker.build(live, now, zone) }
+            val owed = memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled } }
+            val subscriptions = memo("subs", live, now) { Subscriptions.find(live, now, zone) }
+            val outflow = memo("outflow", upcoming, updated.loanList, updated.reminderList, updated.plan, live, updated.recurringStates, today) {
+                com.zyke.message.domain.forecast.UpcomingOutflows.build(
+                    from = today, upcoming = upcoming, loans = updated.loanList, reminders = updated.reminderList, plan = updated.plan,
+                    recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(
+                        com.zyke.message.domain.insights.Subscriptions.find(live, now, zone), updated.recurringStates
                     )
-                },
-                budgetStatus = memo("budgetStatus", dashboard) {
-                    dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
-                },
-                recent = memo("recent", live) { live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT) },
-                alerts = memo("alerts", live, now) { SpendAlerts.find(live, now.toEpochMilli()) },
-                agenda = memo("agenda", live, now) { LifeAgenda.build(live.filter { !it.isPromotional }, today, zone) },
-                unreadCount = memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } }
-            )
+                )
+            }
+            val budgetStatus = memo("budgetStatus", dashboard) {
+                dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
+            }
+            val recent = memo("recent", live) { live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT) }
+            val alerts = memo("alerts", live, now) { SpendAlerts.find(live, now.toEpochMilli()) }
+            val agenda = memo("agenda", live, now) { LifeAgenda.build(live.filter { !it.isPromotional }, today, zone) }
+            val unread = memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } }
+            return {
+                copy(
+                    cycle = cycle, daily = daily, goals = goals, reminders = reminders, providentFund = providentFund,
+                    accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
+                    subscriptions = subscriptions, attention = attention, review = review, thisMonth = dashboard,
+                    upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
+                    agenda = agenda, unreadCount = unread
+                )
+            }
         }
     }
 

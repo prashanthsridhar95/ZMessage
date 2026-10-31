@@ -9,6 +9,7 @@ object SpamScorer {
     private const val THRESHOLD = 3
 
     private val SHORT_LINK = Regex("(?i)\\b(?:tinyurl\\.com|bit\\.ly|shorturl\\.at|cutt\\.ly|t\\.ly|rb\\.gy|is\\.gd|compact\\.link|wa\\.me|api\\.whatsapp\\.com|t\\.me)/")
+    private val MONEY_AMOUNT = Regex("(?i)(?:rs\\.?|inr|₹)\\s?[\\d,]+")
     private val PROMISED_RETURNS = Regex("(?i)\\b(?:profit|returns?|jackpot|lottery|winner|guaranteed|earn(?:ings)?|income|bonus|trade model|trades?)\\b")
     private val URGENCY = Regex("(?i)\\b(?:last (?:entries|chance|date)|act now|hurry|expires? (?:today|soon)|limited (?:slots|seats|offer)|only \\d+ left|within \\d+ hours?)\\b")
     private val LOAN_PITCH = Regex("(?i)\\b(?:instant|personal|pre-?approved)? ?loan\\b.*\\b(?:approved|almost complete|eligible|apply)\\b|\\bview next steps\\b")
@@ -23,7 +24,7 @@ object SpamScorer {
     fun score(sender: String, body: String): Int {
         var score = 0
         if (SHORT_LINK.containsMatchIn(body)) score += 2
-        if (PROMISED_RETURNS.containsMatchIn(body) && Regex("(?i)(?:rs\\.?|inr|₹)\\s?[\\d,]+").containsMatchIn(body)) score += 2
+        if (PROMISED_RETURNS.containsMatchIn(body) && MONEY_AMOUNT.containsMatchIn(body)) score += 2
         if (URGENCY.containsMatchIn(body)) score += 1
         if (LOAN_PITCH.containsMatchIn(body)) score += 2
         if (WORK_FROM_HOME.containsMatchIn(body)) score += 2

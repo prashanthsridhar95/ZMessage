@@ -39,6 +39,10 @@ object SalaryDetector {
     private val SIZE_TOLERANCE = BigDecimal("0.40")
     private val SALARY_WORDS = Regex("(?i)\\b(?:salary|sal credit|payroll|wages)\\b")
 
+    private val salaryWords = com.zyke.message.domain.util.BodyMemo { body -> SALARY_WORDS.containsMatchIn(com.zyke.message.domain.util.BodyMemo.bounded(body)) }
+    private val NOT_PAYER_CHARS = Regex("[^a-z@. ]+")
+    private val SPACES = Regex("\\s+")
+
     private class Credit(val month: YearMonth, val day: Int, val amount: BigDecimal, val payer: String, val salaryWord: Boolean)
 
     fun detect(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): SalaryPattern? {
@@ -53,7 +57,7 @@ object SalaryDetector {
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             val month = YearMonth.from(date)
             if (month < earliest || date.isAfter(today)) return@mapNotNull null
-            val salaryWord = message.category == MessageCategory.SALARY || SALARY_WORDS.containsMatchIn(message.message.body)
+            val salaryWord = message.category == MessageCategory.SALARY || salaryWords.of(message.message)
             Credit(month, date.dayOfMonth, amount, if (salaryWord) SALARY_KEY else payerKey(tx.payee), salaryWord)
         }.filter { it.payer.isNotEmpty() }
 
@@ -100,7 +104,7 @@ object SalaryDetector {
 
     /** Same payer however the bank spells the reference: lower case, with digits and punctuation dropped. */
     private fun payerKey(payee: String): String =
-        payee.lowercase().replace(Regex("[^a-z@. ]+"), " ").replace(Regex("\\s+"), " ").trim()
+        payee.lowercase().replace(NOT_PAYER_CHARS, " ").replace(SPACES, " ").trim()
 
     const val SALARY_KEY = "salary"
 }

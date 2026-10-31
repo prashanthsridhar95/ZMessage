@@ -15,16 +15,18 @@ import java.util.Locale
  * looking at a real money movement (balance alerts, offers, ...).
  */
 class GenericTransactionParser {
+    private val SPACES_NBSP = Regex("[\\s\\u00a0]+")
+    private val SPACES = Regex("\\s+")
 
     fun parse(message: String): BankTransaction? {
         // Formats that are known by name come first, so a word like "coupon" in them cannot make them look like offers.
-        parseKnownFormats(message.replace(Regex("[\\s\\u00a0]+"), " ").trim())?.let { return it }
+        parseKnownFormats(message.replace(SPACES_NBSP, " ").trim())?.let { return it }
         if (PromoDetector.hasPromoHints(message)) return null
         // "Refund of Rs 500 initiated" is a promise, not money received yet.
-        val flat = message.replace(Regex("\\s+"), " ")
+        val flat = message.replace(SPACES, " ")
         if (RefundTracker.announcesPendingRefund(flat) || RefundTracker.isConditionalRefund(flat)) return null
 
-        val body = message.replace(Regex("\\s+"), " ").trim()
+        val body = message.replace(SPACES, " ").trim()
         return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
     }
 
@@ -403,6 +405,11 @@ class GenericTransactionParser {
 
         /** Cheap check used to decide whether a message is worth sending to the bank parsers. */
         fun mentionsMoney(body: String) = MONEY_HINT.containsMatchIn(body)
+
+        private val moneyMemo = com.zyke.message.domain.util.BodyMemo { body -> mentionsMoney(body) }
+
+        /** [mentionsMoney] for a message, remembered so a screen rebuilt for another reason does not read every body again. */
+        fun mentionsMoney(message: com.zyke.message.domain.model.SmsMessage): Boolean = moneyMemo.of(message)
 
         private val CREDIT_WORDS = setOf("credited", "received", "deposited", "refund", "refunded")
 

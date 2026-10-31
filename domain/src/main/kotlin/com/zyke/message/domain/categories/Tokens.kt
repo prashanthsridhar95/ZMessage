@@ -9,9 +9,11 @@ object Tokens {
         "services", "service", "store", "stores", "mr", "mrs", "ms", "shri", "smt", "co", "corp", "inc", "llp"
     )
 
+    private val NOT_WORD = Regex("[^\\p{L}\\p{N}]+")
+
     /** Distinctive words of [key]: letters/digits, at least 3 long, not all digits, not common filler. In order, no repeats. */
     fun of(key: String): List<String> =
-        key.split(Regex("[^\\p{L}\\p{N}]+"))
+        key.split(NOT_WORD)
             .filter { it.length >= 3 && !it.all(Char::isDigit) && it !in filler }
             .distinct()
 

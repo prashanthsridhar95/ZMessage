@@ -27,10 +27,11 @@ object Journeys {
         "(?i)\\b(?:from|frm)\\s*[:\\-]?\\s*([A-Za-z][A-Za-z .]{1,24}?)\\s*(?:to|->|→|-)\\s*([A-Za-z][A-Za-z .]{1,24}?)(?=\\s+(?:on|at|dep|for|doj|date|train|pnr|flight|bus|via)\\b|[.,;]|\\d|$)"
     )
     private val AIRPORTS = Regex("\\b([A-Z]{3})\\s*(?:-|to|→|>)\\s*([A-Z]{3})\\b")
+    private val SPACES = Regex("\\s+")
     private val NOT_A_PLACE = setOf("the", "your", "you", "this", "that")
 
     fun of(body: String, sender: String = ""): Journey {
-        val text = "$sender $body".replace(Regex("\\s+"), " ")
+        val text = "$sender $body".replace(SPACES, " ")
         val mode = when {
             FLIGHT.containsMatchIn(text) -> TravelMode.FLIGHT
             TEN_DIGIT_PNR.containsMatchIn(text) || TRAIN.containsMatchIn(text) -> TravelMode.TRAIN

@@ -76,7 +76,10 @@ object Subscriptions {
 
     fun keyFor(payee: String) = key(payee)
 
-    private fun key(payee: String) = payee.lowercase().replace(Regex("[^a-z@. ]+"), " ").replace(Regex("\\s+"), " ").trim()
+    private val NOT_PAYER = Regex("[^a-z@. ]+")
+    private val SPACES = Regex("\\s+")
+
+    private fun key(payee: String) = payee.lowercase().replace(NOT_PAYER, " ").replace(SPACES, " ").trim()
 
     private class Payment(val key: String, val name: String, val amount: BigDecimal, val date: LocalDate, val messageId: Long)
 }

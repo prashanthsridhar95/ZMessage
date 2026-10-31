@@ -27,7 +27,9 @@ object CategoryKey {
     fun label(message: ClassifiedMessage): String =
         payee(message).ifBlank { SenderKey.displayAddress(message.message.sender) }.trim()
 
-    fun normalise(raw: String): String = raw.trim().lowercase().replace(Regex("\\s+"), " ")
+    private val SPACES = Regex("\\s+")
+
+    fun normalise(raw: String): String = raw.trim().lowercase().replace(SPACES, " ")
 
     /**
      * Applies the user's choices; messages without a key or a choice are returned untouched. Priority: a choice for this

@@ -17,12 +17,18 @@ object SourceFilters {
     private val UPI = Regex("(?i)\\bUPI\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*(\\d{4})\\b")
 
-    fun isUpi(message: ClassifiedMessage): Boolean = UPI.containsMatchIn(message.message.body)
+    private val upiMemo = com.zyke.message.domain.util.BodyMemo { body -> UPI.containsMatchIn(com.zyke.message.domain.util.BodyMemo.bounded(body)) }
+    private val accountMemo = com.zyke.message.domain.util.BodyMemo { body ->
+        // An empty answer stands for "the text names no account".
+        ACCOUNT_IN_TEXT.find(com.zyke.message.domain.util.BodyMemo.bounded(body))?.groupValues?.get(1).orEmpty()
+    }
+
+    fun isUpi(message: ClassifiedMessage): Boolean = upiMemo.of(message.message)
 
     /** The last four digits of the account or card a payment went through; null when the message does not say. */
     fun last4Of(message: ClassifiedMessage, tx: MessageContent.Transaction): String? =
         tx.accountNumber.filter { it.isDigit() }.takeLast(4).takeIf { it.length == 4 }
-            ?: ACCOUNT_IN_TEXT.find(message.message.body)?.groupValues?.get(1)
+            ?: accountMemo.of(message.message).takeIf { it.isNotEmpty() }
 
     private fun matches(message: ClassifiedMessage, filter: SourceFilter): Boolean {
         val tx = message.content as? MessageContent.Transaction ?: return false

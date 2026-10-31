@@ -30,8 +30,18 @@ data class LifeFacts(
  */
 object LifeParser {
 
+    private val SPACES = Regex("\\s+")
+    private val TRAVEL_WORD = Regex("(?i)flight|train|bus|hotel|journey|boarding")
+    private val CANCEL = Regex("(?i)\\bcancel")
+    private val CHECK_IN = Regex("(?i)web check-?in|check-?in")
+    private val BOARDING = Regex("(?i)\\bboarding\\b")
+    private val TODAY = Regex("(?i)\\btoday\\b")
+    private val TOMORROW = Regex("(?i)\\btomorrow\\b")
+    private val RESCHEDULED = Regex("(?i)\\bresched")
+    private val REMINDER = Regex("(?i)\\breminder|remind")
+
     fun parse(body: String, receivedOn: LocalDate): LifeFacts? {
-        val text = body.replace(Regex("\\s+"), " ").trim()
+        val text = body.replace(SPACES, " ").trim()
         return renewal(text, receivedOn) ?: appointment(text, receivedOn) ?: travel(text, receivedOn) ?: delivery(text)
     }
 
@@ -69,13 +79,13 @@ object LifeParser {
     private fun travel(text: String, receivedOn: LocalDate): LifeFacts? {
         val reference = PNR.find(text)?.groupValues?.get(1) ?: BOOKING_ID.find(text)?.groupValues?.get(1)
         if (reference == null && !TRAVEL_CONFIRMED.containsMatchIn(text)) return null
-        if (reference == null && !Regex("(?i)flight|train|bus|hotel|journey|boarding").containsMatchIn(text)) return null
+        if (reference == null && !TRAVEL_WORD.containsMatchIn(text)) return null
         val date = JOURNEY_DATE.findAll(text).firstNotNullOfOrNull { dateIn(it.groupValues[1], receivedOn) }
             ?: dateIn(text, receivedOn)
         val status = when {
-            Regex("(?i)\\bcancel").containsMatchIn(text) -> "Cancelled"
-            Regex("(?i)web check-?in|check-?in").containsMatchIn(text) -> "Check-in"
-            Regex("(?i)\\bboarding\\b").containsMatchIn(text) -> "Boarding"
+            CANCEL.containsMatchIn(text) -> "Cancelled"
+            CHECK_IN.containsMatchIn(text) -> "Check-in"
+            BOARDING.containsMatchIn(text) -> "Boarding"
             else -> "Booking confirmed"
         }
         return LifeFacts(LifeKind.TRAVEL, status, date, timeIn(text), reference, isDone = status == "Cancelled")
@@ -88,12 +98,12 @@ object LifeParser {
 
     private fun appointment(text: String, receivedOn: LocalDate): LifeFacts? {
         if (!APPOINTMENT_WORD.containsMatchIn(text) || !APPOINTMENT_VERB.containsMatchIn(text)) return null
-        val date = dateIn(text, receivedOn) ?: Regex("(?i)\\btoday\\b").takeIf { it.containsMatchIn(text) }?.let { receivedOn }
-            ?: Regex("(?i)\\btomorrow\\b").takeIf { it.containsMatchIn(text) }?.let { receivedOn.plusDays(1) }
+        val date = dateIn(text, receivedOn) ?: TODAY.takeIf { it.containsMatchIn(text) }?.let { receivedOn }
+            ?: TOMORROW.takeIf { it.containsMatchIn(text) }?.let { receivedOn.plusDays(1) }
         val status = when {
-            Regex("(?i)\\bresched").containsMatchIn(text) -> "Rescheduled"
-            Regex("(?i)\\bcancel").containsMatchIn(text) -> "Cancelled"
-            Regex("(?i)\\breminder|remind").containsMatchIn(text) -> "Reminder"
+            RESCHEDULED.containsMatchIn(text) -> "Rescheduled"
+            CANCEL.containsMatchIn(text) -> "Cancelled"
+            REMINDER.containsMatchIn(text) -> "Reminder"
             else -> "Appointment confirmed"
         }
         return LifeFacts(LifeKind.APPOINTMENT, status, date, timeIn(text), null, isDone = status == "Cancelled")

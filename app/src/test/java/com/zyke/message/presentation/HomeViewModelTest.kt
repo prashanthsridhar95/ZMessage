@@ -88,7 +88,7 @@ class HomeViewModelTest {
     private fun vm(source: Flow<List<SmsMessage>> = flow { emit(inbox) }, budgets: Map<MessageCategory, BigDecimal> = emptyMap()) =
         HomeViewModel(
             ObserveMessagesUseCase(FakeSms(source), MessageClassifier(), Dispatchers.Unconfined),
-            userState, FakeBudgets(budgets), clock
+            userState, FakeBudgets(budgets), clock, deriveContext = Dispatchers.Unconfined
         )
 
     @Test

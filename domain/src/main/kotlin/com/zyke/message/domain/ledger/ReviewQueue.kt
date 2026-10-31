@@ -112,7 +112,7 @@ object ReviewQueues {
             TransferCandidate(debit, match)
         }.take(MAX_PER_KIND)
 
-        val unclear = live.filter { it.content is MessageContent.Generic && com.zyke.message.domain.classification.GenericTransactionParser.mentionsMoney(it.message.body) }
+        val unclear = live.filter { it.content is MessageContent.Generic && com.zyke.message.domain.classification.GenericTransactionParser.mentionsMoney(it.message) }
             .take(MAX_PER_KIND)
 
         val uncategorised = txs.filter {

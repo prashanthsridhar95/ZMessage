@@ -79,7 +79,7 @@ class SettingsViewModelTest {
 
     private fun vm() = SettingsViewModel(
         ObserveMessagesUseCase(FakeSms(flow { emit(inbox) }), MessageClassifier(), Dispatchers.Unconfined),
-        FakeSettings(), user, budgets
+        FakeSettings(), user, budgets, deriveContext = Dispatchers.Unconfined
     )
 
     @Test

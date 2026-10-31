@@ -18,10 +18,12 @@ data class ParsingDiagnostics(
 
 object DiagnosticsBuilder {
     private const val SHAPE_LENGTH = 70
+    private val NINES = Regex("9+")
+    private val SPACES = Regex("\\s+")
 
     /** How many messages of the same kind a sample stands for is shown by ordering: the most common kinds come first. */
     fun build(messages: List<ClassifiedMessage>, maxSamples: Int = 60): ParsingDiagnostics {
-        val money = messages.filter { !it.isPromotional && GenericTransactionParser.mentionsMoney(it.message.body) }
+        val money = messages.filter { !it.isPromotional && GenericTransactionParser.mentionsMoney(it.message) }
         val unrecognised = money.filter { it.content is MessageContent.Generic }
 
         return ParsingDiagnostics(
@@ -29,7 +31,7 @@ object DiagnosticsBuilder {
             unrecognised = unrecognised.size,
             samples = unrecognised.map { MessageRedactor.redact(it.message.body) }
                 // One sample per kind of message: the same wording with different numbers is one kind.
-                .groupBy { sample -> sample.lowercase().replace(Regex("9+"), "9").replace(Regex("\\s+"), " ").take(SHAPE_LENGTH) }
+                .groupBy { sample -> sample.lowercase().replace(NINES, "9").replace(SPACES, " ").take(SHAPE_LENGTH) }
                 .values.sortedByDescending { it.size }.map { it.first() }.take(maxSamples)
         )
     }

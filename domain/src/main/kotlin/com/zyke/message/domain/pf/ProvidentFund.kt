@@ -26,12 +26,13 @@ object ProvidentFunds {
     private val BALANCE = Regex("(?i)(?:balance|corpus)\\b[^\u20b9]{0,60}?\\bis\\s*$AMOUNT|(?:total\\s+)?(?:balance|corpus)\\b[^\\d\u20b9]{0,40}?$AMOUNT")
     private val ADDED = Regex("(?i)(?:updated with|contribution of|credited|deposit(?:ed)? of|amount of)\\b[^\\d\u20b9]{0,25}?$AMOUNT")
     private val ANY = Regex("(?i)$AMOUNT")
+    private val SPACES = Regex("\\s+")
 
     fun find(messages: List<ClassifiedMessage>, zone: ZoneId): ProvidentFund? {
         val updates = messages.mapNotNull { message ->
             val notice = message.content as? MessageContent.Notice ?: return@mapNotNull null
             if (notice.kind != NoticeKind.PF_UPDATE) return@mapNotNull null
-            val body = message.message.body.replace(Regex("\\s+"), " ")
+            val body = com.zyke.message.domain.util.BodyMemo.bounded(message.message.body).replace(SPACES, " ")
             val balance = number(BALANCE, body)
             val added = number(ADDED, body)
                 // A message with one amount and no balance word is the amount the passbook was updated with.

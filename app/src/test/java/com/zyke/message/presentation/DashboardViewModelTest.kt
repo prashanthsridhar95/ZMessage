@@ -66,7 +66,8 @@ class DashboardViewModelTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     private fun vm(source: Flow<List<SmsMessage>> = flow { emit(inbox) }) = DashboardViewModel(
-        ObserveMessagesUseCase(FakeRepo(source), MessageClassifier(), Dispatchers.Unconfined), FakeBudgets(), clock
+        ObserveMessagesUseCase(FakeRepo(source), MessageClassifier(), Dispatchers.Unconfined), FakeBudgets(), clock,
+        deriveContext = Dispatchers.Unconfined
     )
 
     @Test

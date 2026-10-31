@@ -39,7 +39,10 @@ class DashboardViewModel(
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
     private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
-    private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter
+    private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter,
+    /** Where the figures and charts are worked out; never the main thread outside tests. */
+    deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
+    private val ioContext: kotlin.coroutines.CoroutineContext = deriveContext
 ) : MviViewModel<State, Intent, Effect>(
     insightsFilter.load().let { saved ->
         State(
@@ -52,6 +55,7 @@ class DashboardViewModel(
     private var observeJob: Job? = null
 
     init {
+        startDeriving("dashboard", deriveContext) { snapshot -> derive(snapshot) }
         viewModelScope.launch {
             budgetRepository.budgets.collect { budgets -> reduceDashboard { copy(budgets = budgets) } }
         }
@@ -158,28 +162,33 @@ class DashboardViewModel(
     private fun saveFilter() {
         val now = currentState()
         // A cycle stepped back to with the arrows is a passing look, not a choice to keep.
-        insightsFilter.save(
-            com.zyke.message.domain.repository.SavedInsightsFilter(
-                period = if (now.cycleOffset != 0) DashboardPeriod.THIS_MONTH else now.period,
-                customRange = now.customRange.takeIf { now.period == DashboardPeriod.CUSTOM && now.cycleOffset == 0 },
-                source = now.source
-            )
+        val saved = com.zyke.message.domain.repository.SavedInsightsFilter(
+            period = if (now.cycleOffset != 0) DashboardPeriod.THIS_MONTH else now.period,
+            customRange = now.customRange.takeIf { now.period == DashboardPeriod.CUSTOM && now.cycleOffset == 0 },
+            source = now.source
         )
+        // Written to disk away from the main thread.
+        viewModelScope.launch(ioContext) { insightsFilter.save(saved) }
     }
 
     private fun archivedIds(): Set<Long> = userStateRepository?.state?.value?.archivedIds.orEmpty()
 
-    private fun reduceDashboard(change: State.() -> State) = reduce {
-        val updated = change()
-        if (!updated.hasLoaded) {
-            updated
-        } else {
+    /** Applies the change at once; the figures and charts follow from the worker thread. */
+    private fun reduceDashboard(change: State.() -> State) {
+        reduce(change)
+        requestDerive()
+    }
+
+    private fun derive(updated: State): State.() -> State {
+        if (!updated.hasLoaded) return { this }
+        val started = System.nanoTime()
+        run {
             val flowQuery = updated.query.copy(category = null)
             val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, clock.zone)
             // The figures and charts follow the chosen source (UPI, one account or one card); the rest of the screen does not.
             val scoped = com.zyke.message.domain.dashboard.SourceFilters.apply(updated.messages, updated.source)
             val planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
-            updated.copy(
+            val built = updated.copy(
                 cycle = cycle,
                 categoryDetail = updated.openCategory?.let { open ->
                     DashboardBuilder.build(scoped, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets, cycle)
@@ -213,6 +222,16 @@ class DashboardViewModel(
                     updated.now, clock.zone, cycle
                 )
             )
+            com.zyke.message.data.diag.DevLog.d("dashboard") { "figures rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages)" }
+            return {
+                copy(
+                    cycle = built.cycle, categoryDetail = built.categoryDetail, dashboard = built.dashboard,
+                    expenseTrend = built.expenseTrend, incomeTrend = built.incomeTrend, reportCard = built.reportCard,
+                    monthlySummary = built.monthlySummary, cardBills = built.cardBills, cardCycles = built.cardCycles,
+                    limits = built.limits, sourceOptions = built.sourceOptions, planInsights = built.planInsights,
+                    limitSuggestions = built.limitSuggestions, forecast = built.forecast
+                )
+            }
         }
     }
 

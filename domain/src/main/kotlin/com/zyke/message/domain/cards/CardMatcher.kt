@@ -41,8 +41,15 @@ object CardMatcher {
         else -> ""
     }
 
-    private fun mentions(body: String, last4: String): Boolean =
-        Regex(
-            "(?i)(?:[x*•]+\\s*|\\b(?:card|a/c|acct?|account)(?:\\s*(?:no\\.?|number|ending))?\\s*:?\\s*|\\bending\\s*(?:with|in)?\\s*)$last4\\b"
-        ).containsMatchIn(body)
+    private val mentionPatterns = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+
+    private fun mentions(body: String, last4: String): Boolean {
+        // Plain text search first: a body without the four digits cannot name the card, and costs no regex match.
+        if (last4.isEmpty() || !body.contains(last4)) return false
+        return mentionPatterns.getOrPut(last4) {
+            Regex(
+                "(?i)(?:[x*•]+\\s*|\\b(?:card|a/c|acct?|account)(?:\\s*(?:no\\.?|number|ending))?\\s*:?\\s*|\\bending\\s*(?:with|in)?\\s*)$last4\\b"
+            )
+        }.containsMatchIn(com.zyke.message.domain.util.BodyMemo.bounded(body))
+    }
 }

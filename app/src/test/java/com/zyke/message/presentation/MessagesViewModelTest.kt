@@ -83,7 +83,8 @@ class MessagesViewModelTest {
     private fun viewModel(source: Flow<List<SmsMessage>>) = MessagesViewModel(
         ObserveMessagesUseCase(FakeSmsRepository(source), MessageClassifier(), Dispatchers.Unconfined),
         userState,
-        clock
+        clock,
+        deriveContext = Dispatchers.Unconfined
     )
 
     private fun MessagesViewModel.visibleIds() =

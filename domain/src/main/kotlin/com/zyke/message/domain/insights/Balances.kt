@@ -32,6 +32,46 @@ object BalanceReader {
     private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|total due|min(?:imum)? due)\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
+    /** What a message body states about balances; worked out once per body, so a rebuild does not read every body again. */
+    private class Reading(raw: String) {
+        val body: String = com.zyke.message.domain.util.BodyMemo.bounded(raw)
+        val notABalance = NOT_A_BALANCE.containsMatchIn(body)
+        val balanceMatches = BALANCE.containsMatchIn(body)
+        val balanceAmount: BigDecimal? by lazy { BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.toBigDecimalOrNull() }
+        val accountInText: String by lazy { ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1).orEmpty() }
+    }
+
+    /** The same, for a plain message that merely states a balance (a non-breaking space counts as a space). */
+    private class Stated(raw: String) {
+        val notABalance: Boolean
+        val amount: BigDecimal?
+        val account: String?
+
+        init {
+            val body = com.zyke.message.domain.util.BodyMemo.bounded(raw).replace('\u00a0', ' ')
+            notABalance = NOT_A_BALANCE.containsMatchIn(body)
+            if (notABalance) {
+                amount = null
+                account = null
+            } else {
+                amount = STATED_BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull()
+                account = if (amount == null) null else ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1)
+            }
+        }
+    }
+
+    private class Notice(raw: String, pattern: Regex) {
+        val lines: List<Pair<String, BigDecimal>> = pattern.findAll(com.zyke.message.domain.util.BodyMemo.bounded(raw).replace('\u00a0', ' ')).mapNotNull { match ->
+            val amount = match.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
+            match.groupValues[1] to amount
+        }.toList()
+    }
+
+    private val readingsMemo = com.zyke.message.domain.util.BodyMemo { body -> Reading(body) }
+    private val statedMemo = com.zyke.message.domain.util.BodyMemo { body -> Stated(body) }
+    private val noticeMemo = com.zyke.message.domain.util.BodyMemo { body -> Notice(body, NOTICE_BALANCE) }
+    private val pfMemo = com.zyke.message.domain.util.BodyMemo { body -> Notice(body, PF_BALANCE) }
+
     /** The newest balance seen for each account. */
     fun latest(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> =
         readings(messages, zone).groupBy { it.account }.map { (_, balances) -> balances.maxWith(compareBy({ it.asOf }, { it.messageId })) }
@@ -49,12 +89,10 @@ object BalanceReader {
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
             // A card's "available balance" is credit left, not money in an account.
             if (tx.isCard) return@mapNotNull null
-            val body = message.message.body
-            if (NOT_A_BALANCE.containsMatchIn(body)) return@mapNotNull null
-            val amount = BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.toBigDecimalOrNull() ?: return@mapNotNull null
-            val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty {
-                ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1).orEmpty()
-            }
+            val read = readingsMemo.of(message.message)
+            if (read.notABalance) return@mapNotNull null
+            val amount = read.balanceAmount ?: return@mapNotNull null
+            val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { read.accountInText }
             if (account.isEmpty()) return@mapNotNull null
             AccountBalance(
                 account, tx.bankName.displayString, amount,
@@ -76,10 +114,10 @@ object BalanceReader {
             if (message.message.date <= reading.at) return@forEach
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
             if (tx.isCard || tx.isCardPayment) return@forEach
-            val body = message.message.body
+            val read = readingsMemo.of(message.message)
             // A message that states its own balance would be a newer reading, never an adjustment.
-            if (BALANCE.containsMatchIn(body) && !NOT_A_BALANCE.containsMatchIn(body)) return@forEach
-            val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1).orEmpty() }
+            if (read.balanceMatches && !read.notABalance) return@forEach
+            val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { read.accountInText }
             if (account != reading.account) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
             net += if (tx.isReceived) amount else amount.negate()
@@ -91,27 +129,23 @@ object BalanceReader {
     /** A plain message that just states what an account holds ("balance in your A/c XX1234 is Rs. 5,000"), not a payment. */
     private fun statedBalance(message: ClassifiedMessage, zone: ZoneId): AccountBalance? {
         if (message.content != MessageContent.Generic || message.isPromotional) return null
-        val body = message.message.body.replace('\u00a0', ' ')
-        if (NOT_A_BALANCE.containsMatchIn(body)) return null
-        val amount = STATED_BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull() ?: return null
-        val account = ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1) ?: return null
+        val stated = statedMemo.of(message.message)
+        val amount = stated.amount ?: return null
+        val account = stated.account ?: return null
         return AccountBalance(account, "", amount, Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), message.id, message.message.date)
     }
 
     /** The balances a bank's "available balance for a/c no(s) X is INR 1, Y is INR 2" message states, one per account. */
     fun noticeBalances(message: ClassifiedMessage, zone: ZoneId): List<AccountBalance> {
         val notice = message.content as? MessageContent.Notice ?: return emptyList()
-        val pattern = when (notice.kind) {
-            NoticeKind.BALANCE_UPDATE -> NOTICE_BALANCE
+        val found = when (notice.kind) {
+            NoticeKind.BALANCE_UPDATE -> noticeMemo.of(message.message)
             // A passbook says "your passbook balance against <member id> is Rs. X"; the id's last digits name the fund.
-            NoticeKind.PF_UPDATE -> PF_BALANCE
+            NoticeKind.PF_UPDATE -> pfMemo.of(message.message)
             else -> return emptyList()
         }
         val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
-        return pattern.findAll(message.message.body.replace('\u00a0', ' ')).mapNotNull { match ->
-            val amount = match.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
-            AccountBalance(match.groupValues[1], "", amount, date, message.id, message.message.date)
-        }.toList()
+        return found.lines.map { (account, amount) -> AccountBalance(account, "", amount, date, message.id, message.message.date) }
     }
 }
 

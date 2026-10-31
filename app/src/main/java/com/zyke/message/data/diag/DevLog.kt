@@ -87,8 +87,32 @@ object DevLog {
     private fun hook() {
         DiagLog.sink = if (_logging.value) { tag, message -> write("D", tag, message) } else null
         // While logging, memory is noted every few seconds, so a crash for lack of memory shows what led up to it.
+        watchMainThread(_logging.value)
         telemetryTask?.cancel(false)
         telemetryTask = if (_logging.value) telemetry.scheduleWithFixedDelay({ memoryLine() }, 2, MEMORY_EVERY_S, java.util.concurrent.TimeUnit.SECONDS) else null
+    }
+
+    private const val SLOW_MAIN_MS = 100L
+    private var dispatchStarted = 0L
+    private var dispatchWhat = ""
+
+    /**
+     * Notes any single piece of work that kept the main thread busy for more than [SLOW_MAIN_MS]: which handler and
+     * callback ran (class names only, never message text), and for how long. Installed only while logging is on.
+     */
+    private val mainWatch = android.util.Printer { line ->
+        if (line.startsWith(">>>>>")) {
+            dispatchStarted = System.nanoTime()
+            dispatchWhat = line
+        } else if (line.startsWith("<<<<<") && dispatchStarted != 0L) {
+            val ms = (System.nanoTime() - dispatchStarted) / 1_000_000
+            dispatchStarted = 0L
+            if (ms > SLOW_MAIN_MS) write("D", "slow", "main thread busy for $ms ms in ${dispatchWhat.removePrefix(">>>>> Dispatching to ").take(160)}")
+        }
+    }
+
+    private fun watchMainThread(on: Boolean) {
+        runCatching { android.os.Looper.getMainLooper().setMessageLogging(if (on) mainWatch else null) }
     }
 
     private fun memoryLine() {

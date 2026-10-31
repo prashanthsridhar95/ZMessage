@@ -32,7 +32,10 @@ class ImageStore(
     private val chosenDir = File(appContext.filesDir, "sender_images").apply { mkdirs() }
     private val logoDir = File(appContext.filesDir, "logos").apply { mkdirs() }
     private val logoFetcher = LogoFetcher()
-    private val cache = object : LruCache<String, Bitmap>(CACHE_ENTRIES) {}
+    // Sized by the bytes the pictures take, not by how many there are: a few large ones must not crowd out memory.
+    private val cache = object : LruCache<String, Bitmap>(cacheBytes()) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
+    }
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
 
     private val index = appContext.getSharedPreferences("sender_images", Context.MODE_PRIVATE)
@@ -67,7 +70,11 @@ class ImageStore(
         if (address.startsWith("data:image", ignoreCase = true)) {
             runCatching {
                 val bytes = android.util.Base64.decode(address.substringAfter("base64,"), android.util.Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (bounds.outWidth / (sample * 2) >= MAX_SIDE && bounds.outHeight / (sample * 2) >= MAX_SIDE) sample *= 2
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
             }.getOrNull()
         } else {
             logoFetcher.fetchPicked(address)
@@ -162,7 +169,17 @@ class ImageStore(
         _version.value += 1
     }
 
-    private fun decodeFile(file: File): Bitmap? = if (file.exists()) BitmapFactory.decodeFile(file.path) else null
+    /** Read at no more than [MAX_SIDE] pixels a side, so a large file never costs its full size in memory. */
+    private fun decodeFile(file: File): Bitmap? {
+        if (!file.exists()) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= MAX_SIDE && bounds.outHeight / (sample * 2) >= MAX_SIDE) sample *= 2
+        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    private fun cacheBytes(): Int = (Runtime.getRuntime().maxMemory() / 32).coerceIn(MIN_CACHE_BYTES.toLong(), MAX_CACHE_BYTES.toLong()).toInt()
 
     /** Centre-cropped to a square and scaled down, so a 12MP photo costs a few kilobytes. */
     private fun decodeSquare(uri: Uri): Bitmap? {
@@ -187,7 +204,9 @@ class ImageStore(
         const val FAILED = "failed-"
         const val CHOSEN = "c:"
         const val LOGO = "l:"
-        const val CACHE_ENTRIES = 64
+        const val MIN_CACHE_BYTES = 4 * 1024 * 1024
+        const val MAX_CACHE_BYTES = 16 * 1024 * 1024
+        const val MAX_SIDE = 512
         const val TARGET = 256
         const val RETRY_AFTER_MS = 7L * 24 * 60 * 60 * 1000
     }

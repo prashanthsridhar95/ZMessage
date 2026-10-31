@@ -310,7 +310,7 @@ class MessageClassifier(
         const val MAX_PARSED_LENGTH = 4096
 
         /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */
-        val OPAQUE_ID = Regex("(?=.*\\d)[A-Za-z0-9]{16,}")
+        val OPAQUE_ID = Regex("(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{16,}")
 
         val DATA_USAGE =
             """(\d+)% Alert: You have consumed \1% of your daily high Speed Data limit\. Track usage on Airtel Thanks App i\.airtel\.in/Get-Data""".toRegex()

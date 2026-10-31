@@ -39,7 +39,9 @@ class MessagesViewModel(
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
     private val mutedSenders: MutedSenderRepository = NoMutedSenders,
     private val nicknames: NicknameRepository = NoNicknames,
-    private val merges: MergeRepository = NoMerges
+    private val merges: MergeRepository = NoMerges,
+    /** Where the feed is built; never the main thread outside tests. */
+    deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
@@ -47,6 +49,7 @@ class MessagesViewModel(
     private var observeJob: Job? = null
 
     init {
+        startDeriving("messages", deriveContext) { snapshot -> deriveFeed(snapshot) }
         viewModelScope.launch {
             userStateRepository.state.collect { userState -> reduceFeed { copy(userState = userState) } }
         }
@@ -207,31 +210,37 @@ class MessagesViewModel(
         }
     }
 
-    /** Applies [change] and rebuilds the derived [State.feed]. */
-    private fun reduceFeed(change: State.() -> State) = reduce {
-        val updated = change().withValidFilter()
+    /** Applies [change] at once and asks for the derived [State.feed] to be rebuilt away from the main thread. */
+    private fun reduceFeed(change: State.() -> State) {
+        reduce { change().withValidFilter() }
+        requestDerive()
+    }
+
+    private fun deriveFeed(updated: State): State.() -> State {
+        val started = System.nanoTime()
         val query = if (updated.isSearching) updated.query else ""
         val thread = updated.openThreadKey?.let {
             conversationBuilder.thread(updated.messages, it, updated.userState, zone)
         }
-        updated.copy(
-            feed = FeedBuilder.build(
-                messages = updated.messages,
-                userState = updated.userState,
-                filter = updated.filter,
-                query = query,
-                now = updated.now,
-                zone = zone
-            ),
-            conversations = if (updated.viewMode == ViewMode.SENDERS) {
-                conversationBuilder.conversations(updated.messages, updated.userState, query)
-            } else {
-                emptyList()
-            },
-            thread = thread
-        ).let { built ->
+        val feed = FeedBuilder.build(
+            messages = updated.messages,
+            userState = updated.userState,
+            filter = updated.filter,
+            query = query,
+            now = updated.now,
+            zone = zone
+        )
+        val conversations = if (updated.viewMode == ViewMode.SENDERS) {
+            conversationBuilder.conversations(updated.messages, updated.userState, query)
+        } else {
+            emptyList()
+        }
+        val key = updated.openThreadKey
+        com.zyke.message.data.diag.DevLog.d("feed") { "feed rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages)" }
+        return {
+            val built = copy(feed = feed, conversations = conversations, thread = thread)
             // A conversation that has no messages left (all archived) closes itself.
-            if (built.openThreadKey != null && thread == null) built.copy(openThreadKey = null, focusMessageId = null) else built
+            if (key != null && thread == null && openThreadKey == key) built.copy(openThreadKey = null, focusMessageId = null) else built
         }
     }
 

@@ -47,7 +47,8 @@ data class LearnedTemplate(
         )
     }
 
-    private fun String.collapse() = trim().replace(Regex("\\s+"), " ")
+    private val SPACES = Regex("\\s+")
+    private fun String.collapse() = trim().replace(SPACES, " ")
 
     private companion object {
         const val ACCOUNT_DIGITS = 4

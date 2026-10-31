@@ -7,6 +7,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+private val NON_WORD = Regex("[^a-z0-9]+")
+
 /** One person who owes part of a shared payment. */
 data class SplitPerson(
     val name: String,
@@ -63,7 +65,7 @@ object SplitInsights {
         return splits.flatMap { split ->
             val paidAt = byId[split.messageId]?.message?.date ?: 0L
             split.people.map { person ->
-                val words = person.name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
+                val words = person.name.lowercase().split(NON_WORD).filter { it.length >= 3 }
                 val match = if (person.settledByHand || split.paidBy == SplitPayer.FRIEND) {
                     null
                 } else {

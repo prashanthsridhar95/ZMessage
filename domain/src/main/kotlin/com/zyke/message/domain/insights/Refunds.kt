@@ -67,11 +67,21 @@ object RefundTracker {
         }.sortedByDescending { it.startedOn }
     }
 
+    /** What a body says about a refund, worked out once per body. */
+    private class RefundFacts(raw: String) {
+        val body = com.zyke.message.domain.util.BodyMemo.bounded(raw)
+        val announces = announcesPendingRefund(body)
+        val amount: BigDecimal? by lazy { AMOUNT.find(body)?.groupValues?.get(1)?.replace(",", "")?.toBigDecimalOrNull() }
+    }
+
+    private val refundFacts = com.zyke.message.domain.util.BodyMemo { body -> RefundFacts(body) }
+
     /** The amount a refund-started message names, or null for any other message. */
     private fun refundNotice(message: ClassifiedMessage): BigDecimal? {
         val content = message.content
         val isNotice = content is MessageContent.Notice && content.kind == NoticeKind.REFUND_PENDING
-        if (!isNotice && !announcesPendingRefund(message.message.body)) return null
-        return AMOUNT.find(message.message.body)?.groupValues?.get(1)?.replace(",", "")?.toBigDecimalOrNull()
+        val facts = refundFacts.of(message.message)
+        if (!isNotice && !facts.announces) return null
+        return facts.amount
     }
 }

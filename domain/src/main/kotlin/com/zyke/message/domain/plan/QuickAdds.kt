@@ -11,6 +11,8 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
 
+private val NON_WORD = Regex("[^a-z0-9]+")
+
 /** Something the messages show that the person has not told the app about yet, ready to add in one tap. */
 sealed interface QuickAdd {
     /** Stable, so a "not now" can be remembered. */
@@ -25,7 +27,7 @@ sealed interface QuickAdd {
     }
 
     data class Item(val item: PlanItem) : QuickAdd {
-        override val key = "quickadd-item-" + item.name.lowercase().replace(Regex("[^a-z0-9]+"), "-")
+        override val key = "quickadd-item-" + item.name.lowercase().replace(NON_WORD, "-")
         override val title = item.name
         override val detail = "${item.kind.label} · about ₹${item.amount}" + (item.dayOfMonth?.let { " around day $it" } ?: "")
     }
@@ -87,7 +89,7 @@ object QuickAdds {
             if (known.any { it.isNotEmpty() && it.any { word -> word in words(repeat.payee) } }) return@forEach
             found += QuickAdd.Item(
                 PlanItem(
-                    id = "quick-" + repeat.payee.lowercase().replace(Regex("[^a-z0-9]+"), "-"),
+                    id = "quick-" + repeat.payee.lowercase().replace(NON_WORD, "-"),
                     kind = if (saving) PlanItemKind.INVESTMENT else PlanItemKind.OUTFLOW,
                     name = repeat.payee.trim(),
                     amount = repeat.amount,
@@ -181,5 +183,5 @@ object QuickAdds {
         }.sortedBy { (it as QuickAdd.Account).card.last4 }
     }
 
-    private fun words(text: String) = text.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
+    private fun words(text: String) = text.lowercase().split(NON_WORD).filter { it.length >= 3 }
 }
