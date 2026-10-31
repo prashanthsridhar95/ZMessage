@@ -40,6 +40,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -85,6 +86,22 @@ class ObserveMessagesUseCase(
 
     /** The classified inbox: the newest month first, older months added behind it as they are read. */
     operator fun invoke(): Flow<List<ClassifiedMessage>> = shared ?: pipeline()
+
+    /**
+     * The same inbox for a screen that rebuilds a lot from it: the first list at once; while older months are still
+     * being read, at most one list per [minGapMs] (the newest is kept, never dropped); afterwards every change at once.
+     */
+    fun calm(minGapMs: Long = CALM_GAP_MS): Flow<List<ClassifiedMessage>> = kotlinx.coroutines.flow.flow {
+        var last = 0L
+        invoke().conflate().collect { list ->
+            if (last != 0L && !progress.value.isDone) {
+                val wait = minGapMs - (System.currentTimeMillis() - last)
+                if (wait > 0) kotlinx.coroutines.delay(wait)
+            }
+            emit(list)
+            last = System.currentTimeMillis()
+        }
+    }
 
     private fun pipeline(): Flow<List<ClassifiedMessage>> =
         (progressive?.messages() ?: whole())
@@ -207,6 +224,7 @@ class ObserveMessagesUseCase(
 
     private companion object {
         const val SHARE_TIMEOUT_MS = 5_000L
+        const val CALM_GAP_MS = 700L
         val DONE: StateFlow<LoadProgress> = MutableStateFlow(LoadProgress())
     }
 }
