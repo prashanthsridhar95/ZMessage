@@ -192,7 +192,7 @@ class SettingsViewModel(
     private fun startObserving() {
         if (observeJob?.isActive == true) return
         observeJob = viewModelScope.launch {
-            observeMessages()
+            observeMessages.calm()
                 .catch { reduce { copy(diagnostics = null) } }
                 .collect { messages ->
                     inbox = messages

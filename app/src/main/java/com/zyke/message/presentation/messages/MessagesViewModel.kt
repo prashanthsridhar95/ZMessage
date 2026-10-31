@@ -192,7 +192,7 @@ class MessagesViewModel(
         reduce { copy(isLoading = messages.isEmpty(), hasError = false) }
 
         observeJob = viewModelScope.launch {
-            observeMessages()
+            observeMessages.calm()
                 .catch { reduceFeed { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceFeed {

@@ -266,7 +266,7 @@ class HomeViewModel(
         if (observeJob?.isActive == true) return
 
         observeJob = viewModelScope.launch {
-            observeMessages()
+            observeMessages.calm()
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceHome {
