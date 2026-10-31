@@ -243,6 +243,10 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     val ranking = dashboard.categories.map { it.category }
     val received = state.direction == FlowDirection.RECEIVED
     val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
+    var showYear by remember { mutableStateOf(false) }
+    val reviewYear = remember(state.messages, today) {
+        com.zyke.message.presentation.review.yearToReview(state.messages, today, ZoneId.systemDefault())
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -287,6 +291,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                         canGoForward = state.cycleOffset < 0 || state.period != DashboardPeriod.THIS_MONTH
                     )
                 }
+            }
+        }
+
+        if (reviewYear != null) {
+            item(key = "year-in-review") {
+                com.zyke.message.presentation.review.YearEntryCard(reviewYear, onOpen = { showYear = true })
             }
         }
 
@@ -388,6 +398,9 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 )
             }
         }
+    }
+    if (showYear && reviewYear != null) {
+        com.zyke.message.presentation.review.YearPage(state.messages, reviewYear, onBack = { showYear = false })
     }
 }
 

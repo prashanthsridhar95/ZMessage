@@ -34,4 +34,24 @@ object ReportSharing {
             Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
+
+    /** Same as [share] for a picture: the PNG bytes go into the same cache folder, and only on request. */
+    fun sharePng(context: Context, fileName: String, png: ByteArray, subject: String) {
+        val directory = File(context.cacheDir, DIRECTORY).apply { mkdirs() }
+        directory.listFiles()?.forEach { it.delete() }
+
+        val file = File(directory, fileName).apply { writeBytes(png) }
+        val uri = FileProvider.getUriForFile(context, context.packageName + AUTHORITY_SUFFIX, file)
+
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            clipData = ClipData.newRawUri(fileName, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(
+            Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }
