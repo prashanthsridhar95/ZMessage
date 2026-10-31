@@ -249,9 +249,10 @@ internal fun cardFooter(account: AccountSummary, today: java.time.LocalDate): St
     if (!account.isCard) return null
     val due = account.dueDate
     val unbilled = account.unbilled?.takeIf { it.signum() > 0 }
+    val dueAmount = account.dueAmount
     return when {
         account.billPaid && unbilled != null -> "${DisplayFormatters.rupees(unbilled)} unbilled"
-        due != null && !due.isBefore(today) && account.dueAmount != null && account.dueAmount.signum() > 0 -> DisplayFormatters.dueLabel(due, today)
+        due != null && !due.isBefore(today) && dueAmount != null && dueAmount.signum() > 0 -> DisplayFormatters.dueLabel(due, today)
         unbilled != null -> "${DisplayFormatters.rupees(unbilled)} unbilled"
         else -> null
     }
