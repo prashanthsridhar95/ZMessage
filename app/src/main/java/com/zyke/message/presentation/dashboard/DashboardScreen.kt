@@ -295,6 +295,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
         }
 
+        state.monthlySummary?.takeIf { it.income.signum() > 0 || it.spent.signum() > 0 || it.changes.isNotEmpty() }?.let { summary ->
+            item(key = "monthly-summary") {
+                com.zyke.message.presentation.dashboard.components.MonthlySummaryCard(summary) { onIntent(Intent.OpenCategory(it)) }
+            }
+        }
+
         // Right under the headline numbers: where this is all heading is the first thing worth knowing.
         state.forecast?.let { forecast ->
             item(key = "forecast") { ForecastCard(forecast) }

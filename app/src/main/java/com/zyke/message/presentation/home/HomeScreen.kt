@@ -463,12 +463,17 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 }
             }
         }
-        if (state.subscriptions.isNotEmpty()) {
+        val recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
+        if (recurring.isNotEmpty()) {
             item(key = "subscriptions") {
                 PlainSection("Repeats monthly") {
-                    state.subscriptions.forEachIndexed { index, subscription ->
+                    recurring.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        SubscriptionRow(subscription, today) { onIntent(Intent.OpenMessage(subscription.messageId)) }
+                        SubscriptionRow(
+                            item, today,
+                            onConfirm = { onIntent(Intent.ConfirmRecurring(item.subscription.key)) },
+                            onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) }
+                        ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
                     }
                 }
             }
@@ -869,17 +874,33 @@ private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit)
 }
 
 @Composable
-private fun SubscriptionRow(item: Subscription, today: LocalDate, onOpen: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            RowTitle(item.payee)
-            Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · paid ${item.times} months running")
+private fun SubscriptionRow(
+    recurring: com.zyke.message.domain.insights.RecurringItem,
+    today: LocalDate,
+    onConfirm: () -> Unit,
+    onIgnore: () -> Unit,
+    onOpen: () -> Unit
+) {
+    val item: Subscription = recurring.subscription
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                RowTitle(item.payee)
+                Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · " + recurring.expectedLabel + " · paid ${item.times} months running")
+                Caption(if (recurring.isConfirmed) "Confirmed" else "Looks recurring \u2014 is it?")
+            }
+            Spacer(Modifier.width(12.dp))
+            AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
         }
-        Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
+        if (!recurring.isConfirmed) {
+            Row(Modifier.fillMaxWidth()) {
+                TextButton(onClick = onConfirm) { Text("Confirm") }
+                TextButton(onClick = onIgnore) { Text("Not recurring") }
+            }
+        }
     }
 }
 

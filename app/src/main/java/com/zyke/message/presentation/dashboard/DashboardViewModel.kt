@@ -194,6 +194,7 @@ class DashboardViewModel(
                     updated.now, clock.zone, updated.budgets, cycle
                 ).trend,
                 reportCard = ReportCardBuilder.build(scoped, updated.budgets, updated.now, clock.zone, cycle),
+                monthlySummary = com.zyke.message.domain.dashboard.MonthlySummary.build(scoped, updated.now, clock.zone, cycle),
                 cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
                 cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
                 limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),

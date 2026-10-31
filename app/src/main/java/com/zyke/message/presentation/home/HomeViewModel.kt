@@ -82,7 +82,8 @@ class HomeViewModel(
     private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
     private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
     private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges,
-    private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries
+    private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
+    private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
@@ -107,6 +108,7 @@ class HomeViewModel(
         viewModelScope.launch { reminderRepository.reminders.collect { reminders -> reduceHome { copy(reminderList = reminders) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
         viewModelScope.launch { hiddenAccounts.hidden.collect { keys -> reduceHome { copy(hiddenAccounts = keys) } } }
+        viewModelScope.launch { recurring.states.collect { states -> reduce { copy(recurringStates = states) } } }
         viewModelScope.launch { calendarEvents.events.collect { events -> reduceHome { copy(events = events) } } }
         viewModelScope.launch { pfAccounts.keys.collect { keys -> reduceHome { copy(pfAccountKeys = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
@@ -192,6 +194,8 @@ class HomeViewModel(
                 hiddenAccounts.hide(intent.key)
                 reduce { copy(openAccountKey = null) }
             }
+            is Intent.ConfirmRecurring -> recurring.set(intent.key, com.zyke.message.domain.repository.RecurringState.CONFIRMED)
+            is Intent.IgnoreRecurring -> recurring.set(intent.key, com.zyke.message.domain.repository.RecurringState.IGNORED)
             Intent.OpenQuickAdds -> reduce { copy(showQuickAdds = true) }
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> userStateRepository.dismissAttention(intent.key)
@@ -394,7 +398,8 @@ class HomeViewModel(
         private val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.domain.repository.NoCalendarEvents,
         private val setAsideRepository: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
         private val manualEntryRepository: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.domain.ledger.NoManualEntries,
-        private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges
+        private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges,
+        private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -403,7 +408,8 @@ class HomeViewModel(
                 categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, wishlist = wishlist, splitRepository = splits, nicknames = nicknames,
                 planRepository = planRepository, cardRepository = cardRepository,
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
-                setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges
+                setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
+                recurring = recurring
             ) as T
     }
 

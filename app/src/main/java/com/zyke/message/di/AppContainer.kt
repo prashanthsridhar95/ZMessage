@@ -70,6 +70,7 @@ class AppContainer(context: Context) {
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository = com.zyke.message.data.repository.WatchlistRepositoryImpl(context)
     val markets = com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
+    val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context)
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a

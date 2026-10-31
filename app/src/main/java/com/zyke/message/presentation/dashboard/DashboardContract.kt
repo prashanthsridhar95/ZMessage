@@ -59,6 +59,8 @@ object DashboardContract {
         val incomeTrend: List<com.zyke.message.domain.dashboard.TrendPoint> = emptyList(),
         /** This month as a report card; independent of the period and filters above. */
         val reportCard: ReportCard? = null,
+        /** This month against the same days of last month; independent of the period and filters above. */
+        val monthlySummary: com.zyke.message.domain.dashboard.MonthlySummary? = null,
         /** Credit card statements by card; independent of the selected period. */
         val cardBills: List<CardBills> = emptyList(),
         val expandedCard: String? = null,

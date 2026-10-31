@@ -73,6 +73,8 @@ object HomeContract {
         val owed: List<SplitShare> = emptyList(),
         /** Payments that repeat monthly, soonest due first. */
         val subscriptions: List<Subscription> = emptyList(),
+        /** What the person said about each recurring payment, by [Subscription.key]. */
+        val recurringStates: Map<String, com.zyke.message.domain.repository.RecurringState> = emptyMap(),
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
         val daily: DailyBudgetStatus? = null,
         /** Every bank account and card the messages mention, and what the accounts hold in all. */
@@ -151,6 +153,8 @@ object HomeContract {
         data class SetStatementDay(val key: String, val day: Int?) : Intent
         data class SetProvidentFund(val key: String, val on: Boolean) : Intent
         data class RemoveAccount(val key: String) : Intent
+        data class ConfirmRecurring(val key: String) : Intent
+        data class IgnoreRecurring(val key: String) : Intent
         data class OpenJourney(val messageId: Long) : Intent
         data object CloseJourney : Intent
         data object OpenAgenda : Intent
