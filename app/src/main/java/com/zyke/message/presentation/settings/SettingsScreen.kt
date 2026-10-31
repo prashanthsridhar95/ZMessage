@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.zyke.message.R
 import com.zyke.message.domain.model.UserCard
+import com.zyke.message.presentation.common.faceCard
 import com.zyke.message.domain.model.ThemeMode
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.ShareBar
@@ -518,21 +519,26 @@ private fun CardsSection(
     } else {
         SectionCard("Found and added") {
             Caption("Messages are matched to these by their last four digits", maxLines = 3)
+            val editAccount = { account: com.zyke.message.domain.accounts.AccountSummary ->
+                val own = account.userCard
+                editingIsNew = own == null
+                editing = own ?: account.faceCard().let { face ->
+                    face.copy(id = java.util.UUID.randomUUID().toString())
+                }
+            }
+            val deckCards = accounts.filter { it.isCard }
+            if (deckCards.isNotEmpty()) {
+                val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { deckCards.size })
+                com.zyke.message.presentation.common.CardDeck(
+                    deckCards.map { com.zyke.message.presentation.common.DeckCard(it.key, it.faceCard()) },
+                    deckState,
+                    onOpen = { entry -> deckCards.firstOrNull { it.key == entry.key }?.let(editAccount) },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
             accounts.forEach { account ->
                 val own = account.userCard
-                // The details to edit: the added card, or one filled in from what the messages show.
-                val edit = {
-                    editingIsNew = own == null
-                    editing = own ?: UserCard(
-                        id = java.util.UUID.randomUUID().toString(),
-                        type = when (account.kind) {
-                            com.zyke.message.domain.accounts.AccountKind.CREDIT_CARD -> com.zyke.message.domain.model.CardType.CREDIT
-                            com.zyke.message.domain.accounts.AccountKind.DEBIT_CARD -> com.zyke.message.domain.model.CardType.DEBIT
-                            com.zyke.message.domain.accounts.AccountKind.BANK_ACCOUNT -> com.zyke.message.domain.model.CardType.ACCOUNT
-                        },
-                        last4 = account.last4, name = "", bankName = account.bankName.displayString
-                    )
-                }
+                val edit = { editAccount(account) }
                 Row(
                     Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${account.title}", onClick = edit).padding(top = 14.dp),
                     verticalAlignment = Alignment.CenterVertically

@@ -1,14 +1,12 @@
 package com.zyke.message.data.repository
 
 import android.content.Context
-import com.zyke.message.domain.model.CardType
+import com.zyke.message.domain.cards.UserCardCodec
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.domain.repository.CardRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONArray
-import org.json.JSONObject
 
 /** The person's cards (last four digits, name, statement date), in private preferences. */
 class CardRepositoryImpl(context: Context) : CardRepository {
@@ -29,31 +27,10 @@ class CardRepositoryImpl(context: Context) : CardRepository {
 
     private fun update(cards: List<UserCard>) {
         _cards.value = cards
-        val array = JSONArray()
-        cards.forEach {
-            array.put(
-                JSONObject().put("id", it.id).put("type", it.type.name).put("last4", it.last4)
-                    .put("name", it.name).put("bankName", it.bankName).put("statementDay", it.statementDay ?: JSONObject.NULL)
-            )
-        }
-        prefs.edit().putString(KEY, array.toString()).apply()
+        prefs.edit().putString(KEY, UserCardCodec.encode(cards)).apply()
     }
 
-    private fun load(): List<UserCard> = runCatching {
-        val array = JSONArray(prefs.getString(KEY, null) ?: return@runCatching emptyList())
-        (0 until array.length()).mapNotNull {
-            val o = array.getJSONObject(it)
-            val type = CardType.entries.firstOrNull { t -> t.name == o.optString("type") } ?: return@mapNotNull null
-            UserCard(
-                id = o.getString("id"),
-                type = type,
-                last4 = o.getString("last4"),
-                name = o.optString("name"),
-                bankName = o.optString("bankName"),
-                statementDay = if (o.isNull("statementDay")) null else o.getInt("statementDay")
-            )
-        }
-    }.getOrDefault(emptyList())
+    private fun load(): List<UserCard> = UserCardCodec.decode(prefs.getString(KEY, null))
 
     private companion object {
         const val KEY = "cards"

@@ -45,6 +45,8 @@ import com.zyke.message.domain.accounts.AccountKind
 import com.zyke.message.presentation.common.PillSwitch
 import com.zyke.message.domain.accounts.AccountActivities
 import com.zyke.message.domain.accounts.AccountSummary
+import com.zyke.message.presentation.common.DeckCard
+import com.zyke.message.presentation.common.faceCard
 import com.zyke.message.domain.accounts.AccountsOverview
 import com.zyke.message.domain.insights.BalanceReader
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -127,6 +129,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val cards = overview.accounts.filter { it.isCard }
     val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     var tab by rememberSaveable { mutableStateOf(0) }
+    val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
+    val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val shown = when (tab) {
         0 -> banks
         1 -> cards
@@ -217,10 +221,39 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 }
             }
         }
-        shown.forEach { account ->
-            item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
+        if (tab == 1 && cards.isNotEmpty()) {
+            // Cards are shown as cards: a deck to swipe, with the one in front opened in full on a tap.
+            item(key = "card-deck") {
+                val deck = cards.map { DeckCard(it.key, it.faceCard(), cardFooter(it, deckToday)) }
+                com.zyke.message.presentation.common.CardDeck(
+                    deck, deckState,
+                    onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
+                    modifier = Modifier.padding(horizontal = (-16).dp)
+                )
+            }
+            val front = cards.getOrNull(deckState.currentPage.coerceIn(0, cards.lastIndex))
+            if (front != null) {
+                item(key = "card-front-" + front.key) { AccountTile(front, byId[front.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(front.key)) } }
+            }
+        } else {
+            shown.forEach { account ->
+                item(key = account.key) { AccountTile(account, byId[account.sampleMessageId]) { onIntent(HomeContract.Intent.OpenAccount(account.key)) } }
+            }
         }
 
+    }
+}
+
+/** The short status on a card's face: when the bill is due, else what has been spent since the last one. */
+internal fun cardFooter(account: AccountSummary, today: java.time.LocalDate): String? {
+    if (!account.isCard) return null
+    val due = account.dueDate
+    val unbilled = account.unbilled?.takeIf { it.signum() > 0 }
+    return when {
+        account.billPaid && unbilled != null -> "${DisplayFormatters.rupees(unbilled)} unbilled"
+        due != null && !due.isBefore(today) && account.dueAmount != null && account.dueAmount.signum() > 0 -> DisplayFormatters.dueLabel(due, today)
+        unbilled != null -> "${DisplayFormatters.rupees(unbilled)} unbilled"
+        else -> null
     }
 }
 

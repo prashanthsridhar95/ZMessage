@@ -122,7 +122,7 @@ object Accounts {
             val card = userCards.firstOrNull { it.last4 == last4 && (it.type != CardType.ACCOUNT) == isCard }
             val kind = when {
                 card?.type == CardType.CREDIT || bill != null -> AccountKind.CREDIT_CARD
-                card?.type == CardType.DEBIT -> AccountKind.DEBIT_CARD
+                card?.type?.isDebitLike == true -> AccountKind.DEBIT_CARD
                 isCard -> AccountKind.CREDIT_CARD
                 else -> AccountKind.BANK_ACCOUNT
             }
@@ -209,7 +209,7 @@ object Accounts {
             fromMessages + userCards.filter { card -> fromMessages.none { it.last4 == card.last4 && it.isCard == (card.type != CardType.ACCOUNT) } }.map { card ->
                 val kind = when (card.type) {
                     CardType.CREDIT -> AccountKind.CREDIT_CARD
-                    CardType.DEBIT -> AccountKind.DEBIT_CARD
+                    CardType.DEBIT, CardType.PREPAID, CardType.FOREX -> AccountKind.DEBIT_CARD
                     CardType.ACCOUNT -> AccountKind.BANK_ACCOUNT
                 }
                 val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4) ?: passbook.takeIf { "${kind.name.lowercase()}-${card.last4}" in providentFunds } else null

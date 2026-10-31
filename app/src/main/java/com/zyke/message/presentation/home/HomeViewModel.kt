@@ -240,10 +240,8 @@ class HomeViewModel(
         val account = currentState().accounts.accounts.firstOrNull { it.key == key } ?: return
         val existing = account.userCard
         cardRepository.save(
-            UserCard(
-                id = existing?.id ?: "named-$key", type = existing?.type ?: CardType.CREDIT, last4 = account.last4,
-                name = existing?.name.orEmpty(), statementDay = day, bankName = existing?.bankName ?: account.bankName.displayString
-            )
+            (existing ?: UserCard(id = "named-$key", type = CardType.CREDIT, last4 = account.last4, name = ""))
+                .copy(statementDay = day, bankName = existing?.bankName ?: account.bankName.displayString)
         )
     }
 
@@ -256,10 +254,8 @@ class HomeViewModel(
         }
         val existing = account.userCard
         cardRepository.save(
-            UserCard(
-                id = existing?.id ?: "named-$key", type = existing?.type ?: type, last4 = account.last4,
-                name = name.trim(), statementDay = existing?.statementDay, bankName = existing?.bankName ?: account.bankName.displayString
-            )
+            (existing ?: UserCard(id = "named-$key", type = type, last4 = account.last4, name = ""))
+                .copy(name = name.trim(), bankName = existing?.bankName ?: account.bankName.displayString)
         )
     }
 
