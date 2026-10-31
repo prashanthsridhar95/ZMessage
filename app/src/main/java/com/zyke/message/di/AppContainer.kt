@@ -49,6 +49,7 @@ class AppContainer(context: Context) {
     val userMessageState: UserMessageStateRepository = UserMessageStateRepositoryImpl(context)
     val budgets: BudgetRepository = BudgetRepositoryImpl(context)
     val categoryOverrides: CategoryOverrideRepository = CategoryOverrideRepositoryImpl(context)
+    val tokenRules: com.zyke.message.domain.repository.TokenRuleRepository = com.zyke.message.data.repository.TokenRuleRepositoryImpl(context)
     val cards: CardRepository = CardRepositoryImpl(context)
     val moneyPlan: MoneyPlanRepository = MoneyPlanRepositoryImpl(context)
     val settings: SettingsRepository = SettingsRepositoryImpl(context)
@@ -85,7 +86,7 @@ class AppContainer(context: Context) {
 
     val observeMessages = ObserveMessagesUseCase(
         smsRepository, messageClassifier,
-        categoryOverrides = categoryOverrides, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
+        categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
         manualEntries = manualEntries, setAsides = setAsides

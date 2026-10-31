@@ -29,11 +29,21 @@ object CategoryKey {
 
     fun normalise(raw: String): String = raw.trim().lowercase().replace(Regex("\\s+"), " ")
 
-    /** Applies the user's choices; messages without a key or a choice are returned untouched. */
-    fun apply(message: ClassifiedMessage, overrides: Map<String, MessageCategory>): ClassifiedMessage {
-        if (overrides.isEmpty()) return message
-        // A choice made for this one message beats one made for everything from its sender or receiver.
-        val category = overrides[messageKey(message.id)] ?: of(message)?.let(overrides::get) ?: return message
+    /**
+     * Applies the user's choices; messages without a key or a choice are returned untouched. Priority: a choice for this
+     * one message, then one for its sender / receiver, then a word rule ([tokenRules], see [Tokens]).
+     */
+    fun apply(
+        message: ClassifiedMessage,
+        overrides: Map<String, MessageCategory>,
+        tokenRules: Map<String, MessageCategory> = emptyMap()
+    ): ClassifiedMessage {
+        if (overrides.isEmpty() && tokenRules.isEmpty()) return message
+        val key = of(message)
+        val category = overrides[messageKey(message.id)]
+            ?: key?.let(overrides::get)
+            ?: key?.let { Tokens.match(it, tokenRules) }
+            ?: return message
         return message.copy(
             category = category,
             merchant = message.merchant.copy(category = category),

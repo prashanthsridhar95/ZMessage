@@ -114,6 +114,7 @@ fun AppRoot(
         com.zyke.message.presentation.common.LocalOpenSearch provides { showSearch = true },
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
+    com.zyke.message.presentation.settings.LearningOffers()
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.

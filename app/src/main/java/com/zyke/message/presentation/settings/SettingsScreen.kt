@@ -91,6 +91,7 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     LIMITS("Spending limits", R.drawable.ic_goal_24),
     CARDS("Cards and accounts", R.drawable.ic_card_24),
     MESSAGES("Messages and pictures", R.drawable.baseline_message_24),
+    RULES("Your rules", R.drawable.baseline_list_24),
     ALERTS("Reminders and alerts", R.drawable.ic_reminder_24),
     MARKETS("Market watch", R.drawable.ic_trending_24),
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
@@ -152,6 +153,7 @@ fun SettingsPage(
                 "Your messages",
                 listOf(
                     SettingsGroup.MESSAGES to messagesSummary(state),
+                    SettingsGroup.RULES to "What you taught the app",
                     SettingsGroup.ALERTS to alertsSummary(state),
                     SettingsGroup.MARKETS to if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off"
                 )
@@ -336,6 +338,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             onCardLimit = { onIntent(Intent.SetCardLimit(it)) }
         )
         SettingsGroup.CARDS -> CardsSection(state.accounts, state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
+        SettingsGroup.RULES -> RulesSection()
         SettingsGroup.MESSAGES -> {
             SectionCard("Pictures") {
                 Caption("Tap the photo on any message sheet to change it", maxLines = 3)

@@ -51,6 +51,7 @@ class ObserveMessagesUseCase(
     private val classifier: MessageClassifier,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val categoryOverrides: CategoryOverrideRepository = NoCategoryOverrides,
+    private val tokenRules: com.zyke.message.domain.repository.TokenRuleRepository = com.zyke.message.domain.repository.NoTokenRules,
     private val cardRepository: CardRepository = NoCards,
     private val modelParser: ModelTransactionParser = ModelTransactionParser(NoModel),
     private val senderImages: SenderImageRepository = NoSenderImages,
@@ -113,8 +114,8 @@ class ObserveMessagesUseCase(
                     (classified + entries.map { com.zyke.message.domain.ledger.ManualEntries.toMessage(it, zone) }).sortedByDescending { it.message.date }
                 }
             }
-            .combine(categoryOverrides.overrides) { classified, overrides ->
-                val applied = classified.map { CategoryKey.apply(it, overrides) }
+            .combine(categoryOverrides.overrides.combine(tokenRules.rules) { o, t -> o to t }) { classified, (overrides, words) ->
+                val applied = classified.map { CategoryKey.apply(it, overrides, words) }
                 DiagLog.d("pipeline") {
                     "category overrides: ${overrides.size} set, ${applied.count { it.categoryOverridden }} of ${applied.size} messages carry one, ${applied.count { it.categoryOwn }} their own"
                 }
