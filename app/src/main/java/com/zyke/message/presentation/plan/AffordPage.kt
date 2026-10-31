@@ -48,19 +48,9 @@ import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-/** A small card on Home that opens the "Can I afford it?" page. */
+/** The "Can I afford it?" page, opened from the plan shortcuts on Home. */
 @Composable
-internal fun AffordEntry(state: State, onIntent: (Intent) -> Unit) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    FintechCard(onClick = { open = true }) {
-        RowTitle("Can I afford it?")
-        Caption("Type a price and see how it sits with your plan, bills and balance.")
-    }
-    if (open) AffordPage(state, onIntent) { open = false }
-}
-
-@Composable
-private fun AffordPage(state: State, onIntent: (Intent) -> Unit, onBack: () -> Unit) {
+internal fun AffordPage(state: State, onIntent: (Intent) -> Unit, onBack: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()

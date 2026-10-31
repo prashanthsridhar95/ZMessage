@@ -32,7 +32,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -175,24 +175,24 @@ internal fun PlanTile(title: String, summary: String, onOpen: () -> Unit) {
     }
 }
 
-/** A square button with an icon and a small name beneath it, for a page of its own. */
+/** A wide button with an icon and its name beside it, for a page of its own. Two sit side by side on a phone. */
 @Composable
 internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    FintechCard(modifier.aspectRatio(1f), onClick = onOpen) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    FintechCard(modifier, onClick = onOpen) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.foundation.Image(
                 painter = androidx.compose.ui.res.painterResource(icon),
                 contentDescription = null,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(28.dp),
                 colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
             )
             Text(
                 label,
-                Modifier.padding(top = 10.dp),
-                style = MaterialTheme.typography.labelMedium,
+                Modifier.padding(start = 12.dp),
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.secondary,
-                maxLines = 1
+                maxLines = 2
             )
         }
     }

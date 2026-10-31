@@ -64,6 +64,7 @@ class AppContainer(context: Context) {
     val goalContributions: com.zyke.message.domain.goals.GoalContributionRepository by lazy { com.zyke.message.data.repository.GoalContributionRepositoryImpl(context) }
     val goalSavings by lazy { com.zyke.message.domain.goals.GoalSavings(goals, goalContributions) }
     val reminders: ReminderRepository by lazy { ReminderRepositoryImpl(context) }
+    val planActions: com.zyke.message.domain.repository.PlanActionRepository by lazy { com.zyke.message.data.repository.PlanActionRepositoryImpl(context) }
     val imageStore by lazy { ImageStore(context) { settings.settings.value.fetchLogos } }
     val messageClassifier by lazy { MessageClassifier() }
     val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
@@ -109,7 +110,7 @@ class AppContainer(context: Context) {
     fun warmUp() {
         val parts = listOf<() -> Any?>(
             { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
-            { merges }, { moneyPlan }, { goals }, { reminders }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts },
+            { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts },
             { providentFundAccounts }, { setAsides }, { manualEntries }, { recurringPayments }, { loans }, { imageStore },
             { classificationCache }, { observeMessages }
         )

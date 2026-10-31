@@ -90,6 +90,14 @@ object HomeContract {
         val quickAdds: List<QuickAdd> = emptyList(),
         /** Appointments, trips and renewals in the next two weeks, and orders on their way. */
         val agenda: List<AgendaItem> = emptyList(),
+        /** What the person dismissed or snoozed in the plan section. */
+        val planActions: com.zyke.message.domain.plan.PlanActionState = com.zyke.message.domain.plan.PlanActionState(),
+        /** The agenda, next bill and reminders without what is dismissed or snoozed today; the bills tab keeps every bill and marks the hidden ones. */
+        val planAgenda: List<AgendaItem> = emptyList(),
+        val planUpcoming: List<UpcomingItem> = emptyList(),
+        val planReminders: List<ReminderDue> = emptyList(),
+        /** Dismissed and still-snoozed things, for the list that restores them. */
+        val planHidden: List<com.zyke.message.domain.plan.PlanHide> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,
@@ -151,6 +159,9 @@ object HomeContract {
         data class AddToGoal(val id: String, val amount: java.math.BigDecimal) : Intent
         data class SaveReminder(val reminder: Reminder) : Intent
         data class RemoveReminder(val id: String) : Intent
+        data class PlanDismiss(val key: String, val label: String, val kind: com.zyke.message.domain.plan.PlanKind) : Intent
+        data class PlanSnooze(val key: String, val label: String, val kind: com.zyke.message.domain.plan.PlanKind, val until: java.time.LocalDate) : Intent
+        data class PlanRestore(val key: String) : Intent
         data class OpenAccount(val key: String) : Intent
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent

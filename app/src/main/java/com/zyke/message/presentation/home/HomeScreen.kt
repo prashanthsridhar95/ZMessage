@@ -21,6 +21,10 @@ import com.zyke.message.domain.life.AgendaItem
 import com.zyke.message.presentation.messages.components.whenLabel
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.domain.reminders.Reminder
+import com.zyke.message.domain.plan.PlanActions
+import com.zyke.message.domain.plan.PlanKeys
+import com.zyke.message.domain.plan.PlanKind
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LinkButton
@@ -294,7 +298,9 @@ private fun SummaryPage(
     val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
     val markPaid = rememberMarkPaid(onIntent)
     val focus = state.nudges.firstOrNull()
-    val next = state.upcoming.firstOrNull()
+    val next = state.planUpcoming.firstOrNull()
+    val planHandler = rememberPlanActionHandler(onIntent)
+    var affordOpen by rememberSaveable { mutableStateOf(false) }
     // The clock ticks every second, but only the code card needs to see it: Home itself changes only when a code appears or runs out.
     val now = rememberNowState()
     val otps = remember(state.messages, state.userState.archivedIds) { otpCandidates(state) }
@@ -361,22 +367,28 @@ private fun SummaryPage(
             item(key = "next") {
                 FintechCard {
                     Caption("NEXT DUE")
-                    UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                    val nextRow: @Composable () -> Unit = {
+                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                    }
+                    if (next.paidOn != null) nextRow() else PlanItemFrame(next.title, PlanKeys.bill(next), PlanKind.BILL, today, planHandler, content = nextRow)
                     LinkButton("All bills", { onNavigate(AppTab.BILLS) })
                 }
             }
         }
 
         item(key = "plan-tiles") {
-            // Three squares in a line, each a page of its own.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
-                ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
-                ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
+            // Four shortcuts in two rows of two, each a page of its own.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
+                    ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
+                    ShortcutTile("Can I afford it?", R.drawable.ic_afford_24, Modifier.weight(1f)) { affordOpen = true }
+                }
             }
         }
-
-        item(key = "afford") { com.zyke.message.presentation.plan.AffordEntry(state, onIntent) }
 
         if (state.recent.isNotEmpty()) {
             item(key = "activity") {
@@ -396,17 +408,29 @@ private fun SummaryPage(
             }
         }
 
-        if (state.agenda.isNotEmpty()) {
+        if (state.planAgenda.isNotEmpty() || state.planHidden.isNotEmpty()) {
             item(key = "plans") {
                 FintechCard {
                     RowTitle("Plans")
-                    state.agenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
+                    if (state.planAgenda.isEmpty()) Caption("Nothing coming up that is not snoozed or dismissed.")
+                    state.planAgenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        AgendaRow(agendaItem, today) {
-                            // A trip opens as its own scene; anything else shows the message.
-                            onIntent(if (agendaItem.kind == LifeKind.TRAVEL) Intent.OpenJourney(agendaItem.message.id) else Intent.OpenMessage(agendaItem.message.id))
+                        // A trip opens as its own scene; anything else shows the message.
+                        val open = { onIntent(if (agendaItem.kind == LifeKind.TRAVEL) Intent.OpenJourney(agendaItem.message.id) else Intent.OpenMessage(agendaItem.message.id)) }
+                        val remindOn = agendaItem.date ?: today.plusDays(1)
+                        val hasReminder = state.reminderList.any { it.title == agendaItem.title && it.date == remindOn }
+                        val extras = if (hasReminder) emptyList() else listOf(
+                            PlanExtraAction("Remind", "Remind me about ${agendaItem.title}") {
+                                val reminder = Reminder(java.util.UUID.randomUUID().toString(), agendaItem.title, null, remindOn)
+                                onIntent(Intent.SaveReminder(reminder))
+                                planHandler.announce("Reminder set for ${agendaItem.title}") { onIntent(Intent.RemoveReminder(reminder.id)) }
+                            }
+                        )
+                        PlanItemFrame(agendaItem.title, PlanKeys.agenda(agendaItem), PlanKind.AGENDA, today, planHandler, onOpen = open, extras = extras) {
+                            AgendaRow(agendaItem, today, open)
                         }
                     }
+                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
@@ -416,6 +440,7 @@ private fun SummaryPage(
         }
     }
     }
+    if (affordOpen) com.zyke.message.presentation.plan.AffordPage(state, onIntent) { affordOpen = false }
 }
 
 private const val REMINDERS_SHOWN = 4
@@ -424,6 +449,7 @@ private const val REMINDERS_SHOWN = 4
 @Composable
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
     val markPaid = rememberMarkPaid(onIntent)
+    val planHandler = rememberPlanActionHandler(onIntent)
     val recurringArranged = remember(state.subscriptions, state.recurringStates) {
         com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
     }
@@ -451,23 +477,38 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
             }
         }
         // Your own reminders belong with what is coming due, so the page is not bare when no bill is.
-        if (state.reminders.isNotEmpty()) {
+        if (state.planReminders.isNotEmpty()) {
             item(key = "reminders") {
                 PlainSection("Your reminders") {
-                    state.reminders.take(REMINDERS_SHOWN).forEachIndexed { index, due ->
+                    state.planReminders.take(REMINDERS_SHOWN).forEachIndexed { index, due ->
                         if (index > 0) HorizontalDivider()
-                        Row(
-                            Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) }.padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                RowTitle(due.reminder.title)
-                                Caption(DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (due.reminder.repeatsMonthly) " \u00B7 every month" else "")
+                        val reminder = due.reminder
+                        val key = PlanKeys.reminder(reminder)
+                        val done = PlanExtraAction("Done", "Mark ${reminder.title} as done") {
+                            if (reminder.repeatsMonthly) {
+                                // This month's is done: it comes back the day after, for next month.
+                                onIntent(Intent.PlanSnooze(key, reminder.title, PlanKind.REMINDER, due.on.plusDays(1)))
+                                planHandler.announce("Done: ${reminder.title}") { onIntent(Intent.PlanRestore(key)) }
+                            } else {
+                                onIntent(Intent.RemoveReminder(reminder.id))
+                                planHandler.announce("Done: ${reminder.title}") { onIntent(Intent.SaveReminder(reminder)) }
                             }
-                            due.reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
+                        }
+                        PlanItemFrame(reminder.title, key, PlanKind.REMINDER, today, planHandler, extras = listOf(done), onOpen = { onIntent(Intent.OpenReminders) }) {
+                            Row(
+                                Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) }.padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    RowTitle(reminder.title)
+                                    Caption(DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (reminder.repeatsMonthly) " \u00B7 every month" else "")
+                                }
+                                reminder.amount?.let { AmountText(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.secondary) }
+                            }
                         }
                     }
-                    if (state.reminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
+                    if (state.planReminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
+                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
@@ -476,8 +517,16 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 PlainSection("Due") {
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
-                        UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                        val row: @Composable () -> Unit = {
+                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
+                        }
+                        if (item.paidOn != null) row() else {
+                            // Every bill stays on this tab, even an overdue one that was snoozed: it just says so.
+                            val key = PlanKeys.bill(item)
+                            PlanItemFrame(item.title, key, PlanKind.BILL, today, planHandler, hide = PlanActions.hideFor(key, state.planActions, today), content = row)
+                        }
                     }
+                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
