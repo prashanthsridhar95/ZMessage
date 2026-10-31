@@ -38,4 +38,12 @@
     <string name="widget_empty_detail">Nothing due or on today</string>
     <string name="widget_needs_access_title">Allow SMS access</string>
     <string name="widget_needs_access_detail">Open Zyke Message to let it read your messages</string>
+    <string name="quick_add_title">Quick add</string>
+    <string name="quick_add_description">Log cash or an entry in two taps</string>
+    <string name="quick_add_small">Cash\n₹100</string>
+    <string name="quick_add_large">Cash\n₹500</string>
+    <string name="quick_add_custom">Custom…</string>
+    <string name="quick_add_income">Income</string>
+    <string name="quick_add_saved">Added cash spend ₹%1$d</string>
+    <string name="tile_add_entry">Add entry</string>
 </resources>

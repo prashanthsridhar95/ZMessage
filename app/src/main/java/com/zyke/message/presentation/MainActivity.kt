@@ -140,9 +140,16 @@ class MainActivity : ComponentActivity() {
     private fun hasNotificationAccess() =
         androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
 
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Opened by the quick-add widget, the quick-settings tile or "Share": the entry sheet follows on Home.
+        if (savedInstanceState == null) com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         applyScreenProtection(container.settings.settings.value.screenProtection)
         observeScreenProtection()
         // The alarm for the next timed reminder follows whatever reminders there are.

@@ -87,7 +87,7 @@ class ManifestPolicyTest {
             setOf(
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
-                ".notifications.WeeklyReceiver"
+                ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget"
             ),
             receivers.names("name").toSet()
         )
@@ -100,8 +100,14 @@ class ManifestPolicyTest {
         assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
-        assertEquals(2, services.length)
-        // Neither is exported: the second only runs while a large inbox is read, and stops by itself.
+        assertEquals(3, services.length)
+        // The quick-settings tile is the one exported service: the system's quick-settings host must bind it, and
+        // BIND_QUICK_SETTINGS_TILE keeps every other app from doing so. It only opens the entry sheet.
+        val tile = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.QuickAddTileService" }
+        assertEquals("true", tile.getAttributeNS(android, "exported"))
+        assertEquals("android.permission.BIND_QUICK_SETTINGS_TILE", tile.getAttributeNS(android, "permission"))
+        // Neither of the other two is exported: the second only runs while a large inbox is read, and stops by itself.
         val backfill = (0 until services.length).map { services.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".notifications.BackfillService" }
         assertEquals("false", backfill.getAttributeNS(android, "exported"))

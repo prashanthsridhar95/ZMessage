@@ -52,10 +52,10 @@ private val TRANSFER_SUGGESTIONS = listOf("Cash withdrawal", "To savings", "To m
  * transfer between their own accounts. It is then read like any other payment: in lists, totals, limits and the calendar.
  */
 @Composable
-internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, onDismiss: () -> Unit) {
-    var kind by rememberSaveable { mutableStateOf(ManualKind.EXPENSE) }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var title by rememberSaveable { mutableStateOf("") }
+internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, onDismiss: () -> Unit, initial: EntryRequest? = null) {
+    var kind by rememberSaveable { mutableStateOf(initial?.kind ?: ManualKind.EXPENSE) }
+    var amount by rememberSaveable { mutableStateOf(initial?.amount?.toPlainString().orEmpty()) }
+    var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
     var note by rememberSaveable { mutableStateOf("") }
     var dateText by rememberSaveable { mutableStateOf(today.toString()) }
     var categoryName by rememberSaveable { mutableStateOf<String?>(null) }

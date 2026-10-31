@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/quick_add_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/quick_add_small"
+        style="@style/QuickAddButton"
+        android:text="@string/quick_add_small" />
+
+    <TextView
+        android:id="@+id/quick_add_large"
+        style="@style/QuickAddButton"
+        android:text="@string/quick_add_large" />
+
+    <TextView
+        android:id="@+id/quick_add_custom"
+        style="@style/QuickAddButton"
+        android:text="@string/quick_add_custom" />
+
+    <TextView
+        android:id="@+id/quick_add_income"
+        style="@style/QuickAddButton"
+        android:text="@string/quick_add_income" />
+</LinearLayout>

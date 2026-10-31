@@ -52,6 +52,16 @@ Derived data (the feed, the dashboard, the home overview, conversations) is buil
 messages go to the hand-written bank parsers first and then to `GenericTransactionParser`, a best-effort reader
 for other banks' wording. It never throws and parses at most 4096 characters.
 
+## Quick entry from outside the app
+
+Three doors open the same hand-made entry flow: the "Quick add" home-screen widget (`QuickAddWidget`: two cash
+presets that save at once with title "Cash spend", plus "Custom" and "Income" that open the sheet), the "Add entry"
+quick-settings tile (`QuickAddTileService`, exported only because the system must bind it, guarded by
+`BIND_QUICK_SETTINGS_TILE`), and sharing plain text to the app. The sheet is opened through `EntryRequests`: MainActivity
+turns the incoming intent into an `EntryRequest` and Home takes it. Shared text is parsed once by the pure
+`QuickEntryParser` (`:domain`) into amount, title and income/expense, then pre-fills `ManualEntrySheet`; the person
+still confirms. Voice entry is the keyboard's own dictation into the sheet.
+
 ## Quality gates
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`

@@ -54,6 +54,18 @@
             </intent-filter>
         </service>
 
+        <!-- The "Add entry" quick-settings tile. Exported only because the system's quick-settings host must bind it;
+             BIND_QUICK_SETTINGS_TILE lets nothing else do so. It only opens the entry sheet. -->
+        <service
+            android:name=".notifications.QuickAddTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_add"
+            android:label="@string/tile_add_entry"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <!-- Runs only while a large inbox is being read; stops by itself when every month has been read. -->
         <service
             android:name=".notifications.BackfillService"
@@ -71,6 +83,17 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/days_ahead_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".notifications.QuickAddWidget"
+            android:exported="false"
+            android:label="@string/quick_add_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_add_widget_info" />
         </receiver>
         <receiver
             android:name=".notifications.DigestReceiver"

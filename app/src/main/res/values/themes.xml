@@ -2,4 +2,17 @@
 <resources>
 
     <style name="Theme.ZykeMessage" parent="Theme.AppCompat.DayNight.NoActionBar" />
+    <!-- One of the four buttons of the Quick add widget; kept to attributes a RemoteViews TextView can take. -->
+    <style name="QuickAddButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:background">@drawable/widget_button</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>

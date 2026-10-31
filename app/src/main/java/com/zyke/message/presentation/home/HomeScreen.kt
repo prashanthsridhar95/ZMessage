@@ -198,6 +198,16 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 
     var marketsOpen by rememberSaveable { mutableStateOf(false) }
     var entryOpen by rememberSaveable { mutableStateOf(false) }
+    var entryRequest by androidx.compose.runtime.remember { mutableStateOf<EntryRequest?>(null) }
+    // Asked for from the widget, the quick-settings tile or "Share": open the sheet, pre-filled when there is something to fill.
+    val incoming = EntryRequests.pending.value
+    androidx.compose.runtime.LaunchedEffect(incoming) {
+        if (incoming != null) {
+            entryRequest = incoming
+            entryOpen = true
+            EntryRequests.pending.value = null
+        }
+    }
     var reviewOpen by rememberSaveable { mutableStateOf(false) }
     // The prices are asked for only while Home is in front, and only if the person switched the strip on.
     if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
@@ -219,7 +229,14 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         }
     }
 
-    if (entryOpen) ManualEntrySheet(today, onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false }, onDismiss = { entryOpen = false })
+    if (entryOpen) {
+        ManualEntrySheet(
+            today,
+            onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false; entryRequest = null },
+            onDismiss = { entryOpen = false; entryRequest = null },
+            initial = entryRequest
+        )
+    }
     if (reviewOpen) {
         val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
         val store = rememberLearnedTemplates()
