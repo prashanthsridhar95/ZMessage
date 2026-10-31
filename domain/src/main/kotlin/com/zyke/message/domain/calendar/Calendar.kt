@@ -34,6 +34,7 @@ enum class CalendarKind(val label: String) {
     REGULAR("Regular payment"),
     SALARY("Salary"),
     LIFE("Order, trip or appointment"),
+    WARRANTY("Warranty or return date"),
     GOAL("Goal")
 }
 
@@ -104,6 +105,15 @@ object CalendarBuilder {
             val life = message.content as? MessageContent.Life ?: return@forEach
             val date = life.date?.takeIf(inMonth) ?: return@forEach
             all += CalendarEntry(CalendarKind.LIFE, life.title, life.status, date, time = life.time, done = life.isDone, messageId = message.id)
+        }
+
+        com.zyke.message.domain.life.Warranties.all(messages, zone).forEach { warranty ->
+            if (!inMonth(warranty.endsOn)) return@forEach
+            val ended = warranty.endsOn.isBefore(today)
+            all += CalendarEntry(
+                CalendarKind.WARRANTY, warranty.title, if (ended) "Ended" else "Ends", warranty.endsOn,
+                done = ended, messageId = warranty.message.id
+            )
         }
 
         // What is regularly paid or earned, on its usual day, from this month on.

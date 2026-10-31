@@ -88,6 +88,7 @@ private fun kindColor(kind: CalendarKind): Color = when (kind) {
     CalendarKind.REGULAR -> Color(0xFF9B6BE0)
     CalendarKind.SALARY -> Color(0xFF34A853)
     CalendarKind.LIFE -> Color(0xFF2FB8C8)
+    CalendarKind.WARRANTY -> Color(0xFFC2689A)
     CalendarKind.GOAL -> Color(0xFF7AA33A)
 }
 

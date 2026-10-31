@@ -17,6 +17,8 @@ import com.zyke.message.data.repository.CardRepositoryImpl
 import com.zyke.message.data.repository.CategoryOverrideRepositoryImpl
 import com.zyke.message.data.repository.MoneyPlanRepositoryImpl
 import com.zyke.message.data.repository.NicknameRepositoryImpl
+import com.zyke.message.data.repository.PaymentNotesRepositoryImpl
+import com.zyke.message.domain.repository.PaymentNotesRepository
 import com.zyke.message.data.repository.MutedSenderRepositoryImpl
 import com.zyke.message.data.repository.SettingsRepositoryImpl
 import com.zyke.message.data.repository.SplitRepositoryImpl
@@ -64,6 +66,7 @@ class AppContainer(context: Context) {
     val messageClassifier = MessageClassifier()
     val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
     val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
+    val paymentNotes: PaymentNotesRepository = PaymentNotesRepositoryImpl(context)
     val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context)
     val merges: MergeRepository = MergeRepositoryImpl(context)
     val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.data.repository.CalendarEventRepositoryImpl(context)
@@ -93,7 +96,7 @@ class AppContainer(context: Context) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates
+        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes
     )
 
     private fun cacheTag(context: Context): String {

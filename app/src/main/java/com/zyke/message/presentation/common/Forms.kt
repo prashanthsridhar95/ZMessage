@@ -127,7 +127,9 @@ fun FormField(
     error: String? = null,
     /** Offered while the field is being typed in: those that contain what is typed (a few, when nothing is yet). */
     suggestions: List<String> = emptyList(),
-    capitalization: KeyboardCapitalization = KeyboardCapitalization.None
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
+    /** False for free text: the field grows to a few lines instead of staying on one. */
+    singleLine: Boolean = true
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
@@ -137,7 +139,8 @@ fun FormField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).onFocusChanged { focused = it.isFocused },
-            singleLine = true,
+            singleLine = singleLine,
+            maxLines = if (singleLine) 1 else 5,
             isError = error != null,
             textStyle = if (large) MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyLarge,
             placeholder = placeholder?.let { { Text(it, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)) } },

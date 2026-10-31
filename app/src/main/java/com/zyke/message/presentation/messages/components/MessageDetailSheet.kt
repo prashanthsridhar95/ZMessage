@@ -219,6 +219,7 @@ internal fun MessageDetailSheet(
                         }
                     }
                 }
+                if (content is MessageContent.Transaction) PaymentNotesGroup(item)
                 SettingsGroup(if (content is MessageContent.Transaction) "Every payment to $title" else "About $title") {
                     if (canTag) {
                         DetailRow(
@@ -289,7 +290,7 @@ internal fun MessageDetailSheet(
 
 /** A titled card of rows, for settings that belong together. */
 @Composable
-private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
         FintechCard(content = content)

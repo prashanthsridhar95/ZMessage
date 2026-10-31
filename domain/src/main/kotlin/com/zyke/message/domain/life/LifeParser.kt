@@ -7,7 +7,8 @@ enum class LifeKind(val label: String) {
     DELIVERY("Order"),
     TRAVEL("Trip"),
     APPOINTMENT("Appointment"),
-    RENEWAL("Renewal")
+    RENEWAL("Renewal"),
+    WARRANTY("Warranty or return")
 }
 
 /** What a non-money message is about: an order on its way, a trip, an appointment, something that expires. */

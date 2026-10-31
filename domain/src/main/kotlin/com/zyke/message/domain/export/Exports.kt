@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter
 /** What the person can take out of the app: their transactions as a spreadsheet. Message text is left out; only what was read from it is written. */
 object Exports {
     private val HEADER = listOf(
-        "date", "time", "direction", "amount", "currency", "who", "category", "account", "bank", "kind", "from", "counted_in_totals", "note"
+        "date", "time", "direction", "amount", "currency", "who", "category", "account", "bank", "kind", "from", "counted_in_totals", "note", "tags", "personal_note"
     )
 
     fun transactionsCsv(messages: List<ClassifiedMessage>, zone: ZoneId): String = buildString {
@@ -37,7 +37,9 @@ object Exports {
                         if (manual) "entered by hand" else if (tx.isCard) "card" else "account",
                         if (manual) "You" else message.message.sender,
                         counted,
-                        if (manual) message.message.body else ""
+                        if (manual) message.message.body else "",
+                        message.tags.joinToString(" "),
+                        message.note.orEmpty()
                     ).joinToString(",") { csv(it) }
                 )
             }

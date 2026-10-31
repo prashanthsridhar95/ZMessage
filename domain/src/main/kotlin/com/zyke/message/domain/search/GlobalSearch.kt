@@ -131,6 +131,8 @@ object GlobalSearch {
                 best(needle, shown, payee),
                 amountRank(amount, amountOf(content)),
                 best(needle, m.category.displayString)?.plus(CATEGORY_PENALTY),
+                m.tags.mapNotNull { rank(needle, it) }.minOrNull()?.plus(CATEGORY_PENALTY),
+                m.note?.let { best(needle, it)?.plus(NOTE_PENALTY + 1) },
                 if (FeedBuilder.matches(m, needle)) TEXT_RANK else null
             ).minOrNull() ?: return@mapNotNull null
             val money = amountOf(content)?.let { "₹$it" }

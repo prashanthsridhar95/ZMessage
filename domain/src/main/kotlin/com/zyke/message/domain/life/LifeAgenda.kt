@@ -39,6 +39,16 @@ object LifeAgenda {
             AgendaItem(message, life.kind, life.title, life.status, date, life.time)
         }
 
+        val windows = Warranties.all(messages, zone).filter { !it.endsOn.isBefore(today) && !it.endsOn.isAfter(horizon) }.map {
+            val days = java.time.temporal.ChronoUnit.DAYS.between(today, it.endsOn)
+            val status = when (days) {
+                0L -> "ends today"
+                1L -> "ends tomorrow"
+                else -> "ends in $days days"
+            }
+            AgendaItem(it.message, LifeKind.WARRANTY, it.title, status, it.endsOn, null)
+        }
+
         // One line per order: its newest status, unless it has already arrived or is old news.
         val orders = messages.mapNotNull { message ->
             val life = message.content as? MessageContent.Life ?: return@mapNotNull null
@@ -56,6 +66,6 @@ object LifeAgenda {
             }
             .map { (_, message, life) -> AgendaItem(message, LifeKind.DELIVERY, life.title, life.status, null, null) }
 
-        return (dated.sortedWith(compareBy({ it.date }, { it.time })) + orders).distinctBy { it.message.id }.take(MAX_ITEMS)
+        return ((dated + windows).sortedWith(compareBy({ it.date }, { it.time })) + orders).distinctBy { it.message.id to (it.kind == LifeKind.WARRANTY) }.take(MAX_ITEMS)
     }
 }

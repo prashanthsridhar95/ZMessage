@@ -89,6 +89,8 @@ fun AppRoot(
     topNote: @Composable () -> Unit = {},
     /** The search page, over whatever tab is showing; it is only composed while open. [navigate] changes tab. */
     search: @Composable (onDismiss: () -> Unit, navigate: (AppTab) -> Unit) -> Unit = { _, _ -> },
+    /** Opens one message's sheet on Home, for a page (such as Tags) that lists payments. */
+    onOpenMessage: (Long) -> Unit = {},
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
@@ -112,6 +114,7 @@ fun AppRoot(
         LocalAppSnackbar provides snackbar,
         LocalOpenSettings provides { showSettings = true },
         com.zyke.message.presentation.common.LocalOpenSearch provides { showSearch = true },
+        com.zyke.message.presentation.common.LocalOpenMessage provides { id -> showSettings = false; showSearch = false; tab = AppTab.HOME; onOpenMessage(id) },
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
     com.zyke.message.presentation.settings.LearningOffers()

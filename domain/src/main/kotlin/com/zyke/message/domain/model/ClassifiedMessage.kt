@@ -31,7 +31,11 @@ data class ClassifiedMessage(
     /** Kept out of the income and spending totals, though still in the list: left out by the person, or a transfer between their own accounts. */
     val setAside: com.zyke.message.domain.ledger.SetAside? = null,
     /** The format the person taught that this message was read with (it was not understood by the built-in rules). */
-    val learnedTemplateId: String? = null
+    val learnedTemplateId: String? = null,
+    /** The person's own note on this payment. */
+    val note: String? = null,
+    /** The person's own labels on this payment, sorted. */
+    val tags: List<String> = emptyList()
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

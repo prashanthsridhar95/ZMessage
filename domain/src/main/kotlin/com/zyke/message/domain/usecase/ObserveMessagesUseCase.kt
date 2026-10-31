@@ -70,7 +70,9 @@ class ObserveMessagesUseCase(
     /** Payments left out of the totals and transfers between the person's own accounts. */
     private val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.domain.ledger.NoSetAsides,
     /** Message formats the person taught; applied to messages the built-in rules left as plain text. */
-    private val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.domain.repository.NoLearnedTemplates
+    private val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.domain.repository.NoLearnedTemplates,
+    /** The person's notes and tags on single payments. */
+    private val paymentNotes: com.zyke.message.domain.repository.PaymentNotesRepository = com.zyke.message.domain.repository.NoPaymentNotes
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -166,6 +168,9 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
+            .combine(paymentNotes.notes) { classified, notes ->
+                if (notes.isEmpty()) classified else classified.map { com.zyke.message.domain.notes.PaymentNotes.apply(it, notes) }
+            }
             .map(CategorySuggester::annotate)
             // Nothing changed for any message (every one is the same instance): do not wake every screen again.
             .distinctUntilChanged(::sameInstances)

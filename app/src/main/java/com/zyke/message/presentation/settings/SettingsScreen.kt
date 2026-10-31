@@ -352,6 +352,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
+            TagsEntry()
             RcsSection()
             SectionCard("Parsing health") {
                 val diagnostics = state.diagnostics

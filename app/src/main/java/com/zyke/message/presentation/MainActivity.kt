@@ -266,6 +266,7 @@ class MainActivity : ComponentActivity() {
                     settings = { onDismiss ->
                         SettingsRoute(settingsViewModel, versionName, onDismiss)
                     },
+                    onOpenMessage = { homeViewModel.onIntent(HomeContract.Intent.OpenMessage(it)) },
                     search = { onDismiss, navigate ->
                         com.zyke.message.presentation.search.SearchRoute(
                             home = homeViewModel.state,
