@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.State
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import com.zyke.message.presentation.format.DisplayFormatters
@@ -45,6 +47,7 @@ object Motion {
     const val COUNT_MS = 600
     const val GROW_MS = 500
     const val PRESSED_SCALE = 0.96f
+    const val CARD_PRESSED_SCALE = 0.98f
 }
 
 /**
@@ -73,19 +76,33 @@ fun rememberAnimatedRupees(target: BigDecimal): String {
 
 /** [target] approached from zero when first shown, then eased to any new value; for bars that grow into place. */
 @Composable
-fun rememberGrowingFraction(target: Float): Float {
-    if (rememberReduceMotion()) return target
+fun rememberGrowingFraction(target: Float): Float = rememberGrowingState(target).value
+
+/**
+ * [rememberGrowingFraction] as a [State]. Read it only while drawing (inside drawBehind, graphicsLayer or a Canvas),
+ * so each animation frame repaints a bar instead of recomposing and re-measuring it and everything beside it.
+ */
+@Composable
+fun rememberGrowingState(target: Float): State<Float> {
+    if (rememberReduceMotion()) return rememberUpdatedState(target)
     val grown = remember { Animatable(0f) }
     LaunchedEffect(target) { grown.animateTo(target, tween(Motion.GROW_MS, easing = FastOutSlowInEasing)) }
-    return grown.value
+    return grown.asState()
 }
 
-/** A small dip while pressed, so a tap is felt before anything else changes. */
+/** A light tick under the finger for a switch, an undo or a mark-as-paid. Works on every Android version. */
 @Composable
-fun Modifier.pressScale(source: InteractionSource): Modifier {
-    val pressed by source.collectIsPressedAsState()
+fun rememberTick(): () -> Unit {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    return remember(haptics) { { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) } }
+}
+
+/** A small dip while pressed, so a tap is felt before anything else changes. Cards use a gentler [pressed] size than buttons. */
+@Composable
+fun Modifier.pressScale(source: InteractionSource, pressed: Float = Motion.PRESSED_SCALE): Modifier {
+    val isPressed by source.collectIsPressedAsState()
     val reduce = rememberReduceMotion()
-    val scale by animateFloatAsState(if (pressed && !reduce) Motion.PRESSED_SCALE else 1f, tween(Motion.QUICK_MS), label = "press")
+    val scale by animateFloatAsState(if (isPressed && !reduce) pressed else 1f, tween(Motion.QUICK_MS), label = "press")
     return graphicsLayer {
         scaleX = scale
         scaleY = scale

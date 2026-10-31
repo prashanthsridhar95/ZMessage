@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.zyke.message.presentation.common.LocalImageStore
@@ -282,14 +283,25 @@ internal fun IconCaption(@DrawableRes icon: Int, text: String, modifier: Modifie
 private fun rememberSenderPicture(imageKey: String?, name: String?, wantsLogo: Boolean): ImageBitmap? {
     val store = LocalImageStore.current ?: return null
     val version by store.version.collectAsState()
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, imageKey, name, wantsLogo, version) {
+    // A picture already in memory is used on the very first composition, so a row scrolling in never flashes the
+    // placeholder icon first. Only a picture that has to be read from storage (or downloaded) arrives a moment later.
+    val cached = remember(imageKey, name, wantsLogo, version) {
+        when {
+            imageKey != null -> store.peekChosen(imageKey)
+            wantsLogo && !name.isNullOrBlank() -> store.peekLogo(name)
+            else -> null
+        }?.asImageBitmap()
+    }
+    if (cached != null) return cached
+    val loaded by produceState<ImageBitmap?>(initialValue = null, imageKey, name, wantsLogo, version) {
+        value = null
         value = when {
             imageKey != null -> store.loadChosen(imageKey)?.asImageBitmap()
             wantsLogo && !name.isNullOrBlank() -> store.loadLogo(name)?.asImageBitmap()
             else -> null
         }
     }
-    return bitmap
+    return loaded
 }
 
 

@@ -1,8 +1,12 @@
 package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.common.AppBottomSheet
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import com.zyke.message.presentation.common.rememberAnimatedRupees
-import com.zyke.message.presentation.common.rememberGrowingFraction
+import com.zyke.message.presentation.common.rememberGrowingState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -80,7 +84,8 @@ internal fun SpendSummarySheet(summary: SpendSummary, onDismiss: () -> Unit) {
                 )
             }
             summary.byCategory.forEach { spend ->
-                val fraction = rememberGrowingFraction((spend.amount.toDouble() / summary.total.toDouble()).toFloat().coerceIn(0f, 1f))
+                val fraction by rememberGrowingState((spend.amount.toDouble() / summary.total.toDouble()).toFloat().coerceIn(0f, 1f))
+                val barColor = MaterialTheme.colorScheme.primary
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         RowTitle(spend.category.displayString)
@@ -89,9 +94,15 @@ internal fun SpendSummarySheet(summary: SpendSummary, onDismiss: () -> Unit) {
                     Box(
                         Modifier
                             .padding(top = 6.dp)
-                            .fillMaxWidth(fraction)
+                            .fillMaxWidth()
                             .height(6.dp)
-                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
+                            .drawBehind {
+                                drawRoundRect(
+                                    barColor,
+                                    size = androidx.compose.ui.geometry.Size(size.width * fraction, size.height),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                                )
+                            }
                     )
                 }
             }

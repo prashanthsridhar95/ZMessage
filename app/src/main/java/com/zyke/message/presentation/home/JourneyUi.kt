@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import android.widget.Toast
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -67,7 +68,6 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.pow
@@ -118,8 +118,8 @@ internal fun JourneySheet(message: ClassifiedMessage, onOpenMessage: () -> Unit,
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val dateText = life.date?.let { date ->
-                    DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(date) +
-                        (life.time?.let { " · " + DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it) } ?: "")
+                    FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(date) +
+                        (life.time?.let { " · " + FormatCache.pattern("h:mm a", Locale.getDefault()).format(it) } ?: "")
                 }
                 dateText?.let { RowTitle(it) }
                 Caption(countdown(departure, now, life.status))

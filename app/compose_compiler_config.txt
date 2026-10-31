@@ -1,0 +1,11 @@
+// Types the Compose compiler may treat as stable (immutable, or compared by equals).
+// Format: https://developer.android.com/develop/ui/compose/performance/stability/fix#configuration-file
+// Everything in :domain is an immutable model; a change shows up as a new instance.
+com.zyke.message.domain.**
+// Standard immutable value types the compiler does not know about.
+java.time.*
+java.math.BigDecimal
+java.math.BigInteger
+java.util.UUID
+// Read-only collection interfaces (the app never mutates a list it has handed to a composable).
+kotlin.collections.*

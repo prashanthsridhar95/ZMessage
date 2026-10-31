@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,7 +78,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
@@ -131,7 +131,7 @@ internal fun CalendarPage(
     }
     val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
 
-    val monthName = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1))
+    val monthName = FormatCache.pattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1))
     val monthEntries = entries.values.flatten()
     val unsettled = monthEntries.filter { (it.kind == CalendarKind.BILL || it.kind == CalendarKind.DEBIT) && !it.done && it.amount != null }
     val dayEntries = entries[selected].orEmpty()
@@ -221,7 +221,7 @@ internal fun CalendarPage(
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(selected),
+                            FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(selected),
                             Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
                         )
                         if (selected == today) StatusPill("Today", Tone.NEUTRAL, Modifier.padding(start = 8.dp))
@@ -339,7 +339,7 @@ private fun EntryRow(entry: CalendarEntry, onClick: () -> Unit) {
                         Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1
                     )
-                    entry.time?.let { Caption(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it)) }
+                    entry.time?.let { Caption(FormatCache.pattern("h:mm a", Locale.getDefault()).format(it)) }
                 }
                 if (entry.detail.isNotBlank()) Caption(entry.detail, Modifier.padding(top = 4.dp), maxLines = 2)
             }

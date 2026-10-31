@@ -1,11 +1,14 @@
 package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.foundation.Image
 import kotlin.math.roundToInt
 import kotlin.math.abs
-import com.zyke.message.presentation.common.rememberGrowingFraction
+import com.zyke.message.presentation.common.rememberGrowingState
 import com.zyke.message.presentation.common.heading
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.semantics
@@ -270,7 +273,7 @@ private fun SubjectCard(subject: Subject) {
         else -> null
     }
     val fraction = basis?.let { (subject.spent.toDouble() / it.toDouble()).toFloat().coerceIn(0f, 1f) } ?: 0f
-    val grown = rememberGrowingFraction(fraction)
+    val grown by rememberGrowingState(fraction)
     val shape = RoundedCornerShape(22.dp)
 
     Column(
@@ -309,11 +312,13 @@ private fun SubjectCard(subject: Subject) {
                     .clip(RoundedCornerShape(3.dp))
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             ) {
+                val from = accent.copy(alpha = 0.6f)
+                val to = if (over) GradeColors.poor else accent
                 Box(
-                    Modifier
-                        .fillMaxWidth(grown.coerceAtLeast(0.02f))
-                        .fillMaxHeight()
-                        .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.6f), if (over) GradeColors.poor else accent)))
+                    Modifier.fillMaxSize().drawBehind {
+                        val filled = size.width * grown.coerceAtLeast(0.02f)
+                        drawRect(Brush.horizontalGradient(listOf(from, to), startX = 0f, endX = filled), size = androidx.compose.ui.geometry.Size(filled, size.height))
+                    }
                 )
             }
         }
@@ -370,7 +375,7 @@ private fun GradeChip(grade: Grade?) {
 private fun GradeRing(grade: Grade?, size: Dp, stroke: Dp, letterStyle: androidx.compose.ui.text.TextStyle) {
     val accent = GradeColors.of(grade)
     val score = ((grade?.points ?: 0) / 4f).coerceAtLeast(if (grade == null) 0f else 0.08f)
-    val sweep = rememberGrowingFraction(score)
+    val sweep by rememberGrowingState(score)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
 
     Box(

@@ -12,7 +12,7 @@ data class DetailFact(val label: String, val value: String)
 
 /** The numbers and names we understood in a message, as label / value rows for its detail sheet. */
 fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<DetailFact> {
-    val dates = DateTimeFormatter.ofPattern("d MMM yyyy", locale)
+    val dates = FormatCache.pattern("d MMM yyyy", locale)
     return when (val c = content) {
         is MessageContent.Transaction -> transactionFacts(c)
         is MessageContent.CardBill -> billFacts(c, dates)
@@ -30,7 +30,7 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
             DetailFact("Type", c.kind.label),
             DetailFact("Status", c.status),
             c.date?.let { DetailFact("Date", dates.format(it)) },
-            c.time?.let { DetailFact("Time", DateTimeFormatter.ofPattern("h:mm a", locale).format(it)) },
+            c.time?.let { DetailFact("Time", FormatCache.pattern("h:mm a", locale).format(it)) },
             c.reference?.let { DetailFact("Reference", it) }
         )
         is MessageContent.Notice -> listOfNotNull(

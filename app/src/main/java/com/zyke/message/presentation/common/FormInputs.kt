@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.common
 
 import androidx.compose.foundation.Image
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +47,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -151,7 +151,7 @@ fun DateField(
         label, modifier, supporting, onOpen = { open = true }, openLabel = "Choose a date",
         leading = { CalendarGlyph(R.drawable.baseline_event_24) },
         trailing = { ClearButton(clearable && date != null, "Clear the date") { onPick(null) } },
-        value = { ValueText(date?.let { DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.getDefault()).format(it) }, placeholder) },
+        value = { ValueText(date?.let { FormatCache.pattern("EEE, d MMM yyyy", Locale.getDefault()).format(it) }, placeholder) },
         below = { PresetChips(presets, date) { onPick(it) } }
     )
     if (open) {
@@ -189,7 +189,7 @@ fun TimeField(
         label, modifier, supporting, onOpen = { open = true }, openLabel = "Choose a time",
         leading = null,
         trailing = { ClearButton(time != null, "Clear the time") { onPick(null) } },
-        value = { ValueText(time?.let { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it) }, placeholder) },
+        value = { ValueText(time?.let { FormatCache.pattern("h:mm a", Locale.getDefault()).format(it) }, placeholder) },
         below = { PresetChips(presets, time) { onPick(it) } }
     )
     if (open) {

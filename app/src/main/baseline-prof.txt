@@ -1,0 +1,41 @@
+# Baseline profile, written by hand from the code that runs between tapping the icon and Home being scrollable
+# (and the first swipe through Insights and Messages). AGP compiles it into the release APK and ART pre-compiles
+# these methods at install time, so the first launch does not start in the interpreter.
+#
+# Format: [H][S][P]<class descriptor>[-><method>]. H = hot, S = startup, P = post-startup. `*` stays inside one package
+# level, `**` crosses levels. Regenerate with a Macrobenchmark BaselineProfileRule when a device is at hand; this file
+# is the floor, not the ceiling. BaselineProfilePolicyTest checks the packages named here still exist.
+
+# Application, container and the stores built at launch
+HSPLcom/zyke/message/ZykeMessagesApplication;->**(**)**
+HSPLcom/zyke/message/di/AppContainer;->**(**)**
+HSPLcom/zyke/message/di/AppContainer$*;->**(**)**
+HSPLcom/zyke/message/data/diag/DevLog;->**(**)**
+HSPLcom/zyke/message/data/repository/*;->**(**)**
+HSPLcom/zyke/message/data/cache/**;->**(**)**
+HSPLcom/zyke/message/data/images/**;->**(**)**
+HSPLcom/zyke/message/data/sms/**;->**(**)**
+
+# Activity, shell and the tabs
+HSPLcom/zyke/message/presentation/MainActivity*;->**(**)**
+HSPLcom/zyke/message/presentation/AppRoot*;->**(**)**
+HSPLcom/zyke/message/presentation/AppToolbar*;->**(**)**
+HSPLcom/zyke/message/presentation/ComposableSingletons$*;->**(**)**
+
+# Screens: Home, Accounts and Bills share one state; Insights; Messages
+HSPLcom/zyke/message/presentation/home/**;->**(**)**
+HSPLcom/zyke/message/presentation/dashboard/**;->**(**)**
+HSPLcom/zyke/message/presentation/messages/**;->**(**)**
+HSPLcom/zyke/message/presentation/mvi/**;->**(**)**
+
+# Shared building blocks every screen draws with
+HSPLcom/zyke/message/presentation/common/**;->**(**)**
+HSPLcom/zyke/message/presentation/theme/**;->**(**)**
+HSPLcom/zyke/message/presentation/format/**;->**(**)**
+
+# The classes themselves (so they are loaded and verified ahead of use), not only their methods
+Lcom/zyke/message/presentation/**;
+Lcom/zyke/message/domain/model/**;
+Lcom/zyke/message/domain/feed/**;
+Lcom/zyke/message/domain/home/**;
+Lcom/zyke/message/domain/classification/**;

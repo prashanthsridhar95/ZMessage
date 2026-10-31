@@ -3,7 +3,6 @@ package com.zyke.message.presentation.format
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
@@ -16,11 +15,11 @@ object DateFormatters {
         today: LocalDate = LocalDate.now(),
         locale: Locale = Locale.getDefault()
     ): String {
-        val day = DateTimeFormatter.ofPattern("dd MMM", locale).format(date)
+        val day = FormatCache.pattern("dd MMM", locale).format(date)
         return when (relativeDay(date, today)) {
             Relative.TODAY -> "Today, $day"
             Relative.YESTERDAY -> "Yesterday, $day"
-            Relative.THIS_WEEK -> "${DateTimeFormatter.ofPattern("EEEE", locale).format(date)}, $day"
+            Relative.THIS_WEEK -> "${FormatCache.pattern("EEEE", locale).format(date)}, $day"
             Relative.OLDER -> day
         }
     }
@@ -33,11 +32,11 @@ object DateFormatters {
         locale: Locale = Locale.getDefault()
     ): String {
         val dateTime = Instant.ofEpochMilli(epochMillis).atZone(zone)
-        val dayAndTime = DateTimeFormatter.ofPattern("dd MMM, hh:mm a", locale).format(dateTime)
+        val dayAndTime = FormatCache.pattern("dd MMM, hh:mm a", locale).format(dateTime)
         return when (relativeDay(dateTime.toLocalDate(), today)) {
             Relative.TODAY -> "Today, $dayAndTime"
             Relative.YESTERDAY -> "Yesterday, $dayAndTime"
-            Relative.THIS_WEEK -> "${DateTimeFormatter.ofPattern("EEEE", locale).format(dateTime)}, $dayAndTime"
+            Relative.THIS_WEEK -> "${FormatCache.pattern("EEEE", locale).format(dateTime)}, $dayAndTime"
             Relative.OLDER -> dayAndTime
         }
     }

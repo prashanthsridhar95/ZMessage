@@ -64,13 +64,17 @@ fun rememberLedgerActions(): LedgerActions {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
-    return remember(container, snackbar, scope) {
+    val tick = rememberTick()
+    return remember(container, snackbar, scope, tick) {
         LedgerActions(container.setAsides, container.manualEntries) { message, undo ->
             scope.launch {
                 // A newer change replaces an older one's offer rather than queueing behind it.
                 snackbar.currentSnackbarData?.dismiss()
                 val result = snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long)
-                if (result == SnackbarResult.ActionPerformed) undo()
+                if (result == SnackbarResult.ActionPerformed) {
+                    tick()
+                    undo()
+                }
             }
         }
     }

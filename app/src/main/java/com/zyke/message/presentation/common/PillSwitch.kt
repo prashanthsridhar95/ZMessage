@@ -12,6 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -22,18 +26,24 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
+    val reduce = rememberReduceMotion()
+    val tick = rememberTick()
     Row(
         modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         labels.forEachIndexed { index, label ->
             val on = index == selected
+            val fill by animateColorAsState(
+                if (on) MaterialTheme.colorScheme.primary else Color.Transparent,
+                tween(if (reduce) 0 else Motion.QUICK_MS), label = "pill"
+            )
             Text(
                 label,
                 Modifier
                     .clip(shape)
-                    .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(index) })
+                    .drawBehind { drawRect(fill) }
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { if (!on) tick(); onSelect(index) })
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
@@ -48,18 +58,24 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
 @Composable
 fun IconPillSwitch(glyphs: List<String>, descriptions: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
+    val reduce = rememberReduceMotion()
+    val tick = rememberTick()
     Row(
         modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         glyphs.forEachIndexed { index, glyph ->
             val on = index == selected
+            val fill by animateColorAsState(
+                if (on) MaterialTheme.colorScheme.primary else Color.Transparent,
+                tween(if (reduce) 0 else Motion.QUICK_MS), label = "pill"
+            )
             Text(
                 glyph,
                 Modifier
                     .clip(shape)
-                    .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(index) })
+                    .drawBehind { drawRect(fill) }
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { if (!on) tick(); onSelect(index) })
                     .semantics { contentDescription = descriptions[index] }
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 style = MaterialTheme.typography.titleMedium,

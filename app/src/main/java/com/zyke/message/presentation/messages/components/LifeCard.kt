@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
 import androidx.compose.foundation.background
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -84,7 +85,7 @@ internal fun whenLabel(date: LocalDate, content: MessageContent.Life, today: Loc
         today.plusDays(1) -> "Tomorrow"
         else -> DateTimeFormatter.ofPattern(if (date.year == today.year) "EEE d MMM" else "d MMM yyyy", Locale.getDefault()).format(date)
     }
-    val clock = content.time?.let { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it) }
+    val clock = content.time?.let { FormatCache.pattern("h:mm a", Locale.getDefault()).format(it) }
     return listOfNotNull(day, clock).joinToString(" · ")
 }
 

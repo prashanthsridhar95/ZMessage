@@ -22,6 +22,9 @@ class ZykeMessagesApplication : Application() {
         // First, so everything after it can be recorded when developer mode is on.
         com.zyke.message.data.diag.DevLog.init(this)
         container = AppContainer(this)
+        // The stores are built on first use; start building them now, in parallel and off the main thread, so the
+        // first frame is not what pays for reading each one's saved data.
+        container.warmUp()
         com.zyke.message.data.diag.DevLog.d("app") { "container ready" }
     }
 }

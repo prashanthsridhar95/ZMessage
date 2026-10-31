@@ -10,6 +10,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.zyke.message.data.cache.EncryptedClassificationCache
 import com.zyke.message.data.images.ImageStore
 import com.zyke.message.data.repository.BudgetRepositoryImpl
@@ -45,61 +46,76 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 /** Manual dependency container; one instance lives in the Application. */
 class AppContainer(context: Context) {
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
-    val wearSync = com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context))
-    val rcsStore = RcsMessageStore(context.applicationContext)
-    private val smsDataSource = SmsDataSource(context.applicationContext.contentResolver, rcsStore)
+    val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
+    val rcsStore by lazy { RcsMessageStore(context.applicationContext) }
+    private val smsDataSource by lazy { SmsDataSource(context.applicationContext.contentResolver, rcsStore) }
 
-    val smsRepository: SmsRepository = SmsRepositoryImpl(smsDataSource)
-    val userMessageState: UserMessageStateRepository = UserMessageStateRepositoryImpl(context)
-    val budgets: BudgetRepository = BudgetRepositoryImpl(context)
-    val categoryOverrides: CategoryOverrideRepository = CategoryOverrideRepositoryImpl(context)
-    val tokenRules: com.zyke.message.domain.repository.TokenRuleRepository = com.zyke.message.data.repository.TokenRuleRepositoryImpl(context)
-    val cards: CardRepository = CardRepositoryImpl(context)
-    val moneyPlan: MoneyPlanRepository = MoneyPlanRepositoryImpl(context)
-    val settings: SettingsRepository = SettingsRepositoryImpl(context)
-    val wishlist: WishlistRepository = WishlistRepositoryImpl(context)
-    val splits: SplitRepository = SplitRepositoryImpl(context)
-    val goals: GoalRepository = GoalRepositoryImpl(context)
-    val goalContributions: com.zyke.message.domain.goals.GoalContributionRepository = com.zyke.message.data.repository.GoalContributionRepositoryImpl(context)
-    val goalSavings = com.zyke.message.domain.goals.GoalSavings(goals, goalContributions)
-    val envelopes: com.zyke.message.domain.envelopes.EnvelopeRepository = com.zyke.message.data.repository.EnvelopeRepositoryImpl(context)
-    val reminders: ReminderRepository = ReminderRepositoryImpl(context)
-    val imageStore = ImageStore(context) { settings.settings.value.fetchLogos }
-    val messageClassifier = MessageClassifier()
-    val mutedSenders: MutedSenderRepository = MutedSenderRepositoryImpl(context)
-    val nicknames: NicknameRepository = NicknameRepositoryImpl(context)
-    val paymentNotes: PaymentNotesRepository = PaymentNotesRepositoryImpl(context)
-    val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context)
-    val merges: MergeRepository = MergeRepositoryImpl(context)
-    val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository = com.zyke.message.data.repository.CalendarEventRepositoryImpl(context)
-    val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.data.repository.InsightsFilterRepositoryImpl(context)
-    val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context)
-    val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository = com.zyke.message.data.repository.ManualEntryRepositoryImpl(context)
-    val setAsides: com.zyke.message.domain.ledger.SetAsideRepository = com.zyke.message.data.repository.SetAsideRepositoryImpl(context)
-    val paidBills: com.zyke.message.domain.home.PaidBillRepository = com.zyke.message.data.repository.PaidBillRepositoryImpl(context)
-    val watchlist: com.zyke.message.domain.markets.WatchlistRepository = com.zyke.message.data.repository.WatchlistRepositoryImpl(context)
-    val markets = com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default))
-    val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context)
-    val netWorth: com.zyke.message.domain.repository.NetWorthRepository = com.zyke.message.data.repository.NetWorthRepositoryImpl(context)
-    val loans: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.data.repository.LoanRepositoryImpl(context)
-    val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context)
+    val smsRepository: SmsRepository by lazy { SmsRepositoryImpl(smsDataSource) }
+    val userMessageState: UserMessageStateRepository by lazy { UserMessageStateRepositoryImpl(context) }
+    val budgets: BudgetRepository by lazy { BudgetRepositoryImpl(context) }
+    val categoryOverrides: CategoryOverrideRepository by lazy { CategoryOverrideRepositoryImpl(context) }
+    val tokenRules: com.zyke.message.domain.repository.TokenRuleRepository by lazy { com.zyke.message.data.repository.TokenRuleRepositoryImpl(context) }
+    val cards: CardRepository by lazy { CardRepositoryImpl(context) }
+    val moneyPlan: MoneyPlanRepository by lazy { MoneyPlanRepositoryImpl(context) }
+    val settings: SettingsRepository by lazy { SettingsRepositoryImpl(context) }
+    val wishlist: WishlistRepository by lazy { WishlistRepositoryImpl(context) }
+    val splits: SplitRepository by lazy { SplitRepositoryImpl(context) }
+    val goals: GoalRepository by lazy { GoalRepositoryImpl(context) }
+    val goalContributions: com.zyke.message.domain.goals.GoalContributionRepository by lazy { com.zyke.message.data.repository.GoalContributionRepositoryImpl(context) }
+    val goalSavings by lazy { com.zyke.message.domain.goals.GoalSavings(goals, goalContributions) }
+    val envelopes: com.zyke.message.domain.envelopes.EnvelopeRepository by lazy { com.zyke.message.data.repository.EnvelopeRepositoryImpl(context) }
+    val reminders: ReminderRepository by lazy { ReminderRepositoryImpl(context) }
+    val imageStore by lazy { ImageStore(context) { settings.settings.value.fetchLogos } }
+    val messageClassifier by lazy { MessageClassifier() }
+    val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
+    val nicknames: NicknameRepository by lazy { NicknameRepositoryImpl(context) }
+    val paymentNotes: PaymentNotesRepository by lazy { PaymentNotesRepositoryImpl(context) }
+    val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository by lazy { com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context) }
+    val merges: MergeRepository by lazy { MergeRepositoryImpl(context) }
+    val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository by lazy { com.zyke.message.data.repository.CalendarEventRepositoryImpl(context) }
+    val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository by lazy { com.zyke.message.data.repository.InsightsFilterRepositoryImpl(context) }
+    val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository by lazy { com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context) }
+    val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository by lazy { com.zyke.message.data.repository.ManualEntryRepositoryImpl(context) }
+    val setAsides: com.zyke.message.domain.ledger.SetAsideRepository by lazy { com.zyke.message.data.repository.SetAsideRepositoryImpl(context) }
+    val paidBills: com.zyke.message.domain.home.PaidBillRepository by lazy { com.zyke.message.data.repository.PaidBillRepositoryImpl(context) }
+    val watchlist: com.zyke.message.domain.markets.WatchlistRepository by lazy { com.zyke.message.data.repository.WatchlistRepositoryImpl(context) }
+    val markets by lazy { com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)) }
+    val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
+    val netWorth: com.zyke.message.domain.repository.NetWorthRepository by lazy { com.zyke.message.data.repository.NetWorthRepositoryImpl(context) }
+    val loans: com.zyke.message.domain.repository.LoanRepository by lazy { com.zyke.message.data.repository.LoanRepositoryImpl(context) }
+    val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository by lazy { com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context) }
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
      * new or reinstalled build, which may read messages differently, starts again from the messages themselves.
      */
-    val classificationCache: ClassificationCache = EncryptedClassificationCache(context, cacheTag(context))
+    val classificationCache: ClassificationCache by lazy { EncryptedClassificationCache(context, cacheTag(context)) }
 
     /** Outlives every screen, so the inbox is read once and shared, and keeps being read when a screen goes. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val observeMessages = ObserveMessagesUseCase(
+    val observeMessages by lazy { ObserveMessagesUseCase(
         smsRepository, messageClassifier,
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
         manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes
-    )
+    ) }
+
+    /**
+     * Builds, off the main thread and in parallel, what the first screen is certain to ask for. Every part above is
+     * created on first use, so asking early here only moves the cost (reading each store's saved JSON) away from the
+     * launch frame; anything the screen asks for before this has built it simply waits for that one part.
+     */
+    fun warmUp() {
+        val parts = listOf<() -> Any?>(
+            { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
+            { merges }, { moneyPlan }, { goals }, { reminders }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts },
+            { providentFundAccounts }, { setAsides }, { manualEntries }, { recurringPayments }, { loans }, { imageStore },
+            { classificationCache }, { observeMessages }
+        )
+        for (part in parts) appScope.launch { runCatching { part() } }
+    }
 
     private fun cacheTag(context: Context): String {
         val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()

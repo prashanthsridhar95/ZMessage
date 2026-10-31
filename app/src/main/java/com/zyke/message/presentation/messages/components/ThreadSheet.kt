@@ -79,7 +79,7 @@ fun ThreadSheet(
 
         LazyColumn(Modifier.fillMaxWidth(), state = listState) {
             thread.sections.forEach { section ->
-                stickyHeader(key = "thread-${section.id}") {
+                stickyHeader(key = "thread-${section.id}", contentType = "header") {
                     SectionHeader(
                         when (val id = section.id) {
                             SectionId.Pinned -> "Pinned"
@@ -87,7 +87,7 @@ fun ThreadSheet(
                         }
                     )
                 }
-                items(section.items, key = { it.key }) { item ->
+                items(section.items, key = { it.key }, contentType = { "message" }) { item ->
                     MessageItem(item = item.newest, state = state, actions = actions, modifier = Modifier.animateItem())
                 }
             }

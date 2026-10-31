@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import com.zyke.message.domain.goals.Goals
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.common.ChipOption
 import com.zyke.message.presentation.common.Chips
 import com.zyke.message.presentation.common.AmountField
@@ -61,11 +62,10 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 
-private val DayFormat = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+private val DayFormat = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
 
 @Composable
 internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Unit)?, onDismiss: () -> Unit) {
@@ -147,7 +147,7 @@ internal fun ReminderDialog(
             "Notify me at (optional)", time, { timeText = it?.toString().orEmpty() },
             placeholder = "Morning summary only", presets = timePresets,
             supporting = if (time == null) "It is mentioned in the morning summary on the day"
-            else "A notification at ${DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(time)} on the day"
+            else "A notification at ${FormatCache.pattern("h:mm a", Locale.getDefault()).format(time)} on the day"
         )
         FormGroup("Repeat") {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.theme.AppColors
 import com.zyke.message.presentation.common.rememberReduceMotion
 import com.zyke.message.presentation.common.ButtonStyle
@@ -56,7 +57,6 @@ import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import java.math.BigDecimal
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val IncomeColor: Color @Composable @ReadOnlyComposable get() = AppColors.success
@@ -82,7 +82,7 @@ internal fun IncomeExpenseCard(
     val receivedByDate = income.associate { it.start to it.amount }
     val spent = dates.map { spentByDate[it] ?: BigDecimal.ZERO }
     val received = dates.map { receivedByDate[it] ?: BigDecimal.ZERO }
-    val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
+    val monthFmt = FormatCache.pattern("MMMM", Locale.getDefault())
     val caption = when (period) {
         DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> periodName(dashboard.range)
         DashboardPeriod.LAST_3_MONTHS -> "Last 3 months"
@@ -176,7 +176,7 @@ internal fun IncomeExpenseCard(
                 draw(received, incomeColor)
                 draw(spent, expenseColor)
             }
-            val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+            val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Caption(dayFmt.format(dates[kotlin.math.round(viewAt).toInt().coerceIn(0, last)]), Modifier.weight(1f))
                 AppButton("−", { zoom = (zoom / ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom > 1f)

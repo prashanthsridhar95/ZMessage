@@ -1,20 +1,19 @@
 package com.zyke.message.presentation.format
 
 import java.math.BigDecimal
-import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** Small string helpers shared by the message cards. */
 object DisplayFormatters {
+    private val INDIA: Locale = Locale.forLanguageTag("en-IN")
 
     /** "2:30 PM" */
     fun time(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String =
-        DateTimeFormatter.ofPattern("h:mm a", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
+        FormatCache.pattern("h:mm a", locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
 
     /** Compact stamp for conversation lists: time today, "Yesterday", weekday this week, else "05 Mar". */
     fun listStamp(
@@ -27,8 +26,8 @@ object DisplayFormatters {
         return when (ChronoUnit.DAYS.between(dateTime.toLocalDate(), today)) {
             0L -> time(epochMillis, zone, locale)
             1L -> "Yesterday"
-            in 2L..6L -> DateTimeFormatter.ofPattern("EEE", locale).format(dateTime)
-            else -> DateTimeFormatter.ofPattern("dd MMM", locale).format(dateTime)
+            in 2L..6L -> FormatCache.pattern("EEE", locale).format(dateTime)
+            else -> FormatCache.pattern("dd MMM", locale).format(dateTime)
         }
     }
 
@@ -36,23 +35,15 @@ object DisplayFormatters {
     fun count(count: Int, one: String, many: String): String = if (count == 1) "$count $one" else "$count $many"
 
     /** "₹12,345" (Indian digit grouping where the platform supports it), fractions only when non-zero. */
-    fun rupees(amount: BigDecimal, locale: Locale = Locale.forLanguageTag("en-IN")): String {
+    fun rupees(amount: BigDecimal, locale: Locale = INDIA): String {
         // Whole amounts show no decimals; anything with paise always shows two (₹2,15,134.10, not ₹2,15,134.1).
         val whole = amount.stripTrailingZeros().scale() <= 0
-        val format = NumberFormat.getNumberInstance(locale).apply {
-            maximumFractionDigits = 2
-            minimumFractionDigits = if (whole) 0 else 2
-        }
-        return "₹" + format.format(amount)
+        return "₹" + FormatCache.number(locale, if (whole) 0 else 2, 2).format(amount)
     }
 
     /** Like [rupees] but always with exactly [fractionDigits] decimals, so a counting number keeps one width and precision. */
-    fun rupeesFixed(amount: BigDecimal, fractionDigits: Int, locale: Locale = Locale.forLanguageTag("en-IN")): String {
-        val format = NumberFormat.getNumberInstance(locale).apply {
-            maximumFractionDigits = fractionDigits
-            minimumFractionDigits = fractionDigits
-        }
-        return "₹" + format.format(amount)
+    fun rupeesFixed(amount: BigDecimal, fractionDigits: Int, locale: Locale = INDIA): String {
+        return "₹" + FormatCache.number(locale, fractionDigits, fractionDigits).format(amount)
     }
 
     fun rupees(raw: String): String = raw.toBigDecimalOrNull()?.let { rupees(it) } ?: "₹$raw"
@@ -63,7 +54,7 @@ object DisplayFormatters {
             0L -> "Due today"
             1L -> "Due tomorrow"
             in 2L..7L -> "Due in $days days"
-            else -> "Due ${DateTimeFormatter.ofPattern("dd MMM", locale).format(dueDate)}"
+            else -> "Due ${FormatCache.pattern("dd MMM", locale).format(dueDate)}"
         }
 
     /** Due dates within three days are worth drawing the eye to. */
@@ -71,5 +62,5 @@ object DisplayFormatters {
         ChronoUnit.DAYS.between(today, dueDate) in 0L..3L
 
     fun monthName(month: java.time.YearMonth, locale: Locale = Locale.getDefault()): String =
-        DateTimeFormatter.ofPattern("MMMM", locale).format(month)
+        FormatCache.pattern("MMMM", locale).format(month)
 }

@@ -699,10 +699,11 @@ private fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tick = com.zyke.message.presentation.common.rememberTick()
     Row(
         modifier
             .fillMaxWidth()
-            .toggleable(value = checked, onValueChange = onCheckedChange, role = Role.Switch),
+            .toggleable(value = checked, onValueChange = { tick(); onCheckedChange(it) }, role = Role.Switch),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {

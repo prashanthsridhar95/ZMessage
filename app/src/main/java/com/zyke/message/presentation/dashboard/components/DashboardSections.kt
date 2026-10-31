@@ -1,6 +1,10 @@
 package com.zyke.message.presentation.dashboard.components
 
 import com.zyke.message.presentation.common.FintechCard
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.domain.dashboard.DateRange
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.ui.semantics.stateDescription
@@ -82,7 +86,7 @@ import com.zyke.message.domain.dashboard.VendorSummary
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.presentation.format.DateFormatters
 import com.zyke.message.presentation.common.rememberAnimatedRupees
-import com.zyke.message.presentation.common.rememberGrowingFraction
+import com.zyke.message.presentation.common.rememberGrowingState
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
 import com.zyke.message.presentation.messages.components.Caption
@@ -355,7 +359,7 @@ internal fun HeroCard(
     /** True on the Money tab, where the totals are a switch and one is chosen; false where they only link. */
     showSelection: Boolean = true
 ) {
-    val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
+    val monthFmt = FormatCache.pattern("MMMM", Locale.getDefault())
     val verb = dashboard.direction.label
     val caption = when (period) {
         DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> "$verb · ${periodName(dashboard.range)}"
@@ -502,11 +506,17 @@ internal fun TrendChart(
 
 @Composable
 private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<MessageCategory>) {
-    val height = rememberGrowingFraction(point.amount.fractionOf(max).coerceAtLeast(0.04f)).coerceAtLeast(0.01f)
+    val target = point.amount.fractionOf(max).coerceAtLeast(0.04f)
+    val grown by rememberGrowingState(target)
     Column(
         Modifier
             .fillMaxWidth()
-            .fillMaxHeight(height)
+            .fillMaxHeight(target)
+            // Grows from the baseline by scaling, which repaints; changing the height would measure 30 bars again every frame.
+            .graphicsLayer {
+                scaleY = (grown / target).coerceAtLeast(0.01f)
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+            }
             .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
     ) {
         point.byCategory.forEach { (category, amount) ->
@@ -531,11 +541,11 @@ internal fun ChartLegend(ranking: List<MessageCategory>, modifier: Modifier = Mo
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(ranking.take(ChartColors.NAMED), key = { it.name }) { category ->
+        items(ranking.take(ChartColors.NAMED), key = { it.name }, contentType = { "legend" }) { category ->
             LegendItem(ChartColors.forCategory(category, ranking), category.displayString)
         }
         if (ranking.size > ChartColors.NAMED) {
-            item(key = "other") { LegendItem(ChartColors.other, "Other") }
+            item(key = "other", contentType = "legend") { LegendItem(ChartColors.other, "Other") }
         }
     }
 }
@@ -639,7 +649,7 @@ internal fun ShareBar(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
-    val shown = rememberGrowingFraction(fraction.coerceIn(0.01f, 1f))
+    val shown by rememberGrowingState(fraction.coerceIn(0.01f, 1f))
     Box(
         modifier
             .padding(top = 6.dp)
@@ -649,9 +659,14 @@ internal fun ShareBar(
     ) {
         Box(
             Modifier
-                .fillMaxWidth(shown.coerceAtLeast(0.01f))
-                .fillMaxHeight()
-                .background(color, RoundedCornerShape(2.dp))
+                .fillMaxSize()
+                .drawBehind {
+                    drawRoundRect(
+                        color,
+                        size = androidx.compose.ui.geometry.Size(size.width * shown.coerceAtLeast(0.01f), size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                    )
+                }
         )
     }
 }
@@ -734,7 +749,7 @@ internal fun CardBillRow(
     val due = latest.dueDate
     val passed = due != null && due.isBefore(today)
     val urgent = due != null && !passed && DisplayFormatters.isUrgent(due, today)
-    val dayFmt = DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault())
+    val dayFmt = FormatCache.pattern("dd MMM", Locale.getDefault())
     val status = when {
         due == null -> "Statement · ${dayFmt.format(statementDate(latest))}"
         passed -> "Due date passed · ${dayFmt.format(due)}"
@@ -778,7 +793,7 @@ internal fun CardBillSheet(
     onPay: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val dayFmt = DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault())
+    val dayFmt = FormatCache.pattern("dd MMM", Locale.getDefault())
     val all = listOf(bills.latest) + bills.earlier
     val oldestFirst = all.sortedBy { it.epochMillis }
     val latest = bills.latest
@@ -861,7 +876,7 @@ private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter
 internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel: String, description: String, modifier: Modifier = Modifier) {
     val max = amounts.maxOf { it }.coerceAtLeast(BigDecimal.ONE)
     val values = amounts.map { it.fractionOf(max) }
-    val rise = rememberGrowingFraction(1f)
+    val rise by rememberGrowingState(1f)
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
 
@@ -966,7 +981,7 @@ private fun CardCycleRow(entry: CardCycles, onOpen: () -> Unit) {
 /** One card or account: what this cycle has cost against the one before, the trend over the cycles, and each cycle. */
 @Composable
 internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
-    val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
     val inWord = if (entry.card.type == CardType.ACCOUNT) "received" else "paid"
     val oldestFirst = entry.cycles.sortedBy { it.start }
     val current = entry.cycles.firstOrNull { it.isCurrent } ?: entry.cycles.firstOrNull()
@@ -1075,7 +1090,7 @@ internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modi
 
 private const val MAX_LIMITS_SHOWN = 4
 
-private val RangeFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+private val RangeFormat = FormatCache.pattern("d MMM", Locale.getDefault())
 
 /** "28 Sep – 5 Oct", or just the month's name when the days are a whole calendar month. */
 internal fun rangeLabel(range: DateRange): String = "${RangeFormat.format(range.start)} – ${RangeFormat.format(range.endInclusive)}"
@@ -1083,7 +1098,7 @@ internal fun rangeLabel(range: DateRange): String = "${RangeFormat.format(range.
 /** What to call a period on screen: the month's name for a calendar month so far, else the days it covers. */
 internal fun periodName(range: DateRange): String {
     val calendarMonth = range.start.dayOfMonth == 1 && java.time.YearMonth.from(range.start) == java.time.YearMonth.from(range.endInclusive)
-    return if (calendarMonth) DateTimeFormatter.ofPattern("MMMM", Locale.getDefault()).format(range.start) else rangeLabel(range)
+    return if (calendarMonth) FormatCache.pattern("MMMM", Locale.getDefault()).format(range.start) else rangeLabel(range)
 }
 
 /** Pick any two days from a calendar. */

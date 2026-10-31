@@ -240,9 +240,10 @@ private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: 
 @Composable
 private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
-    val ranking = dashboard.categories.map { it.category }
+    val categories = dashboard.categories
+    val ranking = remember(categories) { categories.map { it.category } }
     val received = state.direction == FlowDirection.RECEIVED
-    val categoryTotal = dashboard.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
+    val categoryTotal = remember(categories) { categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total } }
     var showYear by remember { mutableStateOf(false) }
     val reviewYear = remember(state.messages, today) {
         com.zyke.message.presentation.review.yearToReview(state.messages, today, ZoneId.systemDefault())

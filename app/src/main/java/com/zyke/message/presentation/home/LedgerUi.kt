@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.layout.Arrangement
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -290,9 +291,9 @@ internal fun ReviewPage(
     }
 }
 
-private val DueFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.getDefault())
+private val DueFormat = FormatCache.pattern("d MMM yyyy", java.util.Locale.getDefault())
 
-private val StampFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", java.util.Locale.getDefault())
+private val StampFormat = FormatCache.pattern("d MMM yyyy, h:mm a", java.util.Locale.getDefault())
 
 /** When the message arrived: the day and the time. */
 private fun stampOf(message: com.zyke.message.domain.model.ClassifiedMessage): String =

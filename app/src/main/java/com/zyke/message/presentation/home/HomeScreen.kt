@@ -56,6 +56,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -293,9 +295,12 @@ private fun SummaryPage(
     val markPaid = rememberMarkPaid(onIntent)
     val focus = state.nudges.firstOrNull()
     val next = state.upcoming.firstOrNull()
-    val nowMillis = rememberNowMillis()
-    val codes = freshCodes(state, nowMillis)
+    // The clock ticks every second, but only the code card needs to see it: Home itself changes only when a code appears or runs out.
+    val now = rememberNowState()
+    val otps = remember(state.messages, state.userState.archivedIds) { otpCandidates(state) }
+    val codes by remember(otps) { derivedStateOf(structuralEqualityPolicy()) { freshCodes(otps, now.value) } }
 
+    val attention = remember(state.attention) { state.attention.filterNot { it is AttentionItem.FreshOtp } }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -326,13 +331,12 @@ private fun SummaryPage(
         }
 
         // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
-        val attention = state.attention.filterNot { it is AttentionItem.FreshOtp }
         if (codes.isNotEmpty() || attention.isNotEmpty()) {
             item(key = "priority") {
                 FintechCard(movingOutline = true) {
                     if (codes.isNotEmpty()) {
                         CodePagerContent(
-                            codes, nowMillis,
+                            codes, now.value,
                             onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
                             onAll = { onIntent(Intent.OpenCodes) }
                         )
@@ -424,6 +428,9 @@ private const val REMINDERS_SHOWN = 4
 @Composable
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
     val markPaid = rememberMarkPaid(onIntent)
+    val recurringArranged = remember(state.subscriptions, state.recurringStates) {
+        com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
+    }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -501,7 +508,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
             }
         }
         item(key = "friends-link") { FriendsLink(state, onIntent) }
-        val recurring = com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates)
+        val recurring = recurringArranged
         if (recurring.isNotEmpty()) {
             item(key = "subscriptions") {
                 PlainSection("Repeats monthly") {
@@ -752,13 +759,16 @@ private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val paidBills = rememberPaidBills()
+    val tick = com.zyke.message.presentation.common.rememberTick()
     return { item ->
+        tick()
         paidBills.record(com.zyke.message.domain.home.PaidBill.from(item, LocalDate.now()))
         onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
         item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
         scope.launch {
             val result = snackbar.showSnackbar("Marked ${item.title} as paid", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                tick()
                 onIntent(Intent.RestoreAttention(item.markedPaidKey))
                 item.attentionKey?.let { onIntent(Intent.RestoreAttention(it)) }
                 paidBills.remove(item.markedPaidKey)

@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.runtime.ReadOnlyComposable
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.theme.AppColors
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -66,7 +67,6 @@ import java.math.BigDecimal
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -129,7 +129,7 @@ internal fun BudgetCalendarSheet(
     val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone, planned) }
     val streakDays = remember(daily.currentStreak, today) { (0 until daily.currentStreak).map { today.minusDays(it.toLong()) }.toSet() }
     var selected by rememberSaveable(range.start) { mutableStateOf<java.time.LocalDate?>(null) }
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val leading = (range.start.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
     val within = days.count { it.status == DayStatus.UNDER }
     val over = days.count { it.status == DayStatus.OVER }
@@ -228,7 +228,7 @@ private fun DaySheet(
     AppBottomSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
             Text(
-                DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()).format(day.date),
+                FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(day.date),
                 Modifier.heading(),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary
@@ -258,7 +258,7 @@ private fun DayBreakdownList(
     val items = if (received) breakdown.received else breakdown.spent
     val categories = remember(items) { DayBreakdown.categories(items) }
     val total = items.sumOf { it.amount }
-    val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    val timeFormat = FormatCache.pattern("h:mm a", Locale.getDefault())
 
     Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
         // One line: the tabs on the left, and on the right the switch between spent and received, as symbols.

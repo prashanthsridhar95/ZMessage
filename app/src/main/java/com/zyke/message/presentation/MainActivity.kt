@@ -157,8 +157,11 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 container.reminders.reminders.collect {
-                    com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
-                    DaysAheadWidget.refresh(this@MainActivity)
+                    // Alarm and widget bookkeeping, off the main thread so it never lands in a frame.
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
+                        DaysAheadWidget.refresh(this@MainActivity)
+                    }
                 }
             }
         }
@@ -174,7 +177,9 @@ class MainActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                container.calendarEvents.events.collect { DaysAheadWidget.refresh(this@MainActivity) }
+                container.calendarEvents.events.collect {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { DaysAheadWidget.refresh(this@MainActivity) }
+                }
             }
         }
         // Locked from the very first frame, so the inbox never flashes before the lock screen.
@@ -182,12 +187,12 @@ class MainActivity : ComponentActivity() {
             getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
         // The install time rides along with the version, so it is plain which build is on the phone.
-        val versionName = runCatching {
+        val versionName by lazy { runCatching {
             val info = packageManager.getPackageInfo(packageName, 0)
             val installed = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm")
                 .format(java.time.Instant.ofEpochMilli(info.lastUpdateTime).atZone(java.time.ZoneId.systemDefault()))
             "${info.versionName} (installed $installed)"
-        }.getOrNull().orEmpty()
+        }.getOrNull().orEmpty() }
 
         setContent {
             val appSettings by container.settings.settings.collectAsStateWithLifecycle()
@@ -242,15 +247,18 @@ class MainActivity : ComponentActivity() {
                 if (locked) {
                     LockScreen(onUnlock = ::requestUnlock)
                 } else {
-                val home by homeViewModel.state.collectAsStateWithLifecycle()
-                val inbox by messagesViewModel.state
-                    .map { it.toToolbarState() }
-                    .distinctUntilChanged()
-                    .collectAsStateWithLifecycle(InboxToolbarState())
-                val money by dashboardViewModel.state
-                    .map { MoneyToolbarState(it.dashboard != null && !it.permissionMissing && !it.hasError, it.activeFilterCount) }
-                    .distinctUntilChanged()
-                    .collectAsStateWithLifecycle(MoneyToolbarState())
+                // Only the few fields the shell shows are watched, and the flows are built once: watching a whole screen
+                // state here would redraw the toolbar and the bottom bar on every change to the lists beneath them.
+                val unread by remember { homeViewModel.state.map { it.unreadCount }.distinctUntilChanged() }
+                    .collectAsStateWithLifecycle(0)
+                val inbox by remember {
+                    messagesViewModel.state.map { it.toToolbarState() }.distinctUntilChanged()
+                }.collectAsStateWithLifecycle(InboxToolbarState())
+                val money by remember {
+                    dashboardViewModel.state
+                        .map { MoneyToolbarState(it.dashboard != null && !it.permissionMissing && !it.hasError, it.activeFilterCount) }
+                        .distinctUntilChanged()
+                }.collectAsStateWithLifecycle(MoneyToolbarState())
 
                 val toolbarCallbacks = remember {
                     ToolbarCallbacks(
@@ -261,10 +269,13 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                val reading by container.observeMessages.progress.collectAsStateWithLifecycle()
                 AppRoot(
-                    inboxBadge = home.unreadCount,
-                    topNote = { ReadingNote(reading) },
+                    inboxBadge = unread,
+                    // Collected inside the note, so the progress ticking while the inbox is read redraws only the note.
+                    topNote = {
+                        val reading by container.observeMessages.progress.collectAsStateWithLifecycle()
+                        ReadingNote(reading)
+                    },
                     toolbar = { tab, openSettings ->
                         AppToolbar(
                             tab = tab,
@@ -388,9 +399,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        container.settings.settings.value.morningDigest.let { DigestScheduler(this).apply(it) }
-        container.settings.settings.value.weeklySummary.let { WeeklyScheduler(this).apply(it) }
-        DaysAheadWidget.refresh(this)
+        // Alarms and the widget do not need to be ready for the first frame.
+        val current = container.settings.settings.value
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            DigestScheduler(this@MainActivity).apply(current.morningDigest)
+            WeeklyScheduler(this@MainActivity).apply(current.weeklySummary)
+            DaysAheadWidget.refresh(this@MainActivity)
+        }
     }
 
     /** A very large inbox takes a while to read; a notification keeps the work alive if the app is left meanwhile. */

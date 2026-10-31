@@ -1,6 +1,11 @@
 package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,12 +44,11 @@ import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LimitStatus
 import com.zyke.message.presentation.common.limitColors
-import com.zyke.message.presentation.common.rememberGrowingFraction
+import com.zyke.message.presentation.common.rememberGrowingState
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import java.math.BigDecimal
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -108,7 +112,7 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         RowTitle(status.item.name)
-                        val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+                        val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
                         Caption(
                             when {
                                 status.isPaid -> "Paid ${status.paidOn?.let(dayFmt::format).orEmpty()}"
@@ -214,7 +218,7 @@ private fun SalaryLine(plan: MoneyPlan, insights: PlanInsights, status: SalarySt
 
 @Composable
 private fun Bar(fraction: Float, color: Color) {
-    val shown = rememberGrowingFraction(fraction)
+    val shown by rememberGrowingState(fraction)
     Box(
         Modifier
             .padding(top = 6.dp)
@@ -223,6 +227,10 @@ private fun Bar(fraction: Float, color: Color) {
             .clip(RoundedCornerShape(3.dp))
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
     ) {
-        Box(Modifier.fillMaxWidth(shown.coerceAtLeast(0.02f)).fillMaxHeight().background(color))
+        Box(
+            Modifier.fillMaxSize().drawBehind {
+                drawRect(color, size = androidx.compose.ui.geometry.Size(size.width * shown.coerceAtLeast(0.02f), size.height))
+            }
+        )
     }
 }

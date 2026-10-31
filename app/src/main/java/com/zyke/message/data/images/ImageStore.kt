@@ -105,6 +105,22 @@ class ImageStore(
         updateKeys(_keys.value - key)
     }
 
+    /** The picture if it is already in memory, else null. Cheap enough to ask while a row is being composed. */
+    fun peekChosen(key: String): Bitmap? = cache.get(CHOSEN + key)
+
+    /** The brand logo for [name] if it is already in memory, else null. Never reads a file or the network. */
+    fun peekLogo(name: String): Bitmap? {
+        if (isHidden(name)) return null
+        val domain = domainOf(name) ?: return null
+        return cache.get(LOGO + domain)
+    }
+
+    /** [KnownEntityDomains.domainFor] builds regexes on every call; a list of rows asks the same few names again and again. */
+    private val domains = ConcurrentHashMap<String, String>()
+
+    private fun domainOf(name: String): String? =
+        domains.getOrPut(name) { KnownEntityDomains.domainFor(name) ?: "" }.ifEmpty { null }
+
     suspend fun loadChosen(key: String): Bitmap? = withContext(Dispatchers.IO) {
         cache.get(CHOSEN + key) ?: decodeFile(File(chosenDir, fileName(key)))?.also { cache.put(CHOSEN + key, it) }
     }
@@ -112,7 +128,7 @@ class ImageStore(
     /** The cached logo for a well-known [name]; downloads it first when allowed and not tried recently. */
     suspend fun loadLogo(name: String): Bitmap? = withContext(Dispatchers.IO) {
         if (isHidden(name)) return@withContext null
-        val domain = KnownEntityDomains.domainFor(name) ?: return@withContext null
+        val domain = domainOf(name) ?: return@withContext null
         cache.get(LOGO + domain)?.let { return@withContext it }
         val file = File(logoDir, fileName(domain))
         decodeFile(file)?.let { return@withContext it.also { bitmap -> cache.put(LOGO + domain, bitmap) } }
@@ -135,7 +151,7 @@ class ImageStore(
     }
 
     /** True when the name is one a brand logo can be found for. */
-    fun hasLogo(name: String): Boolean = KnownEntityDomains.domainFor(name) != null
+    fun hasLogo(name: String): Boolean = domainOf(name) != null
 
     fun isHidden(name: String): Boolean = norm(name) in _hidden.value
 

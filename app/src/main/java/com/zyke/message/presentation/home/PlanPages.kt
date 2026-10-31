@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.background
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,7 +48,6 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -187,7 +187,7 @@ private fun GoalCard(
                         progress.neededPerMonth != null -> StatusPill("${DisplayFormatters.rupees(progress.neededPerMonth!!)} a month", Tone.NEUTRAL)
                         else -> StatusPill("No date set", Tone.NEUTRAL)
                     }
-                    goal.targetDate?.let { Caption("by ${DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()).format(it)}") }
+                    goal.targetDate?.let { Caption("by ${FormatCache.pattern("d MMM yyyy", Locale.getDefault()).format(it)}") }
                 }
             }
         }
@@ -208,7 +208,7 @@ private fun GoalHistory(history: List<GoalContribution>, onRemove: (GoalContribu
     var open by rememberSaveable(history.first().goalId) { mutableStateOf(false) }
     LinkButton(if (open) "Hide history" else "History (${history.size})", { open = !open })
     if (open) {
-        val format = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+        val format = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
         history.forEach { entry ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -313,7 +313,7 @@ private fun ReminderCard(due: ReminderDue, today: LocalDate, onEdit: () -> Unit)
                         },
                         tone
                     )
-                    due.reminder.time?.let { Caption(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).format(it)) }
+                    due.reminder.time?.let { Caption(FormatCache.pattern("h:mm a", Locale.getDefault()).format(it)) }
                     if (due.reminder.repeatsMonthly) Caption("every month")
                 }
             }
@@ -334,7 +334,7 @@ internal fun DateBadge(date: LocalDate, tint: androidx.compose.ui.graphics.Color
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            DateTimeFormatter.ofPattern("MMM", Locale.getDefault()).format(date).uppercase(),
+            FormatCache.pattern("MMM", Locale.getDefault()).format(date).uppercase(),
             style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = tint, textAlign = TextAlign.Center
         )
         Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)

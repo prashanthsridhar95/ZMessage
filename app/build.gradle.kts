@@ -7,6 +7,14 @@ plugins {
 // Optional watch support: -PwithWear=true compiles the Wear OS Data Layer link (needs play-services-wearable).
 val withWear = providers.gradleProperty("withWear").orNull == "true"
 
+// Compose compiler: every composable may skip when its inputs are equal, and the :domain models (immutable data
+// classes in another module, which the compiler cannot see into) count as stable. Without this, a single new state
+// object recomposes every card on the screen.
+composeCompiler {
+    enableStrongSkippingMode = true
+    stabilityConfigurationFile = layout.projectDirectory.file("compose_compiler_config.txt")
+}
+
 android {
     namespace = "com.zyke.message"
     compileSdk = 35

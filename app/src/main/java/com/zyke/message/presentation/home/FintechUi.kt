@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.lifecycle.repeatOnLifecycle
+import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.common.UnderlineTabs
 import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.LocalImageStore
@@ -68,7 +69,6 @@ import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** What the accounts hold in all, as the one big number on Home. */
@@ -104,15 +104,22 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
  * What the countdown is measured against is always the clock on the phone, so time passes whether or not it is drawn.
  */
 @Composable
-internal fun rememberNowMillis(): Long {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+internal fun rememberNowMillis(): Long = rememberNowState().value
+
+/**
+ * The same clock as a [State], for a screen that should not recompose as a whole every second: read `.value` only
+ * inside the small part that shows the countdown, or from a derivedStateOf that changes rarely.
+ */
+@Composable
+internal fun rememberNowState(): androidx.compose.runtime.State<Long> {
+    val now = remember { mutableLongStateOf(System.currentTimeMillis()) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
-                now = System.currentTimeMillis()
+                now.longValue = System.currentTimeMillis()
                 // Wake on the next second boundary, so the display changes exactly as the second does.
-                kotlinx.coroutines.delay(1_000L - now % 1_000L)
+                kotlinx.coroutines.delay(1_000L - now.longValue % 1_000L)
             }
         }
     }
@@ -260,7 +267,7 @@ internal fun cardFooter(account: AccountSummary, today: java.time.LocalDate): St
 /** An account marked as a provident fund: a calmer tile that leads with what has been put in, not spending. */
 @Composable
 private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onOpen: () -> Unit) {
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val asOf = fund.balanceAsOf
     FintechCard(onClick = onOpen) {
         Caption("PROVIDENT FUND  ••  ${fund.last4}")
@@ -276,7 +283,7 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             if (fund.fromPassbook && pf != null) {
                 Stat("Last added", pf.latest.added?.let { DisplayFormatters.rupees(it) } ?: "—")
-                Stat("Updated", DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()).format(pf.latest.date))
+                Stat("Updated", FormatCache.pattern("d MMM yyyy", Locale.getDefault()).format(pf.latest.date))
                 Stat("Updates", pf.updates.size.toString())
             } else {
                 Stat("Added this cycle", DisplayFormatters.rupees(fund.received))
@@ -290,7 +297,7 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
 /** The provident fund: its balance when a passbook message states one, else what the latest update added. */
 @Composable
 private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onOpen: () -> Unit) {
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
     val latest = pf.latest
     val asOf = pf.balanceAsOf
     FintechCard(onClick = onOpen) {
@@ -326,7 +333,7 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun AccountTile(account: AccountSummary, sample: ClassifiedMessage?, onOpen: () -> Unit) {
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     // Local copies: these come from another module, so they cannot be smart-cast after a null check.
     val due = account.dueDate
     val asOf = account.balanceAsOf
@@ -397,7 +404,7 @@ internal fun AccountSheet(
     onDismiss: () -> Unit
 ) {
     val zone = ZoneId.systemDefault()
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val history = remember(state.messages, account.last4) { BalanceReader.history(state.messages, zone)[account.last4].orEmpty() }
     // Activity can be read for the calendar month, or for the card's own cycle (its statement) or the pay cycle.
     var period by rememberSaveable { mutableStateOf(0) }
@@ -656,9 +663,17 @@ internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Uni
 
 /** Every code that has not yet run out, newest first. */
 internal fun freshCodes(state: HomeContract.State, nowMillis: Long): List<ClassifiedMessage> =
-    state.messages.filter {
-        it.content is MessageContent.Otp && nowMillis - it.message.date in 0 until CODE_LIFE_WINDOW_MS && it.id !in state.userState.archivedIds
-    }.take(MAX_FRESH_CODES)
+    freshCodes(otpCandidates(state), nowMillis)
+
+/** Every code not put away, newest first; the part of [freshCodes] that does not change as the seconds pass. */
+internal fun otpCandidates(state: HomeContract.State): List<ClassifiedMessage> {
+    val archived = state.userState.archivedIds
+    return state.messages.filter { it.content is MessageContent.Otp && it.id !in archived }
+}
+
+/** Those of [candidates] still inside their lifetime at [nowMillis]. A short list, so asking every second is cheap. */
+internal fun freshCodes(candidates: List<ClassifiedMessage>, nowMillis: Long): List<ClassifiedMessage> =
+    candidates.filter { nowMillis - it.message.date in 0 until CODE_LIFE_WINDOW_MS }.take(MAX_FRESH_CODES)
 
 private const val MAX_FRESH_CODES = 6
 

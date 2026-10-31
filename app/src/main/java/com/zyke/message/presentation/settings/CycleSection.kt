@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.settings
 
 import androidx.compose.foundation.layout.Column
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,7 +26,6 @@ import com.zyke.message.domain.plan.MoneyPlan
 import com.zyke.message.domain.plan.SalaryPattern
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.messages.components.Caption
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -40,7 +40,7 @@ internal fun CycleSection(
     onChange: (CycleMode, String) -> Unit
 ) {
     var day by rememberSaveable(plan.cycleDay) { mutableStateOf(plan.cycleDay?.toString().orEmpty()) }
-    val format = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val format = FormatCache.pattern("d MMM", Locale.getDefault())
 
     SectionCard("Month starts", summary = plan.cycleMode.label) {
         Caption(current?.let { "Now: ${format.format(it.start)} \u2013 ${format.format(it.endInclusive)}" } ?: "", Modifier.padding(bottom = 10.dp))

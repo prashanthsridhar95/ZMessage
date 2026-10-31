@@ -316,8 +316,9 @@ private fun DetailRow(label: String, value: String?, onClick: () -> Unit) {
 /** A setting that is on or off, switched in place. */
 @Composable
 private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+    val tick = com.zyke.message.presentation.common.rememberTick()
     Row(
-        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Switch, onClickLabel = label, onClick = onToggle).padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Switch, onClickLabel = label, onClick = { tick(); onToggle() }).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)

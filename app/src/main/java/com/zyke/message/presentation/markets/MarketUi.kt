@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.markets
 
 import android.content.Context
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MarqueeSpacing
@@ -56,10 +57,8 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
-import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -98,13 +97,15 @@ fun MarketPolling() {
 internal fun priceText(row: MarketRow): String = when {
     row.currency == "INR" && row.kind == MarketKind.COMMODITY -> "₹" + indian(row.price, 0)
     row.currency == "INR" -> "₹" + indian(row.price, 2)
-    row.currency == "USD" -> "$" + NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(row.price)
+    row.currency == "USD" -> "$" + FormatCache.number(Locale.US, 2, 2).format(row.price)
     row.currency.isNotEmpty() -> row.currency + " " + indian(row.price, 2)
     else -> indian(row.price, 2)
 }
 
 private fun indian(value: BigDecimal, digits: Int): String =
-    NumberFormat.getNumberInstance(Locale.forLanguageTag("en-IN")).apply { minimumFractionDigits = digits; maximumFractionDigits = digits }.format(value)
+    FormatCache.number(INDIAN, digits, digits).format(value)
+
+private val INDIAN: Locale = Locale.forLanguageTag("en-IN")
 
 private fun changeText(row: MarketRow): String {
     val percent = row.changePercent ?: return "no change shown"
@@ -209,7 +210,7 @@ fun MarketPage(onBack: () -> Unit) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    val at = state.updatedAt?.let { DateTimeFormatter.ofPattern("h:mm:ss a", Locale.getDefault()).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) }
+                    val at = state.updatedAt?.let { FormatCache.pattern("h:mm:ss a", Locale.getDefault()).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) }
                     Text(
                         if (at != null) "Updated $at" else if (state.offline) "Not updated yet" else "Loading…",
                         style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary

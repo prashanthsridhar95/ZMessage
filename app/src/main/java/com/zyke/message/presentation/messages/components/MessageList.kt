@@ -95,7 +95,7 @@ fun MessageList(
         }
 
         feed.sections.forEach { section ->
-            stickyHeader(key = "section-${section.id}") {
+            stickyHeader(key = "section-${section.id}", contentType = "header") {
                 SectionHeader(
                     when (val id = section.id) {
                         SectionId.Pinned -> "Pinned"

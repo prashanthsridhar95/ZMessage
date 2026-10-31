@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.foundation.layout.Arrangement
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +30,6 @@ import com.zyke.message.presentation.common.limitColors
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -88,7 +88,7 @@ internal fun ForecastCard(forecast: SpendForecast, modifier: Modifier = Modifier
 @Composable
 private fun ForecastDetails(forecast: SpendForecast) {
     val colors = limitColors()
-    val dayFormat = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val end = forecast.endBalance
 
     if (end != null) {

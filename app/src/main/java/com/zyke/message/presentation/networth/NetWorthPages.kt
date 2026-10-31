@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.networth
 
 import androidx.compose.foundation.layout.Arrangement
+import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,12 +63,11 @@ import com.zyke.message.presentation.messages.components.RowTitle
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-private fun shortDate(date: LocalDate): String = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()).format(date)
+private fun shortDate(date: LocalDate): String = FormatCache.pattern("d MMM yyyy", Locale.getDefault()).format(date)
 
 private fun plain(value: BigDecimal?): String = value?.stripTrailingZeros()?.toPlainString().orEmpty()
 
