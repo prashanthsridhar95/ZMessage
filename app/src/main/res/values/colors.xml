@@ -19,4 +19,6 @@
     <color name="widget_due">#FFB07D0E</color>
     <color name="widget_event">#FF1E6FD0</color>
     <color name="widget_info">#FF0B7A55</color>
+    <color name="window_background">#FFFFFBFE</color>
+    <color name="widget_pressed">#14000000</color>
 </resources>

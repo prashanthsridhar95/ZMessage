@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.ZykeMessage" parent="Theme.AppCompat.DayNight.NoActionBar" />
+    <style name="Theme.ZykeMessage" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- No white (or black) flash before the first frame: the window is the theme's surface colour, per mode. -->
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
     <!-- One of the four buttons of the Quick add widget; kept to attributes a RemoteViews TextView can take. -->
     <style name="QuickAddButton">
         <item name="android:layout_width">0dp</item>
