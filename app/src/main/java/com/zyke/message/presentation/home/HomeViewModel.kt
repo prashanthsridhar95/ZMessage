@@ -423,6 +423,12 @@ class HomeViewModel(
             val daily = memo("daily", insights, cycle, live, now, updated.plan.items) {
                 DailyBudgets.allowance(insights, today, cycle)?.let { DailyBudgets.status(live, it, now, zone, updated.plan.items) }
             }
+            if (daily == null) {
+                com.zyke.message.data.diag.DevLog.d("home") {
+                    "no daily budget: plan insights=${if (insights == null) "none" else "spendable " + insights.spendable.signum()}, " +
+                        "income source=${insights?.incomeSource}, salary entered=${updated.plan.salary != null}, outflows=${updated.plan.outflows.size}"
+                }
+            }
             val nudges = memo("nudges", limits, now, cycle, live, balances) {
                 (PaceNudges.build(limits, emptyList(), now, zone, cycle) + LowBalance.warnings(live, balances, today)).take(MAX_NUDGES)
             }

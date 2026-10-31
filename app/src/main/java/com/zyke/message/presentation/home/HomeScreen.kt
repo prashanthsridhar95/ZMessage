@@ -328,8 +328,21 @@ private fun SummaryPage(
 
         item(key = "balance") { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } }
 
-        state.daily?.let { daily ->
-            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(daily) } }
+        val todayBudget = state.daily
+        if (todayBudget != null) {
+            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget) } }
+        } else if (!state.isBlank) {
+            // Never just vanish: say what the card needs, and where to give it.
+            item(key = "today") {
+                FintechCard(onClick = { onNavigate(AppTab.MONEY) }) {
+                    Caption("TODAY'S BUDGET")
+                    Text("Not set up yet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+                    Caption(
+                        "It needs your income and regular payments in the plan, with something left to spend. Open Insights to set the plan.",
+                        Modifier.padding(top = 4.dp), maxLines = 3
+                    )
+                }
+            }
         }
 
         // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
