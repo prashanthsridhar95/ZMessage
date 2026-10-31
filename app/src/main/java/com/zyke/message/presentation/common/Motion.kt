@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
@@ -101,17 +102,19 @@ private const val BORDER_BASE_ALPHA = 0.25f
  */
 fun Modifier.movingBorder(color: Color, corner: Dp = 20.dp, width: Dp = 1.5.dp): Modifier = composed {
     val reduce = rememberReduceMotion()
+    // Held as State and read only while drawing, so each frame redraws and does not recompose.
     val angle = if (reduce) {
-        0f
+        null
     } else {
         rememberInfiniteTransition(label = "border").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(tween(BORDER_SWEEP_MS, easing = LinearEasing)),
             label = "border-angle"
-        ).value
+        )
     }
-    drawBehind {
+    // The ring and the sweep brush depend only on the size, so they are built once per size, not once per frame.
+    drawWithCache {
         val stroke = width.toPx()
         val outer = corner.toPx()
         val ring = Path().apply {
@@ -121,18 +124,17 @@ fun Modifier.movingBorder(color: Color, corner: Dp = 20.dp, width: Dp = 1.5.dp):
                 RoundRect(stroke, stroke, size.width - stroke, size.height - stroke, CornerRadius((outer - stroke).coerceAtLeast(0f)))
             )
         }
-        drawPath(ring, color.copy(alpha = BORDER_BASE_ALPHA))
-        // With animations off, only the faint full outline stays; the travelling light would be a still smear.
-        if (!reduce) clipPath(ring) {
-            rotate(angle, pivot = center) {
-                drawCircle(
-                    brush = Brush.sweepGradient(
-                        listOf(Color.Transparent, color, Color.Transparent, Color.Transparent),
-                        center = center
-                    ),
-                    radius = hypot(size.width, size.height) / 2f,
-                    center = center
-                )
+        val middle = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+        val faint = color.copy(alpha = BORDER_BASE_ALPHA)
+        val sweep = Brush.sweepGradient(listOf(Color.Transparent, color, Color.Transparent, Color.Transparent), center = middle)
+        val radius = hypot(size.width, size.height) / 2f
+        onDrawBehind {
+            drawPath(ring, faint)
+            // With animations off, only the faint full outline stays; the travelling light would be a still smear.
+            if (angle != null) clipPath(ring) {
+                rotate(angle.value, pivot = middle) {
+                    drawCircle(brush = sweep, radius = radius, center = middle)
+                }
             }
         }
     }
