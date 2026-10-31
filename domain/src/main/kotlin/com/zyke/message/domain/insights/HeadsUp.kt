@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.ledger.UnusualSpend
 import com.zyke.message.domain.model.ClassifiedMessage

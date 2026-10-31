@@ -30,6 +30,7 @@ import java.time.Clock
 import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class MessagesViewModel(
@@ -41,7 +42,7 @@ class MessagesViewModel(
     private val nicknames: NicknameRepository = NoNicknames,
     private val merges: MergeRepository = NoMerges,
     /** Where the feed is built; never the main thread outside tests. */
-    deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
+    private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(State(now = clock.instant(), userState = userStateRepository.state.value)) {
 
     private val zone: ZoneId get() = clock.zone
@@ -216,24 +217,28 @@ class MessagesViewModel(
         requestDerive()
     }
 
-    private fun deriveFeed(updated: State): State.() -> State {
+    private suspend fun deriveFeed(updated: State): State.() -> State {
         val started = System.nanoTime()
         val query = if (updated.isSearching) updated.query else ""
-        val thread = updated.openThreadKey?.let {
-            conversationBuilder.thread(updated.messages, it, updated.userState, zone)
-        }
-        val feed = FeedBuilder.build(
-            messages = updated.messages,
-            userState = updated.userState,
-            filter = updated.filter,
-            query = query,
-            now = updated.now,
-            zone = zone
-        )
-        val conversations = if (updated.viewMode == ViewMode.SENDERS) {
-            conversationBuilder.conversations(updated.messages, updated.userState, query)
-        } else {
-            emptyList()
+        // The list, the conversations and the open thread read the same messages and nothing else: side by side.
+        val (feed, conversations, thread) = kotlinx.coroutines.coroutineScope {
+            val threadWork = async(deriveContext) {
+                updated.openThreadKey?.let { conversationBuilder.thread(updated.messages, it, updated.userState, zone) }
+            }
+            val feedWork = async(deriveContext) {
+                FeedBuilder.build(
+                    messages = updated.messages,
+                    userState = updated.userState,
+                    filter = updated.filter,
+                    query = query,
+                    now = updated.now,
+                    zone = zone
+                )
+            }
+            val conversationWork = async(deriveContext) {
+                if (updated.viewMode == ViewMode.SENDERS) conversationBuilder.conversations(updated.messages, updated.userState, query) else emptyList()
+            }
+            Triple(feedWork.await(), conversationWork.await(), threadWork.await())
         }
         val key = updated.openThreadKey
         com.zyke.message.data.diag.DevLog.d("feed") { "feed rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages)" }

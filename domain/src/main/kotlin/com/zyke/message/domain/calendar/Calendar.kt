@@ -1,5 +1,6 @@
 package com.zyke.message.domain.calendar
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.goals.Goal
 import com.zyke.message.domain.home.BillPayments

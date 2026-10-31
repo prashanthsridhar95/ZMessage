@@ -1,5 +1,6 @@
 package com.zyke.message.domain.forecast
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.model.ClassifiedMessage

@@ -42,6 +42,16 @@ object Warranties {
     private const val NOISE_REACH = 30
     private const val MAX_YEARS = 10L
 
+    private val SPACES = Regex("\\s+")
+
+    /** The body with its spaces flattened, and whether it speaks of a warranty at all: worked out once per body, not once per rebuild. */
+    private class Prepared(val text: String, val cue: Boolean)
+
+    private val prepared = com.zyke.message.domain.util.BodyMemo { body ->
+        val text = SPACES.replace(body, " ").trim()
+        Prepared(text, CUE.containsMatchIn(text))
+    }
+
     fun of(message: ClassifiedMessage, zone: ZoneId): Warranty? {
         if (message.isPromotional || message.isMuted) return null
         when (val content = message.content) {
@@ -50,8 +60,9 @@ object Warranties {
             is MessageContent.Transaction -> if (content.isReceived) return null
             else -> Unit
         }
-        val text = message.message.body.replace(Regex("\\s+"), " ").trim()
-        if (!CUE.containsMatchIn(text)) return null
+        val prepared = prepared.of(message.message)
+        if (!prepared.cue) return null
+        val text = prepared.text
         val received = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
         return explicit(message, text, received) ?: counted(message, text, received)
     }

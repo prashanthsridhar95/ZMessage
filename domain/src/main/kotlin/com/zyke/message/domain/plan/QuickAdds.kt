@@ -1,5 +1,6 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.insights.Subscriptions
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.CardType

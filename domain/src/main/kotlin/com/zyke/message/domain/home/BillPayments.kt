@@ -1,5 +1,6 @@
 package com.zyke.message.domain.home
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
@@ -45,6 +46,45 @@ object BillPayments {
     /** For tests: how many bodies have been read so far. */
     fun factComputationsForTest(): Long = facts.computations
 
+    /** [messages] without card bills, oldest first; kept for the list last asked about, since one rebuild asks many times. */
+    private class Ordered(source: List<ClassifiedMessage>) {
+        val ref = java.lang.ref.WeakReference(source)
+        val size = source.size
+        val sorted: List<ClassifiedMessage> = source.filter { it.content !is MessageContent.CardBill }.sortedBy { it.message.date }
+        val dates = LongArray(sorted.size) { sorted[it].message.date }
+    }
+
+    /** The few lists asked about most recently (a rebuild asks about two or three at once, from several threads). */
+    private val recent = java.util.ArrayDeque<Ordered>()
+
+    private fun orderedFor(messages: List<ClassifiedMessage>): Ordered {
+        synchronized(recent) {
+            recent.removeAll { it.ref.get() == null }
+            recent.firstOrNull { it.ref.get() === messages && it.size == messages.size }?.let { return it }
+        }
+        val made = Ordered(messages)
+        synchronized(recent) {
+            recent.addFirst(made)
+            while (recent.size > RECENT_LISTS) recent.removeLast()
+        }
+        return made
+    }
+
+    private const val RECENT_LISTS = 4
+
+    /** The messages in [messages] dated after [after] that are not card bills, oldest first (ties in their given order). */
+    private fun laterThan(messages: List<ClassifiedMessage>, after: Long): List<ClassifiedMessage> {
+        val o = orderedFor(messages)
+        // First index whose date is greater than [after].
+        var lo = 0
+        var hi = o.dates.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (o.dates[mid] > after) hi = mid else lo = mid + 1
+        }
+        return o.sorted.subList(lo, o.sorted.size)
+    }
+
     private fun mentionsCard(flat: String, last4: String): Boolean {
         // Plain text search first: a message that does not hold the four digits cannot name the card.
         if (!flat.contains(last4)) return false
@@ -76,9 +116,9 @@ object BillPayments {
         val minimum = bill.minimumDue?.toBigDecimalOrNull() ?: total.multiply(BigDecimal("0.05"))
         val last4 = bill.accountNumber.filter { it.isDigit() }.takeLast(4)
         if (last4.length < 4) return null
-        return messages
-            .filter { it.message.date > billMessage.message.date && it.id != billMessage.id && it.content !is MessageContent.CardBill }
-            .sortedBy { it.message.date }
+        val later = laterThan(messages, billMessage.message.date)
+        return later.asSequence()
+            .filter { it.id != billMessage.id }
             .firstNotNullOfOrNull { message ->
                 val fact = facts.of(message.message)
                 val body = fact.flat

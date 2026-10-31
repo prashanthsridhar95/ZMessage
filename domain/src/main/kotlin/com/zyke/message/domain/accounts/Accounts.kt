@@ -1,5 +1,6 @@
 package com.zyke.message.domain.accounts
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.insights.AccountBalance
 import com.zyke.message.domain.insights.BalanceReader

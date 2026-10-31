@@ -1,5 +1,6 @@
 package com.zyke.message.domain.ledger
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.dashboard.CardBillsBuilder
 import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -97,20 +98,7 @@ object ReviewQueues {
         val debits = txs.filter { !(it.content as MessageContent.Transaction).isReceived }
         val credits = txs.filter { (it.content as MessageContent.Transaction).isReceived }
 
-        val used = HashSet<Long>()
-        val transfers = debits.sortedByDescending { it.message.date }.mapNotNull { debit ->
-            val d = debit.content as MessageContent.Transaction
-            val match = credits.firstOrNull { credit ->
-                val c = credit.content as MessageContent.Transaction
-                credit.id !in used &&
-                    c.amount.toBigDecimalOrNull()?.compareTo(d.amount.toBigDecimalOrNull() ?: return@firstOrNull false) == 0 &&
-                    last4(c) != last4(d) &&
-                    abs(credit.message.date - debit.message.date) <= DAY_MS &&
-                    "${debit.id}:${credit.id}" !in asides.dismissed
-            } ?: return@mapNotNull null
-            used += match.id
-            TransferCandidate(debit, match)
-        }.take(MAX_PER_KIND)
+        val transfers = transfers(debits, credits, asides)
 
         val unclear = live.filter { it.content is MessageContent.Generic && com.zyke.message.domain.classification.GenericTransactionParser.mentionsMoney(it.message) }
             .take(MAX_PER_KIND)
@@ -126,6 +114,39 @@ object ReviewQueues {
         val unusual = unusual(txs, asides, now).filter { u -> uncategorised.none { it.id == u.id } }
 
         return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual)
+    }
+
+    /**
+     * Each debit (newest first) pairs with the first not yet used credit of the same amount on another account within a
+     * day. Credits are indexed by amount, so a debit looks only at credits of its own amount.
+     */
+    private fun transfers(debits: List<ClassifiedMessage>, credits: List<ClassifiedMessage>, asides: SetAsides): List<TransferCandidate> {
+        class Side(val message: ClassifiedMessage, val amount: BigDecimal?, val last4: String)
+        fun side(m: ClassifiedMessage): Side {
+            val tx = m.content as MessageContent.Transaction
+            return Side(m, tx.amount.toBigDecimalOrNull()?.stripTrailingZeros(), last4(tx))
+        }
+        val byAmount = HashMap<BigDecimal, MutableList<Side>>()
+        for (credit in credits) {
+            val s = side(credit)
+            val amount = s.amount ?: continue
+            byAmount.getOrPut(amount) { ArrayList() } += s
+        }
+        val used = HashSet<Long>()
+        val found = ArrayList<TransferCandidate>()
+        for (debit in debits.sortedByDescending { it.message.date }) {
+            val d = side(debit)
+            val candidates = byAmount[d.amount ?: continue] ?: continue
+            val match = candidates.firstOrNull { c ->
+                c.message.id !in used && c.last4 != d.last4 &&
+                    abs(c.message.message.date - debit.message.date) <= DAY_MS &&
+                    "${debit.id}:${c.message.id}" !in asides.dismissed
+            } ?: continue
+            used += match.message.id
+            found += TransferCandidate(debit, match.message)
+            if (found.size == MAX_PER_KIND) break
+        }
+        return found
     }
 
     private fun duplicates(live: List<ClassifiedMessage>, asides: SetAsides): List<DuplicateCandidate> {

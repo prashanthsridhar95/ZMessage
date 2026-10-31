@@ -1,5 +1,6 @@
 package com.zyke.message.domain.teach
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.BankTransaction

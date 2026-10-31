@@ -21,7 +21,8 @@ data class SetAsides(
     val transfers: List<TransferLink> = emptyList(),
     val dismissed: Set<String> = emptySet()
 ) {
-    val transferIds: Set<Long> get() = transfers.flatMapTo(HashSet()) { listOfNotNull(it.outId, it.inId) }
+    /** Worked out once per state, not once per message asked about. */
+    val transferIds: Set<Long> by lazy(LazyThreadSafetyMode.PUBLICATION) { transfers.flatMapTo(HashSet()) { listOfNotNull(it.outId, it.inId) } }
     fun kindOf(id: Long): SetAside? = when {
         id in transferIds -> SetAside.TRANSFER
         id in excluded -> SetAside.EXCLUDED

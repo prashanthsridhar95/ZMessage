@@ -27,6 +27,7 @@ import com.zyke.message.presentation.mvi.MviViewModel
 import java.time.Clock
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
@@ -41,7 +42,7 @@ class DashboardViewModel(
     private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
     private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter,
     /** Where the figures and charts are worked out; never the main thread outside tests. */
-    deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
+    private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default,
     private val ioContext: kotlin.coroutines.CoroutineContext = deriveContext
 ) : MviViewModel<State, Intent, Effect>(
     insightsFilter.load().let { saved ->
@@ -179,60 +180,132 @@ class DashboardViewModel(
         requestDerive()
     }
 
-    private fun derive(updated: State): State.() -> State {
+    private val memos = com.zyke.message.presentation.mvi.PartMemo()
+
+    /** Queries seen lately, so an equal query is the same object each time and can be remembered by identity. */
+    private val queriesKept = ArrayList<com.zyke.message.domain.dashboard.DashboardQuery>()
+
+    private fun interned(query: com.zyke.message.domain.dashboard.DashboardQuery): com.zyke.message.domain.dashboard.DashboardQuery {
+        queriesKept.firstOrNull { it == query }?.let { return it }
+        if (queriesKept.size >= MAX_QUERIES_KEPT) queriesKept.removeAt(0)
+        queriesKept += query
+        return query
+    }
+
+    private suspend fun derive(updated: State): State.() -> State {
         if (!updated.hasLoaded) return { this }
         val started = System.nanoTime()
-        run {
-            val flowQuery = updated.query.copy(category = null)
-            val cycle = CycleRule.resolve(updated.plan, updated.messages, updated.now, clock.zone)
-            // The figures and charts follow the chosen source (UPI, one account or one card); the rest of the screen does not.
-            val scoped = com.zyke.message.domain.dashboard.SourceFilters.apply(updated.messages, updated.source)
-            val planInsights = PlanInsightsBuilder.build(updated.plan, updated.messages, updated.now, clock.zone, cycle)
-            val built = updated.copy(
-                cycle = cycle,
-                categoryDetail = updated.openCategory?.let { open ->
-                    DashboardBuilder.build(scoped, updated.query.copy(category = open), updated.now, clock.zone, updated.budgets, cycle)
-                },
-                dashboard = DashboardBuilder.build(scoped, updated.query, updated.now, clock.zone, updated.budgets, cycle),
-                expenseTrend = DashboardBuilder.build(
-                    scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT),
-                    updated.now, clock.zone, updated.budgets, cycle
-                ).trend,
-                incomeTrend = DashboardBuilder.build(
-                    scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED),
-                    updated.now, clock.zone, updated.budgets, cycle
-                ).trend,
-                reportCard = ReportCardBuilder.build(scoped, updated.budgets, updated.now, clock.zone, cycle),
-                monthlySummary = com.zyke.message.domain.dashboard.MonthlySummary.build(scoped, updated.now, clock.zone, cycle),
-                cardBills = CardBillsBuilder.build(updated.messages, LocalDate.ofInstant(updated.now, clock.zone)),
-                cardCycles = CardCycleBuilder.build(updated.messages, updated.cards, updated.now, clock.zone),
-                limits = SpendingLimits.build(updated.messages, updated.budgets, updated.dailyBudgets, updated.now, clock.zone, cycle),
-                sourceOptions = com.zyke.message.domain.dashboard.SourceFilters.options(updated.messages),
-                planInsights = planInsights,
-                limitSuggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(
-                    updated.messages, updated.budgets, planInsights?.spendable, updated.now, clock.zone, cycle
-                ),
-                forecast = com.zyke.message.domain.forecast.SpendForecasts.build(
-                    updated.messages,
-                    // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.
-                    com.zyke.message.domain.accounts.Accounts.build(
-                        updated.messages.filter { it.id !in archivedIds() }, updated.cards, updated.now, clock.zone, cycle,
-                        hiddenAccounts.hidden.value, pfAccounts.keys.value
-                    ).totalBalance,
-                    updated.now, clock.zone, cycle
-                )
-            )
-            com.zyke.message.data.diag.DevLog.d("dashboard") { "figures rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages)" }
-            return {
-                copy(
-                    cycle = built.cycle, categoryDetail = built.categoryDetail, dashboard = built.dashboard,
-                    expenseTrend = built.expenseTrend, incomeTrend = built.incomeTrend, reportCard = built.reportCard,
-                    monthlySummary = built.monthlySummary, cardBills = built.cardBills, cardCycles = built.cardCycles,
-                    limits = built.limits, sourceOptions = built.sourceOptions, planInsights = built.planInsights,
-                    limitSuggestions = built.limitSuggestions, forecast = built.forecast
-                )
-            }
+        memos.begin()
+        val zone = clock.zone
+        val now = updated.now
+        val messages = updated.messages
+        val query = interned(updated.query)
+        val flowQuery = interned(query.copy(category = null))
+        val cycle = memos.of("cycle", updated.plan, messages, now) { CycleRule.resolve(updated.plan, messages, now, zone) }
+        // The figures and charts follow the chosen source (UPI, one account or one card); the rest of the screen does not.
+        val scoped = memos.of("scoped", messages, updated.source) { com.zyke.message.domain.dashboard.SourceFilters.apply(messages, updated.source) }
+        val planInsights = memos.of("planInsights", updated.plan, messages, now, cycle) {
+            PlanInsightsBuilder.build(updated.plan, messages, now, zone, cycle)
         }
+        val archived = archivedIds()
+        val hidden = hiddenAccounts.hidden.value
+        val pfKeys = pfAccounts.keys.value
+        // Each figure is worked out from the messages and the person's settings alone, so they are worked out side by side,
+        // and one that none of its inputs changed for is not worked out again.
+        val built = kotlinx.coroutines.coroutineScope {
+            fun <T> part(work: () -> T) = async(deriveContext) { work() }
+            val categoryDetail = part {
+                updated.openCategory?.let { open ->
+                    memos.of("categoryDetail", scoped, query, open, now, updated.budgets, cycle) {
+                        DashboardBuilder.build(scoped, query.copy(category = open), now, zone, updated.budgets, cycle)
+                    }
+                }
+            }
+            val dashboard = part {
+                memos.of("dashboard", scoped, query, now, updated.budgets, cycle) {
+                    DashboardBuilder.build(scoped, query, now, zone, updated.budgets, cycle)
+                }
+            }
+            val expenseTrend = part {
+                memos.of("expenseTrend", scoped, flowQuery, now, updated.budgets, cycle) {
+                    DashboardBuilder.build(
+                        scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.SPENT), now, zone, updated.budgets, cycle
+                    ).trend
+                }
+            }
+            val incomeTrend = part {
+                memos.of("incomeTrend", scoped, flowQuery, now, updated.budgets, cycle) {
+                    DashboardBuilder.build(
+                        scoped, flowQuery.copy(direction = com.zyke.message.domain.dashboard.FlowDirection.RECEIVED), now, zone, updated.budgets, cycle
+                    ).trend
+                }
+            }
+            val reportCard = part { memos.of("reportCard", scoped, updated.budgets, now, cycle) { ReportCardBuilder.build(scoped, updated.budgets, now, zone, cycle) } }
+            val monthlySummary = part {
+                memos.of("monthlySummary", scoped, now, cycle) { com.zyke.message.domain.dashboard.MonthlySummary.build(scoped, now, zone, cycle) }
+            }
+            val cardBills = part { memos.of("cardBills", messages, now) { CardBillsBuilder.build(messages, LocalDate.ofInstant(now, zone)) } }
+            val cardCycles = part { memos.of("cardCycles", messages, updated.cards, now) { CardCycleBuilder.build(messages, updated.cards, now, zone) } }
+            val limits = part {
+                memos.of("limits", messages, updated.budgets, updated.dailyBudgets, now, cycle) {
+                    SpendingLimits.build(messages, updated.budgets, updated.dailyBudgets, now, zone, cycle)
+                }
+            }
+            val sourceOptions = part { memos.of("sourceOptions", messages) { com.zyke.message.domain.dashboard.SourceFilters.options(messages) } }
+            val limitSuggestions = part {
+                memos.of("limitSuggestions", messages, updated.budgets, planInsights, now, cycle) {
+                    com.zyke.message.domain.forecast.LimitSuggestions.build(messages, updated.budgets, planInsights?.spendable, now, zone, cycle)
+                }
+            }
+            val forecast = part {
+                // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.
+                val balance = memos.of("accountsBalance", messages, archived, updated.cards, now, cycle, hidden, pfKeys) {
+                    com.zyke.message.domain.accounts.Accounts.build(
+                        if (archived.isEmpty()) messages else messages.filter { it.id !in archived }, updated.cards, now, zone, cycle, hidden, pfKeys
+                    ).totalBalance
+                }
+                memos.of("forecast", messages, balance, now, cycle) { com.zyke.message.domain.forecast.SpendForecasts.build(messages, balance, now, zone, cycle) }
+            }
+            val ready = Ready(
+                categoryDetail.await(), dashboard.await(), expenseTrend.await(), incomeTrend.await(), reportCard.await(), monthlySummary.await(),
+                cardBills.await(), cardCycles.await(), limits.await(), sourceOptions.await(), limitSuggestions.await(), forecast.await()
+            )
+            ready
+        }
+        val total = (System.nanoTime() - started) / 1_000_000
+        com.zyke.message.data.diag.DevLog.d("dashboard") { "figures rebuilt in $total ms (${messages.size} messages, ${memos.recomputed} of ${memos.size} parts recomputed)" }
+        if (total > SLOW_REBUILD_MS) com.zyke.message.data.diag.DevLog.d("dashboard") { "slowest parts: " + memos.slowest(SLOWEST_PARTS_LOGGED) }
+        return {
+            copy(
+                cycle = cycle, categoryDetail = built.categoryDetail, dashboard = built.dashboard,
+                expenseTrend = built.expenseTrend, incomeTrend = built.incomeTrend, reportCard = built.reportCard,
+                monthlySummary = built.monthlySummary, cardBills = built.cardBills, cardCycles = built.cardCycles,
+                limits = built.limits, sourceOptions = built.sourceOptions, planInsights = planInsights,
+                limitSuggestions = built.limitSuggestions, forecast = built.forecast
+            )
+        }
+    }
+
+    /** What the figures worked out side by side came to. */
+    private class Ready(
+        val categoryDetail: com.zyke.message.domain.dashboard.Dashboard?,
+        val dashboard: com.zyke.message.domain.dashboard.Dashboard,
+        val expenseTrend: List<com.zyke.message.domain.dashboard.TrendPoint>,
+        val incomeTrend: List<com.zyke.message.domain.dashboard.TrendPoint>,
+        val reportCard: com.zyke.message.domain.dashboard.ReportCard,
+        val monthlySummary: com.zyke.message.domain.dashboard.MonthlySummary,
+        val cardBills: List<com.zyke.message.domain.dashboard.CardBills>,
+        val cardCycles: List<com.zyke.message.domain.cards.CardCycles>,
+        val limits: List<com.zyke.message.domain.dashboard.CategoryLimits>,
+        val sourceOptions: List<com.zyke.message.domain.dashboard.SourceOption>,
+        val limitSuggestions: List<com.zyke.message.domain.forecast.LimitSuggestion>,
+        val forecast: com.zyke.message.domain.forecast.SpendForecast?
+    )
+
+    private companion object {
+        const val SLOW_REBUILD_MS = 150L
+        const val SLOWEST_PARTS_LOGGED = 5
+        const val MAX_QUERIES_KEPT = 8
     }
 
     class Factory(

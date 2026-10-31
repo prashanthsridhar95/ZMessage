@@ -1,5 +1,6 @@
 package com.zyke.message.domain.budget
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.dashboard.DateRange
 import com.zyke.message.domain.model.ClassifiedMessage

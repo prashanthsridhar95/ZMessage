@@ -1,5 +1,6 @@
 package com.zyke.message.domain.home
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal

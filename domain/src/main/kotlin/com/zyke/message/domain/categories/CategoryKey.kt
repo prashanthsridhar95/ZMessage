@@ -29,7 +29,21 @@ object CategoryKey {
 
     private val SPACES = Regex("\\s+")
 
-    fun normalise(raw: String): String = raw.trim().lowercase().replace(SPACES, " ")
+    private val normalised = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Trimmed, lower-case, single-spaced. Names repeat across messages, so each distinct text is worked out once. */
+    fun normalise(raw: String): String {
+        normalised[raw]?.let { return it }
+        val result = raw.trim().lowercase().replace(SPACES, " ")
+        if (raw.length <= MAX_CACHED_LENGTH) {
+            if (normalised.size >= MAX_CACHED) normalised.clear()
+            normalised[raw] = result
+        }
+        return result
+    }
+
+    private const val MAX_CACHED = 20_000
+    private const val MAX_CACHED_LENGTH = 200
 
     /**
      * Applies the user's choices; messages without a key or a choice are returned untouched. Priority: a choice for this

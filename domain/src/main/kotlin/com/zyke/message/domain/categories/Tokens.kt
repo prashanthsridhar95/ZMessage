@@ -12,10 +12,20 @@ object Tokens {
     private val NOT_WORD = Regex("[^\\p{L}\\p{N}]+")
 
     /** Distinctive words of [key]: letters/digits, at least 3 long, not all digits, not common filler. In order, no repeats. */
-    fun of(key: String): List<String> =
-        key.split(NOT_WORD)
+    fun of(key: String): List<String> {
+        known[key]?.let { return it }
+        val words = key.split(NOT_WORD)
             .filter { it.length >= 3 && !it.all(Char::isDigit) && it !in filler }
             .distinct()
+        if (key.length <= 200) {
+            if (known.size >= 20_000) known.clear()
+            known[key] = words
+        }
+        return words
+    }
+
+    /** Keys repeat across messages; the words of each distinct key are found once. */
+    private val known = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
     /** The category of the first word of [key] that has a rule, if any. */
     fun match(key: String, rules: Map<String, MessageCategory>): MessageCategory? {

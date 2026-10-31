@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.life.LifeAgenda
 import com.zyke.message.domain.life.LifeKind

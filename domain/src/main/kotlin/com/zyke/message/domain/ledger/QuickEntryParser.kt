@@ -1,5 +1,6 @@
 package com.zyke.message.domain.ledger
 
+import com.zyke.message.domain.util.toBigDecimalOrNull
 import java.math.BigDecimal
 
 /** What a line of shared or dictated text says about a hand-made entry; the person still checks it before saving. */

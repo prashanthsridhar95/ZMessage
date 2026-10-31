@@ -50,7 +50,7 @@ abstract class MviViewModel<S, I, E>(initialState: S) : ViewModel() {
      * so anything the person changed meanwhile is kept. Asking again while it runs is folded into one more run.
      * A run that takes long is noted in the developer log (never any message text).
      */
-    protected fun startDeriving(name: String, context: CoroutineContext = Dispatchers.Default, derive: (S) -> (S.() -> S)) {
+    protected fun startDeriving(name: String, context: CoroutineContext = Dispatchers.Default, derive: suspend (S) -> (S.() -> S)) {
         if (deriveStarted) return
         deriveStarted = true
         viewModelScope.launch(context) {
