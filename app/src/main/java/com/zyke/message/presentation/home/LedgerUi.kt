@@ -30,6 +30,7 @@ import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.Choice
 import com.zyke.message.presentation.common.DateField
 import com.zyke.message.presentation.common.FintechCard
+import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.FormField
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.PickField
@@ -151,18 +152,16 @@ internal fun ReviewPage(
             if (review.transfers.isNotEmpty()) {
                 SectionHeader("Possible transfers", review.transfers.size)
                 review.transfers.forEach { candidate ->
-                    val debit = candidate.debit.content as MessageContent.Transaction
-                    val credit = candidate.credit.content as MessageContent.Transaction
                     FintechCard {
                         Text(
                             DisplayFormatters.rupees(candidate.amount), style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
                         )
-                        Caption(
-                            "Left ${debit.bankName.displayString} ••${debit.accountNumber.takeLast(4)} and arrived in ${credit.bankName.displayString} ••${credit.accountNumber.takeLast(4)}",
-                            Modifier.padding(top = 2.dp), maxLines = 3
-                        )
-                        Caption("If it is your own money moving, it is not income or spending.", Modifier.padding(top = 2.dp), maxLines = 2)
+                        Caption("Tap a line to read its message", Modifier.padding(top = 2.dp))
+                        // Each leg: when it happened, which account, and a tap to read the message itself.
+                        TransferLeg("Left", candidate.debit, onOpen)
+                        TransferLeg("Arrived", candidate.credit, onOpen)
+                        Caption("If it is your own money moving, it is not income or spending.", Modifier.padding(top = 8.dp), maxLines = 2)
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppButton("It is a transfer", { onLink(candidate.debit.id, candidate.credit.id) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Not a transfer", { onNotTransfer(candidate.key) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
@@ -178,7 +177,7 @@ internal fun ReviewPage(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 RowTitle(message.merchant.name)
-                                Caption("File it under a category")
+                                Caption(stampOf(message) + " \u00B7 file it under a category", maxLines = 2)
                             }
                             Text(DisplayFormatters.rupees(tx.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                         }
@@ -190,11 +189,35 @@ internal fun ReviewPage(
                 review.unclear.forEach { message ->
                     FintechCard(onClick = { onOpen(message.id) }) {
                         RowTitle(message.merchant.name)
+                        Caption(stampOf(message), Modifier.padding(top = 2.dp))
                         Caption(message.message.body.replace(Regex("\\s+"), " ").trim(), Modifier.padding(top = 2.dp), maxLines = 2)
                     }
                 }
                 Caption("Share a parsing report from Settings so these can be taught.", maxLines = 2)
             }
         }
+    }
+}
+
+private val StampFormat = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", java.util.Locale.getDefault())
+
+/** When the message arrived: the day and the time. */
+private fun stampOf(message: com.zyke.message.domain.model.ClassifiedMessage): String =
+    StampFormat.format(java.time.Instant.ofEpochMilli(message.message.date).atZone(java.time.ZoneId.systemDefault()))
+
+/** One side of a possible transfer: what it was, when, in which account, tappable to read the message. */
+@Composable
+private fun TransferLeg(label: String, message: com.zyke.message.domain.model.ClassifiedMessage, onOpen: (Long) -> Unit) {
+    val tx = message.content as MessageContent.Transaction
+    val account = listOf(tx.bankName.displayString, "\u2022\u2022" + tx.accountNumber.takeLast(4)).filter { it.isNotBlank() }.joinToString(" ")
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Read the message", onClick = { onOpen(message.id) }).padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("$label \u00B7 $account", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            Caption(stampOf(message) + (message.merchant.name.takeIf { it.isNotBlank() && tx.payee.isNotBlank() }?.let { " \u00B7 $it" } ?: ""), maxLines = 2)
+        }
+        Text("\u203A", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
     }
 }
