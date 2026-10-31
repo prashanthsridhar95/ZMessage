@@ -430,6 +430,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
                 Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
             }
+            BackupCard()
             SectionCard("Clear data") {
                 Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
                 AppButton(
