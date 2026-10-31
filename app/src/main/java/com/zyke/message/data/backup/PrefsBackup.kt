@@ -16,7 +16,8 @@ import java.io.File
  */
 object PrefsBackup {
     private const val SNAPSHOT_VERSION = 1
-    private val EXCLUDED = setOf("sender_images", "developer", "reminder_alarms")
+    // recent_searches: what someone looked up stays on this phone.
+    private val EXCLUDED = setOf("sender_images", "developer", "reminder_alarms", "recent_searches")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */

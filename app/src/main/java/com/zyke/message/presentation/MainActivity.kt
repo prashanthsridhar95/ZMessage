@@ -290,25 +290,39 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenMessage = { homeViewModel.onIntent(HomeContract.Intent.OpenMessage(it)) },
                     search = { onDismiss, navigate ->
+                        val openSettings = com.zyke.message.presentation.common.LocalOpenSettings.current
                         com.zyke.message.presentation.search.SearchRoute(
                             home = homeViewModel.state,
                             watchlist = container.watchlist,
+                            recents = container.recentSearches,
                             onOpen = { hit ->
-                                val intent = when (hit.kind) {
-                                    com.zyke.message.domain.search.SearchKind.MESSAGE,
-                                    com.zyke.message.domain.search.SearchKind.HAND_MADE ->
-                                        hit.messageId?.let { HomeContract.Intent.OpenMessage(it) }
-                                    com.zyke.message.domain.search.SearchKind.ACCOUNT -> HomeContract.Intent.OpenAccount(hit.id)
-                                    com.zyke.message.domain.search.SearchKind.GOAL -> HomeContract.Intent.OpenGoals
-                                    com.zyke.message.domain.search.SearchKind.REMINDER -> HomeContract.Intent.OpenReminders
-                                    com.zyke.message.domain.search.SearchKind.EVENT -> HomeContract.Intent.OpenAgenda
-                                    com.zyke.message.domain.search.SearchKind.STOCK -> null
-                                }
-                                if (intent != null) {
+                                val kind = hit.kind
+                                // Tabs and Home's own pages are reached by dismissing the search and then asking for them.
+                                fun home(intent: HomeContract.Intent?) {
                                     onDismiss()
-                                    // Home draws the sheets and pages these open.
                                     navigate(AppTab.HOME)
-                                    homeViewModel.onIntent(intent)
+                                    if (intent != null) homeViewModel.onIntent(intent)
+                                }
+                                when (kind) {
+                                    com.zyke.message.domain.search.SearchKind.MESSAGE,
+                                    com.zyke.message.domain.search.SearchKind.HAND_MADE,
+                                    com.zyke.message.domain.search.SearchKind.TAG ->
+                                        hit.messageId?.let { home(HomeContract.Intent.OpenMessage(it)) }
+                                    com.zyke.message.domain.search.SearchKind.ACCOUNT -> home(HomeContract.Intent.OpenAccount(hit.id))
+                                    com.zyke.message.domain.search.SearchKind.GOAL -> home(HomeContract.Intent.OpenGoals)
+                                    com.zyke.message.domain.search.SearchKind.REMINDER -> home(HomeContract.Intent.OpenReminders)
+                                    com.zyke.message.domain.search.SearchKind.EVENT -> home(HomeContract.Intent.OpenAgenda)
+                                    com.zyke.message.domain.search.SearchKind.STOCK -> Unit
+                                    com.zyke.message.domain.search.SearchKind.PAGE -> when (hit.id) {
+                                        com.zyke.message.domain.search.SearchPages.ACCOUNTS -> { onDismiss(); navigate(AppTab.ACCOUNTS) }
+                                        com.zyke.message.domain.search.SearchPages.BILLS -> { onDismiss(); navigate(AppTab.BILLS) }
+                                        com.zyke.message.domain.search.SearchPages.INSIGHTS -> { onDismiss(); navigate(AppTab.MONEY) }
+                                        com.zyke.message.domain.search.SearchPages.MESSAGES -> { onDismiss(); navigate(AppTab.INBOX) }
+                                        com.zyke.message.domain.search.SearchPages.SETTINGS -> { onDismiss(); openSettings() }
+                                        com.zyke.message.domain.search.SearchPages.CALENDAR -> home(HomeContract.Intent.OpenCalendar)
+                                        com.zyke.message.domain.search.SearchPages.GOALS -> home(HomeContract.Intent.OpenGoals)
+                                        com.zyke.message.domain.search.SearchPages.REMINDERS -> home(HomeContract.Intent.OpenReminders)
+                                    }
                                 }
                             },
                             onDismiss = onDismiss

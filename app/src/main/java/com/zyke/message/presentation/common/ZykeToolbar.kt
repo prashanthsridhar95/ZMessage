@@ -19,7 +19,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
 import com.zyke.message.presentation.messages.components.BarIcon
-import com.zyke.message.presentation.messages.components.SearchField
 
 /** Turns the toolbar into a search box: the field replaces the logo, a close button replaces the actions. */
 data class ToolbarSearch(

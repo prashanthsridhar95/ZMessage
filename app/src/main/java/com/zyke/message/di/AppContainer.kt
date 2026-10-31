@@ -74,6 +74,7 @@ class AppContainer(context: Context) {
     val merges: MergeRepository by lazy { MergeRepositoryImpl(context) }
     val calendarEvents: com.zyke.message.domain.repository.CalendarEventRepository by lazy { com.zyke.message.data.repository.CalendarEventRepositoryImpl(context) }
     val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository by lazy { com.zyke.message.data.repository.InsightsFilterRepositoryImpl(context) }
+    val recentSearches: com.zyke.message.domain.search.RecentSearchStore by lazy { com.zyke.message.data.repository.RecentSearchStoreImpl(context) }
     val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository by lazy { com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context) }
     val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository by lazy { com.zyke.message.data.repository.ManualEntryRepositoryImpl(context) }
     val setAsides: com.zyke.message.domain.ledger.SetAsideRepository by lazy { com.zyke.message.data.repository.SetAsideRepositoryImpl(context) }

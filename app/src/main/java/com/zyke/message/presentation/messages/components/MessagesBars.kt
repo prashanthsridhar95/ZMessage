@@ -72,24 +72,3 @@ internal fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int
         }
     }
 }
-
-@Composable
-internal fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-    Box(modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
-        if (query.isEmpty()) {
-            Text("Search messages, merchants, amounts", color = mutedColor(), style = MaterialTheme.typography.bodyLarge)
-        }
-        BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
-        )
-    }
-}
