@@ -138,7 +138,7 @@ internal fun YearPage(messages: List<ClassifiedMessage>, year: Int, onBack: () -
 private fun share(part: BigDecimal, total: BigDecimal): Float =
     if (total.signum() <= 0) 0f else part.divide(total, 4, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
 
-private fun Facts(review: YearInReview): List<String> = buildList {
+private fun facts(review: YearInReview): List<String> = buildList {
     review.biggestPayment?.let {
         add("Your biggest single payment was ${DisplayFormatters.rupees(it.amount)} to ${it.payee} on ${it.date}.")
     }
