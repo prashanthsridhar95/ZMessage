@@ -140,7 +140,7 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
                                 false
                             }
                         }
-                        loadUrl("https://www.google.com/search?tbm=isch&q=" + java.net.URLEncoder.encode(query, "UTF-8"))
+                        loadUrl("https://www.google.com/search?tbm=isch&q=" + android.net.Uri.encode(query))
                     }
                 },
                 onRelease = { it.stopLoading(); it.destroy() }
