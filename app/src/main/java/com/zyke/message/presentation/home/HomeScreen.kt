@@ -330,17 +330,18 @@ private fun SummaryPage(
 
         val todayBudget = state.daily
         if (todayBudget != null) {
-            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget) } }
+            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }) } }
         } else if (!state.isBlank) {
-            // Never just vanish: say what the card needs, and where to give it.
+            // Never just vanish: say what the card needs, and let the person type one.
             item(key = "today") {
-                FintechCard(onClick = { onNavigate(AppTab.MONEY) }) {
+                FintechCard(onClick = { onIntent(Intent.OpenAdjustDaily) }) {
                     Caption("TODAY'S BUDGET")
-                    Text("Not set up yet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+                    Text("Not enough to suggest one yet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
                     Caption(
-                        "It needs your income and regular payments in the plan, with something left to spend. Open Insights to set the plan.",
+                        "Needs about a month of spending to suggest a budget; or set one.",
                         Modifier.padding(top = 4.dp), maxLines = 3
                     )
+                    AppButton("Adjust", { onIntent(Intent.OpenAdjustDaily) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                 }
             }
         }
@@ -660,6 +661,27 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
 
     if (state.showCodes) {
         CodesSheet(state, onCopy = { id, code -> onIntent(Intent.CopyOtp(id, code)) }, onDismiss = { onIntent(Intent.CloseCodes) })
+    }
+
+    // The scope outlives the sheet, so the Undo snackbar still shows once the sheet has closed.
+    val dailySnackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
+    val dailyScope = androidx.compose.runtime.rememberCoroutineScope()
+    if (state.adjustingDaily) {
+        val before = state.dailyOverride
+        val undo: (String) -> Unit = { message ->
+            dailyScope.launch {
+                val result = dailySnackbar.showSnackbar(message, actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                    onIntent(if (before != null) Intent.SetDailyBudget(before) else Intent.ResetDailyBudget)
+                }
+            }
+        }
+        AdjustDailySheet(
+            current = state.daily, suggestion = state.dailySuggestion,
+            onSave = { onIntent(Intent.SetDailyBudget(it)); undo("Daily budget changed") },
+            onReset = { onIntent(Intent.ResetDailyBudget); undo("Back to the suggested daily budget") },
+            onDismiss = { onIntent(Intent.CloseAdjustDaily) }
+        )
     }
 
     val calendarOffset = state.calendarOffset

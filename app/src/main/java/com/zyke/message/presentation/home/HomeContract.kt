@@ -81,6 +81,12 @@ object HomeContract {
         val recurringStates: Map<String, com.zyke.message.domain.repository.RecurringState> = emptyMap(),
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
         val daily: DailyBudgetStatus? = null,
+        /** What the plan or past spending suggests as the daily budget (never the person's own figure); null with too little to go on. */
+        val dailySuggestion: com.zyke.message.domain.budget.DailyAllowance? = null,
+        /** The daily budget the person set themselves, if any. */
+        val dailyOverride: BigDecimal? = null,
+        /** Whether the sheet to adjust the daily budget is open. */
+        val adjustingDaily: Boolean = false,
         /** Every bank account and card the messages mention, and what the accounts hold in all. */
         /** Goals with how far along each is, and reminders with the day each next falls on. */
         val goals: List<GoalProgress> = emptyList(),
@@ -152,6 +158,10 @@ object HomeContract {
         data class Unarchive(val messageId: Long) : Intent
         data class Rename(val messageId: Long, val name: String, val onlyThis: Boolean = false) : Intent
         data object OpenCalendar : Intent
+        data object OpenAdjustDaily : Intent
+        data object CloseAdjustDaily : Intent
+        data class SetDailyBudget(val amount: BigDecimal) : Intent
+        data object ResetDailyBudget : Intent
         data object CloseCalendar : Intent
         data class ShiftCalendar(val months: Int) : Intent
         data class SaveGoal(val goal: Goal) : Intent

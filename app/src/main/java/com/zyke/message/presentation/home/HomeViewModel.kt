@@ -89,6 +89,7 @@ class HomeViewModel(
     private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations,
     private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
     private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
+    private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -96,7 +97,7 @@ class HomeViewModel(
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
         plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, loanList = loanRepository.loans.value, asides = setAsideRepository.state.value,
-        planActions = planActionRepository.state.value)
+        planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value)
 ) {
 
     // Declared before init: the first collections below can run at once and reach the memo.
@@ -127,6 +128,7 @@ class HomeViewModel(
         viewModelScope.launch {
             budgetRepository.dailyBudgets.collect { daily -> reduceHome { copy(dailyBudgets = daily) } }
         }
+        viewModelScope.launch { dailyOverride.amount.collect { amount -> reduceHome { copy(dailyOverride = amount) } } }
         viewModelScope.launch {
             budgetRepository.adjustments.collect { adjustments -> reduceHome { copy(budgetAdjustments = adjustments) } }
         }
@@ -196,6 +198,17 @@ class HomeViewModel(
                 key?.let { io { categoryOverrides.set(it, intent.category) } }
             }
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
+            Intent.OpenAdjustDaily -> reduce { copy(adjustingDaily = true) }
+            Intent.CloseAdjustDaily -> reduce { copy(adjustingDaily = false) }
+            is Intent.SetDailyBudget -> {
+                val amount = intent.amount.takeIf { it.signum() > 0 }
+                io { dailyOverride.set(amount) }
+                reduce { copy(adjustingDaily = false) }
+            }
+            Intent.ResetDailyBudget -> {
+                io { dailyOverride.set(null) }
+                reduce { copy(adjustingDaily = false) }
+            }
             Intent.CloseCalendar -> reduce { copy(calendarOffset = null) }
             is Intent.ShiftCalendar -> reduce { copy(calendarOffset = calendarOffset?.plus(intent.months)?.coerceAtMost(0)) }
             is Intent.SaveGoal -> goalRepository.save(intent.goal)
@@ -420,14 +433,26 @@ class HomeViewModel(
             val alerts = parts.alerts
             val agenda = parts.agenda
             val unread = parts.unread
-            val daily = memo("daily", insights, cycle, live, now, updated.plan.items) {
-                DailyBudgets.allowance(insights, today, cycle)?.let { DailyBudgets.status(live, it, now, zone, updated.plan.items) }
+            // What the plan or past spending suggests; the person's own figure, when set, wins over it.
+            val dailySuggestion = memo("dailySuggestion", insights, cycle, live, now, updated.plan.items) {
+                DailyBudgets.resolve(null, insights, live, today, zone, cycle, updated.plan.items)
+            }
+            val dailyCustom = updated.dailyOverride
+            val daily = memo("daily", dailySuggestion, dailyCustom, cycle, live, now, updated.plan.items) {
+                val chosen = if (dailyCustom != null && dailyCustom.signum() > 0) {
+                    com.zyke.message.domain.budget.DailyAllowance(dailyCustom, com.zyke.message.domain.budget.DailyBasis.CUSTOM)
+                } else dailySuggestion
+                chosen?.let {
+                    DailyBudgets.status(live, it.amount, now, zone, updated.plan.items).copy(basis = it.basis, cyclesUsed = it.cyclesUsed)
+                }
             }
             if (daily == null) {
                 com.zyke.message.data.diag.DevLog.d("home") {
-                    "no daily budget: plan insights=${if (insights == null) "none" else "spendable " + insights.spendable.signum()}, " +
-                        "income source=${insights?.incomeSource}, salary entered=${updated.plan.salary != null}, outflows=${updated.plan.outflows.size}"
+                    "no daily budget: custom=${dailyCustom != null}, plan insights=${if (insights == null) "none" else "spendable " + insights.spendable.signum()}, " +
+                        "trend=none (too little finished spending), income source=${insights?.incomeSource}, salary entered=${updated.plan.salary != null}, outflows=${updated.plan.outflows.size}"
                 }
+            } else {
+                com.zyke.message.data.diag.DevLog.d("home") { "daily budget basis=${daily.basis} cycles=${daily.cyclesUsed}" }
             }
             val nudges = memo("nudges", limits, now, cycle, live, balances) {
                 (PaceNudges.build(limits, emptyList(), now, zone, cycle) + LowBalance.warnings(live, balances, today)).take(MAX_NUDGES)
@@ -458,7 +483,7 @@ class HomeViewModel(
             }
             return {
                 copy(
-                    cycle = cycle, daily = daily, goals = goals, reminders = reminders, providentFund = providentFund,
+                    cycle = cycle, daily = daily, dailySuggestion = dailySuggestion, goals = goals, reminders = reminders, providentFund = providentFund,
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
                     subscriptions = subscriptions, attention = attention, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
@@ -513,7 +538,8 @@ class HomeViewModel(
         private val merges: com.zyke.message.domain.repository.MergeRepository = com.zyke.message.domain.repository.NoMerges,
         private val recurring: com.zyke.message.domain.repository.RecurringConfirmationRepository = com.zyke.message.domain.repository.NoRecurringConfirmations,
         private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
-        private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions
+        private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
+        private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -523,7 +549,7 @@ class HomeViewModel(
                 planRepository = planRepository, cardRepository = cardRepository,
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
-                recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository
+                recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride
             ) as T
     }
 

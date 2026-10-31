@@ -76,7 +76,7 @@ private val OverColor: Color @Composable @ReadOnlyComposable get() = AppColors.d
 
 /** Today's share of what is spendable, how much of it is left, and the run of days kept within it. Tap for the calendar. */
 @Composable
-internal fun TodayBudget(daily: DailyBudgetStatus) {
+internal fun TodayBudget(daily: DailyBudgetStatus, onAdjust: () -> Unit = {}) {
     val over = daily.isOver
     val color = if (over) OverColor else UnderColor
     val used = if (daily.allowance.signum() > 0) (daily.spentToday.toFloat() / daily.allowance.toFloat()) else 1f
@@ -96,15 +96,20 @@ internal fun TodayBudget(daily: DailyBudgetStatus) {
             else "left of ${DisplayFormatters.rupees(daily.allowance)} · spent ${DisplayFormatters.rupees(daily.spentToday)}"
         )
         ShareBar(used, color = color)
-        Caption(
-            if (daily.currentStreak > 0) {
-                "${DisplayFormatters.count(daily.currentStreak, "day", "days")} streak"
-            } else {
-                "No streak yet"
-            },
-            Modifier.padding(top = 8.dp),
-            color = if (daily.currentStreak > 0) UnderColor else mutedColor()
-        )
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Caption(
+                    if (daily.currentStreak > 0) {
+                        "${DisplayFormatters.count(daily.currentStreak, "day", "days")} streak"
+                    } else {
+                        "No streak yet"
+                    },
+                    color = if (daily.currentStreak > 0) UnderColor else mutedColor()
+                )
+                Caption(basisCaption(daily.basis, daily.cyclesUsed))
+            }
+            AppButton("Adjust", onAdjust, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        }
     }
 }
 
