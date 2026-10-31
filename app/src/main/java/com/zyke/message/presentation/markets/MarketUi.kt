@@ -3,9 +3,8 @@ package com.zyke.message.presentation.markets
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.MarqueeSpacing
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -137,6 +136,7 @@ private fun moveColor(row: MarketRow): Color = when {
  * A slim band on Home that scrolls the watch list past, like a ticker. Tapping it opens the full list. The band says
  * what it holds to a screen reader in one sentence, and its text always carries an arrow, not only a colour.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MarketStrip(onOpen: () -> Unit) {
     val ticker = LocalContext.current.marketTicker()
@@ -158,33 +158,22 @@ fun MarketStrip(onOpen: () -> Unit) {
                 Modifier.padding(horizontal = 16.dp)
             )
         } else {
-            val listState = rememberLazyListState()
-            val pixels = with(LocalDensity.current) { SCROLL_DP_PER_SECOND.dp.toPx() }
-            LaunchedEffect(rows.size) {
-                var last = 0L
-                while (true) {
-                    val now = withFrameNanos { it }
-                    if (last != 0L) listState.scrollBy(pixels * (now - last) / 1_000_000_000f)
-                    last = now
-                }
-            }
-            LazyRow(
-                Modifier.fillMaxWidth().clearAndSetSemantics {
-                    contentDescription = "Market watch. " + rows.joinToString(". ") { spoken(it) }
-                },
-                state = listState,
-                userScrollEnabled = false,
+            // One row of everything, drawn once, with the system's own marquee moving it: no frame loop of ours, and no list
+            // of a billion repeated items to lay out.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { contentDescription = "Market watch. " + rows.joinToString(". ") { spoken(it) } }
+                    .basicMarquee(iterations = Int.MAX_VALUE, repeatDelayMillis = 0, spacing = MarqueeSpacing(24.dp), velocity = SCROLL_DP_PER_SECOND.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // The list is repeated so the band never runs out; the position is the repeat's remainder.
-                items(count = Int.MAX_VALUE / 2) { index ->
-                    val row = rows[index % rows.size]
+                rows.forEach { row ->
                     Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(row.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                        Text(row.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, maxLines = 1, softWrap = false)
                         Spacer(Modifier.width(8.dp))
-                        Text(priceText(row), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+                        Text(priceText(row), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary, maxLines = 1, softWrap = false)
                         Spacer(Modifier.width(6.dp))
-                        Text(changeText(row), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = moveColor(row), maxLines = 1)
+                        Text(changeText(row), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = moveColor(row), maxLines = 1, softWrap = false)
                     }
                 }
             }

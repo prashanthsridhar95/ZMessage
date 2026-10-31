@@ -276,7 +276,13 @@ class HomeViewModel(
         }
     }
 
-    private fun reduceHome(change: State.() -> State) = reduce {
+    private fun reduceHome(change: State.() -> State) {
+        val started = System.nanoTime()
+        reduceHomeNow(change)
+        com.zyke.message.data.diag.DevLog.d("home") { "state rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
+    }
+
+    private fun reduceHomeNow(change: State.() -> State) = reduce {
         val updated = change()
         if (!updated.hasLoaded) {
             updated

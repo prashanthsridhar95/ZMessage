@@ -28,6 +28,9 @@ object DevLog {
     private const val MAX_BYTES = 1_500_000L
     private const val TAIL_LINES = 150
     private const val EXIT_HISTORY = 6
+    private const val MEMORY_EVERY_S = 5L
+    private const val MB = 1024L * 1024L
+    private const val KB = 1024L
     private const val EXIT_TRACE_CHARS = 8_000
     private const val FLUSH_WAIT_MS = 800L
 
@@ -35,6 +38,9 @@ object DevLog {
     private val stamp = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.ROOT)
     }
+
+    private val telemetry = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "dev-log-memory").apply { isDaemon = true } }
+    private var telemetryTask: java.util.concurrent.ScheduledFuture<*>? = null
 
     private var directory: File? = null
     private var prefs: android.content.SharedPreferences? = null
@@ -80,7 +86,26 @@ object DevLog {
 
     private fun hook() {
         DiagLog.sink = if (_logging.value) { tag, message -> write("D", tag, message) } else null
+        // While logging, memory is noted every few seconds, so a crash for lack of memory shows what led up to it.
+        telemetryTask?.cancel(false)
+        telemetryTask = if (_logging.value) telemetry.scheduleWithFixedDelay({ memoryLine() }, 2, MEMORY_EVERY_S, java.util.concurrent.TimeUnit.SECONDS) else null
     }
+
+    private fun memoryLine() {
+        runCatching {
+            val runtime = Runtime.getRuntime()
+            val info = android.os.Debug.MemoryInfo().also { android.os.Debug.getMemoryInfo(it) }
+            val stats = info.memoryStats
+            write(
+                "M", "memory",
+                "heap ${(runtime.totalMemory() - runtime.freeMemory()) / MB}/${runtime.maxMemory() / MB} MB · native ${android.os.Debug.getNativeHeapAllocatedSize() / MB} MB · " +
+                    "graphics ${stats["summary.graphics"]?.toLongOrNull()?.div(KB) ?: "?"} MB · total pss ${info.totalPss / KB} MB · threads ${Thread.activeCount()}"
+            )
+        }
+    }
+
+    /** The system asking the app to give memory back, noted with how urgent it is. */
+    fun trimMemory(level: Int) = d("memory") { "system asks for memory back: level $level" }
 
     fun d(tag: String, message: () -> String) {
         if (!_logging.value) return

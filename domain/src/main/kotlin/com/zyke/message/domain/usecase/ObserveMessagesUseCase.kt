@@ -135,6 +135,7 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(setAsides.state) { classified, asides ->
+                DiagLog.d("pipeline") { "set aside: ${asides.excluded.size} left out, ${asides.transfers.size} transfers, ${asides.dismissed.size} dismissed suggestions, over ${classified.size} messages" }
                 if (asides.excluded.isEmpty() && asides.transfers.isEmpty()) classified else classified.map { message ->
                     val kind = message.setAside ?: asides.kindOf(message.id) ?: return@map message
                     val content = message.content
