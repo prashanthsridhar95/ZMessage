@@ -107,7 +107,9 @@ sealed interface MessageContent : java.io.Serializable {
         val date: LocalDate?,
         val time: LocalTime?,
         val reference: String?,
-        val isDone: Boolean
+        val isDone: Boolean,
+        /** The order value some order messages state; information only, not a payment. */
+        val amount: String? = null
     ) : MessageContent
 
     data object Generic : MessageContent

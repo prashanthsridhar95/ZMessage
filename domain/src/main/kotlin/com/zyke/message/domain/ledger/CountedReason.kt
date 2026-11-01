@@ -6,6 +6,8 @@ import com.zyke.message.domain.model.NoticeKind
 
 /** A plain-language answer to "why is this (not) in my income and spending?". */
 object CountedReason {
+    private val WALLET = Regex("(?i)\\bwallet\\b")
+
     /**
      * @param isRefundCredit the credit is a refund of an earlier payment (see RefundTracker), which is shown on its own
      * rather than as income
@@ -25,6 +27,7 @@ object CountedReason {
         return when {
             message.setAside == SetAside.EXCLUDED -> "Not counted: you left it out of your totals"
             message.setAside == SetAside.TRANSFER -> "Not counted: a transfer between your own accounts"
+            tx.isCardPayment && tx.isReceived && WALLET.containsMatchIn(tx.payee) -> "Not counted as income: store credit added to a wallet is not money in your bank"
             tx.isCardPayment -> "Not counted: card bill payment, which is money moving between your own accounts"
             tx.isReceived && isRefundCredit -> "Not counted as income: a refund is tracked separately"
             tx.isReceived -> "Counted as income: money received" + payerSuffix(tx)

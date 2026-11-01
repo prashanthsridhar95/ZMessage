@@ -27,7 +27,7 @@ class GenericTransactionParser {
         if (RefundTracker.announcesPendingRefund(flat) || RefundTracker.isConditionalRefund(flat)) return null
 
         val body = message.replace(SPACES, " ").trim()
-        return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body)
+        return parseTemplate(body) ?: parseScheduled(body) ?: parseBill(body) ?: parseProcessed(body) ?: parsePaymentMade(body) ?: parseMovement(body) ?: parseAxisRow(body, onlyKnownNarrations = false)
     }
 
     /**
@@ -112,6 +112,18 @@ class GenericTransactionParser {
             val lender = LENDER_SIGNOFF.find(body)?.groupValues?.get(1)?.let(::tidy) ?: "Loan EMI"
             return BankTransaction(bank(body), "", lender, clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[2]))
         }
+        WALLET_CREDIT.find(body)?.let {
+            return BankTransaction(
+                BankName.OTHERS, "", it.groupValues[2].trim(), clean(it.groupValues[1]), BankTransactionType.RECEIVED, isInternal = true
+            )
+        }
+        EMI_DUE_LOAN_AC.find(body)?.let {
+            val lender = it.groupValues[2].let(::tidy).orEmpty().ifEmpty { "Loan" }
+            return BankTransaction(
+                bank(body), it.groupValues[3].takeLast(4), if (lender.endsWith("loan", ignoreCase = true)) lender else "$lender loan",
+                clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[4])
+            )
+        }
         EMI_DUE_LENDER.find(body)?.let {
             val lender = LENDER_DASH.find(body)?.groupValues?.get(1)?.let(::tidy) ?: it.groupValues[2].let(::tidy) ?: "Loan EMI"
             return BankTransaction(bank(body), "", lender, clean(it.groupValues[1]), BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[3]))
@@ -139,6 +151,7 @@ class GenericTransactionParser {
                 bank(body), it.groupValues[2], it.groupValues[3].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.SENT
             )
         }
+        parseAxisRow(body, onlyKnownNarrations = true)?.let { return it }
         ACCOUNT_DEBITED_TOWARDS.find(body)?.let {
             return BankTransaction(
                 bank(body), "", it.groupValues[1].let(::tidy).orEmpty(), clean(it.groupValues[2]), BankTransactionType.SENT
@@ -233,6 +246,50 @@ class GenericTransactionParser {
             return BankTransaction(BankName.OTHERS, "", "Insurance premium", clean(it.groupValues[1]), BankTransactionType.SENT)
         }
         return null
+    }
+
+    /**
+     * Axis account alerts: "Debit INR 1,234 Axis Bank A/c XX1234 10-10-26 10:00:00 NARRATION WhatsApp BAL to ...".
+     * The narration says what it was: a card bill paid from the account, a transfer to one's own account (SELFFT), a
+     * transfer to someone else (TPFT), a UPI / NEFT / IMPS / RTGS payment. Only the debit forms with a known narration are
+     * read early; every other row is a last resort after the general rules.
+     */
+    private fun parseAxisRow(body: String, onlyKnownNarrations: Boolean): BankTransaction? {
+        val row = AXIS_ROW.find(body) ?: return null
+        val received = row.groupValues[1].equals("credit", ignoreCase = true)
+        val narration = row.groupValues[4].trim()
+        val known = KNOWN_NARRATION.containsMatchIn(narration)
+        if (onlyKnownNarrations && (received || !known)) return null
+        val type = if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
+        val amount = clean(row.groupValues[2])
+        val account = row.groupValues[3].takeLast(4)
+
+        CARD_PAYMENT_NARRATION.find(narration)?.let {
+            val card = it.groupValues[1]
+            val label = if (card.isEmpty()) "Credit card payment" else "Credit card payment XX$card"
+            return BankTransaction(BankName.AXIS, account, label, amount, type, isInternal = !received)
+        }
+        if (SELF_TRANSFER_NARRATION.containsMatchIn(narration)) {
+            return BankTransaction(BankName.AXIS, account, "Self transfer", amount, type)
+        }
+        val named = narrationName(narration)
+        val payee = named ?: when {
+            THIRD_PARTY_NARRATION.containsMatchIn(narration) -> "Fund transfer"
+            else -> ""
+        }
+        return BankTransaction(BankName.AXIS, account, payee, amount, type)
+    }
+
+    /** The first part of a "UPI/P2A/123456789012/JOHN DOE/Bank" style narration that reads as a name. */
+    private fun narrationName(narration: String): String? {
+        if ('/' !in narration) return tidy(narration)
+        return narration.split('/').asSequence()
+            .map { it.trim() }
+            .filter { part ->
+                part.any { it.isLetter() } && part.uppercase() !in NARRATION_MARKERS &&
+                    !(part.none { it == ' ' } && part.any { it.isDigit() } && part.length >= 8)
+            }
+            .firstNotNullOfOrNull { tidy(it) }
     }
 
     private fun parseMovement(body: String): BankTransaction? {
@@ -525,6 +582,25 @@ class GenericTransactionParser {
         )
         /** A debit announced for "today": the classifier replaces this with the day the message arrived. */
         internal val TODAY_MARKER: LocalDate = LocalDate.of(1, 1, 1)
+
+        private const val LOOSE_DATE = "(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[-/ ](?:\\d{1,2}|[A-Za-z]{3})[-/ ]\\d{2,4})"
+
+        /** "A credit of Rs. 1,250* has been processed to your Tata CLiQ Power Cash Wallet." */
+        private val WALLET_CREDIT = Regex(
+            "(?i)\\bA credit of $CURRENCY\\s*$NUMBER\\*? has been (?:processed|added|credited|posted) to your (.{2,60}?\\b(?:wallet|cash(?! credit)|cashback)\\b(?: wallet)?)"
+        )
+        /** "EMI of INR 12345.67 for Axis Bank Loan A/c XX1234 is due on 05-11-26." */
+        private val EMI_DUE_LOAN_AC = Regex(
+            "(?i)\\bEMI of (?:Rs\\.?|INR) ?(?:INR )?$NUMBER for (?:your )?(.{1,40}?) (?:loan )?(?:A/c|acct?\\.?|account)(?: no\\.?)? ?[xX*]*(\\d{3,})\\s+(?:is|will be) due (?:on|by) $LOOSE_DATE"
+        )
+        private val AXIS_ROW = Regex(
+            "(?i)^\\s*(Debit|Credit)\\s+$CURRENCY\\s*$NUMBER\\b.{0,60}?\\bA/c\\s*[xX*]*(\\d+)\\s+\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?\\s+(.+?)(?=\\s+(?:WhatsApp|Not You|Avl|Bal)\\b|$)"
+        )
+        private val KNOWN_NARRATION = Regex("(?i)^(?:credit ?card|cc)\\s*(?:bill\\s*)?pay|^MOB/|^(?:UPI|NEFT|IMPS|RTGS)/")
+        private val CARD_PAYMENT_NARRATION = Regex("(?i)^(?:credit ?card|cc)\\s*(?:bill\\s*)?pay(?:ment)?\\b(?:.{0,20}?[xX*]+\\s*(\\d{4}))?")
+        private val SELF_TRANSFER_NARRATION = Regex("(?i)^MOB/SELF ?FT\\b")
+        private val THIRD_PARTY_NARRATION = Regex("(?i)^MOB/TPFT\\b")
+        private val NARRATION_MARKERS = setOf("MOB", "TPFT", "SELFFT", "UPI", "P2A", "P2M", "P2P", "NEFT", "IMPS", "RTGS", "INB", "MMT", "IFT")
 
         private val ISO_DATE = Regex("\\d{4}-\\d{2}-\\d{2}")
         private val SBI_NETBANKING = Regex("(?i)\\bTh(?:an)?[kx]s? for .{0,60}?txn of $CURRENCY\\s*$NUMBER frm A/c [Xx*]*(\\d+) to (.+?) Ref\\b")

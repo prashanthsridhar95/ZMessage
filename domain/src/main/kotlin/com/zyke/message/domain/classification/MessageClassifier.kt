@@ -127,6 +127,10 @@ class MessageClassifier(
         if (tx.bankName == BankName.MUTUAL_FUND && merchant.category == MessageCategory.OTHERS) {
             merchant = merchant.copy(category = MessageCategory.INVESTMENTS)
         }
+        // Paying a card's bill from the account, or topping up a store wallet, moves the person's own money about.
+        if (tx.isInternal && merchant.category == MessageCategory.OTHERS) {
+            merchant = merchant.copy(category = if (tx.type == BankTransactionType.RECEIVED) MessageCategory.SHOPPING else MessageCategory.CREDIT_CARDS)
+        }
         return ClassifiedMessage(
             message = message,
             category = merchant.category,
@@ -137,14 +141,19 @@ class MessageClassifier(
                 amount = normalizeAmount(tx.amount),
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 isReceived = tx.type == BankTransactionType.RECEIVED,
-                isCard = message.body.contains("Card", ignoreCase = true),
-                isCardPayment = tx.type == BankTransactionType.RECEIVED && CARD_PAYMENT.containsMatchIn(message.body)
+                // The account a card bill is paid from is a bank account, whatever the narration says about the card.
+                isCard = !tx.isInternal && message.body.contains("Card", ignoreCase = true),
+                isCardPayment = tx.isInternal || (tx.type == BankTransactionType.RECEIVED && CARD_PAYMENT.containsMatchIn(message.body))
             )
         )
     }
 
     private fun scheduled(message: SmsMessage, tx: BankTransaction): ClassifiedMessage {
-        val merchant = nameIfMissing(merchants.resolve(tx.payee.ifEmpty { tx.bankName.displayString }), tx)
+        var merchant = nameIfMissing(merchants.resolve(tx.payee.ifEmpty { tx.bankName.displayString }), tx)
+        // A loan's instalment is not a card bill, whichever bank's name the lender carries.
+        if (tx.payee.contains("loan", ignoreCase = true) && merchant.category == MessageCategory.CREDIT_CARDS) {
+            merchant = merchant.copy(category = MessageCategory.OTHERS)
+        }
         return ClassifiedMessage(
             message = message,
             category = merchant.category,
@@ -208,17 +217,24 @@ class MessageClassifier(
     private fun life(message: SmsMessage): ClassifiedMessage? {
         val received = Instant.ofEpochMilli(message.date).atZone(ZoneId.systemDefault()).toLocalDate()
         val facts = LifeParser.parse(message.body, received) ?: return null
-        val merchant = merchants.resolve("${message.sender} ${message.body}")
+        val merchant = facts.merchant?.let { merchants.resolve(it) } ?: merchants.resolve("${message.sender} ${message.body}")
         val title = when {
+            facts.merchant != null -> facts.merchant
             merchant.name != "${message.sender} ${message.body}" && merchant.logo != MerchantLogo.PERSON -> merchant.name
             else -> SenderKey.displayAddress(message.sender)
         }
-        val category = if (facts.kind == LifeKind.TRAVEL) MessageCategory.TRAVEL else merchant.category
+        val category = when {
+            facts.kind == LifeKind.TRAVEL -> MessageCategory.TRAVEL
+            // An order that names its own restaurant or shop is filed by that name, not by the bank the message came through.
+            facts.merchant != null -> merchant.category.takeIf { it != MessageCategory.OTHERS }
+                ?: if (FOOD_ORDER.containsMatchIn(message.body)) MessageCategory.FOOD else MessageCategory.OTHERS
+            else -> merchant.category
+        }
         return ClassifiedMessage(
             message = message,
             category = category,
             merchant = merchant.copy(name = title, category = category),
-            content = MessageContent.Life(facts.kind, title, facts.status, facts.date, facts.time, facts.reference, facts.isDone)
+            content = MessageContent.Life(facts.kind, title, facts.status, facts.date, facts.time, facts.reference, facts.isDone, facts.amount)
         )
     }
 
@@ -300,7 +316,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 15
+        const val RULES_VERSION = 16
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(
@@ -308,6 +324,8 @@ class MessageClassifier(
             RegexOption.DOT_MATCHES_ALL
         )
         const val MAX_PARSED_LENGTH = 4096
+
+        private val FOOD_ORDER = Regex("(?i)\\b(?:food|meal|pizza|burger|restaurant|doorstep)\\b")
 
         /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */
         val OPAQUE_ID = Regex("(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{16,}")

@@ -21,7 +21,11 @@ data class LifeFacts(
     /** PNR, booking or order number when the message has one. */
     val reference: String?,
     /** A delivery that has already arrived, or an event that is over, is no longer "ahead". */
-    val isDone: Boolean = false
+    val isDone: Boolean = false,
+    /** The shop or restaurant the message names itself, when it does. */
+    val merchant: String? = null,
+    /** The order value an order message states (information, not a debit). */
+    val amount: String? = null
 )
 
 /**
@@ -54,8 +58,23 @@ object LifeParser {
     private val ORDER_WORD = Regex("(?i)\\b(?:order|shipment|parcel|package|awb|consignment|delivery)\\b")
     private val ORDER_REF = Regex("(?i)\\b(?:order|awb|shipment|tracking)(?: ?(?:id|no\\.?|number|#))?\\s*[:\\-#]?\\s*([A-Z0-9][A-Z0-9-]{5,24})\\b")
 
+    /** "Thanks for choosing Popeyes! ...|Order no. 123 |Amount:Rs. 499.50 |Track order@ link": an order confirmed, with its value. */
+    private val ORDER_WITH_AMOUNT = Regex("(?i)\\border no\\.?\\s*:?\\s*([A-Z0-9-]{1,24})\\b.{0,200}?\\bAmount:\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
+    private val CHOSEN_BRAND = Regex("(?i)\\bthanks for choosing ([A-Za-z0-9][A-Za-z0-9' &]{1,30}?)\\s*[!.,|]")
+
+    private fun orderWithAmount(text: String): LifeFacts? {
+        val match = ORDER_WITH_AMOUNT.find(text) ?: return null
+        val delivered = DELIVERED.containsMatchIn(text)
+        return LifeFacts(
+            LifeKind.DELIVERY, if (delivered) "Delivered" else "Order placed", null, null, match.groupValues[1], delivered,
+            merchant = CHOSEN_BRAND.find(text)?.groupValues?.get(1)?.trim(),
+            amount = match.groupValues[2].replace(",", "").trimEnd('.')
+        )
+    }
+
     private fun delivery(text: String): LifeFacts? {
         if (!ORDER_WORD.containsMatchIn(text)) return null
+        orderWithAmount(text)?.let { return it }
         val (status, done) = when {
             DELIVERED.containsMatchIn(text) -> "Delivered" to true
             OUT_FOR_DELIVERY.containsMatchIn(text) -> "Out for delivery" to false

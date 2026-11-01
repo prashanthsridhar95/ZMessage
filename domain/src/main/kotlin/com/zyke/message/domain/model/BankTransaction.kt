@@ -40,5 +40,7 @@ data class BankTransaction(
     val type: BankTransactionType,
     val dueDate: LocalDate? = null,
     val minimumDue: String? = null,
-    val paymentLink: String? = null
+    val paymentLink: String? = null,
+    /** Money moving between the person's own pockets (a card bill paid from the account, store credit added): neither income nor spending. */
+    val isInternal: Boolean = false
 )

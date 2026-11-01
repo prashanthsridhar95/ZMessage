@@ -64,7 +64,11 @@ object LifeAgenda {
                 val days = if (life.status.contains("out for delivery", ignoreCase = true)) OUT_FOR_DELIVERY_DAYS else TRANSIT_DAYS
                 !seen.isBefore(today.minusDays(days))
             }
-            .map { (_, message, life) -> AgendaItem(message, LifeKind.DELIVERY, life.title, life.status, null, null) }
+            .map { (_, message, life) ->
+                // An order's value is shown as information beside its status; it is not a payment.
+                val status = life.amount?.let { "${life.status} \u00b7 \u20b9$it" } ?: life.status
+                AgendaItem(message, LifeKind.DELIVERY, life.title, status, null, null)
+            }
 
         return ((dated + windows).sortedWith(compareBy({ it.date }, { it.time })) + orders).distinctBy { it.message.id to (it.kind == LifeKind.WARRANTY) }.take(MAX_ITEMS)
     }
