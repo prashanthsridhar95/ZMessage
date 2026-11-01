@@ -11,7 +11,7 @@ phone.
 - **Nothing leaves unless you send it.** The one exception is the masked parsing report you choose to share.
   It goes through a private, non-exported `FileProvider` limited to one cache folder, with read access granted
   to the app you pick for that one file only.
-- **No backups.** `allowBackup` is off and the backup / device-transfer rules exclude all app data.
+- **Backups are opt-in and encrypted.** Android Auto Backup is on only to carry one file, `files/auto_backup/zyke-backup.bin` (the setup, encrypted with a key from your PIN); every other file, preference and database is excluded. Backup to your own Google Drive is off until you switch it on. See `docs/PRIVACY.md`.
 - **Small footprint of stored data.** The app stores only message *ids* (read / pinned / archived marks),
   dismissed tips, budgets and two settings, in app-private storage. Message text is never persisted.
 - **Release hardening.** Release builds are minified and obfuscated with R8.
