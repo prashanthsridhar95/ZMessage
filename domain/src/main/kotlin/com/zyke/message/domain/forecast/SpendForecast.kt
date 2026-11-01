@@ -35,6 +35,9 @@ data class CutSuggestion(
     val reason: CutReason
 )
 
+/** A card bill or auto-debit falling due before the cycle ends. */
+data class ForecastBill(val title: String, val amount: BigDecimal, val date: LocalDate)
+
 /** Where the current cycle is heading if spending carries on as it has. */
 data class SpendForecast(
     val cycleEnd: LocalDate,
@@ -58,7 +61,11 @@ data class SpendForecast(
     val runsOutOn: LocalDate?,
     /** How much would have to go on a credit card to cover the gap; null when the balance is enough. */
     val cardNeeded: BigDecimal?,
-    val suggestions: List<CutSuggestion>
+    val suggestions: List<CutSuggestion>,
+    /** The bills and auto-debits making up [billsDue], soonest first. */
+    val upcoming: List<ForecastBill> = emptyList(),
+    /** The day the expected salary is due, when [expectedIncome] is. */
+    val salaryOn: LocalDate? = null
 ) {
     val totalSaving: BigDecimal get() = suggestions.fold(BigDecimal.ZERO) { sum, s -> sum + s.saving }
 }
@@ -142,7 +149,9 @@ object SpendForecasts {
             bankPerDay = bankPerDay, cardPerDay = cardPerDay,
             projectedBankSpend = projectedBank, projectedCardSpend = projectedCard,
             billsDue = billsDue, expectedIncome = expectedIncome, endBalance = end, runsOutOn = runsOut, cardNeeded = cardNeeded,
-            suggestions = suggestions(thisCycle, previous, elapsed, remaining, cycleLength)
+            suggestions = suggestions(thisCycle, previous, elapsed, remaining, cycleLength),
+            upcoming = bills.sortedBy { it.date }.map { ForecastBill(it.title, it.amount, it.date) },
+            salaryOn = salaryDate.takeIf { expectedIncome.signum() > 0 }
         )
     }
 

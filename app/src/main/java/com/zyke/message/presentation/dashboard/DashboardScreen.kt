@@ -321,7 +321,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         if (state.forecast != null || state.salaryRunway != null) {
             item(key = "forecast") {
                 val forecast = state.forecast
-                if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway)
+                if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway, summary = state.monthlySummary.takeIf { !state.source.isActive }, insights = state.planInsights)
                 else state.salaryRunway?.let { com.zyke.message.presentation.dashboard.components.SalaryStripCard(it) }
             }
         }
