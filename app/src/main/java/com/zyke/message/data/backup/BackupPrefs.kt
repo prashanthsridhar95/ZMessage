@@ -28,7 +28,8 @@ data class BackupView(
     val lastLocal: BackupResult? = null,
     val lastDrive: BackupResult? = null,
     val failure: Map<BackupMechanism, BackupFailureNote> = emptyMap(),
-    val running: Boolean = false
+    val running: Boolean = false,
+    val picturesSkipped: Boolean = false
 ) {
     fun lastSuccess(m: BackupMechanism): Instant? = (if (m == BackupMechanism.LOCAL) lastLocal else lastDrive)?.at
     fun lastFailure(m: BackupMechanism): Instant? = failure[m]?.at
@@ -44,6 +45,7 @@ class BackupPrefs(context: Context, keyReady: () -> Boolean) {
     private val settings = context.applicationContext.getSharedPreferences("backup_schedule", Context.MODE_PRIVATE)
     private val state = context.applicationContext.getSharedPreferences("backup_state", Context.MODE_PRIVATE)
     private val keyReady = keyReady
+    @Volatile private var running = false
     private val _view = MutableStateFlow(read())
     val view: StateFlow<BackupView> = _view.asStateFlow()
 
@@ -73,7 +75,8 @@ class BackupPrefs(context: Context, keyReady: () -> Boolean) {
             lastLocal = result("local"),
             lastDrive = result("drive"),
             failure = BackupMechanism.values().mapNotNull { m -> failure(m)?.let { m to it } }.toMap(),
-            running = _view.value.running
+            running = running,
+            picturesSkipped = state.getBoolean("pictures_skipped", false)
         )
     }
 
@@ -102,14 +105,14 @@ class BackupPrefs(context: Context, keyReady: () -> Boolean) {
     /** True when the last backup left the sender pictures out because they were too big together. */
     var picturesSkipped: Boolean
         get() = state.getBoolean("pictures_skipped", false)
-        set(value) { state.edit().putBoolean("pictures_skipped", value).apply() }
+        set(value) { state.edit().putBoolean("pictures_skipped", value).apply(); refresh() }
 
     /** Failed tries in a row for the job system's quick retries; reset after a success or when giving up for now. */
     var attempts: Int
         get() = state.getInt("attempts", 0)
         set(value) { state.edit().putInt("attempts", value).apply() }
 
-    fun setRunning(running: Boolean) { _view.value = _view.value.copy(running = running) }
+    fun setRunning(value: Boolean) { running = value; refresh() }
 
     fun recordSuccess(m: BackupMechanism, at: Instant, sizeBytes: Long) {
         val prefix = if (m == BackupMechanism.LOCAL) "local" else "drive"

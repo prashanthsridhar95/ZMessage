@@ -242,7 +242,10 @@ internal fun BackupCard() {
 
 /** A labelled field whose text is hidden as dots, for a passphrase. */
 @Composable
-private fun PasswordField(label: String, value: String, onChange: (String) -> Unit, error: String?) {
+internal fun PasswordField(
+    label: String, value: String, onChange: (String) -> Unit, error: String?,
+    keyboardType: KeyboardType = KeyboardType.Password
+) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
         OutlinedTextField(
@@ -252,7 +255,7 @@ private fun PasswordField(label: String, value: String, onChange: (String) -> Un
             singleLine = true,
             isError = error != null,
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
         )
         if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }

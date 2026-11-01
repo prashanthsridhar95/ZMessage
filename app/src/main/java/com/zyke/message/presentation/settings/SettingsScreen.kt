@@ -509,6 +509,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
                 Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
             }
+            com.zyke.message.presentation.backup.AutoBackupCard()
             BackupCard()
             SectionCard("Clear data") {
                 Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
@@ -732,7 +733,7 @@ private fun RcsSection() {
 }
 
 @Composable
-private fun ToggleRow(
+internal fun ToggleRow(
     title: String,
     description: String,
     checked: Boolean,

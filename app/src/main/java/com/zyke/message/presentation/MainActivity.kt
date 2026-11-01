@@ -25,6 +25,7 @@ import androidx.core.view.WindowCompat
 import androidx.compose.runtime.CompositionLocalProvider
 import com.zyke.message.presentation.common.LocalImageStore
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.unit.dp
@@ -102,6 +103,34 @@ class MainActivity : ComponentActivity() {
         }
         askNextPermission()
     }
+
+    // ---- Google sign-in for the optional Drive backup: Google's own screen, then a short-lived access token.
+
+    private var pendingSignIn: ((String?) -> Unit)? = null
+
+    private val driveConsent = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val callback = pendingSignIn
+        pendingSignIn = null
+        val token = if (result.resultCode == RESULT_OK) container.backup.driveAuth?.tokenFromResult(result.data) else null
+        callback?.invoke(token)
+    }
+
+    private fun requestDriveToken(onToken: (String?) -> Unit) {
+        val auth = container.backup.driveAuth
+        if (auth == null) { onToken(null); return }
+        lifecycleScope.launch {
+            when (val answer = auth.authorize()) {
+                is com.zyke.message.data.backup.DriveAuthResult.Token -> onToken(answer.value)
+                is com.zyke.message.data.backup.DriveAuthResult.NeedsUser -> {
+                    pendingSignIn = onToken
+                    driveConsent.launch(androidx.activity.result.IntentSenderRequest.Builder(answer.request.intentSender).build())
+                }
+                is com.zyke.message.data.backup.DriveAuthResult.Failed -> onToken(null)
+            }
+        }
+    }
+
+    private val backupHost by lazy { com.zyke.message.presentation.backup.BackupHost(::requestDriveToken) }
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { askNextPermission() }
 
@@ -220,6 +249,7 @@ class MainActivity : ComponentActivity() {
             val amountsRevealed by amountReveal.revealed.collectAsStateWithLifecycle()
             CompositionLocalProvider(
                 LocalImageStore provides container.imageStore,
+                com.zyke.message.presentation.backup.LocalBackupHost provides backupHost,
                 com.zyke.message.presentation.common.LocalAmountReveal provides amountReveal,
                 // Hidden = the setting is on and no reveal window is open. The eye turns hiding on at once, and shows
                 // amounts (after the screen lock) only for a window; leaving hiding off for good is a setting.
@@ -240,7 +270,8 @@ class MainActivity : ComponentActivity() {
             ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent, customAccent = appSettings.customAccent) {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
-                androidx.compose.runtime.LaunchedEffect(locked) { if (!locked) startPermissionFlow() }
+                var welcomePending by remember { mutableStateOf(container.needsWelcome && !container.backup.prefs.welcomeDone) }
+                androidx.compose.runtime.LaunchedEffect(locked, welcomePending) { if (!locked && !welcomePending) startPermissionFlow() }
                 if (showSmsExplainer.value && !locked) {
                     SmsExplainer(
                         onContinue = {
@@ -264,7 +295,9 @@ class MainActivity : ComponentActivity() {
                         onLater = { showAccessPrompt.value = false }
                     )
                 }
-                if (locked) {
+                if (welcomePending) {
+                    com.zyke.message.presentation.backup.WelcomeBack(onFinished = { welcomePending = false })
+                } else if (locked) {
                     LockScreen(onUnlock = ::requestUnlock)
                 } else {
                 // Only the few fields the shell shows are watched, and the flows are built once: watching a whole screen
