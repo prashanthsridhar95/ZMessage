@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import com.zyke.message.presentation.common.Text
@@ -25,9 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zyke.message.data.backup.PrefsBackup
 import com.zyke.message.domain.backup.BackupCrypto
-import com.zyke.message.domain.backup.BackupException
 import com.zyke.message.presentation.common.AppButton
-import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.dashboard.components.SectionCard
@@ -35,20 +32,14 @@ import com.zyke.message.presentation.messages.components.Caption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private const val MAX_BACKUP_BYTES = 32 * 1024 * 1024
-
-/** Where the person is in making or restoring a backup. */
+/** Where the person is in making a backup by hand. Restoring goes through the one shared restore flow. */
 private sealed interface Stage {
     data object Idle : Stage
     data object MakingPassphrase : Stage
-    data class OpeningPassphrase(val text: String, val createdAt: Long) : Stage
-    data class Confirming(val snapshot: PrefsBackup.Snapshot) : Stage
-    data object Restored : Stage
 }
 
 /**
@@ -98,26 +89,8 @@ internal fun BackupCard() {
         }
     }
 
-    val opener = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        busy = true
-        scope.launch {
-            val text = withContext(Dispatchers.IO) { runCatching { readLimited(context, uri) }.getOrNull() }
-            busy = false
-            if (text == null) {
-                message = "That file could not be read as a backup."
-                return@launch
-            }
-            try {
-                val header = BackupCrypto.peek(text)
-                error = null
-                pass = ""
-                stage = Stage.OpeningPassphrase(text, header.createdAt)
-            } catch (e: BackupException) {
-                message = e.reason
-            }
-        }
-    }
+    var restoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val pickFile = com.zyke.message.presentation.backup.rememberRestoreFilePicker { restoreUri = it }
 
     SectionCard("Backup and restore") {
         Caption("An encrypted copy of your setup: plan, limits, cards, goals, reminders, events, entries you added, names, categories and settings.", maxLines = 4)
@@ -130,8 +103,8 @@ internal fun BackupCard() {
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
         )
         AppButton(
-            text = "Restore from a backup",
-            onClick = { message = null; opener.launch(arrayOf("*/*")) },
+            text = "Restore from a file",
+            onClick = { message = null; pickFile() },
             style = ButtonStyle.OUTLINE,
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
@@ -139,7 +112,7 @@ internal fun BackupCard() {
         message?.let { Caption(it, Modifier.padding(top = 8.dp), maxLines = 4) }
     }
 
-    when (val s = stage) {
+    when (stage) {
         Stage.Idle -> Unit
         Stage.MakingPassphrase -> {
             val tooShort = pass.length < BackupCrypto.MIN_PASSPHRASE_LENGTH
@@ -162,81 +135,10 @@ internal fun BackupCard() {
                 PasswordField("Passphrase again", pass2, { pass2 = it }, error = if (mismatch) "The two passphrases are different" else null)
             }
         }
-        is Stage.OpeningPassphrase -> {
-            FormSheet(
-                title = "Open the backup",
-                subtitle = if (s.createdAt > 0) "Made " + java.text.DateFormat.getDateInstance().format(java.util.Date(s.createdAt)) else null,
-                onDismiss = { reset() },
-                primaryLabel = if (busy) "Opening" else "Open backup",
-                primaryEnabled = pass.isNotEmpty() && !busy,
-                hint = "Type the passphrase used when it was made",
-                onPrimary = {
-                    val secret = pass.toCharArray()
-                    busy = true
-                    error = null
-                    scope.launch {
-                        val outcome = withContext(Dispatchers.Default) {
-                            try {
-                                Result.success(PrefsBackup.parse(BackupCrypto.decrypt(s.text, secret)))
-                            } catch (e: BackupException) {
-                                Result.failure<PrefsBackup.Snapshot>(e)
-                            } catch (e: PrefsBackup.InvalidSnapshotException) {
-                                Result.failure<PrefsBackup.Snapshot>(e)
-                            }
-                        }
-                        secret.fill(' ')
-                        busy = false
-                        outcome.onSuccess {
-                            pass = ""
-                            stage = Stage.Confirming(it)
-                        }.onFailure {
-                            error = (it as? BackupException)?.reason ?: "This backup does not contain a usable setup."
-                        }
-                    }
-                }
-            ) {
-                PasswordField("Passphrase", pass, { pass = it }, error = error)
-            }
-        }
-        is Stage.Confirming -> AlertDialog(
-            onDismissRequest = { reset() },
-            title = { Text("Restore this backup?") },
-            text = { Text("This replaces what you have now: plan, limits, cards, goals, reminders, events, entries and settings. Your messages are not touched. The app will close and you open it again.") },
-            confirmButton = {
-                AppButton(
-                    "Replace my setup",
-                    {
-                        val ok = runCatching { PrefsBackup.apply(context, s.snapshot) }.isSuccess
-                        if (ok) {
-                            stage = Stage.Restored
-                        } else {
-                            reset()
-                            message = "The backup could not be restored."
-                        }
-                    },
-                    style = ButtonStyle.TEXT,
-                    size = ButtonSize.COMPACT
-                )
-            },
-            dismissButton = { AppButton("Cancel", { reset() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
-        )
-        Stage.Restored -> AlertDialog(
-            onDismissRequest = {},
-            title = { Text("Backup restored") },
-            text = { Text("The app closes now so it can load your restored setup. Open it again to continue.") },
-            confirmButton = {
-                AppButton(
-                    "Close the app",
-                    {
-                        // Closed at once, so nothing still in memory writes the old setup back.
-                        (context as? android.app.Activity)?.finishAndRemoveTask()
-                        android.os.Process.killProcess(android.os.Process.myPid())
-                    },
-                    style = ButtonStyle.TEXT,
-                    size = ButtonSize.COMPACT
-                )
-            }
-        )
+    }
+
+    restoreUri?.let { uri ->
+        com.zyke.message.presentation.backup.RestoreFlow(com.zyke.message.presentation.backup.RestoreSource.FILE, { restoreUri = null }, uri)
     }
 }
 
@@ -259,20 +161,4 @@ internal fun PasswordField(
         )
         if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
-}
-
-/** Reads a chosen file as text, refusing anything unreasonably large (a backup is a few kilobytes). */
-private fun readLimited(context: android.content.Context, uri: android.net.Uri): String? {
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        val out = ByteArrayOutputStream()
-        val buf = ByteArray(8192)
-        while (true) {
-            val n = input.read(buf)
-            if (n < 0) break
-            out.write(buf, 0, n)
-            if (out.size() > MAX_BACKUP_BYTES) return null
-        }
-        return out.toString("UTF-8")
-    }
-    return null
 }

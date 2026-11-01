@@ -9,6 +9,8 @@ enum class BackupFailure(val message: String, val retrySoon: Boolean) {
     DRIVE_FULL("Your Google Drive is full.", false),
     DRIVE_ERROR("Google Drive did not accept the backup. It will try again later.", true),
     STORAGE("The backup could not be saved on this phone.", true),
+    FOLDER_LOST("The backup folder is not available any more (it was removed, or the permission was taken back). Pick the folder again.", false),
+    FOLDER_FULL("There is no space left to save the backup in the folder.", false),
     UNKNOWN("The backup did not work. It will try again later.", true)
 }
 
@@ -16,7 +18,8 @@ class BackupFailureException(val failure: BackupFailure) : Exception(failure.nam
 
 enum class BackupMechanism(val label: String) {
     LOCAL("This phone"),
-    DRIVE("Google Drive")
+    DRIVE("Google Drive"),
+    FOLDER("Folder")
 }
 
 enum class BackupTrigger { SCHEDULE, MANUAL, FOREGROUND, SETUP }

@@ -9,7 +9,8 @@ class BackupHub(context: Context, images: ImageStore, val driveAuth: DriveAuth? 
     val prefs = BackupPrefs(context) { keys.has() }
     val drive: DriveSync? = driveAuth?.let { GoogleDriveSync(it, DriveBackupClient(), { prefs.driveConsented }, { prefs.driveConsented = true }) }
     val engine = BackupEngine(context, images, keys)
-    val runner = BackupRunner(context, prefs, engine, drive)
+    val folder = FolderBackupStore(context, prefs)
+    val runner = BackupRunner(context, prefs, engine, drive, folder)
     val scheduler = BackupScheduler(context, prefs)
     val restorer = BackupRestorer(context, images, keys, prefs)
 }

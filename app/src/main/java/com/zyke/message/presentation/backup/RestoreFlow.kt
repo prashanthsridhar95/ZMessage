@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zyke.message.data.backup.BackupFailureException
+import com.zyke.message.data.backup.ChosenFile
+import com.zyke.message.data.diag.DevLog
 import com.zyke.message.data.backup.PreparedRestore
 import com.zyke.message.data.backup.PrefsBackup
 import com.zyke.message.domain.backup.BackupException
@@ -46,7 +48,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal enum class RestoreSource { PHONE, DRIVE }
+/**
+ * The one "Restore from a file" picker used wherever restore is offered. A `.zbk` has no registered mime type, so any
+ * file can be chosen; the app looks inside it ([RestoreFlow]) before it asks for the PIN. Returns the function that opens the picker.
+ */
+@Composable
+internal fun rememberRestoreFilePicker(onPicked: (android.net.Uri) -> Unit): () -> Unit {
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) onPicked(uri) }
+    return { runCatching { launcher.launch(arrayOf("*/*")) } }
+}
+
+internal enum class RestoreSource { PHONE, DRIVE, FILE }
 
 private sealed interface Step {
     data object Working : Step
@@ -58,12 +72,13 @@ private sealed interface Step {
 }
 
 /**
- * Bringing a backup back, from this phone's Android backup file or from Google Drive: find it, ask for the PIN (or
+ * Bringing a backup back, from this phone's Android backup file, from Google Drive or from a file the person chose
+ * (a manual export, a `.zbk` from the backup folder, the `.bin`): find it, ask for the PIN (or
  * passphrase), check it, and ask before replacing anything that is already set up. Shared by the Welcome step and
  * Settings. Slow work (key stretching, downloads) runs off the main thread; a wrong PIN waits a second before it says so.
  */
 @Composable
-internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit) {
+internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit, fileUri: android.net.Uri? = null) {
     val context = LocalContext.current
     val hub = rememberBackupHub()
     val host = LocalBackupHost.current
@@ -75,30 +90,56 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit) {
 
     fun fail(message: String) { step = Step.Failed(message) }
 
-    LaunchedEffect(source) {
-        when (source) {
-            RestoreSource.PHONE -> {
-                val file = withContext(Dispatchers.IO) { hub.engine.readLocalOrNull() }
-                val made = file?.let { hub.restorer.createdAt(it) }
-                if (file == null || made == null) fail("No backup was found on this phone.") else step = Step.EnterPin(file, made)
-            }
-            RestoreSource.DRIVE -> {
-                if (host == null) { fail("Google sign-in is not available here."); return@LaunchedEffect }
-                host.signIn { token ->
-                    if (token == null) {
-                        fail("Google sign-in was not completed.")
+    LaunchedEffect(source, fileUri) {
+        try {
+            when (source) {
+                RestoreSource.PHONE -> {
+                    val found = withContext(Dispatchers.IO) { hub.engine.readLocalOrNull()?.let { it to hub.restorer.createdAt(it) } }
+                    val made = found?.second
+                    if (found == null || made == null) fail("No backup was found on this phone.") else step = Step.EnterPin(found.first, made)
+                }
+                RestoreSource.FILE -> {
+                    val uri = fileUri
+                    if (uri == null) {
+                        fail("No file was chosen.")
                     } else {
-                        scope.launch {
-                            try {
-                                val items = hub.drive?.list(token).orEmpty()
-                                step = if (items.isEmpty()) Step.Failed("No backups were found in your Google Drive.") else Step.Choosing(items, token)
-                            } catch (e: BackupFailureException) {
-                                fail(e.failure.message)
+                        // Size cap and header check happen before the PIN is asked for.
+                        when (val read = withContext(Dispatchers.IO) { hub.restorer.readChosenFile(uri) }) {
+                            is ChosenFile.Rejected -> fail(read.message)
+                            is ChosenFile.Text -> {
+                                val made = withContext(Dispatchers.Default) { hub.restorer.createdAt(read.text) }
+                                if (made == null) fail("This doesn't look like a Zyke backup.") else step = Step.EnterPin(read.text, made)
+                            }
+                        }
+                    }
+                }
+                RestoreSource.DRIVE -> {
+                    if (host == null) { fail("Google sign-in is not available here."); return@LaunchedEffect }
+                    host.signIn { token ->
+                        if (token == null) {
+                            fail("Google sign-in was not completed.")
+                        } else {
+                            scope.launch {
+                                try {
+                                    val items = hub.drive?.list(token).orEmpty()
+                                    step = if (items.isEmpty()) Step.Failed("No backups were found in your Google Drive.") else Step.Choosing(items, token)
+                                } catch (e: BackupFailureException) {
+                                    fail(e.failure.message)
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    fail("The backup could not be found.")
+                                }
                             }
                         }
                     }
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DevLog.d("backup") { "restore step failed class=${e.javaClass.simpleName}" }
+            fail("The backup could not be opened.")
         }
     }
 
@@ -129,6 +170,10 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit) {
                                         step = if (made == null) Step.Failed("That file is not a Zyke backup.") else Step.EnterPin(text, made)
                                     } catch (e: BackupFailureException) {
                                         fail(e.failure.message)
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        fail("The backup could not be downloaded.")
                                     }
                                 }
                             },
@@ -165,8 +210,8 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit) {
                         if (existing) {
                             step = Step.Confirm(prepared)
                         } else {
-                            withContext(Dispatchers.Default) { hub.restorer.apply(prepared) }
-                            step = Step.Restored
+                            val applied = withContext(Dispatchers.Default) { runCatching { hub.restorer.apply(prepared) }.isSuccess }
+                            if (applied) step = Step.Restored else fail("The backup could not be restored.")
                         }
                     } catch (e: BackupException.WrongPassphrase) {
                         error = "That PIN or passphrase does not open this backup, or the file has been changed. Try again."
@@ -174,6 +219,11 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit) {
                         error = e.reason
                     } catch (e: PrefsBackup.InvalidSnapshotException) {
                         error = "This backup does not contain a usable setup."
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        DevLog.d("backup") { "restore open failed class=${e.javaClass.simpleName}" }
+                        error = "That backup could not be opened."
                     } finally {
                         secret.fill(' ')
                         busy = false

@@ -19,9 +19,13 @@ class BackupRunner(
     context: Context,
     val prefs: BackupPrefs,
     private val engine: BackupEngine,
-    private val drive: DriveSync?
+    private val drive: DriveSync?,
+    private val folder: FolderBackupStore
 ) {
     private val lock = Mutex()
+    private companion object {
+        val OFFLINE_PLACES = listOf(BackupMechanism.LOCAL, BackupMechanism.FOLDER)
+    }
 
     /** Which places succeeded. [driveToken] is for a run the person started after signing in on screen. */
     suspend fun run(trigger: BackupTrigger, places: Set<BackupMechanism>, driveToken: String? = null): Map<BackupMechanism, Boolean> {
@@ -36,14 +40,18 @@ class BackupRunner(
         }
     }
 
-    /** The places whose scheduled time has passed without a good backup since: what to catch up on while the app is open. */
-    suspend fun runLocalIfDue() {
+    /**
+     * The places that need no network (this phone, the chosen folder) whose scheduled time has passed without a good
+     * backup since: what to catch up on while the app is open.
+     */
+    suspend fun runOfflineIfDue() {
         val view = prefs.view.value
-        if (!view.localEnabled) return
         val now = Instant.now()
-        val schedule = view.schedule
-        val due = !schedule.nextAttempt(now, ZoneId.systemDefault(), view.lastSuccess(BackupMechanism.LOCAL), view.lastFailure(BackupMechanism.LOCAL)).isAfter(now)
-        if (due) run(BackupTrigger.FOREGROUND, setOf(BackupMechanism.LOCAL))
+        val due = OFFLINE_PLACES.filter { m ->
+            view.enabled(m) &&
+                !view.schedule.nextAttempt(now, ZoneId.systemDefault(), view.lastSuccess(m), view.lastFailure(m)).isAfter(now)
+        }.toSet()
+        if (due.isNotEmpty()) run(BackupTrigger.FOREGROUND, due)
     }
 
     private suspend fun runLocked(trigger: BackupTrigger, places: Set<BackupMechanism>, driveToken: String?): Map<BackupMechanism, Boolean> {
@@ -63,6 +71,7 @@ class BackupRunner(
             val outcome = try {
                 when (m) {
                     BackupMechanism.LOCAL -> { engine.writeLocal(built.bytes); built.bytes.size.toLong() }
+                    BackupMechanism.FOLDER -> folder.save(built.bytes, Instant.now())
                     BackupMechanism.DRIVE -> (drive ?: throw BackupFailureException(BackupFailure.NOT_SIGNED_IN))
                         .upload(built.bytes, Instant.now(), driveToken)
                 }

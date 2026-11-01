@@ -141,6 +141,15 @@ object DevLog {
         write("E", tag, message + (error?.let { " | ${it.javaClass.name}: ${it.message}\n" + it.stackTraceToString().take(4000) } ?: ""))
     }
 
+    /**
+     * Written even when logging is off, because a fresh install never has it on: used for the first launch only
+     * (tag "firstrun"), so a start that went wrong leaves a trace in `dev_logs/zyke.log`. Step names and exception
+     * classes; never contents.
+     */
+    fun always(tag: String, message: String, error: Throwable? = null) {
+        write(if (error != null) "E" else "D", tag, message + (error?.let { " | ${it.javaClass.name}: ${it.message}\n" + it.stackTraceToString().take(2000) } ?: ""))
+    }
+
     private fun write(level: String, tag: String, message: String) {
         val line = "${stamp.get()!!.format(Date())} $level/$tag [${Thread.currentThread().name}] $message\n"
         writer.execute {

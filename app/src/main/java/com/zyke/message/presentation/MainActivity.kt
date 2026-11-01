@@ -274,7 +274,7 @@ class MainActivity : ComponentActivity() {
             ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent, customAccent = appSettings.customAccent) {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
-                var welcomePending by remember { mutableStateOf(container.needsWelcome && !container.backup.prefs.welcomeDone) }
+                var welcomePending by remember { mutableStateOf(container.welcomeStillPending()) }
                 androidx.compose.runtime.LaunchedEffect(locked, welcomePending) { if (!locked && !welcomePending) startPermissionFlow() }
                 if (showSmsExplainer.value && !locked) {
                     SmsExplainer(
@@ -508,7 +508,7 @@ class MainActivity : ComponentActivity() {
             // Backups: queue what is missing, and refresh the Auto Backup file if its time has passed (no network needed).
             runCatching {
                 container.backup.scheduler.ensureScheduled()
-                container.backup.runner.runLocalIfDue()
+                container.backup.runner.runOfflineIfDue()
             }
         }
     }

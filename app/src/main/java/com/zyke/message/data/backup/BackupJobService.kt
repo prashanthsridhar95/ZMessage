@@ -16,10 +16,14 @@ class BackupJobService : JobService() {
     private val running = ConcurrentHashMap<Int, Job>()
 
     override fun onStartJob(params: JobParameters): Boolean {
-        val hub = (application as ZykeMessagesApplication).container.backup
+        val hub = runCatching { (application as ZykeMessagesApplication).container.backup }.getOrNull() ?: return false
         val place = hub.scheduler.mechanismFor(params.jobId) ?: return false
         running[params.jobId] = scope.launch {
-            val ok = hub.runner.run(BackupTrigger.SCHEDULE, setOf(place))[place] == true
+            val ok = try {
+                hub.runner.run(BackupTrigger.SCHEDULE, setOf(place))[place] == true
+            } catch (e: Exception) {
+                false
+            }
             val failure = hub.prefs.view.value.failure[place]?.failure
             // A passing problem (no network, Drive busy) is retried by the system a few times with growing waits;
             // anything else waits for the next due time.

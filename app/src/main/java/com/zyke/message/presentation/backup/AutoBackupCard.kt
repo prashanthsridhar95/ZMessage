@@ -1,8 +1,11 @@
 package com.zyke.message.presentation.backup
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -74,8 +77,35 @@ internal fun AutoBackupCard() {
     fun places(): Set<BackupMechanism> = buildSet {
         if (view.localEnabled) add(BackupMechanism.LOCAL)
         if (view.driveEnabled) add(BackupMechanism.DRIVE)
+        if (view.folderEnabled) add(BackupMechanism.FOLDER)
     }
     fun changed() { hub.scheduler.rescheduleAll() }
+    // The folder picker. The system keeps the grant for the chosen folder; nothing else is read from it.
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) {
+            scope.launch {
+                val kept = withContext(Dispatchers.IO) {
+                    val previous = hub.prefs.folderTree
+                    if (!hub.folder.takeAccess(tree)) {
+                        false
+                    } else {
+                        if (previous != null && previous != tree.toString()) hub.folder.releaseAccess(previous)
+                        hub.prefs.setFolder(tree.toString(), hub.folder.labelFor(tree))
+                        hub.prefs.clearFailure(BackupMechanism.FOLDER)
+                        true
+                    }
+                }
+                if (kept) {
+                    note = null
+                    changed()
+                    hub.runner.run(BackupTrigger.SETUP, setOf(BackupMechanism.FOLDER))
+                } else {
+                    note = "Android would not keep access to that folder. Please pick it again."
+                }
+            }
+        }
+    }
+    fun openFolderPicker() { runCatching { pickFolder.launch(null) }.onFailure { note = "This phone has no folder picker." } }
     fun runNow(token: String? = null) {
         scope.launch { hub.runner.run(BackupTrigger.MANUAL, places(), token) }
     }
@@ -167,6 +197,41 @@ internal fun AutoBackupCard() {
             )
         }
 
+        Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ToggleRow(
+                title = "Save a copy to a folder",
+                description = "Also saves a dated file each time into a folder you choose, and keeps the newest 7. Needs no sign-in and no network. The files are encrypted with your PIN. Copy them anywhere; you need the PIN to open them.",
+                checked = view.folderEnabled,
+                onCheckedChange = { on ->
+                    note = null
+                    if (on) {
+                        withKey { openFolderPicker() }
+                    } else {
+                        val old = hub.prefs.folderTree
+                        hub.prefs.clearFolder()
+                        hub.prefs.clearFailure(BackupMechanism.FOLDER)
+                        scope.launch(Dispatchers.IO) { hub.folder.releaseAccess(old) }
+                        changed()
+                        note = "Files already saved in the folder stay there."
+                    }
+                }
+            )
+            if (view.folderEnabled) {
+                Caption(
+                    "Folder: ${view.folderLabel.ifEmpty { "the chosen folder" }}",
+                    maxLines = 2
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppButton("Change folder", ::openFolderPicker, Modifier.weight(1f), style = ButtonStyle.OUTLINE)
+                    AppButton(
+                        if (view.running) "Saving" else "Back up now",
+                        { note = null; withKey { scope.launch { hub.runner.run(BackupTrigger.MANUAL, setOf(BackupMechanism.FOLDER)) } } },
+                        Modifier.weight(1f), style = ButtonStyle.OUTLINE, enabled = !view.running
+                    )
+                }
+            }
+        }
+
         Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             FormGroup("How often") {
                 Chips(
@@ -222,12 +287,15 @@ internal fun AutoBackupCard() {
         // What happened, and what is next.
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for (m in BackupMechanism.values()) {
-                val on = if (m == BackupMechanism.LOCAL) view.localEnabled else view.driveEnabled
-                if (!on) continue
-                val last = if (m == BackupMechanism.LOCAL) view.lastLocal else view.lastDrive
+                if (!view.enabled(m)) continue
+                val last = view.result(m)
                 val failure = view.failure[m]
                 Caption(
-                    if (last != null) BackupText.lastBackup(last.at, now, zone, last.sizeBytes, m.label) else "${m.label}: no backup yet",
+                    when {
+                        last == null -> "${m.label}: no backup yet"
+                        m == BackupMechanism.FOLDER -> BackupText.lastSavedToFolder(last.at, now, zone, last.sizeBytes, view.folderLabel.ifEmpty { "the chosen folder" })
+                        else -> BackupText.lastBackup(last.at, now, zone, last.sizeBytes, m.label)
+                    },
                     maxLines = 2
                 )
                 if (failure != null && (last == null || failure.at.isAfter(last.at))) {
@@ -237,6 +305,8 @@ internal fun AutoBackupCard() {
                             AppButton("Sign in again", ::signInThenBackUp, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                         BackupFailure.NO_KEY ->
                             AppButton("Choose a PIN", { afterPin = null; settingPin = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                        BackupFailure.FOLDER_LOST ->
+                            AppButton("Pick the folder again", ::openFolderPicker, style = ButtonStyle.TEXT)
                         else -> Unit
                     }
                 }
@@ -286,7 +356,7 @@ internal fun AutoBackupCard() {
             }
         )
     }
-    restore?.let { RestoreFlow(it) { restore = null } }
+    restore?.let { RestoreFlow(it, { restore = null }) }
 }
 
 private val FREQUENCIES = listOf(

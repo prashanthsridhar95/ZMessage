@@ -47,6 +47,10 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 class AppContainer(context: Context) {
     /** Decided first thing, before any store can write: whether this is a fresh install that should offer "Welcome back". */
     val needsWelcome: Boolean = com.zyke.message.data.backup.BackupPrefs.needsWelcome(context)
+    /** [needsWelcome] and not answered yet. Never throws: if anything about the first launch fails, the app just opens. */
+    fun welcomeStillPending(): Boolean =
+        com.zyke.message.data.backup.FirstRun.step("welcome state", false) { needsWelcome && !backup.prefs.welcomeDone }
+
     val backup by lazy { com.zyke.message.data.backup.BackupHub(context, imageStore, com.zyke.message.data.backup.GmsDriveAuth(context)) }
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
     val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
