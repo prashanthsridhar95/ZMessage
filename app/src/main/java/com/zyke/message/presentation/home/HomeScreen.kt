@@ -619,7 +619,7 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
             account = account,
             state = state,
             onPay = { onIntent(Intent.OpenLink(it)) },
-            onName = { onIntent(Intent.NameAccount(account.key, it)) },
+            onEdit = { name, bank, kind -> onIntent(Intent.EditAccount(account.key, name, bank, kind)) },
             onStatementDay = { onIntent(Intent.SetStatementDay(account.key, it)) },
             onRemove = { onIntent(Intent.RemoveAccount(account.key)) },
             onProvidentFund = { onIntent(Intent.SetProvidentFund(account.key, it)) },

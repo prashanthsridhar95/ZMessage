@@ -49,6 +49,7 @@ class SettingsViewModel(
     private val onWeeklySummaryChanged: (Boolean) -> Unit = {},
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+    private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
     /** The person's own setup beyond what this screen holds (goals, reminders, events, entries), for the export. */
     private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() },
     /** Where limits and diagnostics are worked out; never the main thread outside tests. */
@@ -67,6 +68,9 @@ class SettingsViewModel(
         }
         viewModelScope.launch {
             hiddenAccounts.hidden.collect { recomputeLimits() }
+        }
+        viewModelScope.launch {
+            accountOverrides.overrides.collect { recomputeLimits() }
         }
         viewModelScope.launch {
             planRepository.plan.collect { plan -> reduce { copy(plan = plan) }; recomputeLimits() }
@@ -258,7 +262,8 @@ class SettingsViewModel(
         val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone, state.plan)
         val range = cycle.containing(java.time.LocalDate.ofInstant(clock.instant(), clock.zone))
         val accounts = com.zyke.message.domain.accounts.Accounts.build(
-            inbox, state.cards, clock.instant(), clock.zone, cycle, hiddenAccounts.hidden.value
+            inbox, state.cards, clock.instant(), clock.zone, cycle, hiddenAccounts.hidden.value,
+            overrides = accountOverrides.overrides.value
         ).accounts
         val spendable = com.zyke.message.domain.plan.PlanInsightsBuilder.build(state.plan, inbox, clock.instant(), clock.zone, cycle)?.spendable
         val suggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(inbox, state.monthlyLimits, spendable, clock.instant(), clock.zone, cycle)
@@ -315,6 +320,7 @@ class SettingsViewModel(
         private val onWeeklySummaryChanged: (Boolean) -> Unit = {},
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+        private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
         private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -322,7 +328,7 @@ class SettingsViewModel(
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, onWeeklySummaryChanged = onWeeklySummaryChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, setupExtras = setupExtras
+                onLiveAlertsChanged = onLiveAlertsChanged, onWeeklySummaryChanged = onWeeklySummaryChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, accountOverrides = accountOverrides, setupExtras = setupExtras
             ) as T
     }
 }

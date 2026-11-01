@@ -47,6 +47,8 @@ object HomeContract {
         val loanList: List<com.zyke.message.domain.loans.Loan> = emptyList(),
         val cards: List<UserCard> = emptyList(),
         val hiddenAccounts: Set<String> = emptySet(),
+        /** The person's own bank and type for accounts, by key; a new map on every change so the derived accounts rebuild. */
+        val accountOverrides: Map<String, com.zyke.message.domain.accounts.AccountOverride> = emptyMap(),
         /** What the person has set aside from the totals, and what the app would like them to look at. */
         val asides: com.zyke.message.domain.ledger.SetAsides = com.zyke.message.domain.ledger.SetAsides(),
         val review: com.zyke.message.domain.ledger.ReviewQueue = com.zyke.message.domain.ledger.ReviewQueue(emptyList(), emptyList(), emptyList()),
@@ -179,6 +181,8 @@ object HomeContract {
         data class OpenAccount(val key: String) : Intent
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent
+        /** Name, bank and type in one go; a blank [bank] and null [kind] reset to what the messages say. */
+        data class EditAccount(val key: String, val name: String, val bank: String, val kind: com.zyke.message.domain.accounts.AccountKind?) : Intent
         data class SetStatementDay(val key: String, val day: Int?) : Intent
         data class SetProvidentFund(val key: String, val on: Boolean) : Intent
         data class RemoveAccount(val key: String) : Intent

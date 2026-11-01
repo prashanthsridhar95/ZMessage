@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
     private val dashboardViewModel: DashboardViewModel by viewModels {
         DashboardViewModel.Factory(
             container.observeMessages, container.budgets, container.cards, container.userMessageState, container.moneyPlan,
-            container.hiddenAccounts, container.providentFundAccounts, container.insightsFilter
+            container.hiddenAccounts, container.providentFundAccounts, container.insightsFilter, container.accountOverrides
         )
     }
 
@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
             container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments, container.loans, container.planActions, container.dailyBudgetOverride,
-            container.cancelledSubscriptions
+            container.cancelledSubscriptions, container.accountOverrides
         )
     }
 
@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
             onWeeklySummaryChanged = { WeeklyScheduler(this).apply(it) },
             planRepository = container.moneyPlan,
             hiddenAccounts = container.hiddenAccounts,
+            accountOverrides = container.accountOverrides,
             setupExtras = { com.zyke.message.data.export.SetupExport.extras(container) }
         )
     }

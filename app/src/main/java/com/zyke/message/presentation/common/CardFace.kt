@@ -161,14 +161,14 @@ private fun NetworkMark(network: CardNetwork?) {
 }
 
 /** The card an account is drawn as: the person's own card with its details, else one made from what the messages show. */
-fun AccountSummary.faceCard(): UserCard = userCard ?: UserCard(
+fun AccountSummary.faceCard(): UserCard = userCard?.let { if (bankLabel.isNotBlank() && it.bankName != bankLabel && override?.bank?.isNotBlank() == true) it.copy(bankName = bankLabel) else it } ?: UserCard(
     id = key,
     type = when (kind) {
         AccountKind.CREDIT_CARD -> CardType.CREDIT
         AccountKind.DEBIT_CARD -> CardType.DEBIT
         AccountKind.BANK_ACCOUNT -> CardType.ACCOUNT
     },
-    last4 = last4, name = "", bankName = bankName.displayString
+    last4 = last4, name = "", bankName = bankLabel
 )
 
 /** One entry in a [CardDeck]. */

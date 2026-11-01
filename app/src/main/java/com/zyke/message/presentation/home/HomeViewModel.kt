@@ -91,12 +91,13 @@ class HomeViewModel(
     private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
     private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
     private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions,
+    private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
     State(now = clock.instant(), userState = userStateRepository.state.value, budgets = budgetRepository.budgets.value,
         dailyBudgets = budgetRepository.dailyBudgets.value, wishlist = wishlist.items.value, splits = splitRepository.splits.value,
-        plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
+        plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, accountOverrides = accountOverrides.overrides.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, loanList = loanRepository.loans.value, asides = setAsideRepository.state.value,
         planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value,
         cancelledSubs = cancelledSubscriptions.cancelled.value)
@@ -142,6 +143,7 @@ class HomeViewModel(
         viewModelScope.launch { loanRepository.loans.collect { loans -> reduceHome { copy(loanList = loans) } } }
         viewModelScope.launch { cardRepository.cards.collect { cards -> reduceHome { copy(cards = cards) } } }
         viewModelScope.launch { hiddenAccounts.hidden.collect { keys -> reduceHome { copy(hiddenAccounts = keys) } } }
+        viewModelScope.launch { accountOverrides.overrides.collect { chosen -> reduceHome { copy(accountOverrides = chosen) } } }
         viewModelScope.launch { recurring.states.collect { states -> reduce { copy(recurringStates = states) } } }
         viewModelScope.launch { cancelledSubscriptions.cancelled.collect { cancelled -> reduceHome { copy(cancelledSubs = cancelled) } } }
         viewModelScope.launch { calendarEvents.events.collect { events -> reduceHome { copy(events = events) } } }
@@ -243,6 +245,7 @@ class HomeViewModel(
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
             Intent.CloseCodes -> reduce { copy(showCodes = false) }
             is Intent.NameAccount -> nameAccount(intent.key, intent.name)
+            is Intent.EditAccount -> editAccount(intent)
             is Intent.SetProvidentFund -> pfAccounts.set(intent.key, intent.on)
             is Intent.SetStatementDay -> setStatementDay(intent.key, intent.day)
             is Intent.RemoveAccount -> {
@@ -290,7 +293,7 @@ class HomeViewModel(
         val existing = account.userCard
         cardRepository.save(
             (existing ?: UserCard(id = "named-$key", type = CardType.CREDIT, last4 = account.last4, name = ""))
-                .copy(statementDay = day, bankName = existing?.bankName ?: account.bankName.displayString)
+                .copy(statementDay = day)
         )
     }
 
@@ -304,8 +307,38 @@ class HomeViewModel(
         val existing = account.userCard
         cardRepository.save(
             (existing ?: UserCard(id = "named-$key", type = type, last4 = account.last4, name = ""))
-                .copy(name = name.trim(), bankName = existing?.bankName ?: account.bankName.displayString)
+                .copy(name = name.trim())
         )
+    }
+
+    /**
+     * The Edit sheet: a nickname, the bank and the type. The bank and type go to the account's override (keyed by the
+     * account, so new messages keep it); the nickname and the bank also go to its card entry, so the card form shows them.
+     */
+    private fun editAccount(edit: Intent.EditAccount) {
+        val account = currentState().accounts.accounts.firstOrNull { it.key == edit.key } ?: return
+        val typed = edit.bank.trim()
+        val sameAsDetected = typed.isEmpty() || (account.detectedBank != com.zyke.message.domain.model.BankName.OTHERS &&
+            com.zyke.message.domain.cards.CardCatalog.bank(typed) == account.detectedBank)
+        val bank = if (sameAsDetected) "" else typed
+        val kind = edit.kind?.takeIf { it != account.detectedKind }
+        val chosen = com.zyke.message.domain.accounts.AccountOverride(bank = bank, kind = kind)
+        if (chosen.isEmpty) accountOverrides.clear(edit.key) else accountOverrides.set(edit.key, chosen)
+        com.zyke.message.data.diag.DevLog.d("accounts") {
+            "edit account key=${com.zyke.message.domain.diag.DiagLog.key(edit.key)} bankChosen=${bank.isNotEmpty()} kindChosen=${kind != null} nameLength=${edit.name.trim().length}"
+        }
+        val existing = account.userCard
+        if (existing != null || edit.name.isNotBlank()) {
+            val type = when (account.kind) {
+                AccountKind.BANK_ACCOUNT -> CardType.ACCOUNT
+                AccountKind.CREDIT_CARD -> CardType.CREDIT
+                AccountKind.DEBIT_CARD -> CardType.DEBIT
+            }
+            cardRepository.save(
+                (existing ?: UserCard(id = "named-${edit.key}", type = type, last4 = account.last4, name = ""))
+                    .copy(name = edit.name.trim(), bankName = bank)
+            )
+        }
     }
 
     private fun addQuick(quick: QuickAdd) {
@@ -385,8 +418,8 @@ class HomeViewModel(
                     memo("insights", updated.plan, live, now, cycle) { PlanInsightsBuilder.build(updated.plan, live, now, zone, cycle) }
                 }
                 val accounts = part {
-                    memo("accounts", live, updated.cards, now, cycle, updated.hiddenAccounts, updated.pfAccountKeys) {
-                        Accounts.build(live, updated.cards, now, zone, cycle, updated.hiddenAccounts, updated.pfAccountKeys)
+                    memo("accounts", live, updated.cards, now, cycle, updated.hiddenAccounts, updated.pfAccountKeys, updated.accountOverrides) {
+                        Accounts.build(live, updated.cards, now, zone, cycle, updated.hiddenAccounts, updated.pfAccountKeys, updated.accountOverrides)
                     }
                 }
                 val quickAdds = part {
@@ -550,7 +583,8 @@ class HomeViewModel(
         private val loanRepository: com.zyke.message.domain.repository.LoanRepository = com.zyke.message.domain.repository.NoLoans,
         private val planActionRepository: com.zyke.message.domain.repository.PlanActionRepository = com.zyke.message.domain.repository.NoPlanActions,
         private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
-        private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions
+        private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions,
+        private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -561,7 +595,7 @@ class HomeViewModel(
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
                 recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride,
-                cancelledSubscriptions = cancelledSubscriptions
+                cancelledSubscriptions = cancelledSubscriptions, accountOverrides = accountOverrides
             ) as T
     }
 

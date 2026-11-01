@@ -39,6 +39,7 @@ class DashboardViewModel(
     private val userStateRepository: UserMessageStateRepository? = null,
     private val planRepository: MoneyPlanRepository = NoMoneyPlan,
     private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
+    private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
     private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
     private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter,
     /** Where the figures and charts are worked out; never the main thread outside tests. */
@@ -220,6 +221,7 @@ class DashboardViewModel(
         val archived = archivedIds()
         val hidden = hiddenAccounts.hidden.value
         val pfKeys = pfAccounts.keys.value
+        val overrides = accountOverrides.overrides.value
         // Each figure is worked out from the messages and the person's settings alone, so they are worked out side by side,
         // and one that none of its inputs changed for is not worked out again.
         val built = kotlinx.coroutines.coroutineScope {
@@ -264,9 +266,9 @@ class DashboardViewModel(
             val sourceOptions = part { memos.of("sourceOptions", messages) { com.zyke.message.domain.dashboard.SourceFilters.options(messages) } }
             val forecast = part {
                 // What the bank accounts hold, apart from any provident fund and anything removed as not theirs.
-                val balance = memos.of("accountsBalance", messages, archived, updated.cards, now, cycle, hidden, pfKeys) {
+                val balance = memos.of("accountsBalance", messages, archived, updated.cards, now, cycle, hidden, pfKeys, overrides) {
                     com.zyke.message.domain.accounts.Accounts.build(
-                        if (archived.isEmpty()) messages else messages.filter { it.id !in archived }, updated.cards, now, zone, cycle, hidden, pfKeys
+                        if (archived.isEmpty()) messages else messages.filter { it.id !in archived }, updated.cards, now, zone, cycle, hidden, pfKeys, overrides
                     ).totalBalance
                 }
                 memos.of("forecast", messages, balance, now, cycle) { com.zyke.message.domain.forecast.SpendForecasts.build(messages, balance, now, zone, cycle) }
@@ -320,14 +322,15 @@ class DashboardViewModel(
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
         private val pfAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository = com.zyke.message.domain.repository.NoProvidentFundAccounts,
-        private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter
+        private val insightsFilter: com.zyke.message.domain.repository.InsightsFilterRepository = com.zyke.message.domain.repository.NoInsightsFilter,
+        private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             DashboardViewModel(
                 observeMessages, budgetRepository, cardRepository = cardRepository, userStateRepository = userStateRepository,
                 planRepository = planRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts,
-                insightsFilter = insightsFilter
+                insightsFilter = insightsFilter, accountOverrides = accountOverrides
             ) as T
     }
 }

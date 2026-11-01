@@ -371,17 +371,11 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     renamingKey?.let { key ->
         val target = overview.accounts.firstOrNull { it.key == key }
         if (target == null) renamingKey = null else {
-            var name by rememberSaveable(key) { mutableStateOf(target.userCard?.name.orEmpty()) }
-            com.zyke.message.presentation.common.FormSheet(
-                title = "Name this account", onDismiss = { renamingKey = null },
-                primaryLabel = "Save", primaryEnabled = name.isNotBlank(), hint = "Type a name",
-                onPrimary = { onIntent(HomeContract.Intent.NameAccount(key, name)); renamingKey = null }
-            ) {
-                com.zyke.message.presentation.common.FormField(
-                    "Name", name, { name = it }, placeholder = "e.g. Salary account",
-                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
-                )
-            }
+            EditAccountSheet(
+                target,
+                onSave = { name, bank, kind -> onIntent(HomeContract.Intent.EditAccount(key, name, bank, kind)); renamingKey = null },
+                onDismiss = { renamingKey = null }
+            )
         }
     }
     leavingKey?.let { key ->
@@ -491,7 +485,7 @@ internal fun AccountSheet(
     account: AccountSummary,
     state: HomeContract.State,
     onPay: (String) -> Unit,
-    onName: (String) -> Unit,
+    onEdit: (String, String, AccountKind?) -> Unit,
     onStatementDay: (Int?) -> Unit,
     onRemove: () -> Unit,
     onProvidentFund: (Boolean) -> Unit,
@@ -513,7 +507,7 @@ internal fun AccountSheet(
         }
     }
     val activity = remember(state.messages, account.key, periodStart, today) {
-        AccountActivities.build(state.messages, account.last4, account.isCard, periodStart, today, zone)
+        AccountActivities.build(state.messages, account.last4, account.messagesAreCard, periodStart, today, zone)
     }
     val due = account.dueDate
     val asOf = account.balanceAsOf
@@ -533,7 +527,7 @@ internal fun AccountSheet(
                 Column(Modifier.weight(1f)) {
                     Caption("${account.kind.label} •• ${account.last4}")
                 }
-                AppButton("Rename", { naming = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                AppButton("Edit", { naming = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
 
             Column {
@@ -706,21 +700,7 @@ internal fun AccountSheet(
     }
 
     if (naming) {
-        var name by rememberSaveable { mutableStateOf(account.userCard?.name.orEmpty()) }
-        com.zyke.message.presentation.common.FormSheet(
-            title = "Name this account",
-            onDismiss = { naming = false },
-            primaryLabel = "Save",
-            primaryEnabled = name.isNotBlank(),
-            hint = "Type a name",
-            onPrimary = { onName(name); naming = false }
-        ) {
-            com.zyke.message.presentation.common.FormField(
-                "Name", name, { name = it }, placeholder = "e.g. Salary account",
-                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
-            )
-        }
-
+        EditAccountSheet(account, onSave = { name, bank, kind -> onEdit(name, bank, kind); naming = false }, onDismiss = { naming = false })
     }
 }
 
@@ -788,7 +768,7 @@ internal fun AccountChip(account: AccountSummary, size: androidx.compose.ui.unit
     val store = LocalImageStore.current
     val keys by (store?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet())).collectAsState()
     val key = ACCOUNT_PICTURE_PREFIX + account.key
-    val bank = remember(account.bankName) { MerchantResolver().resolve(account.bankName.displayString.ifEmpty { account.title }) }
+    val bank = remember(account.bankLabel) { MerchantResolver().resolve(account.bankLabel.ifEmpty { account.title }) }
     MerchantChip(
         bank.logo,
         modifier = modifier,

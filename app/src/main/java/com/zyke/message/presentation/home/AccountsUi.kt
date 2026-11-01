@@ -228,7 +228,7 @@ private fun AccountActions(
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             ActionItem("Details", null, R.drawable.ic_info_24) { open = false; onOpen() }
-            ActionItem("Rename", null, R.drawable.ic_edit_24) { open = false; onRename() }
+            ActionItem("Edit", "Name, bank and type", R.drawable.ic_edit_24) { open = false; onRename() }
             if (isCard) ActionItem("Edit card", "Limit, bill dates and look", R.drawable.ic_card_24) { open = false; openSettings() }
             ActionItem("Leave out of totals", "Hidden from totals and lists", R.drawable.ic_visibility_off_24) { open = false; onLeaveOut() }
         }

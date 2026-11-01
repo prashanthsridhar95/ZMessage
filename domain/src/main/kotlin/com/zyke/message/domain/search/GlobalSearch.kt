@@ -237,7 +237,7 @@ object GlobalSearch {
     private fun accountHits(needle: String, amount: String?, accounts: List<AccountSummary>): List<SearchHit> =
         accounts.mapNotNull { a ->
             val rank = listOfNotNull(
-                best(needle, a.title, a.bankName.displayString, a.last4, a.kind.label),
+                best(needle, a.title, a.bankLabel, a.last4, a.kind.label),
                 amountRank(amount, a.balance?.toPlainString())
             ).minOrNull() ?: return@mapNotNull null
             SearchHit(SearchKind.ACCOUNT, a.key, a.title, "${a.kind.label} ····${a.last4}", rank = rank)

@@ -92,6 +92,7 @@ class AppContainer(context: Context) {
     val markets by lazy { com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)) }
     val dailyBudgetOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository by lazy { com.zyke.message.data.repository.DailyBudgetOverrideRepositoryImpl(context) }
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
+    val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository by lazy { com.zyke.message.data.repository.AccountOverrideRepositoryImpl(context) }
     val netWorth: com.zyke.message.domain.repository.NetWorthRepository by lazy { com.zyke.message.data.repository.NetWorthRepositoryImpl(context) }
     val loans: com.zyke.message.domain.repository.LoanRepository by lazy { com.zyke.message.data.repository.LoanRepositoryImpl(context) }
     val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository by lazy { com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context) }
@@ -122,7 +123,7 @@ class AppContainer(context: Context) {
     fun warmUp() {
         val parts = listOf<() -> Any?>(
             { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
-            { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts },
+            { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts }, { accountOverrides },
             { providentFundAccounts }, { setAsides }, { manualEntries }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
             { classificationCache }, { observeMessages }
         )
