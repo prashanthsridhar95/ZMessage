@@ -150,3 +150,23 @@ class RevealDurationTest {
         assertEquals(com.zyke.message.domain.privacy.RevealDuration.MINUTE_1, com.zyke.message.domain.model.AppSettings().revealDuration)
     }
 }
+
+class OtpDetectionTest {
+    private val parser = com.zyke.message.domain.classification.OtpParser.Companion
+
+    @Test fun aWarningThatMentionsOtpButHoldsNoCode_isNotAnOtp() {
+        val body = "Pine Labs will never call you for the card number/CVV/expiry/OTP/PIN for any purpose like KYC update. " +
+            "Do NOT disclose it to anyone on call/email. - Pine Labs"
+        assertFalse(parser.isOtp(body))
+    }
+
+    @Test fun aRealOtpStillIs() {
+        assertTrue(parser.isOtp("123456 is your OTP for login. Do not share it with anyone."))
+        assertTrue(parser.isOtp("Your One-Time Password is 4821. Valid for 10 minutes."))
+        assertTrue(parser.isOtp("Delivery Code 7421 for your order"))
+    }
+
+    @Test fun noKeywordIsNotAnOtp() {
+        assertFalse(parser.isOtp("Your order 123456 has shipped"))
+    }
+}

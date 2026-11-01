@@ -38,7 +38,15 @@ class OtpParser {
             "Delivery Code", "Happy Code", "Share Code", "OTP"
         )
 
-        fun isOtp(body: String) = OTP_KEYWORDS.any { body.contains(it, ignoreCase = true) }
+        /**
+         * A one-time-password message names the thing AND carries the code. A warning such as "will never call you for
+         * the card number/CVV/OTP/PIN" mentions OTP but holds no code, so it is not one (and offers nothing to copy).
+         */
+        fun isOtp(body: String): Boolean {
+            if (OTP_KEYWORDS.none { body.contains(it, ignoreCase = true) }) return false
+            val code = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
+            return code.containsMatchIn(body)
+        }
 
         private val SIMPL_CODE = "\\b([A-Z0-9]{10})\\b".toRegex()
         private val NUMERIC_CODE = "(?:[^\\d]|^)(\\d{4,7})(?:[^\\d]|$)".toRegex()
