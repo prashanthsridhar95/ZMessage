@@ -28,19 +28,21 @@
 | Settings (screenshot protection, theme, app lock, morning digest, hide amounts and "ask for authentication to show amounts") | User input | Booleans and one choice | No |
 | Morning digest and widget (off until chosen) | Built on the phone from the inbox | A notification text shown on the lock screen only as a private notification; the widget draws the same lines on the home screen | No |
 | Paired watch (optional; only in a build made with `-PwithWear=true`) | `WatchSnapshot` (`:domain`): today's budget left, this month against last, the next three bills or EMIs (name, amount, days), the count of items to review, the latest total balance, and when it was made. Never message text, sender or account number. With "Hide amounts" on, no amount is sent at all | Latest copy only, in the Wear OS Data Layer on the phone and in private preferences on the watch | Only to your own paired watch, over the Data Layer's local Bluetooth/Wi-Fi link; no server. The default phone build has no Wear code and no Google Play services dependency |
+| Automatic backup of your setup (off until you switch it on, Settings, Automatic backup) | The same setup as "Export my setup" plus the sender pictures you chose, never messages, the message-reading cache, logs or the developer file | One file, encrypted with AES-256-GCM using a key stretched (PBKDF2-HMAC-SHA256, 600,000 rounds) from a 6-digit PIN or a passphrase of your choice. The PIN is never stored; only the stretched key is kept, sealed with a Keystore key, so scheduled backups can run. The file is kept at `files/auto_backup/zyke-backup.bin` | Option A: Android's own Auto Backup may upload that one file (encrypted) to your Google account; no sign-in and no `INTERNET` needed. Option B (off by default): that one file is uploaded to the private app folder of your own Google Drive (scope `drive.appdata`, which sees nothing else in your Drive); the last 7 are kept. No analytics, no other data, no account name or token is stored by the app |
 | Parsing report (masked sample messages) | Created on request in Settings | A text file in the private cache until the next report | Only if the user shares it, through the system share sheet |
 
 Suggestions, spam scoring, search phrases, alerts and summaries are computed on the phone from messages already in memory; nothing is downloaded or sent. An on-device language model (Gemini Nano) is supported through a small interface but is only used when the phone provides one, and every answer it gives is checked against the message text.
 
-There is no account, no analytics and no crash reporter. The only network use is the logo setting (on by default, can be turned off) and the market strip (off until you turn it on).
+There is no account, no analytics and no crash reporter. The only network use is the logo setting (on by default, can be turned off), the market strip (off until you turn it on) and the optional backup to your own Google Drive (off until you turn it on and sign in).
 
 ## Threats considered
 
 | Threat | Mitigation |
 |---|---|
-| App exfiltrates messages | `INTERNET` is used by two files: `LogoFetcher` (a brand's website name) and `QuoteFetcher` (tickers from your watch list); a unit test enforces that no other file touches the network and which hosts they may call |
+| App exfiltrates messages | `INTERNET` is used by three files: `LogoFetcher` (a brand's website name), `QuoteFetcher` (tickers from your watch list) and `DriveBackupClient` (opt-in: one PIN-encrypted backup file to your own Drive's private app folder); a unit test enforces that no other file touches the network and which hosts they may call |
 | The cache database is copied off the phone and read | Each entry is AES-256-GCM encrypted with a Keystore key that cannot be exported, so the file alone is unreadable; backups and device transfer exclude databases; a damaged or old entry is dropped, never trusted |
-| Messages end up in a cloud backup | `allowBackup=false` plus exclude-all backup and transfer rules |
+| Messages end up in a cloud backup | Android Auto Backup is on only to carry one file, `auto_backup/zyke-backup.bin`, which holds the encrypted setup and never messages; the backup and transfer rules include only that file and exclude preferences, databases, every other file, external storage and the app root, and a unit test pins this. Cloud backup is skipped on a phone that cannot encrypt it |
+| A backup file is stolen and guessed at | The file is AES-256-GCM encrypted with a PBKDF2 (600,000 rounds) key from your PIN. A 6-digit PIN has only 1,000,000 possibilities: this keeps casual finders out, but someone holding the file could try them all offline. The app says so and offers a long passphrase instead; a wrong PIN on the restore screen waits a second per try |
 | Someone looks over the shoulder / screen capture / recent-apps preview | Optional `FLAG_SECURE` ("Block screenshots") |
 | Malicious or malformed SMS crashes or stalls the app | Classifier never throws, parses at most 4096 characters, fuzz and hostile-input tests |
 | Another app drives ours | Only the launcher activity is exported; the notification listener service and the three receivers (widget, morning alarm, restart) are not exported, and a unit test pins the list |
@@ -54,6 +56,9 @@ There is no account, no analytics and no crash reporter. The only network use is
 
 ## Known limits
 
+- A 6-digit backup PIN is weak against someone who has the backup file itself (one million guesses, each slowed by 600,000 rounds). Use a long passphrase for real protection. A forgotten PIN or passphrase cannot be recovered by anyone.
+- Android decides when its Auto Backup uploads the file; the app only controls how often the local file is refreshed. Turning that option off deletes the local file but cannot delete a copy Android already uploaded.
+- Backups already uploaded to your Drive stay there when you switch Drive backup off; remove them in Google Drive settings, Manage apps.
 - The app lock uses the phone's screen-lock prompt, so anyone who knows the phone's PIN can open the app. It is off by default.
 - "Hide amounts" covers what the app draws and posts. A notification posted while amounts were shown keeps its text, and a year-in-review picture or report you choose to share carries real figures.
 - The morning digest alarm is inexact and, after a restart, comes back only because the app registers for the boot broadcast.
