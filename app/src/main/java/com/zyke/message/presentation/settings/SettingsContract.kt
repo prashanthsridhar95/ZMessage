@@ -52,6 +52,7 @@ object SettingsContract {
         data class SetAccent(val accent: com.zyke.message.domain.model.AccentColor) : Intent
         data class SetHideAmounts(val enabled: Boolean) : Intent
         data class SetAuthForAmounts(val enabled: Boolean) : Intent
+        data class SetRevealDuration(val duration: com.zyke.message.domain.privacy.RevealDuration) : Intent
         data class SetFetchLogos(val enabled: Boolean) : Intent
         data class SetAppLock(val enabled: Boolean) : Intent
         data class SetMorningDigest(val enabled: Boolean) : Intent

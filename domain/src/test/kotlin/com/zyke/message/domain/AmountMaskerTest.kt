@@ -112,3 +112,41 @@ class RevealTimerTest {
         assertTrue(s.authForAmounts)
     }
 }
+
+class RevealDurationTest {
+    @Test fun unknownOrMissingStoredValue_isTheDefaultMinute() {
+        assertEquals(com.zyke.message.domain.privacy.RevealDuration.MINUTE_1, com.zyke.message.domain.privacy.RevealDuration.fromStored(null))
+        assertEquals(com.zyke.message.domain.privacy.RevealDuration.MINUTE_1, com.zyke.message.domain.privacy.RevealDuration.fromStored("???"))
+        assertEquals(com.zyke.message.domain.privacy.RevealDuration.MINUTES_5, com.zyke.message.domain.privacy.RevealDuration.fromStored("5m"))
+    }
+
+    @Test fun everyChoiceRoundTripsThroughItsId() {
+        com.zyke.message.domain.privacy.RevealDuration.entries.forEach {
+            assertEquals(it, com.zyke.message.domain.privacy.RevealDuration.fromStored(it.id))
+        }
+    }
+
+    @Test fun aTimedWindowEnds_andAnOpenEndedOneDoesNot() {
+        var now = 1_000L
+        val timer = com.zyke.message.domain.privacy.RevealTimer({ now })
+        timer.grantFor(com.zyke.message.domain.privacy.RevealDuration.SECONDS_30.millis)
+        assertTrue(timer.isRevealed())
+        now += 31_000L
+        assertFalse(timer.isRevealed())
+
+        timer.grantFor(com.zyke.message.domain.privacy.RevealDuration.UNTIL_HIDDEN.millis)
+        now += 10L * 60L * 60L * 1000L
+        assertTrue(timer.isRevealed())
+        assertTrue(timer.isOpenEnded)
+        timer.hide()
+        assertFalse(timer.isRevealed())
+    }
+
+    @Test fun anOpenEndedWindowHasNoCountdownLabel() {
+        assertEquals("on", com.zyke.message.domain.privacy.RevealTimer.label(com.zyke.message.domain.privacy.RevealTimer.NO_END))
+    }
+
+    @Test fun theDefaultSettingIsAMinute() {
+        assertEquals(com.zyke.message.domain.privacy.RevealDuration.MINUTE_1, com.zyke.message.domain.model.AppSettings().revealDuration)
+    }
+}

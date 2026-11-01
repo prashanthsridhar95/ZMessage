@@ -24,6 +24,8 @@ data class AppSettings(
     val hideAmounts: Boolean = false,
     /** Showing hidden amounts asks for the phone's fingerprint, face or screen lock (when the phone has one). */
     val authForAmounts: Boolean = true,
+    /** How long hidden amounts stay shown once asked for. */
+    val revealDuration: com.zyke.message.domain.privacy.RevealDuration = com.zyke.message.domain.privacy.RevealDuration.DEFAULT,
     val accent: AccentColor = AccentColor.DEFAULT,
     /** The seed (0xFFRRGGBB) behind [AccentColor.CUSTOM]; null when none has been chosen. */
     val customAccent: Long? = null

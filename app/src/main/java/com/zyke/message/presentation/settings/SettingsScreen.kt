@@ -442,6 +442,21 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 },
                 modifier = Modifier.padding(top = 12.dp)
             )
+            if (state.settings.hideAmounts) {
+                Caption("HIDE AMOUNTS AGAIN", Modifier.padding(top = 16.dp))
+                com.zyke.message.presentation.common.ChoiceCards(
+                    choices = com.zyke.message.domain.privacy.RevealDuration.entries.map {
+                        com.zyke.message.presentation.common.Choice(it, it.label, it.description)
+                    },
+                    selected = state.settings.revealDuration,
+                    onSelect = { onIntent(Intent.SetRevealDuration(it)) },
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Caption(
+                    "How long amounts stay shown after you unlock them. Without a screen lock a tap always shows them for 5 seconds.",
+                    Modifier.padding(top = 8.dp), maxLines = 3
+                )
+            }
             ToggleRow(
                 title = "Block screenshots",
                 description = "Also hides the recent-apps view",

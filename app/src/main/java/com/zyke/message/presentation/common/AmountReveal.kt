@@ -65,6 +65,8 @@ class TimedAmountReveal(
     private val scope: CoroutineScope,
     clock: () -> Long,
     private val authRequired: () -> Boolean,
+    /** How long a reveal after the lock check lasts (the person's choice); null for until it is hidden. */
+    private val windowMillis: () -> Long? = { RevealTimer.AUTHENTICATED_MILLIS },
     private val screenLockExists: () -> Boolean,
     private val authenticate: (onResult: (Boolean) -> Unit) -> Unit
 ) : AmountReveal {
@@ -88,10 +90,13 @@ class TimedAmountReveal(
     }
 
     private fun open(authenticated: Boolean) {
-        _until.value = timer.grant(authenticated)
+        // After the lock check the person's chosen time applies; a plain tap (no screen lock) keeps its short window.
+        val until = if (authenticated) timer.grantFor(windowMillis()) else timer.grant(false)
+        _until.value = until
         _revealed.value = true
         expiry?.cancel()
-        expiry = scope.launch { delay(timer.remainingMillis()); hideNow() }
+        // A window with no end of its own is closed by hand or on leaving the app, never by a timer.
+        expiry = if (timer.isOpenEnded) null else scope.launch { delay(timer.remainingMillis()); hideNow() }
     }
 
     override fun hideNow() {
@@ -126,6 +131,7 @@ fun AmountsVisibleChip(modifier: Modifier = Modifier) {
     LaunchedEffect(until) {
         while (true) { remaining = reveal.remainingMillis(); delay(250) }
     }
+    val openEnded = until == RevealTimer.NO_END
     val label = RevealTimer.label(remaining)
     Box(modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
         Surface(
@@ -133,10 +139,12 @@ fun AmountsVisibleChip(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.widthIn(min = 48.dp)
-                .semantics { contentDescription = "Amounts visible, hide in $label. Double tap to hide now" }
+                .semantics {
+                    contentDescription = if (openEnded) "Amounts visible. Double tap to hide now" else "Amounts visible, hide in $label. Double tap to hide now"
+                }
                 .clickable(role = Role.Button, onClickLabel = "Hide amounts now") { reveal.hideNow() }
         ) {
-            Text("Visible · $label", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Text(if (openEnded) "Visible · tap to hide" else "Visible · $label", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }

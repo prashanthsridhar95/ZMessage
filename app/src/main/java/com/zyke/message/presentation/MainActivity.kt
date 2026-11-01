@@ -431,6 +431,7 @@ class MainActivity : ComponentActivity() {
             scope = lifecycleScope,
             clock = SystemClock::elapsedRealtime,
             authRequired = { container.settings.settings.value.authForAmounts },
+            windowMillis = { container.settings.settings.value.revealDuration.millis },
             screenLockExists = { getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true },
             authenticate = ::authenticateForAmounts
         )
@@ -525,8 +526,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         com.zyke.message.data.diag.DevLog.d("lifecycle") { "MainActivity stopped" }
-        // Leaving the app hides the amounts again at once.
-        amountReveal.hideNow()
+        // Leaving the app hides the amounts again at once, unless the person chose to keep them shown until they hide them.
+        if (!container.settings.settings.value.revealDuration.staysAfterLeaving) amountReveal.hideNow()
         leftAt = SystemClock.elapsedRealtime()
     }
 

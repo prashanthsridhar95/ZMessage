@@ -31,6 +31,8 @@ interface SettingsRepository {
 
     fun setAuthForAmounts(enabled: Boolean) = Unit
 
+    fun setRevealDuration(duration: com.zyke.message.domain.privacy.RevealDuration) = Unit
+
     fun setAccent(accent: com.zyke.message.domain.model.AccentColor) = Unit
 
     /** Chooses [AccentColor.CUSTOM] with this seed (0xFFRRGGBB). */
