@@ -7,6 +7,8 @@ import com.zyke.message.domain.insights.BalanceReader
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.cards.CardCatalog
+import com.zyke.message.domain.diag.DiagLog
 import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserCard
@@ -23,7 +25,10 @@ enum class AccountKind(val label: String) {
 
 /** One bank account or card, put together from the messages that mention its last four digits. */
 data class AccountSummary(
-    /** Stable: the kind and the last four digits. */
+    /**
+     * Stable: the kind and the last four digits. Where two banks' accounts share those digits the busier one keeps this
+     * key and the other adds its bank (kind-1805-icici), so what the person set against the old key still finds its account.
+     */
     val key: String,
     val kind: AccountKind,
     val bankName: BankName,
@@ -63,9 +68,19 @@ data class AccountSummary(
     /** The day the latest bill arrived. */
     val billedOn: LocalDate? = null,
     /** Payments credited to the card since that bill. */
-    val paidSinceBill: BigDecimal? = null
+    val paidSinceBill: BigDecimal? = null,
+    /** The bank as it reads: the person's choice, else the bank's short name; free text when the bank is not a known one. */
+    val bankLabel: String = bankName.displayString,
+    /** What the messages say the bank and type are, whatever the person chose. */
+    val detectedBank: BankName = bankName,
+    val detectedKind: AccountKind = kind,
+    /** What the person set for this account; null when they have not. */
+    val override: AccountOverride? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
+
+    /** Whether this account's payment messages are card messages, however the person typed it: what to look its activity up by. */
+    val messagesAreCard: Boolean get() = detectedKind != AccountKind.BANK_ACCOUNT
 
     /** The latest bill has been paid in full (to within a rupee), so what is owed now is only what was spent after it. */
     val billPaid: Boolean
@@ -77,7 +92,35 @@ data class AccountSummary(
 data class AccountsOverview(val accounts: List<AccountSummary>, val totalBalance: BigDecimal?, val countedBalances: Int)
 
 object Accounts {
-    private class Hit(val message: ClassifiedMessage, val last4: String, val isCard: Boolean, val bank: BankName)
+    /** [bank] is what the body's words suggest; [senderBank] is what the sender header says, which is the better evidence. */
+    private class Hit(val message: ClassifiedMessage, val last4: String, val isCard: Boolean, val bank: BankName, val senderBank: BankName?)
+
+    /** One account: the messages that are about it, and whether another bank's account shares its digits. */
+    private class Group(val last4: String, val isCard: Boolean, val rows: List<Hit>, val keySuffix: String, val split: Boolean)
+
+    /** The bank most of [rows] point to: the sender's word over the body's, the most common, the newest on a tie. */
+    internal fun voteBank(rows: List<Pair<BankName?, Long>>): BankName? {
+        val votes = rows.filter { it.first != null }
+        if (votes.isEmpty()) return null
+        return votes.groupBy { it.first!! }.maxWith(compareBy({ it.value.size }, { it.value.maxOf { v -> v.second } })).key
+    }
+
+    private fun bankOf(rows: List<Hit>): BankName {
+        val bySender = voteBank(rows.map { it.senderBank to it.message.message.date })
+        if (bySender != null) return bySender
+        return voteBank(rows.map { (it.bank.takeIf { b -> b != BankName.OTHERS }) to it.message.message.date }) ?: BankName.OTHERS
+    }
+
+    /** Splits the messages for one kind and last four into one account per bank when their senders name more than one. */
+    private fun split(last4: String, isCard: Boolean, rows: List<Hit>): List<Group> {
+        val banks = rows.mapNotNull { it.senderBank }.distinct()
+        if (banks.size < 2) return listOf(Group(last4, isCard, rows, "", false))
+        val dominant = voteBank(rows.map { it.senderBank to it.message.message.date })!!
+        return banks.map { bank ->
+            val mine = rows.filter { it.senderBank == bank || (it.senderBank == null && bank == dominant) }
+            Group(last4, isCard, mine, if (bank == dominant) "" else "-${bank.name.lowercase()}", true)
+        }
+    }
 
     fun build(
         messages: List<ClassifiedMessage>,
@@ -86,16 +129,29 @@ object Accounts {
         zone: ZoneId,
         cycle: CycleRule = CycleRule.CALENDAR,
         hidden: Set<String> = emptySet(),
-        providentFunds: Set<String> = emptySet()
+        providentFunds: Set<String> = emptySet(),
+        /** What the person says an account really is, by account key; applied over what the messages suggest. */
+        overrides: Map<String, AccountOverride> = emptyMap()
     ): AccountsOverview {
         val today = LocalDate.ofInstant(now, zone)
         val range = cycle.containing(today)
         val balances = BalanceReader.latest(messages, zone).associateBy { it.account }
         // The stated balance plus whatever has moved since it was stated, so a balance is not stale between messages.
-        val moved = balances.mapValues { (_, reading) -> BalanceReader.movedSince(messages, reading) }
-        fun current(last4: String): AccountBalance? = balances[last4]?.let { reading ->
-            val (net, _) = moved.getValue(last4)
-            if (net.signum() == 0) reading else reading.copy(amount = reading.amount + net)
+        // A balance worked out for one account: what it last stated and what has moved since. When the messages that moved
+        // it all went one way and the sum went below zero while the statement said otherwise, the statement stands: a
+        // payment whose credit never reached the messages is the likelier fault, not an overdraft.
+        class Worked(val balance: AccountBalance, val adjustment: BigDecimal?, val movement: BalanceReader.Movement, val dropped: Boolean)
+        fun work(reading: AccountBalance, movement: BalanceReader.Movement): Worked {
+            if (movement.net.signum() == 0) return Worked(reading, null, movement, false)
+            val adjusted = reading.amount + movement.net
+            if (adjusted.signum() < 0 && reading.amount.signum() >= 0) return Worked(reading, null, movement, true)
+            return Worked(reading.copy(amount = adjusted), movement.net, movement, false)
+        }
+        fun current(last4: String, scope: List<ClassifiedMessage>? = null): Worked? {
+            if (scope == null) return balances[last4]?.let { work(it, BalanceReader.movement(messages, it)) }
+            val reading = BalanceReader.latest(scope, zone).filter { it.account == last4 }
+                .maxWithOrNull(compareBy({ it.asOf }, { it.messageId })) ?: return null
+            return work(reading, BalanceReader.movement(scope, reading))
         }
         // What the newest EPF passbook message says the fund holds, for a fund account that states no balance of its own.
         val passbook = messages.filter { isPassbook(it) }.flatMap { BalanceReader.noticeBalances(it, zone) }
@@ -115,19 +171,28 @@ object Accounts {
             }
         }
 
-        val accounts = hits.groupBy { it.last4 to it.isCard }.map { (identity, rows) ->
-            val (last4, isCard) = identity
+        val groups = hits.groupBy { it.last4 to it.isCard }.flatMap { (identity, rows) -> split(identity.first, identity.second, rows) }
+        var splitAccounts = 0
+        val accounts = groups.map { group ->
+            val rows = group.rows
+            val last4 = group.last4
+            val isCard = group.isCard
             val newest = rows.maxBy { it.message.message.date }
             val bill = rows.filter { it.message.content is MessageContent.CardBill }.maxByOrNull { it.message.message.date }
                 ?.let { it.message.content as MessageContent.CardBill }
-            val card = userCards.firstOrNull { it.last4 == last4 && (it.type != CardType.ACCOUNT) == isCard }
-            val kind = when {
+            val detectedBank = bankOf(rows)
+            val card = cardFor(userCards, last4, isCard, group.split, detectedBank)
+            val detectedKind = when {
                 card?.type == CardType.CREDIT || bill != null -> AccountKind.CREDIT_CARD
                 card?.type?.isDebitLike == true -> AccountKind.DEBIT_CARD
                 isCard -> AccountKind.CREDIT_CARD
                 else -> AccountKind.BANK_ACCOUNT
             }
-            val bank = rows.map { it.bank }.firstOrNull { it != BankName.OTHERS } ?: newest.bank
+            val key = "${detectedKind.name.lowercase()}-$last4${group.keySuffix}"
+            val picked = overrides[key]?.takeUnless { it.isEmpty }
+            val kind = picked?.kind ?: detectedKind
+            val (bank, bankLabel) = chosenBank(picked, card, detectedBank)
+            if (group.split) splitAccounts++
 
             var spent = BigDecimal.ZERO
             var received = BigDecimal.ZERO
@@ -172,20 +237,22 @@ object Accounts {
                 if (viaMessages != null && (paidSinceBill == null || viaMessages > paidSinceBill!!)) paidSinceBill = viaMessages
             }
 
-            val markedFund = "${kind.name.lowercase()}-$last4" in providentFunds
+            val markedFund = key in providentFunds
+            val worked = if (kind == AccountKind.BANK_ACCOUNT) current(last4, if (group.split) rows.map { it.message }.distinct() else null) else null
             val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) {
-                current(last4) ?: passbook.takeIf { markedFund }
+                worked?.balance ?: passbook.takeIf { markedFund }
             } else null
+            if (worked != null) audit(key, worked.balance.amount, worked.movement, worked.dropped, worked.adjustment != null)
             AccountSummary(
-                key = "${kind.name.lowercase()}-$last4",
+                key = key,
                 kind = kind,
                 bankName = bank,
                 last4 = last4,
-                title = card?.name?.takeIf { it.isNotBlank() } ?: "${bank.displayString.ifEmpty { "Account" }} ${kind.label.lowercase()}",
+                title = card?.name?.takeIf { it.isNotBlank() } ?: "${bankLabel.ifEmpty { "Account" }} ${kind.label.lowercase()}",
                 balance = balance?.amount,
                 balanceAsOf = balance?.asOf,
                 balanceMessageId = balance?.messageId,
-                balanceAdjustment = moved[last4]?.first?.takeIf { it.signum() != 0 && balance != null && balances[last4] != null && kind == AccountKind.BANK_ACCOUNT && !markedFund },
+                balanceAdjustment = worked?.adjustment?.takeIf { balance != null && kind == AccountKind.BANK_ACCOUNT && !markedFund },
                 spent = spent,
                 received = received,
                 activityCount = count,
@@ -195,8 +262,12 @@ object Accounts {
                 minimumDue = bill?.minimumDue?.toBigDecimalOrNull(),
                 paymentLink = bill?.paymentLink,
                 sampleMessageId = newest.message.id,
-                userCard = card,
-                isProvidentFund = "${kind.name.lowercase()}-$last4" in providentFunds ||
+                userCard = card?.let { shown(it, picked) },
+                bankLabel = bankLabel,
+                detectedBank = detectedBank,
+                detectedKind = detectedKind,
+                override = picked,
+                isProvidentFund = key in providentFunds ||
                     (kind == AccountKind.BANK_ACCOUNT && rows.all { isPassbook(it.message) }),
                 fromPassbook = rows.all { isPassbook(it.message) },
                 suggestedStatementDay = suggested,
@@ -207,20 +278,25 @@ object Accounts {
             )
         }.let { fromMessages ->
             // An account or card the person added is listed even before a message mentions it.
-            fromMessages + userCards.filter { card -> fromMessages.none { it.last4 == card.last4 && it.isCard == (card.type != CardType.ACCOUNT) } }.map { card ->
-                val kind = when (card.type) {
+            fromMessages + userCards.filter { card -> fromMessages.none { it.userCard?.id == card.id } }.map { card ->
+                val detectedKind = when (card.type) {
                     CardType.CREDIT -> AccountKind.CREDIT_CARD
                     CardType.DEBIT, CardType.PREPAID, CardType.FOREX -> AccountKind.DEBIT_CARD
                     CardType.ACCOUNT -> AccountKind.BANK_ACCOUNT
                 }
-                val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4) ?: passbook.takeIf { "${kind.name.lowercase()}-${card.last4}" in providentFunds } else null
+                val key = "${detectedKind.name.lowercase()}-${card.last4}"
+                val picked = overrides[key]?.takeUnless { it.isEmpty }
+                val kind = picked?.kind ?: detectedKind
+                val (bank, bankLabel) = chosenBank(picked, card, BankName.OTHERS)
+                val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4)?.balance ?: passbook.takeIf { key in providentFunds } else null
                 AccountSummary(
-                    key = "${kind.name.lowercase()}-${card.last4}", kind = kind, bankName = BankName.OTHERS, last4 = card.last4,
+                    key = key, kind = kind, bankName = bank, last4 = card.last4,
                     title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },
                     balance = balance?.amount, balanceAsOf = balance?.asOf, balanceMessageId = balance?.messageId,
                     spent = BigDecimal.ZERO, received = BigDecimal.ZERO, activityCount = 0, lastActivity = 0L,
-                    dueAmount = null, dueDate = null, minimumDue = null, paymentLink = null, sampleMessageId = 0L, userCard = card,
-                    isProvidentFund = "${kind.name.lowercase()}-${card.last4}" in providentFunds
+                    dueAmount = null, dueDate = null, minimumDue = null, paymentLink = null, sampleMessageId = 0L, userCard = shown(card, picked),
+                    isProvidentFund = key in providentFunds,
+                    bankLabel = bankLabel, detectedBank = BankName.OTHERS, detectedKind = detectedKind, override = picked
                 )
             }
         }.let { all -> if (all.any { it.isProvidentFund && !it.fromPassbook }) all.filter { !it.fromPassbook } else all }
@@ -245,7 +321,41 @@ object Accounts {
 
     private fun hit(message: ClassifiedMessage, accountNumber: String, isCard: Boolean, bank: BankName): Hit? {
         val digits = accountNumber.filter { it.isDigit() }.takeLast(LAST_DIGITS)
-        return if (digits.length == LAST_DIGITS) Hit(message, digits, isCard, bank) else null
+        return if (digits.length == LAST_DIGITS) Hit(message, digits, isCard, bank, SenderBank.of(message.message.sender)) else null
+    }
+
+    /** A card the app made while naming or setting up a found account; its bank is a copy of what was detected, not a choice. */
+    private fun isAutoNamed(card: UserCard) = card.id.startsWith("named-")
+
+    /**
+     * The bank to show: the person's pick for this account, else the bank on their card or account entry (Settings, Cards and
+     * accounts), else what the messages say. A known bank gives its short name; any other is shown as typed.
+     */
+    private fun chosenBank(picked: AccountOverride?, card: UserCard?, detected: BankName): Pair<BankName, String> {
+        val typed = picked?.bank?.trim().orEmpty().ifEmpty { card?.takeUnless { isAutoNamed(it) }?.bankName?.trim().orEmpty() }
+        if (typed.isEmpty()) return detected to detected.displayString
+        val known = CardCatalog.bank(typed)
+        return if (known != null) known to known.displayString else BankName.OTHERS to typed
+    }
+
+    /** The person's card entry for these digits. Where two banks share them, the entry goes to the bank it names, else the busier account. */
+    private fun cardFor(cards: List<UserCard>, last4: String, isCard: Boolean, split: Boolean, detected: BankName): UserCard? {
+        val same = cards.filter { it.last4 == last4 && (it.type != CardType.ACCOUNT) == isCard }
+        if (!split) return same.firstOrNull()
+        return same.firstOrNull { CardCatalog.bank(it.bankName) == detected }
+    }
+
+    /** The card as it reads on this account: with the person's bank choice on its face. */
+    private fun shown(card: UserCard, picked: AccountOverride?): UserCard =
+        if (picked != null && picked.bank.isNotBlank() && card.bankName != picked.bank) card.copy(bankName = picked.bank) else card
+
+    /** A line for the developer log when a balance came out below zero or an adjustment would have flipped it; counts and signs only. */
+    private fun audit(key: String, balance: BigDecimal, movement: BalanceReader.Movement, dropped: Boolean, applied: Boolean) {
+        if (balance.signum() >= 0 && !dropped) return
+        DiagLog.d("accounts") {
+            "balance below zero or adjustment refused: account=${DiagLog.key(key)} balanceSign=${balance.signum()} adjustmentApplied=$applied " +
+                "refusedAsNegative=$dropped netSign=${movement.net.signum()} credits=${movement.credits} debits=${movement.debits}"
+        }
     }
 
     private const val LAST_DIGITS = 4

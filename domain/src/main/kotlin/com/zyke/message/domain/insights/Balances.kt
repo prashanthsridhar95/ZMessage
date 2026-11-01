@@ -24,21 +24,39 @@ data class AccountBalance(
 
 /** Reads the "Avl Bal" that banks put at the end of debit and credit messages. */
 object BalanceReader {
+    /**
+     * "Avl Bal Rs 1,234.56", "Bal: INR -500.00", "Avl Bal Rs.1,234.56CR", "Balance in A/c XX1805 is Rs 99 Dr". Groups: 1 a sign before the
+     * currency, 2 a sign after it, 3 the amount, 4 Cr or Dr after it (Dr means overdrawn).
+     */
     private val BALANCE = Regex(
-        "(?i)(?:avl\\.?\\s*bal(?:ance)?|available\\s+bal(?:ance)?|a/?c\\s*bal(?:ance)?|bal(?:ance)?)\\s*(?:is|:|-|=)?\\s*(?:INR\\.?|Rs\\.?|₹)\\s*([\\d,]+(?:\\.\\d+)?)"
+        "(?i)(?:avl\\.?\\s*bal(?:ance)?|available\\s+bal(?:ance)?|a/?c\\s*bal(?:ance)?|bal(?:ance)?)\\.?" +
+            "(?:\\s+(?:in|of)\\s+(?:your\\s+|the\\s+)?(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[xX*\u2022]*\\d*)?" +
+            "\\s*(?:is|:|=|-(?=\\s))?\\s*([-\\u2212])?\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*([-\\u2212])?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*(Cr|Dr)\\b)?"
     )
+    /** The phrase a bank uses for the balance it means to state, whether or not the amount after it can be read. */
+    private val BALANCE_PHRASE = Regex("(?i)\\b(?:avl|avbl|avail(?:able)?)\\.?\\s*bal")
     private val NOTICE_BALANCE = Regex("(?i)\\b[A-Z]{0,4}[xX*\u2022]*\\d*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val PF_BALANCE = Regex("(?i)\\bagainst\\s+[A-Z0-9*\u2022]*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
-    private val STATED_BALANCE = Regex("(?i)\\bbal(?:ance)?\\b.{0,60}?\\b(?:is|of|:|-|=)\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
-    private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|total due|min(?:imum)? due)\\b")
+    private val STATED_BALANCE = Regex("(?i)\\bbal(?:ance)?\\b.{0,60}?\\b(?:is|of|:|=|-(?=\\s))\\s*([-\\u2212])?\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*([-\\u2212])?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*(Cr|Dr)\\b)?")
+    private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|available credit|avl\\.? credit|outstanding|total due|min(?:imum)? due)\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
+
+    /** The amount a [BALANCE] or [STATED_BALANCE] match states: a minus sign before or after the currency, or a Dr suffix, makes it negative. */
+    private fun signed(match: MatchResult): BigDecimal? {
+        val g = match.groupValues
+        val amount = g[3].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return null
+        val negative = g[1].isNotEmpty() || g[2].isNotEmpty() || g[4].equals("Dr", ignoreCase = true)
+        return if (negative) amount.negate() else amount
+    }
 
     /** What a message body states about balances; worked out once per body, so a rebuild does not read every body again. */
     private class Reading(raw: String) {
         val body: String = com.zyke.message.domain.util.BodyMemo.bounded(raw)
         val notABalance = NOT_A_BALANCE.containsMatchIn(body)
         val balanceMatches = BALANCE.containsMatchIn(body)
-        val balanceAmount: BigDecimal? by lazy { BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.toBigDecimalOrNull() }
+        /** The message says "Avl Bal" but not in a way the amount can be read from. */
+        val unreadBalance = !balanceMatches && BALANCE_PHRASE.containsMatchIn(body)
+        val balanceAmount: BigDecimal? by lazy { BALANCE.find(body)?.let { signed(it) } }
         val accountInText: String by lazy { ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1).orEmpty() }
     }
 
@@ -55,7 +73,7 @@ object BalanceReader {
                 amount = null
                 account = null
             } else {
-                amount = STATED_BALANCE.find(body)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.toBigDecimalOrNull()
+                amount = STATED_BALANCE.find(body)?.let { signed(it) }
                 account = if (amount == null) null else ACCOUNT_IN_TEXT.find(body)?.groupValues?.get(1)
             }
         }
@@ -103,14 +121,23 @@ object BalanceReader {
         return all + messages.flatMap { noticeBalances(it, zone) } + messages.mapNotNull { statedBalance(it, zone) }
     }
 
+    /** What moved in an account after a stated balance: the net, and how many credits and debits made it. */
+    data class Movement(val net: BigDecimal, val credits: Int, val debits: Int) {
+        val count: Int get() = credits + debits
+    }
+
     /**
      * What came in and went out of [reading]'s account after the message that stated it, from messages that did not
      * state a balance themselves. Added to the stated balance this is the best guess at what the account holds now.
      * Nothing dated before the reading is touched, so an older credit (a salary, however it is filed) never moves it.
      */
-    fun movedSince(messages: List<ClassifiedMessage>, reading: AccountBalance): Pair<BigDecimal, Int> {
+    fun movedSince(messages: List<ClassifiedMessage>, reading: AccountBalance): Pair<BigDecimal, Int> =
+        movement(messages, reading).let { it.net to it.count }
+
+    fun movement(messages: List<ClassifiedMessage>, reading: AccountBalance): Movement {
         var net = BigDecimal.ZERO
-        var count = 0
+        var credits = 0
+        var debits = 0
         messages.forEach { message ->
             if (message.message.date <= reading.at) return@forEach
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
@@ -118,13 +145,14 @@ object BalanceReader {
             val read = readingsMemo.of(message.message)
             // A message that states its own balance would be a newer reading, never an adjustment.
             if (read.balanceMatches && !read.notABalance) return@forEach
+            // One that says "Avl Bal" in a way that cannot be read leaves the account's true figure unknown: guessing from it would drift.
+            if (read.unreadBalance && !read.notABalance) return@forEach
             val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { read.accountInText }
             if (account != reading.account) return@forEach
             val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
-            net += if (tx.isReceived) amount else amount.negate()
-            count++
+            if (tx.isReceived) { net += amount; credits++ } else { net -= amount; debits++ }
         }
-        return net to count
+        return Movement(net, credits, debits)
     }
 
     /** A plain message that just states what an account holds ("balance in your A/c XX1234 is Rs. 5,000"), not a payment. */
