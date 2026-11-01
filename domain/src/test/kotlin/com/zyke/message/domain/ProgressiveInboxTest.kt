@@ -140,7 +140,9 @@ class ProgressiveInboxTest {
         val emissions = collectAll(ObserveMessagesUseCase(second, MessageClassifier(), Dispatchers.Unconfined, classificationCache = cache), 4)
 
         // Only the last month or two were read from the inbox; the older ones came from the cache.
-        assertTrue(second.reads.toString(), second.reads.size <= 2)
+        // (Up to three reads: the newest messages, this month and last month; early in a month the newest-messages read
+        // reaches back into the previous month, so the count depends on the day the test runs.)
+        assertTrue(second.reads.toString(), second.reads.size <= 3)
         assertEquals(listOf(1L, 2L, 3L, 4L), emissions.last().map { it.id })
     }
 
