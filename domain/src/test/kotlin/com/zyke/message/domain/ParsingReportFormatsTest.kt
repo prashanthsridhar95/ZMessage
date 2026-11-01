@@ -277,9 +277,45 @@ class ParsingReportFormatsTest {
     // ---- regressions: similar but different messages keep their old meaning
 
     @Test
-    fun periodOrderMessageIsStillAPayment() {
-        val t = tx("Thanks for choosing Domino's.We will deliver your order hot & fresh at the earliest|Order no. 123 |Amount:Rs. 1,299.50 |Track order@ https://x.in", "VM-DOMINO")
-        assertEquals("Domino's", t.payee)
+    fun periodOrderMessageIsAnOrderToo() {
+        val m = classify("Thanks for choosing Domino's.We will deliver your order hot & fresh at the earliest|Order no. 123 |Amount:Rs. 1,299.50 |Track order@ https://x.in", "VM-DOMINO")
+        val life = m.content as MessageContent.Life
+        assertEquals(LifeKind.DELIVERY, life.kind)
+        assertEquals("Domino's", life.title)
+        assertEquals("1299.50", life.amount)
+        assertEquals("Order placed", life.status)
+        assertEquals(MessageCategory.FOOD, m.category)
+    }
+
+    @Test
+    fun orderConfirmations_anyPunctuationAfterTheBrand() {
+        for ((body, brand) in listOf(
+            "Thanks for choosing Pizza Hut. Your order is being prepared|Order no. 55 |Amount:Rs. 799 |Track order@ https://x.co/a" to "Pizza Hut",
+            "Thanks for choosing KFC, we are on it|Order no. 56 |Amount:Rs. 410.00 |Track order@ https://x.co/b" to "KFC",
+            "Thanks for choosing McDonald's! Enjoy|Order no. 57 |Amount:Rs. 305 |Track order@ https://x.co/c" to "McDonald's",
+            "Thanks for choosing Swiggy - your food is on the way|Order no. 58 |Amount:Rs. 260 |Track order@ https://x.co/d" to "Swiggy",
+            "Thanks for choosing Zomato: sit tight|Order no. 59 |Amount:INR 640 |Track order@ https://x.co/e" to "Zomato"
+        )) {
+            val m = classify(body, "VM-ORDER")
+            val life = m.content as? MessageContent.Life ?: error("not an order: $body")
+            assertEquals(LifeKind.DELIVERY, life.kind)
+            assertEquals(brand, life.title)
+            assertTrue(body, life.amount != null)
+            assertTrue(body, m.content !is MessageContent.Transaction)
+        }
+    }
+
+    @Test
+    fun orderNoFormWithoutThanksLine_isAnOrder() {
+        val m = classify("Your Swiggy order has been placed. Order no. 987654 | Amount:Rs. 389.00 | Track order@ https://x.co/s", "VM-SWIGGY")
+        val life = m.content as MessageContent.Life
+        assertEquals("389.00", life.amount)
+        assertEquals("987654", life.reference)
+    }
+
+    @Test
+    fun bankDebitMentioningAnOrderStaysADebit() {
+        val t = tx("Rs. 1,299.50 debited from A/c XX1234 on 10-10-26 to MERCHANT via UPI, Order no. 123, Amount: Rs. 1,299.50. Avl Bal Rs. 5000", "VM-HDFCBK")
         assertFalse(t.isReceived)
     }
 

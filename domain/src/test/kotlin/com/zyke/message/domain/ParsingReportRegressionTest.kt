@@ -218,7 +218,10 @@ class ParsingReportRegressionTest {
         assertEquals("Bajaj Finserv Multi Cap Fund Regular Plan - Growth", sip.payee)
 
         assertEquals("Airtel recharge", transaction("Recharge of INR 299.00 is successful for your Airtel Mobile on 10-10-2026 10:00, Transaction ID 123456789.Check your balance on Airtel app i.airtel.in/SerAIr .").payee)
-        assertEquals("Domino's", transaction("Thanks for choosing Domino's.We will deliver your order hot & fresh at the earliest|Order no. 123 |Amount:Rs. 1,299.50 |Track order@ https://x.in").payee)
+        // An order confirmation is an order (Life/DELIVERY with its value), never a debit.
+        val domino = classify("Thanks for choosing Domino's.We will deliver your order hot & fresh at the earliest|Order no. 123 |Amount:Rs. 1,299.50 |Track order@ https://x.in") as MessageContent.Life
+        assertEquals("Domino's", domino.title)
+        assertEquals("1,299.50".replace(",", ""), domino.amount)
         assertEquals("65000", transaction("Dear Prashanth, your flight booking with R123 booking ID: 12345678901234567890 is successfully confirmed by Acme for INR 65000. Please check your email.").amount)
 
         val bill = scheduled("Dear Jane,\nBill Dated 1st of this month of Rs.1180 is Due on 10-Jul-2026.Kindly Pay by Acme www.skylinknet.in/re?r=p99pm9 Before Due Date to Acme")

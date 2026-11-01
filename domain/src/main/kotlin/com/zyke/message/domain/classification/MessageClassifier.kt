@@ -64,6 +64,7 @@ class MessageClassifier(
             OtpParser.isOtp(body) -> otp(message)
             body.contains("Bank Tag", true) || body.contains("Fastag", true) -> fastTag(message)
             NoticeParser.isProvidentFund(body) -> notice(message) ?: generic(message)
+            LifeParser.isOrderConfirmation(body) -> life(message) ?: bank(message)
             GenericTransactionParser.mentionsMoney(body) -> bank(message)
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
@@ -316,7 +317,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 16
+        const val RULES_VERSION = 17
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(
@@ -325,7 +326,7 @@ class MessageClassifier(
         )
         const val MAX_PARSED_LENGTH = 4096
 
-        private val FOOD_ORDER = Regex("(?i)\\b(?:food|meal|pizza|burger|restaurant|doorstep)\\b")
+        private val FOOD_ORDER = Regex("(?i)\\b(?:food|meal|pizza|burger|restaurant|doorstep|domino|kfc|mcdonald|popeyes|subway|swiggy|zomato|starbucks|hot & fresh)")
 
         /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */
         val OPAQUE_ID = Regex("(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{16,}")

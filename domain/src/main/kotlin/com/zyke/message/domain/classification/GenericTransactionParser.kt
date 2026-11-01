@@ -229,9 +229,6 @@ class GenericTransactionParser {
         AIRTEL_RECHARGE.find(body)?.let {
             return BankTransaction(BankName.OTHERS, "", "Airtel recharge", clean(it.groupValues[1]), BankTransactionType.SENT)
         }
-        ORDER_AMOUNT.find(body)?.let {
-            return BankTransaction(BankName.OTHERS, "", it.groupValues[1], clean(it.groupValues[2]), BankTransactionType.SENT)
-        }
         BOOKING_CONFIRMED.find(body)?.let {
             return BankTransaction(BankName.OTHERS, "", "Flight booking", clean(it.groupValues[1]), BankTransactionType.SENT)
         }
@@ -563,7 +560,6 @@ class GenericTransactionParser {
             "(?i)Electricity charges of $CURRENCY\\s*$NUMBER.*? is due on (\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}).*?-\\s*(\\w+)\\s*$"
         )
         private val AIRTEL_RECHARGE = Regex("(?i)Recharge of $CURRENCY\\s*$NUMBER is successful for your Airtel")
-        private val ORDER_AMOUNT = Regex("(?i)Thanks for choosing ([A-Za-z0-9' ]+?)\\..*?Amount:\\s*$CURRENCY\\s*$NUMBER")
         private val BOOKING_CONFIRMED = Regex("(?i)booking ID:\\s*\\w+ is successfully confirmed.*? for $CURRENCY\\s*$NUMBER")
         private val BROADBAND_BILL = Regex(
             "(?i)Bill Dated \\S+(?: of this month)? of $CURRENCY\\s*$NUMBER is (?:Due on (\\d{1,2}[-/ ][A-Za-z0-9]{1,3}[-/ ]\\d{2,4})|Over Due)"

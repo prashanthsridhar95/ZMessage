@@ -60,7 +60,15 @@ object LifeParser {
 
     /** "Thanks for choosing Popeyes! ...|Order no. 123 |Amount:Rs. 499.50 |Track order@ link": an order confirmed, with its value. */
     private val ORDER_WITH_AMOUNT = Regex("(?i)\\border no\\.?\\s*:?\\s*([A-Z0-9-]{1,24})\\b.{0,200}?\\bAmount:\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
-    private val CHOSEN_BRAND = Regex("(?i)\\bthanks for choosing ([A-Za-z0-9][A-Za-z0-9' &]{1,30}?)\\s*[!.,|]")
+    private val CHOSEN_BRAND = Regex("(?i)\\bthanks for choosing ([A-Za-z0-9][A-Za-z0-9' &]{1,30}?)\\s*[!.,|:;\\-]")
+    /** Words that make an "Order no ... Amount:" message a bank alert (a real debit) rather than an order confirmation. */
+    private val BANK_WORDS = Regex("(?i)\\b(?:debited|credited|withdrawn|a/c|acct|account|upi|neft|imps|rtgs|credit card|debit card|avl bal|available balance)\\b")
+
+    /** An order confirmation that states its value: an order, never a debit, so the classifier asks for this before the bank rules. */
+    fun isOrderConfirmation(body: String): Boolean {
+        val text = body.replace(SPACES, " ")
+        return ORDER_WITH_AMOUNT.containsMatchIn(text) && !BANK_WORDS.containsMatchIn(text)
+    }
 
     private fun orderWithAmount(text: String): LifeFacts? {
         val match = ORDER_WITH_AMOUNT.find(text) ?: return null
