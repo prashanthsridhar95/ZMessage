@@ -24,8 +24,24 @@ data class SalaryPattern(
     /** How many of the recent months it was seen in. */
     val monthsSeen: Int,
     /** This month's credit from the same payer, once it has arrived. */
-    val thisMonth: BigDecimal?
-)
+    val thisMonth: BigDecimal?,
+    /** How sure the detection is; anything below [SalaryConfidence.HIGH] is an estimate from timing and size alone. */
+    val confidence: SalaryConfidence = SalaryConfidence.HIGH
+) {
+    /** Found by size and day of month, not by who paid it or the word "salary". */
+    val isEstimated: Boolean get() = confidence != SalaryConfidence.HIGH
+}
+
+enum class SalaryConfidence {
+    /** The same payer, or the word "salary", in several months. */
+    HIGH,
+
+    /** A credit of about the same size on about the same day in four or more months. */
+    MEDIUM,
+
+    /** The same, but seen in only two or three months. */
+    LOW
+}
 
 /**
  * Finds the salary in the messages: a large credit from the same payer in several recent months, at about the same
@@ -46,7 +62,17 @@ object SalaryDetector {
 
     private class Credit(val month: YearMonth, val day: Int, val amount: BigDecimal, val payer: String, val salaryWord: Boolean)
 
-    fun detect(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): SalaryPattern? {
+    /**
+     * Like [detect], but an estimate made from timing alone and not fully trusted (low confidence) is dropped when the
+     * person has already said what or when their salary is, so it never overrides what they entered.
+     */
+    fun detect(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId, plan: MoneyPlan): SalaryPattern? =
+        detect(messages, now, zone)?.takeIf { it.confidence != SalaryConfidence.LOW || (plan.salary == null && !plan.hasSalaryDay) }
+
+    fun detect(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): SalaryPattern? =
+        detectByPayer(messages, now, zone) ?: SalaryTiming.detect(messages, now, zone)
+
+    private fun detectByPayer(messages: List<ClassifiedMessage>, now: Instant, zone: ZoneId): SalaryPattern? {
         val today = LocalDate.ofInstant(now, zone)
         val thisMonth = YearMonth.from(today)
         val earliest = thisMonth.minusMonths(MONTHS_LOOKED_AT - 1L)
@@ -95,13 +121,13 @@ object SalaryDetector {
         )
     }
 
-    private fun median(values: List<BigDecimal>): BigDecimal {
+    internal fun median(values: List<BigDecimal>): BigDecimal {
         val sorted = values.sorted()
         val mid = sorted.size / 2
         return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]).divide(BigDecimal(2), 2, RoundingMode.HALF_UP)
     }
 
-    private fun medianDay(days: List<Int>): Int = days.sorted()[days.size / 2]
+    internal fun medianDay(days: List<Int>): Int = days.sorted()[days.size / 2]
 
     /** Same payer however the bank spells the reference: lower case, with digits and punctuation dropped. */
     private fun payerKey(payee: String): String =

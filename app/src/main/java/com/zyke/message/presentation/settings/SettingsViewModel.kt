@@ -255,7 +255,7 @@ class SettingsViewModel(
         val inbox = inbox
         val cycle = CycleRule.resolve(state.plan, inbox, clock.instant(), clock.zone)
         val limits = SpendingLimits.build(inbox, state.monthlyLimits, state.dailyLimits, clock.instant(), clock.zone, cycle, state.budgetAdjustments)
-        val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone)
+        val spotted = SalaryDetector.detect(inbox, clock.instant(), clock.zone, state.plan)
         val range = cycle.containing(java.time.LocalDate.ofInstant(clock.instant(), clock.zone))
         val accounts = com.zyke.message.domain.accounts.Accounts.build(
             inbox, state.cards, clock.instant(), clock.zone, cycle, hiddenAccounts.hidden.value

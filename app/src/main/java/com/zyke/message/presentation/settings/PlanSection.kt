@@ -80,7 +80,7 @@ internal fun PlanSection(
             PlanRow(
                 title = "Salary found in your messages",
                 value = DisplayFormatters.rupees(spotted.typical),
-                detail = "Around day ${spotted.typicalDay}$range. Used instead of the amount below.",
+                detail = (if (spotted.isEstimated) "Estimated from your messages. " else "") + "Around day ${spotted.typicalDay}$range. Used instead of the amount below.",
                 onClick = { editSalary = true }
             )
         }

@@ -209,12 +209,20 @@ private fun SalaryLine(plan: MoneyPlan, insights: PlanInsights, status: SalarySt
         SalaryStatus.EXPECTED -> "Salary expected$around, usually about $usual$range" to com.zyke.message.presentation.messages.components.mutedColor()
     }
     Text(text, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color)
+    val confidence = insights.salaryConfidence
+    val estimated = spotted && confidence != null && confidence != com.zyke.message.domain.plan.SalaryConfidence.HIGH
     Caption(
-        if (spotted) "Salary spotted in your messages; it changes a little each month, so this follows what actually arrives."
+        if (estimated) "Estimated from your messages. Detected from a credit of about this size that arrives around the ${ordinal(insights.salaryDay ?: 1)} every month."
+        else if (spotted) "Salary spotted in your messages; it changes a little each month, so this follows what actually arrives."
         else "No salary pattern found in your messages yet, so this uses the amount you entered.",
         Modifier.padding(top = 2.dp),
         maxLines = 3
     )
+}
+
+private fun ordinal(day: Int): String {
+    val suffix = if (day in 11..13) "th" else when (day % 10) { 1 -> "st"; 2 -> "nd"; 3 -> "rd"; else -> "th" }
+    return "$day$suffix"
 }
 
 @Composable

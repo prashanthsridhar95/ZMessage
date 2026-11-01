@@ -47,7 +47,9 @@ data class PlanInsights(
     val incomeSource: IncomeSource?,
     val salaryDay: Int?,
     /** The lowest and highest salary of the recent months, when they differed. */
-    val salaryRange: Pair<BigDecimal, BigDecimal>?
+    val salaryRange: Pair<BigDecimal, BigDecimal>?,
+    /** How sure the spotted salary is; below HIGH it was estimated from the size and day of the credits alone. Null when nothing was spotted. */
+    val salaryConfidence: SalaryConfidence? = null
 ) {
     val isOverPlan: Boolean get() = spendableLeft.signum() < 0
     val planAddsUp: Boolean get() = spendable.signum() >= 0
@@ -79,7 +81,7 @@ object PlanInsightsBuilder {
         cycle: CycleRule = CycleRule.CALENDAR
     ): PlanInsights? {
         // The salary the messages show wins; what the person entered is the fallback when there is no such pattern.
-        val spotted = SalaryDetector.detect(messages, now, zone)
+        val spotted = SalaryDetector.detect(messages, now, zone, plan)
         if (plan.isEmpty && spotted == null) return null
         val today = LocalDate.ofInstant(now, zone)
         val monthStart = cycle.containing(today).start
@@ -161,6 +163,7 @@ object PlanInsightsBuilder {
             savedSoFar = totalReceived - totalSent,
             incomeSource = incomeSource,
             salaryDay = salaryDay,
+            salaryConfidence = spotted?.confidence,
             salaryRange = spotted?.takeIf { it.low.compareTo(it.high) != 0 }?.let { it.low to it.high }
         )
     }
