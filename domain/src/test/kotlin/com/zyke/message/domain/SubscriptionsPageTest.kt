@@ -12,6 +12,7 @@ import com.zyke.message.domain.insights.PaymentChannels
 import com.zyke.message.domain.insights.RecurringPayments
 import com.zyke.message.domain.insights.Subscription
 import com.zyke.message.domain.insights.SubscriptionOverview
+import com.zyke.message.domain.insights.SubscriptionSort
 import com.zyke.message.domain.insights.SubscriptionState
 import com.zyke.message.domain.insights.Subscriptions
 import com.zyke.message.domain.ledger.ReviewQueues
@@ -331,5 +332,35 @@ class SubscriptionsPageTest {
         val other = SalaryRunways.project(insights(15000, 10000, salaryDay = 28), LocalDate.of(2026, 10, 10), CycleRule.CALENDAR)!!
         assertFalse(other.paydayIsSalaryDay)
         assertTrue(SalaryRunways.caption(other) { "the ${it.dayOfMonth}th" }.endsWith("before the end of the cycle"))
+    }
+
+    // ---- filter, sort and cost shares ----
+
+    @Test
+    fun viewFiltersByStateAndSorts() {
+        val messages = monthly("Netflix", listOf("649", "649", "649"), lastAgo = 5) + monthly("Spotify", listOf("119", "119", "119"), lastAgo = 20) +
+            monthly("Gym", listOf("2000", "2000", "2000"), lastAgo = 10) + monthly("Hotstar", listOf("299", "299", "299"), lastAgo = 5)
+        val cancelledKey = Subscriptions.keyFor("Hotstar")
+        val result = overview(messages, cancelled = mapOf(cancelledKey to today.minusDays(1)))
+        assertEquals(1, result.count(SubscriptionState.CANCELLED))
+        assertEquals(listOf("Gym", "Netflix", "Spotify"), result.view(SubscriptionState.ACTIVE, SubscriptionSort.YEARLY_COST).map { it.name })
+        assertEquals(listOf("Gym", "Netflix", "Spotify"), result.view(SubscriptionState.ACTIVE, SubscriptionSort.NAME).map { it.name })
+        // Spotify was charged longest ago, so it is due first; Netflix last.
+        assertEquals(listOf("Spotify", "Gym", "Netflix"), result.view(SubscriptionState.ACTIVE, SubscriptionSort.NEXT_CHARGE).map { it.name })
+        assertEquals(listOf("Hotstar"), result.view(SubscriptionState.CANCELLED, SubscriptionSort.NAME).map { it.name })
+        // "All" keeps the cancelled one after the active ones when sorted by next charge.
+        assertEquals("Hotstar", result.view(null, SubscriptionSort.NEXT_CHARGE).last().name)
+    }
+
+    @Test
+    fun costSharesNameTheTopFiveAndLumpTheRestIntoOthers() {
+        val names = listOf("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf")
+        val messages = names.withIndex().flatMap { (i, n) -> monthly(n, List(3) { "${1000 - i * 100}" }) }
+        val shares = overview(messages).costShares(5)
+        assertEquals(6, shares.size)
+        assertNull(shares.last().line)
+        assertEquals("Alpha", shares.first().line!!.name)
+        assertEquals(100, shares.sumOf { it.percent })
+        assertTrue(overview(emptyList()).costShares().isEmpty())
     }
 }

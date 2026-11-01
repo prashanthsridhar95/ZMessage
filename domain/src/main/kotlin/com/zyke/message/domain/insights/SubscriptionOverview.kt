@@ -86,6 +86,16 @@ data class SubscriptionLine(
     val counts: Boolean get() = state == SubscriptionState.ACTIVE
 }
 
+/** How the page orders the rows it shows. */
+enum class SubscriptionSort(val label: String) {
+    YEARLY_COST("Yearly cost"),
+    NEXT_CHARGE("Next charge"),
+    NAME("Name")
+}
+
+/** One slice of the "where the money goes" bar: a subscription, or (with a null [line]) all the others together. */
+data class CostShare(val line: SubscriptionLine?, val yearly: BigDecimal, val percent: Int)
+
 /** All the subscriptions with what they cost in a year. Only the active ones are in the totals. */
 data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
     private val active: List<SubscriptionLine> get() = lines.filter { it.counts }
@@ -94,6 +104,35 @@ data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
     val yearlyTotal: BigDecimal get() = active.fold(BigDecimal.ZERO) { sum, l -> sum + l.yearly }
     val monthlyTotal: BigDecimal get() = yearlyTotal.divide(BigDecimal(MONTHS), 0, RoundingMode.HALF_UP)
     val isEmpty: Boolean get() = lines.isEmpty()
+
+    fun count(state: SubscriptionState): Int = lines.count { it.state == state }
+
+    /** The rows for one [state] (all of them when null), in the order asked for; ties fall back to name. */
+    fun view(state: SubscriptionState?, sort: SubscriptionSort): List<SubscriptionLine> {
+        val shown = if (state == null) lines else lines.filter { it.state == state }
+        val byName = compareBy<SubscriptionLine> { it.name.lowercase() }
+        return when (sort) {
+            SubscriptionSort.YEARLY_COST -> shown.sortedWith(compareByDescending<SubscriptionLine> { it.yearly }.then(byName))
+            // Active ones come first, soonest charge first; paused and cancelled have no charge to look forward to.
+            SubscriptionSort.NEXT_CHARGE -> shown.sortedWith(compareBy<SubscriptionLine> { !it.counts }.thenBy { it.subscription.nextDue }.then(byName))
+            SubscriptionSort.NAME -> shown.sortedWith(byName)
+        }
+    }
+
+    /** The [top] costliest active subscriptions and, when there are more, one slice for the rest; percents add to 100. */
+    fun costShares(top: Int = 5): List<CostShare> {
+        val total = yearlyTotal
+        if (total.signum() <= 0) return emptyList()
+        val ranked = active.sortedWith(compareByDescending<SubscriptionLine> { it.yearly }.thenBy { it.name.lowercase() })
+        val named = ranked.take(top)
+        val restYearly = ranked.drop(top).fold(BigDecimal.ZERO) { sum, l -> sum + l.yearly }
+        fun percent(v: BigDecimal) = v.multiply(BigDecimal(100)).divide(total, 0, RoundingMode.HALF_UP).toInt()
+        val shares = named.map { CostShare(it, it.yearly, percent(it.yearly)) } +
+            (if (restYearly.signum() > 0) listOf(CostShare(null, restYearly, percent(restYearly))) else emptyList())
+        // Rounding can leave 99 or 101; the biggest slice takes the difference.
+        val drift = 100 - shares.sumOf { it.percent }
+        return if (drift == 0) shares else shares.mapIndexed { i, s -> if (i == 0) s.copy(percent = s.percent + drift) else s }
+    }
 
     companion object {
         private const val MONTHS = 12
