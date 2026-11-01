@@ -72,7 +72,9 @@ class ObserveMessagesUseCase(
     /** Message formats the person taught; applied to messages the built-in rules left as plain text. */
     private val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository = com.zyke.message.domain.repository.NoLearnedTemplates,
     /** The person's notes and tags on single payments. */
-    private val paymentNotes: com.zyke.message.domain.repository.PaymentNotesRepository = com.zyke.message.domain.repository.NoPaymentNotes
+    private val paymentNotes: com.zyke.message.domain.repository.PaymentNotesRepository = com.zyke.message.domain.repository.NoPaymentNotes,
+    /** The categories the person made, and what is filed under them. */
+    private val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository = com.zyke.message.domain.repository.NoCustomCategories
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -125,6 +127,10 @@ class ObserveMessagesUseCase(
                     "category overrides: ${overrides.size} set, ${applied.count { it.categoryOverridden }} of ${applied.size} messages carry one, ${applied.count { it.categoryOwn }} their own"
                 }
                 applied
+            }
+            .combine(customCategories.state) { classified, custom ->
+                DiagLog.d("pipeline") { "custom categories: ${custom.categories.size} made, ${custom.assignments.size} filed" }
+                com.zyke.message.domain.categories.CustomCategories.apply(classified, custom)
             }
             .combine(cardRepository.cards) { classified, cards ->
                 if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }

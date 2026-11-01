@@ -35,7 +35,9 @@ data class ClassifiedMessage(
     /** The person's own note on this payment. */
     val note: String? = null,
     /** The person's own labels on this payment, sorted. */
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    /** The person's own category (see [CustomCategory]) this is filed under; [category] is then OTHERS. Null for the built-in ones. */
+    val customCategoryId: String? = null
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

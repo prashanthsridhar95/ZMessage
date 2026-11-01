@@ -63,6 +63,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.categories.CategoryOptions
+import com.zyke.message.domain.categories.CustomCategories
+import com.zyke.message.domain.model.CustomCategory
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -125,7 +127,7 @@ internal fun MessageDetailSheet(
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Caption("${DateFormatters.detailTimestamp(message.date)} · ${item.category.displayString}", maxLines = 1)
+                    Caption("${DateFormatters.detailTimestamp(message.date)} · ${com.zyke.message.presentation.common.categoryText(item)}", maxLines = 1)
                 }
             }
 
@@ -204,7 +206,7 @@ internal fun MessageDetailSheet(
                 // A payment can be filed and named on its own, apart from everything else paid to the same receiver.
                 if (canTag && content is MessageContent.Transaction) {
                     SettingsGroup("This transaction") {
-                        DetailRow("Category", if (item.categoryOwn) item.category.displayString else "Same as $title") { categoryScope = true }
+                        DetailRow("Category", if (item.categoryOwn) com.zyke.message.presentation.common.categoryText(item) else "Same as $title") { categoryScope = true }
                         DetailRow("Nickname", if (item.nicknameOwn) item.merchant.name else "None") { nameScope = true }
                         if (pickThisPicture != null) {
                             DetailRow("Picture", if (thisHasPicture) "Your picture" else "Same as $title", onClick = pickThisPicture)
@@ -219,7 +221,7 @@ internal fun MessageDetailSheet(
                             "Category",
                             when {
                                 item.categoryOwn -> "Not set"
-                                else -> item.category.displayString + if (item.categoryOverridden) "" else " · auto"
+                                else -> com.zyke.message.presentation.common.categoryText(item) + if (item.categoryOverridden) "" else " · auto"
                             }
                         ) { categoryScope = false }
                         DetailRow("Nickname", if (item.merchant.renamed && !item.nicknameOwn) item.merchant.name else "None") { nameScope = false }
@@ -338,17 +340,37 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
     // What is in effect for the thing being filed: this one transaction's own choice, or its sender's or receiver's.
     val chosenHere = if (forTransaction) item.categoryOwn else item.categoryOverridden && !item.categoryOwn
     val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
+    val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val customs = com.zyke.message.presentation.common.LocalCustomCategories.current
+    // What this choice is filed under: this one payment, or its sender or receiver.
+    val fileKey = if (forTransaction) CategoryKey.messageKey(item.id) else CategoryKey.of(item)
+    val customHere = item.customCategoryId.takeIf { chosenHere }
     val set: (MessageCategory?) -> Unit = { category ->
+        // A built-in choice (or taking the choice away) replaces any category of the person's own for the same thing.
+        fileKey?.let { container.customCategories.assign(it, null) }
         if (forTransaction) actions.onSetMessageCategory(item.id, category) else actions.onSetCategory(item.id, category)
     }
+    fun chooseCustom(category: CustomCategory) {
+        com.zyke.message.data.diag.DevLog.d("category") { "category sheet: chose custom ${category.id} id=${item.id} forTransaction=$forTransaction alreadyChosen=${customHere == category.id}" }
+        val key = fileKey ?: return
+        if (customHere == category.id) {
+            container.customCategories.assign(key, null)
+        } else {
+            // One thing is filed one way: the built-in choice for the same key is cleared so the two never compete.
+            if (forTransaction) actions.onSetMessageCategory(item.id, null) else actions.onSetCategory(item.id, null)
+            container.customCategories.assign(key, category.id)
+        }
+    }
+    var adding by remember { mutableStateOf(false) }
     val available = CategoryOptions.forMessage(item)
     var query by rememberSaveable { mutableStateOf("") }
     val matches = available.filter { it.displayString.contains(query.trim(), ignoreCase = true) }
+    val customMatches = customs.filter { it.name.contains(query.trim(), ignoreCase = true) }
 
     fun choose(category: MessageCategory) {
         com.zyke.message.data.diag.DevLog.d("ui") { "category sheet: chose $category id=${item.id} forTransaction=$forTransaction alreadyChosen=${chosenHere && item.category == category}" }
         // Choosing the one already chosen takes the choice away.
-        set(if (chosenHere && item.category == category) null else category)
+        set(if (chosenHere && customHere == null && item.category == category) null else category)
         onDismiss()
     }
 
@@ -365,8 +387,13 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
 
             if (query.isBlank()) {
                 // Where it is now, and what the app thinks it is.
-                val now = item.category.takeIf { chosenHere }
-                if (now != null || (!forTransaction && suggestion != null)) {
+                val now = item.category.takeIf { chosenHere && customHere == null }
+                val nowCustom = customs.firstOrNull { it.id == customHere }
+                if (nowCustom != null) {
+                    FormGroup("Now") {
+                        Chips(listOf(ChipOption(com.zyke.message.presentation.common.lookText(CustomCategories.look(MessageCategory.OTHERS, nowCustom.id, customs)), true)), onSelect = { chooseCustom(nowCustom) })
+                    }
+                } else if (now != null || (!forTransaction && suggestion != null)) {
                     FormGroup("Now") {
                         Chips(
                             buildList {
@@ -386,22 +413,41 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
                     if (inGroup.isEmpty()) return@forEach
                     shown += inGroup
                     FormGroup(title) {
-                        Chips(inGroup.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(inGroup[it]) })
+                        Chips(inGroup.map { ChipOption(it.displayString, chosenHere && customHere == null && item.category == it) }, onSelect = { choose(inGroup[it]) })
                     }
+                }
+                FormGroup("Your categories") {
+                    Chips(
+                        customs.map { ChipOption(com.zyke.message.presentation.common.lookText(CustomCategories.look(MessageCategory.OTHERS, it.id, customs)), customHere == it.id) } +
+                            ChipOption("\uFF0B Add category", false),
+                        onSelect = { i -> if (i < customs.size) { chooseCustom(customs[i]); onDismiss() } else adding = true }
+                    )
                 }
                 // Anything this payment can be filed under that the groups above do not hold.
                 val rest = available.filter { it !in shown }
                 if (rest.isNotEmpty()) {
                     FormGroup("More") {
-                        Chips(rest.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(rest[it]) })
+                        Chips(rest.map { ChipOption(it.displayString, chosenHere && customHere == null && item.category == it) }, onSelect = { choose(rest[it]) })
                     }
                 }
-            } else if (matches.isEmpty()) {
+            } else if (matches.isEmpty() && customMatches.isEmpty()) {
                 Caption("Nothing matches \"${query.trim()}\"", maxLines = 2)
+                Chips(listOf(ChipOption("\uFF0B Add \"${CustomCategories.tidy(query)}\" as a category", false)), onSelect = { adding = true })
             } else {
-                Chips(matches.map { ChipOption(it.displayString, chosenHere && item.category == it) }, onSelect = { choose(matches[it]) })
+                if (customMatches.isNotEmpty()) Chips(
+                    customMatches.map { ChipOption(com.zyke.message.presentation.common.lookText(CustomCategories.look(MessageCategory.OTHERS, it.id, customs)), customHere == it.id) },
+                    onSelect = { chooseCustom(customMatches[it]); onDismiss() }
+                )
+                Chips(matches.map { ChipOption(it.displayString, chosenHere && customHere == null && item.category == it) }, onSelect = { choose(matches[it]) })
             }
         }
+    }
+    if (adding) {
+        com.zyke.message.presentation.common.CategoryEditSheet(
+            existing = null,
+            onDismiss = { adding = false },
+            onSaved = { made -> chooseCustom(made); adding = false; onDismiss() }
+        )
     }
 }
 

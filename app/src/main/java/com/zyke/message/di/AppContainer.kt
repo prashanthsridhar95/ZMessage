@@ -78,6 +78,7 @@ class AppContainer(context: Context) {
     val providentFundAccounts: com.zyke.message.domain.repository.ProvidentFundAccountRepository by lazy { com.zyke.message.data.repository.ProvidentFundAccountRepositoryImpl(context) }
     val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository by lazy { com.zyke.message.data.repository.ManualEntryRepositoryImpl(context) }
     val setAsides: com.zyke.message.domain.ledger.SetAsideRepository by lazy { com.zyke.message.data.repository.SetAsideRepositoryImpl(context) }
+    val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository by lazy { com.zyke.message.data.repository.CustomCategoryRepositoryImpl(context) }
     val paidBills: com.zyke.message.domain.home.PaidBillRepository by lazy { com.zyke.message.data.repository.PaidBillRepositoryImpl(context) }
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository by lazy { com.zyke.message.data.repository.WatchlistRepositoryImpl(context) }
     val markets by lazy { com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)) }
@@ -102,7 +103,7 @@ class AppContainer(context: Context) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes
+        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories
     ) }
 
     /**

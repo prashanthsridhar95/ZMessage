@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -109,7 +110,11 @@ fun AppRoot(
     val pageHost = remember { com.zyke.message.presentation.common.PageHost() }
     val snackbar = remember { SnackbarHostState() }
 
+    val customCategories by remember(context) {
+        (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container.customCategories.state
+    }.collectAsState()
     CompositionLocalProvider(
+        com.zyke.message.presentation.common.LocalCustomCategories provides customCategories.categories,
         LocalSheetHost provides sheetHost,
         com.zyke.message.presentation.common.LocalPageHost provides pageHost,
         LocalAppSnackbar provides snackbar,

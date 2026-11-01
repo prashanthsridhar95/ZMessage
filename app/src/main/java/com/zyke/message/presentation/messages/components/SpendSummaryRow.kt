@@ -89,7 +89,7 @@ internal fun SpendSummarySheet(summary: SpendSummary, onDismiss: () -> Unit) {
                 val barColor = MaterialTheme.colorScheme.primary
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        RowTitle(spend.category.displayString)
+                        RowTitle(com.zyke.message.presentation.common.categoryText(spend.category, spend.customCategoryId))
                         RowTitle(DisplayFormatters.rupees(spend.amount))
                     }
                     Box(

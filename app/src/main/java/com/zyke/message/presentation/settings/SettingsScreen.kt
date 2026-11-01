@@ -344,7 +344,10 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             onCardLimit = { onIntent(Intent.SetCardLimit(it)) }
         )
         SettingsGroup.CARDS -> CardsSection(state.accounts, state.cards, onSave = { onIntent(Intent.SaveCard(it)) }, onDelete = { onIntent(Intent.DeleteCard(it)) })
-        SettingsGroup.RULES -> RulesSection()
+        SettingsGroup.RULES -> {
+            CustomCategoriesSection()
+            RulesSection()
+        }
         SettingsGroup.MESSAGES -> {
             SectionCard("Pictures") {
                 Caption("Tap the photo on any message sheet to change it", maxLines = 3)

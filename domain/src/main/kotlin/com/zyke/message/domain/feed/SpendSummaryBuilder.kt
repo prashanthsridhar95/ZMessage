@@ -19,13 +19,13 @@ object SpendSummaryBuilder {
             if (tx.isReceived || message.setAside != null) return@mapNotNull null
             if (YearMonth.from(Instant.ofEpochMilli(message.message.date).atZone(zone)) != month) return@mapNotNull null
             val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
-            message.category to amount
+            Triple(message.category, message.customCategoryId, amount)
         }
         if (spends.isEmpty()) return null
 
         val byCategory = spends
-            .groupBy({ it.first }, { it.second })
-            .map { (category, amounts) -> CategorySpend(category, amounts.fold(BigDecimal.ZERO, BigDecimal::add)) }
+            .groupBy({ it.first to it.second }, { it.third })
+            .map { (key, amounts) -> CategorySpend(key.first, amounts.fold(BigDecimal.ZERO, BigDecimal::add), key.second) }
             .sortedByDescending { it.amount }
 
         return SpendSummary(month, byCategory.fold(BigDecimal.ZERO) { sum, c -> sum + c.amount }, byCategory)

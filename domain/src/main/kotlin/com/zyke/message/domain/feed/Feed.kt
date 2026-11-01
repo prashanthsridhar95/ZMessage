@@ -121,7 +121,7 @@ sealed interface AttentionItem {
     }
 }
 
-data class CategorySpend(val category: MessageCategory, val amount: BigDecimal)
+data class CategorySpend(val category: MessageCategory, val amount: BigDecimal, val customCategoryId: String? = null)
 
 data class SpendSummary(
     val month: YearMonth,
