@@ -104,6 +104,7 @@ object BlackBox {
                     appendRaw(folder, "${stamp.get()!!.format(Date())} E/crash [${thread.name}] uncaught exception\n${describe(error)}")
                 }
             }
+            runCatching { com.zyke.message.data.backup.FirstRun.onCrash() }
             previous?.uncaughtException(thread, error)
         }
     }

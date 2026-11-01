@@ -1,6 +1,7 @@
 package com.zyke.message.data.backup
 
 import android.content.Context
+import com.zyke.message.data.diag.BlackBox
 import com.zyke.message.data.diag.DevLog
 import com.zyke.message.domain.backup.FirstRunDecision
 import java.io.File
@@ -18,6 +19,31 @@ object FirstRun {
     private const val DONE = "welcome_done"
     private const val SHOWS = "welcome_shows"
 
+    @Volatile private var appContext: Context? = null
+    /** True while the Welcome step is on screen: a crash then means it is given up on (see [onCrash]). */
+    @Volatile var welcomeOnScreen: Boolean = false
+
+    private fun note(message: String, error: Throwable? = null) {
+        DevLog.always(TAG, message, error)
+        runCatching { BlackBox.mark(TAG, message + (error?.let { " | ${it.javaClass.simpleName}" } ?: "")) }
+    }
+
+    /** Whether the Welcome question has been answered already. Reads one small file; never throws. */
+    fun isDone(context: Context): Boolean = try {
+        context.applicationContext.getSharedPreferences(STATE, Context.MODE_PRIVATE).getBoolean(DONE, false)
+    } catch (e: Exception) { true }
+
+    /**
+     * Called by the crash recorder just before the process dies. If the Welcome step was the thing on screen, the
+     * question is marked settled so the next start opens the app instead of crashing in the same place again.
+     */
+    fun onCrash() {
+        val c = appContext
+        if (welcomeOnScreen && c != null) {
+            runCatching { c.getSharedPreferences(STATE, Context.MODE_PRIVATE).edit().putBoolean(DONE, true).commit() }
+        }
+    }
+
     /**
      * Run once, first thing at start, before any store has written. True when the Welcome step should be shown.
      * Welcome counts how often it was shown without an answer; after [FirstRunDecision.MAX_SHOWS] it stops, so a
@@ -25,6 +51,7 @@ object FirstRun {
      */
     fun decideWelcome(context: Context): Boolean = try {
         val app = context.applicationContext ?: context
+        appContext = app
         val state = app.getSharedPreferences(STATE, Context.MODE_PRIVATE)
         val done = state.getBoolean(DONE, false)
         val shows = state.getInt(SHOWS, 0)
@@ -34,17 +61,17 @@ object FirstRun {
             FirstRunDecision.Action.SKIP -> false
             FirstRunDecision.Action.SKIP_AND_MARK_DONE -> {
                 state.edit().putBoolean(DONE, true).apply()
-                DevLog.always(TAG, "no welcome: setup=$setupFiles shows=$shows -> marked done")
+                note("no welcome: setup=$setupFiles shows=$shows -> marked done")
                 false
             }
             FirstRunDecision.Action.WELCOME -> {
                 state.edit().putInt(SHOWS, shows + 1).apply()
-                DevLog.always(TAG, "welcome will be shown (show ${shows + 1}): leftoverBackupFile=$leftover")
+                note("welcome will be shown (show ${shows + 1}): leftoverBackupFile=$leftover")
                 true
             }
         }
     } catch (e: Exception) {
-        DevLog.always(TAG, "deciding about the welcome step failed; going on without it", e)
+        note("deciding about the welcome step failed; going on without it", e)
         false
     }
 
@@ -52,9 +79,9 @@ object FirstRun {
     fun markDone(context: Context, why: String) {
         try {
             context.applicationContext.getSharedPreferences(STATE, Context.MODE_PRIVATE).edit().putBoolean(DONE, true).apply()
-            DevLog.always(TAG, "welcome done: $why")
+            note("welcome done: $why")
         } catch (e: Exception) {
-            DevLog.always(TAG, "could not remember that the welcome step is done", e)
+            note("could not remember that the welcome step is done", e)
         }
     }
 
@@ -63,8 +90,11 @@ object FirstRun {
         block()
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
-    } catch (e: Exception) {
-        DevLog.always(TAG, "step '$name' failed", e)
+    } catch (e: Throwable) {
+        // Throwable on purpose: a missing class (no Google services) is an Error, and must not end the first launch either.
+        FirstRun.noteFailure(name, e)
         fallback
     }
+
+    @PublishedApi internal fun noteFailure(name: String, e: Throwable) = note("step '$name' failed", e)
 }

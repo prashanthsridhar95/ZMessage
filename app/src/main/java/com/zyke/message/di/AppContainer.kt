@@ -45,13 +45,14 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
 /** Manual dependency container; one instance lives in the Application. */
 class AppContainer(context: Context) {
+    private val appContext: Context = context.applicationContext ?: context
     /** Decided first thing, before any store can write: whether this is a fresh install that should offer "Welcome back". */
     val needsWelcome: Boolean = com.zyke.message.data.backup.BackupPrefs.needsWelcome(context)
     /** [needsWelcome] and not answered yet. Never throws: if anything about the first launch fails, the app just opens. */
     fun welcomeStillPending(): Boolean =
-        com.zyke.message.data.backup.FirstRun.step("welcome state", false) { needsWelcome && !backup.prefs.welcomeDone }
+        com.zyke.message.data.backup.FirstRun.step("welcome state", false) { needsWelcome && !com.zyke.message.data.backup.FirstRun.isDone(appContext) }
 
-    val backup by lazy { com.zyke.message.data.backup.BackupHub(context, imageStore, com.zyke.message.data.backup.GmsDriveAuth(context)) }
+    val backup by lazy { com.zyke.message.data.backup.BackupHub(context, imageStore, com.zyke.message.data.backup.FirstRun.step("drive auth", null) { com.zyke.message.data.backup.GmsDriveAuth(context) }) }
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
     val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
     val rcsStore by lazy { RcsMessageStore(context.applicationContext) }

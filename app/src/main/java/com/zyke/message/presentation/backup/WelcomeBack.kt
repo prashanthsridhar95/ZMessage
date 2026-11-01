@@ -48,6 +48,10 @@ internal fun WelcomeBack(onFinished: () -> Unit) {
     val scope = rememberCoroutineScope()
     // If the backup parts cannot be built for any reason, Welcome still works: it offers "Start fresh" only.
     val hub = remember { FirstRun.step<com.zyke.message.data.backup.BackupHub?>("welcome hub", null) { (context.applicationContext as ZykeMessagesApplication).container.backup } }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        FirstRun.welcomeOnScreen = true
+        onDispose { FirstRun.welcomeOnScreen = false }
+    }
     var phoneFileMade by remember { mutableStateOf<Long?>(null) }
     var restore by remember { mutableStateOf<RestoreSource?>(null) }
     var chosenFile by remember { mutableStateOf<android.net.Uri?>(null) }

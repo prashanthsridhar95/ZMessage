@@ -71,6 +71,16 @@ and create a second Android client `Zyke Message (release)` with the same packag
 
 When (and only when) the switch is on: one file named `zyke-backup-<date>.zbk`, encrypted with a key made from your PIN, uploaded to the hidden app folder of the Google account you signed in with. The newest 7 are kept; older ones are deleted. Nothing else is sent, no account name or token is stored by the app, and there are no analytics. Turning the switch off stops uploads but leaves existing backups in your Drive (remove them from Google Drive settings -> Manage apps -> Zyke Message -> Delete hidden app data).
 
+## Saving a copy to a folder (no Google account needed)
+
+**Settings -> Backup -> Save a copy to a folder** is the third place, independent of the other two. Turning it on opens Android's folder picker once; the app keeps access to that one folder (`takePersistableUriPermission`, visible in the phone's own settings) and each scheduled backup also writes `zyke-backup-yyyyMMdd-HHmmss.zbk` there. The newest 7 files with exactly that name pattern are kept; nothing else in the folder is deleted. It needs no network, so its jobs never wait for Wi-Fi. The files are encrypted with your PIN: copy them anywhere, you need the PIN to open them.
+
+The folder choice is stored in `backup_folder`, which is excluded from the setup backup and from Android's Auto Backup. After a reinstall or restore the setting is off and asks for a folder again. If the folder was deleted or the permission taken back, the backup status says so and offers **Pick the folder again**.
+
+## Restoring from a file
+
+**Restore from a file** (Settings -> Backup, and the Welcome step on a fresh install) opens any file you choose: a `.zbk` from the folder, a manual export, or the private `zyke-backup.bin`. Files over 50 MB are refused, and the start of the file is checked before the PIN or passphrase is asked ("This doesn't look like a Zyke backup"). It then follows the same path as every other restore.
+
 ## PIN strength
 
 A 6-digit PIN has 1,000,000 possibilities. The key is stretched with 600,000 rounds of PBKDF2-HMAC-SHA256, which makes each guess slow, but anyone who obtains the backup file (from your Drive or from Android's backup) could still try all of them offline. It protects against casual access. For real protection use the **Advanced: use a passphrase instead** option with a long passphrase. Nobody, including the developer, can recover a forgotten PIN or passphrase.
