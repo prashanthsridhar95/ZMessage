@@ -1,6 +1,10 @@
 package com.zyke.message.presentation.dashboard.components
 
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.FintechCard
+import com.zyke.message.presentation.common.PrivateAmount
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
@@ -127,26 +131,44 @@ internal fun ReportCardSummary(card: ReportCard, onOpen: () -> Unit, modifier: M
     }
 }
 
-/** This month's marks in full: a hero with the overall grade, then a slim card per category. */
+/** This month's marks in full: a hero with the overall grade, the biggest lever, then a metric row per category. */
 @Composable
 internal fun ReportCardSheet(card: ReportCard, onDismiss: () -> Unit) {
+    val levers = remember(card) { biggestLevers(card) }
     AdaptiveSheet("Report card", onDismiss, asPage = true) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Hero(card)
 
+            if (levers.isNotEmpty()) {
+                SectionLabel("BIGGEST LEVER")
+                levers.forEach { LeverCard(it) }
+            } else if (card.subjects.isNotEmpty()) {
+                FintechCard {
+                    Text("No weak spots", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = GradeColors.good)
+                    Caption("Every category is holding up. Keep going.", Modifier.padding(top = 4.dp), maxLines = 2)
+                }
+            }
+
+            SectionLabel("BY CATEGORY")
             if (card.subjects.isNotEmpty()) {
-                Text(
-                    "BY CATEGORY",
-                    Modifier.padding(start = 6.dp, top = 6.dp).heading(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.4.sp,
-                    color = mutedColor()
-                )
-                card.subjects.forEach { SubjectCard(it) }
+                FintechCard {
+                    card.subjects.forEachIndexed { i, subject ->
+                        if (i > 0) Spacer(Modifier.height(4.dp))
+                        MetricRow(subject)
+                    }
+                }
+            } else {
+                FintechCard {
+                    Text("No marks yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Caption(
+                        "Categories are graded once you have a budget or a previous month to compare against.",
+                        Modifier.padding(top = 4.dp),
+                        maxLines = 3
+                    )
+                }
             }
 
             if (card.unreadMessages > 0) {
@@ -158,6 +180,57 @@ internal fun ReportCardSheet(card: ReportCard, onDismiss: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        Modifier.padding(start = 6.dp, top = 6.dp).heading(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.4.sp,
+        color = mutedColor()
+    )
+}
+
+/** A category that needs attention and the one thing to do about it. */
+private class Lever(val subject: Subject, val tip: String)
+
+/** Up to two of the weakest marks (C or worse), worst first, each with a plain next step. */
+private fun biggestLevers(card: ReportCard): List<Lever> =
+    card.subjects
+        .filter { (it.grade?.points ?: 4) <= Grade.C.points }
+        .sortedWith(compareBy<Subject> { it.grade?.points ?: 4 }.thenByDescending { it.spent })
+        .take(2)
+        .map { s ->
+            val budget = s.budget
+            val name = s.category.displayString
+            val tip = when {
+                budget != null && s.spent > budget ->
+                    "Cut ${name.lowercase()} by ${DisplayFormatters.rupees(s.spent - budget)} to get back within its budget."
+                s.trend == Trend.UP -> "${name} is climbing. Look at its biggest payments this month and set a budget to hold it."
+                else -> "Look at your biggest ${name.lowercase()} payments this month and see what can wait."
+            }
+            Lever(s, tip)
+        }
+
+@Composable
+private fun LeverCard(lever: Lever) {
+    val s = lever.subject
+    val accent = GradeColors.of(s.grade)
+    FintechCard(Modifier.semantics(mergeDescendants = true) {
+        contentDescription = "What to do about ${s.category.displayString}, grade ${s.grade?.label ?: "none"}. ${lever.tip}"
+    }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GradeChip(s.grade)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                RowTitle(s.category.displayString)
+                Text("What to do", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
+            }
+        }
+        Text(lever.tip, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -189,7 +262,7 @@ private fun Hero(card: ReportCard) {
             color = accent
         )
         Spacer(Modifier.height(20.dp))
-        GradeRing(card.overall, size = 168.dp, stroke = 10.dp, letterStyle = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp))
+        GradeRing(card.overall, size = 168.dp, stroke = 10.dp, letterStyle = MaterialTheme.typography.displayLarge.copy(fontSize = (84f / LocalDensity.current.fontScale.coerceAtLeast(1f)).sp))
         Spacer(Modifier.height(20.dp))
         Text(
             overallLine(card),
@@ -234,7 +307,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
             letterSpacing = 1.2.sp,
             color = mutedColor()
         )
-        Text(
+        PrivateAmount(
             value,
             Modifier.padding(top = 2.dp),
             style = MaterialTheme.typography.titleMedium,
@@ -262,9 +335,9 @@ private fun remarkText(remark: Remark): String = when (remark) {
     Remark.OnTrack -> "Nothing stands out yet. Keep going."
 }
 
-/** One category: its mark, how much of its budget or of last month it has used, and which way it is moving. */
+/** One category as a metric row: label and amount, grade chip, a thin progress bar, a line of explanation and a trend chip. */
 @Composable
-private fun SubjectCard(subject: Subject) {
+private fun MetricRow(subject: Subject) {
     val accent = GradeColors.of(subject.grade)
     val budget = subject.budget
     val over = budget != null && subject.spent > budget
@@ -275,58 +348,54 @@ private fun SubjectCard(subject: Subject) {
     }
     val fraction = basis?.let { (subject.spent.toDouble() / it.toDouble()).toFloat().coerceIn(0f, 1f) } ?: 0f
     val grown by rememberGrowingState(fraction)
-    val shape = RoundedCornerShape(22.dp)
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val barColor = if (over) GradeColors.poor else accent
+    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
+    val money: (java.math.BigDecimal) -> String = { if (privacy.hidden) com.zyke.message.presentation.common.HIDDEN_AMOUNT else DisplayFormatters.rupees(it) }
 
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)), shape)
-            .padding(16.dp)
+            .padding(vertical = 10.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${subject.category.displayString}, grade ${subject.grade?.label ?: "none yet"}. " +
-                    "Spent ${DisplayFormatters.rupees(subject.spent)}. ${trendText(subject)}"
+                    "Spent ${money(subject.spent)}. ${trendText(subject, money)}"
             }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 RowTitle(subject.category.displayString)
-                Text(
+                PrivateAmount(
                     DisplayFormatters.rupees(subject.spent),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1
                 )
             }
             Spacer(Modifier.width(12.dp))
+            DeltaChip(subject)
+            Spacer(Modifier.width(8.dp))
             GradeChip(subject.grade)
         }
-
         if (basis != null) {
             Box(
                 Modifier
-                    .padding(top = 12.dp)
+                    .padding(top = 10.dp)
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            ) {
-                val from = accent.copy(alpha = 0.6f)
-                val to = if (over) GradeColors.poor else accent
-                Box(
-                    Modifier.fillMaxSize().drawBehind {
+                    .drawBehind {
+                        val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
+                        drawRoundRect(track, Offset.Zero, size, r)
                         val filled = size.width * grown.coerceAtLeast(0.02f)
-                        drawRect(Brush.horizontalGradient(listOf(from, to), startX = 0f, endX = filled), size = androidx.compose.ui.geometry.Size(filled, size.height))
+                        drawRoundRect(barColor, Offset.Zero, Size(filled, size.height), r)
                     }
-                )
-            }
+            )
         }
         Caption(
             buildString {
-                if (budget != null) append("${DisplayFormatters.rupees(subject.spent)} of ${DisplayFormatters.rupees(budget)} budget · ")
-                append(trendText(subject))
+                if (budget != null) append("${money(subject.spent)} of ${money(budget)} budget \u00B7 ")
+                append(trendText(subject, money))
             },
             Modifier.padding(top = 8.dp),
             color = if (over) GradeColors.poor else mutedColor(),
@@ -335,14 +404,41 @@ private fun SubjectCard(subject: Subject) {
     }
 }
 
-private fun trendText(subject: Subject): String = when (subject.trend) {
+/** A small arrow-and-percent chip for the change on last month; rising spend reads as a caution. */
+@Composable
+private fun DeltaChip(subject: Subject) {
+    val (glyph, tint) = when (subject.trend) {
+        Trend.UP -> "\u25B2" to GradeColors.poor
+        Trend.DOWN -> "\u25BC" to GradeColors.good
+        Trend.SAME -> "=" to GradeColors.none
+        Trend.NEW -> "NEW" to GradeColors.none
+    }
+    val percent = if (subject.previousSpent.signum() > 0 && (subject.trend == Trend.UP || subject.trend == Trend.DOWN)) {
+        abs(((subject.spent - subject.previousSpent).toDouble() / subject.previousSpent.toDouble()) * 100).roundToInt()
+    } else {
+        null
+    }
+    Text(
+        listOfNotNull(glyph, percent?.let { "$it%" }).joinToString(" "),
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(tint.copy(alpha = 0.14f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = tint,
+        maxLines = 1
+    )
+}
+
+private fun trendText(subject: Subject, money: (java.math.BigDecimal) -> String): String = when (subject.trend) {
     Trend.UP -> {
         val percent = if (subject.previousSpent.signum() > 0) {
             (((subject.spent - subject.previousSpent).toDouble() / subject.previousSpent.toDouble()) * 100).roundToInt()
         } else {
             null
         }
-        "▲ ${percent?.let { "$it% " }.orEmpty()}from ${DisplayFormatters.rupees(subject.previousSpent)}"
+        "▲ ${percent?.let { "$it% " }.orEmpty()}from ${money(subject.previousSpent)}"
     }
     Trend.DOWN -> {
         val percent = if (subject.previousSpent.signum() > 0) {
@@ -350,7 +446,7 @@ private fun trendText(subject: Subject): String = when (subject.trend) {
         } else {
             null
         }
-        "▼ ${percent?.let { "$it% " }.orEmpty()}from ${DisplayFormatters.rupees(subject.previousSpent)}"
+        "▼ ${percent?.let { "$it% " }.orEmpty()}from ${money(subject.previousSpent)}"
     }
     Trend.SAME -> "same as last month"
     Trend.NEW -> "new this month"
