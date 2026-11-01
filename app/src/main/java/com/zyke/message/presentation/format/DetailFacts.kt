@@ -36,14 +36,15 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
         )
         is MessageContent.Notice -> listOfNotNull(
             DetailFact("Type", c.kind.label),
-            c.amount?.let { DetailFact("Amount", DisplayFormatters.rupees(it)) }
+            c.amount?.let { DetailFact("Amount", DisplayFormatters.rupees(it)) },
+            c.detail?.let { DetailFact("Reason", it) }
         )
         MessageContent.Generic -> emptyList()
     }
 }
 
 private fun ClassifiedMessage.transactionFacts(c: MessageContent.Transaction) = listOfNotNull(
-    DetailFact(if (c.isCardPayment) "Card bill paid" else if (c.isReceived) "Received" else "Paid", DisplayFormatters.rupees(c.amount)),
+    DetailFact(if (c.isCardPayment) (com.zyke.message.domain.ledger.InternalMoves.label(c) ?: "Card bill paid") else if (c.isReceived) "Received" else "Paid", DisplayFormatters.rupees(c.amount)),
     c.payee.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isReceived) "From" else "To", merchant.displayName) },
     c.accountNumber.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isCard) "Card" else "Account", "•• $it") },
     c.bankName.displayString.takeIf { it.isNotEmpty() }?.let { DetailFact("Bank", it) }

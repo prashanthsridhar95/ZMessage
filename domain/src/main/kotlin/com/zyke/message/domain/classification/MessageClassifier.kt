@@ -62,14 +62,41 @@ class MessageClassifier(
         val body = message.body
         return when {
             OtpParser.isOtp(body) -> otp(message)
+            // A payment the bank refused is never a transaction, whatever else the message says.
+            NoticeParser.isDeclinedPayment(body) -> notice(message) ?: generic(message)
+            LifeParser.isParcelNote(body) -> life(message) ?: generic(message)
             body.contains("Bank Tag", true) || body.contains("Fastag", true) -> fastTag(message)
             NoticeParser.isProvidentFund(body) -> notice(message) ?: generic(message)
             LifeParser.isOrderConfirmation(body) -> life(message) ?: bank(message)
+            TelecomNotices.detect(body, receivedDay(message)) != null -> telecom(message) ?: generic(message)
             GenericTransactionParser.mentionsMoney(body) -> bank(message)
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
             body.contains("Petpooja") -> loyalty(message)
             else -> life(message) ?: generic(message)
+        }
+    }
+
+    private fun receivedDay(message: SmsMessage) = Instant.ofEpochMilli(message.date).atZone(ZoneId.systemDefault()).toLocalDate()
+
+    /** A plan that ends, a data alert, a "thanks for calling" offer, the regulator's SIM advisory. */
+    private fun telecom(message: SmsMessage): ClassifiedMessage? {
+        return when (val found = TelecomNotices.detect(message.body, receivedDay(message))) {
+            null -> null
+            is TelecomNotices.Notice.Plan -> lifeFrom(message, found.facts)
+            is TelecomNotices.Notice.DataUsed -> ClassifiedMessage(
+                message = message,
+                category = MessageCategory.NETWORK_CARRIERS,
+                merchant = merchants.resolve(found.carrier.displayName, MessageCategory.NETWORK_CARRIERS),
+                content = MessageContent.DataUsage(found.carrier, found.percent)
+            )
+            TelecomNotices.Notice.Offer -> generic(message).copy(isPromotional = true)
+            TelecomNotices.Notice.Advisory -> ClassifiedMessage(
+                message = message,
+                category = MessageCategory.OTHERS,
+                merchant = Merchant(SenderKey.displayAddress(message.sender), MerchantLogo.PERSON, MessageCategory.OTHERS),
+                content = MessageContent.Notice(NoticeKind.ADVISORY, null)
+            )
         }
     }
 
@@ -130,7 +157,13 @@ class MessageClassifier(
         }
         // Paying a card's bill from the account, or topping up a store wallet, moves the person's own money about.
         if (tx.isInternal && merchant.category == MessageCategory.OTHERS) {
-            merchant = merchant.copy(category = if (tx.type == BankTransactionType.RECEIVED) MessageCategory.SHOPPING else MessageCategory.CREDIT_CARDS)
+            merchant = merchant.copy(
+                category = when {
+                    tx.type == BankTransactionType.RECEIVED -> MessageCategory.SHOPPING
+                    tx.payee.contains("UPI Lite", ignoreCase = true) -> MessageCategory.UPI_PAYMENT
+                    else -> MessageCategory.CREDIT_CARDS
+                }
+            )
         }
         return ClassifiedMessage(
             message = message,
@@ -143,7 +176,7 @@ class MessageClassifier(
                 accountNumber = normalizeAccountNumber(tx.accountNumber),
                 isReceived = tx.type == BankTransactionType.RECEIVED,
                 // The account a card bill is paid from is a bank account, whatever the narration says about the card.
-                isCard = !tx.isInternal && message.body.contains("Card", ignoreCase = true),
+                isCard = (!tx.isInternal || tx.payee.contains("reversal", ignoreCase = true)) && message.body.contains("Card", ignoreCase = true),
                 isCardPayment = tx.isInternal || (tx.type == BankTransactionType.RECEIVED && CARD_PAYMENT.containsMatchIn(message.body))
             )
         )
@@ -218,6 +251,10 @@ class MessageClassifier(
     private fun life(message: SmsMessage): ClassifiedMessage? {
         val received = Instant.ofEpochMilli(message.date).atZone(ZoneId.systemDefault()).toLocalDate()
         val facts = LifeParser.parse(message.body, received) ?: return null
+        return lifeFrom(message, facts)
+    }
+
+    private fun lifeFrom(message: SmsMessage, facts: com.zyke.message.domain.life.LifeFacts): ClassifiedMessage {
         val merchant = facts.merchant?.let { merchants.resolve(it) } ?: merchants.resolve("${message.sender} ${message.body}")
         val title = when {
             facts.merchant != null -> facts.merchant
@@ -226,6 +263,7 @@ class MessageClassifier(
         }
         val category = when {
             facts.kind == LifeKind.TRAVEL -> MessageCategory.TRAVEL
+            facts.isParcel -> MessageCategory.COURIER
             // An order that names its own restaurant or shop is filed by that name, not by the bank the message came through.
             facts.merchant != null -> merchant.category.takeIf { it != MessageCategory.OTHERS }
                 ?: if (FOOD_ORDER.containsMatchIn(message.body)) MessageCategory.FOOD else MessageCategory.OTHERS
@@ -241,12 +279,18 @@ class MessageClassifier(
 
     private fun notice(message: SmsMessage): ClassifiedMessage? {
         val (kind, amount) = NoticeParser.detect(message.body) ?: return null
-        val merchant = merchants.resolve("${message.sender} ${message.body}")
+        val lookup = "${message.sender} ${message.body}"
+        // A sender nobody knows is named by its header, not by the whole text of the message.
+        val resolved = merchants.resolve(lookup)
+        val merchant = if (resolved.name == lookup) resolved.copy(name = SenderKey.displayAddress(message.sender)) else resolved
         return ClassifiedMessage(
             message = message,
-            category = if (kind == NoticeKind.PF_UPDATE) MessageCategory.SAVINGS else merchant.category,
+            category = when (kind) {
+                NoticeKind.PF_UPDATE, NoticeKind.DEPOSIT_CLOSED, NoticeKind.DEPOSIT_MATURED -> MessageCategory.SAVINGS
+                else -> merchant.category
+            },
             merchant = merchant,
-            content = MessageContent.Notice(kind, amount)
+            content = MessageContent.Notice(kind, amount, NoticeParser.detail(kind, message.body))
         )
     }
 
@@ -317,7 +361,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 17
+        const val RULES_VERSION = 18
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(

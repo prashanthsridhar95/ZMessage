@@ -22,7 +22,7 @@ object KnownEntityDomains {
         "hdfc" to "hdfcbank.com", "icici" to "icicibank.com", "axis" to "axisbank.com", "kotak" to "kotak.com",
         "sbi" to "sbi.co.in", "state bank" to "sbi.co.in", "indusind" to "indusind.com", "yes bank" to "yesbank.in",
         "idfc" to "idfcfirstbank.com", "federal bank" to "federalbank.co.in", "indian bank" to "indianbank.in",
-        "canara" to "canarabank.com", "bank of baroda" to "bankofbaroda.in", "punjab national" to "pnbindia.in",
+        "karur vysya" to "kvb.co.in", "kvb" to "kvb.co.in", "canara" to "canarabank.com", "bank of baroda" to "bankofbaroda.in", "punjab national" to "pnbindia.in",
         "american express" to "americanexpress.com", "amex" to "americanexpress.com",
         "airtel" to "airtel.in", "jio" to "jio.com", "bsnl" to "bsnl.co.in", "vodafone" to "myvi.in", "tata play" to "tataplay.com",
         "tangedco" to "tnebnet.org", "bescom" to "bescom.karnataka.gov.in", "lic" to "licindia.in",

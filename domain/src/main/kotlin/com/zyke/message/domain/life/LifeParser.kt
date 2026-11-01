@@ -25,7 +25,9 @@ data class LifeFacts(
     /** The shop or restaurant the message names itself, when it does. */
     val merchant: String? = null,
     /** The order value an order message states (information, not a debit). */
-    val amount: String? = null
+    val amount: String? = null,
+    /** A parcel or consignment from a transport office (lorry receipt), filed with couriers. */
+    val isParcel: Boolean = false
 )
 
 /**
@@ -46,7 +48,7 @@ object LifeParser {
 
     fun parse(body: String, receivedOn: LocalDate): LifeFacts? {
         val text = body.replace(SPACES, " ").trim()
-        return renewal(text, receivedOn) ?: appointment(text, receivedOn) ?: travel(text, receivedOn) ?: delivery(text)
+        return renewal(text, receivedOn) ?: appointment(text, receivedOn) ?: travel(text, receivedOn) ?: parcel(text) ?: delivery(text)
     }
 
     // ---- deliveries
@@ -59,7 +61,9 @@ object LifeParser {
     private val ORDER_REF = Regex("(?i)\\b(?:order|awb|shipment|tracking)(?: ?(?:id|no\\.?|number|#))?\\s*[:\\-#]?\\s*([A-Z0-9][A-Z0-9-]{5,24})\\b")
 
     /** "Thanks for choosing Popeyes! ...|Order no. 123 |Amount:Rs. 499.50 |Track order@ link": an order confirmed, with its value. */
-    private val ORDER_WITH_AMOUNT = Regex("(?i)\\border no\\.?\\s*:?\\s*([A-Z0-9-]{1,24})\\b.{0,200}?\\bAmount:\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
+    private val ORDER_WITH_AMOUNT = Regex(
+        "(?i)\\border\\s*(?:no\\.?|number|id|#)\\s*:?\\s*(?:is\\s+)?((?=[A-Z0-9-]{0,23}\\d)[A-Z0-9-]{1,24})\\b.{0,200}?\\b(?:Amount|Order value):?\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)"
+    )
     private val CHOSEN_BRAND = Regex("(?i)\\bthanks for choosing ([A-Za-z0-9][A-Za-z0-9' &]{1,30}?)\\s*[!.,|:;\\-]")
     /** Words that make an "Order no ... Amount:" message a bank alert (a real debit) rather than an order confirmation. */
     private val BANK_WORDS = Regex("(?i)\\b(?:debited|credited|withdrawn|a/c|acct|account|upi|neft|imps|rtgs|credit card|debit card|avl bal|available balance)\\b")
@@ -78,6 +82,33 @@ object LifeParser {
             merchant = CHOSEN_BRAND.find(text)?.groupValues?.get(1)?.trim(),
             amount = match.groupValues[2].replace(",", "").trimEnd('.')
         )
+    }
+
+    // ---- parcels held by a transport office ("AKR: Greetings! LR A1234567 dt 12-Jul from NAME-CBE is delivered!")
+
+    private val LORRY_RECEIPT = Regex("(?i)\\bLR\\s*(?:no\\.?\\s*)?:?\\s*([A-Z]{0,3}\\d{5,12})\\b")
+    private val AT_OFFICE = Regex("(?i)\\b(?:reached|arrived at|received at)\\b.{0,40}?\\boffice\\b")
+    private val COLLECT = Regex("(?i)\\bcollect\\b")
+    private val CHARGES = Regex("(?i)\\bTotal(?: is)?:?\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*(\\d[\\d,]*(?:\\.\\d+)?)")
+    private val BRAND_PREFIX = Regex("^([A-Za-z][A-Za-z0-9 &]{1,20}):\\s")
+
+    /** A transport office's note about a parcel: it holds money words ("Total Rs.350") that are charges, not a payment. */
+    fun isParcelNote(body: String): Boolean = parcel(BodyMemoSpaces(body)) != null
+
+    private fun BodyMemoSpaces(body: String) = com.zyke.message.domain.util.BodyMemo.bounded(body).replace(SPACES, " ").trim()
+
+    private fun parcel(text: String): LifeFacts? {
+        val reference = LORRY_RECEIPT.find(text)?.groupValues?.get(1) ?: return null
+        val delivered = DELIVERED.containsMatchIn(text)
+        val atOffice = !delivered && AT_OFFICE.containsMatchIn(text)
+        if (!delivered && !atOffice) return null
+        // The "Total" is what is still to pay at the office (freight); it is told, never counted.
+        val charges = CHARGES.find(text)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')?.takeIf { it.toDoubleOrNull()?.let { v -> v > 0 } == true }
+        val status = when {
+            delivered -> "Delivered"
+            else -> "Arrived at office" + (if (COLLECT.containsMatchIn(text)) ", collect soon" else "") + (charges?.let { " \u00b7 \u20b9$it to pay" } ?: "")
+        }
+        return LifeFacts(LifeKind.DELIVERY, status, null, null, reference, delivered, merchant = BRAND_PREFIX.find(text)?.groupValues?.get(1)?.trim(), isParcel = true)
     }
 
     private fun delivery(text: String): LifeFacts? {

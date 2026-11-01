@@ -118,8 +118,8 @@ class AccountBankTest {
         val chosen = mapOf(key to AccountOverride(bank = "KVB"))
         val before = Accounts.build(base, emptyList(), now, zone, overrides = chosen).accounts.single()
         assertEquals(BankName.KVB, before.bankName)
-        assertEquals("KVB", before.bankLabel)
-        assertEquals("KVB bank account", before.title)
+        assertEquals("Karur Vysya Bank", before.bankLabel)
+        assertEquals("Karur Vysya Bank bank account", before.title)
         assertEquals(BankName.HDFC, before.detectedBank)
         assertNotNull(before.override)
         // A new message arrives; the choice is keyed by the account, so it stays.
@@ -149,7 +149,7 @@ class AccountBankTest {
         val card = UserCard("c1", CardType.ACCOUNT, "1805", "", bankName = "KVB")
         val account = Accounts.build(base, listOf(card), now, zone).accounts.single()
         assertEquals(BankName.KVB, account.bankName)
-        assertEquals("KVB bank account", account.title)
+        assertEquals("Karur Vysya Bank bank account", account.title)
         // An entry the app made itself while naming the account holds a copy of what was detected, and does not lock it.
         val auto = UserCard("named-bank_account-1805", CardType.ACCOUNT, "1805", "Salary", bankName = "HDFC")
         assertEquals(BankName.HDFC, Accounts.build(base, listOf(auto), now, zone).accounts.single().bankName)

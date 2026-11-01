@@ -89,6 +89,8 @@ internal fun OtpCard(
             val paymentCard = content.cardNumber
             if (paymentAmount != null && paymentCard != null) {
                 Caption("For ${DisplayFormatters.rupees(paymentAmount)} on card •• $paymentCard")
+            } else if (paymentAmount != null) {
+                Caption("For a payment of ${DisplayFormatters.rupees(paymentAmount)}")
             }
         }
 

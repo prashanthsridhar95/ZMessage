@@ -21,8 +21,8 @@ class MerchantResolver {
 
     private val rules = listOf(
         Rule(listOf("Zerodha", "Groww", "Upstox", "Kuvera", "Mutual Fund", "Smallcase", "Coin by"), MerchantLogo.PERSON, null, MessageCategory.INVESTMENTS),
-        Rule(listOf("Recurring Deposit", "Fixed Deposit", "PPF", "Sukanya", "National Pension"), MerchantLogo.PERSON, null, MessageCategory.SAVINGS),
-        Rule(listOf("LIC of India", "Insurance", "Policybazaar", "Acko"), MerchantLogo.PERSON, null, MessageCategory.INSURANCE),
+        Rule(listOf("Recurring Deposit", "Fixed Deposit", "PPF", "Sukanya", "National Pension", "Atal Pension"), MerchantLogo.PERSON, null, MessageCategory.SAVINGS),
+        Rule(listOf("LIC of India", "Insurance", "Policybazaar", "Acko", "Pradhan Mantri", "PMJJBY", "PMSBY"), MerchantLogo.PERSON, null, MessageCategory.INSURANCE),
         Rule(listOf("Donat", "Charit", "Foundation", "Akshaya Patra", "GiveIndia", "Ketto", "Milaap"), MerchantLogo.PERSON, null, MessageCategory.CHARITY),
         Rule(listOf("School", "College", "University", "Tuition", "Byju", "Unacademy"), MerchantLogo.PERSON, null, MessageCategory.EDUCATION),
         Rule(listOf("HDFC"), MerchantLogo.HDFC, "HDFC", MessageCategory.CREDIT_CARDS, upiAware = true),
@@ -34,6 +34,7 @@ class MerchantResolver {
             listOf("Axis Bank", "AXIS"), MerchantLogo.AXIS_BANK, "Axis Bank",
             MessageCategory.CREDIT_CARDS, upiAware = true
         ),
+        Rule(listOf("Karur Vysya", "KVBANK", "KVB ALERT", "-KVB"), MerchantLogo.PERSON, "Karur Vysya Bank", MessageCategory.OTHERS),
         Rule(listOf("Blue dart", "BLUDRT"), MerchantLogo.BLUE_DART, "Blue dart", MessageCategory.COURIER),
         Rule(listOf("Fastag"), MerchantLogo.FASTAG, "Fastag", MessageCategory.FASTAG),
         Rule(listOf("BROADWAY"), MerchantLogo.BROADWAY_CINEMAS, "Broadway Cinemas", MessageCategory.ENTERTAINMENT),

@@ -97,7 +97,12 @@ sealed interface MessageContent : java.io.Serializable {
     ) : MessageContent
 
     /** An informational message that mentions money without being a payment (failed autopay, IPO allotment, ...). */
-    data class Notice(val kind: NoticeKind, val amount: String?) : MessageContent
+    data class Notice(
+        val kind: NoticeKind,
+        val amount: String?,
+        /** Why, when the message says (the reason a payment was declined). */
+        val detail: String? = null
+    ) : MessageContent
 
     /** An order, trip, appointment or renewal read from a non-money message. */
     data class Life(
@@ -134,7 +139,12 @@ enum class NoticeKind(val label: String) {
     BALANCE_UPDATE("Balance update"),
     PF_UPDATE("PF passbook updated"),
     TRADE_CONFIRMATION("Trade confirmation"),
-    PAYMENT_DECLINED("Payment declined")
+    PAYMENT_DECLINED("Payment declined"),
+    DEPOSIT_CLOSED("Deposit closed"),
+    DEPOSIT_MATURED("Deposit matured"),
+    /** A payment gateway saying a payment went through; the bank's own debit message is the one that counts. */
+    PAYMENT_CONFIRMATION("Payment confirmed"),
+    MANDATE_DECLINED("Autopay request declined")
 }
 
 enum class ScheduledKind { UPCOMING_DEBIT, MANDATE_SET, MANDATE_CANCELLED, MANDATE_REQUEST }

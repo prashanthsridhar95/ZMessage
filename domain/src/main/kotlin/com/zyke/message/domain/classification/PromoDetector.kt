@@ -12,6 +12,7 @@ object PromoDetector {
         // Scam-style: a WhatsApp deep link or a work-from-home pitch
         "api.whatsapp.com/send", "work from home",
         // Trading-tip and instant-loan scams
+        "Smytten", "black friday", "sale is live", "free gift", "free samples", "tgif deal",
         "Airtel Warning: SPAM", "profit in", "Trade model", "View next steps", "Loan is almost complete"
     )
 

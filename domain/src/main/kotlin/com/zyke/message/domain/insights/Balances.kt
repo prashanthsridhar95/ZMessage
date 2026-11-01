@@ -86,6 +86,21 @@ object BalanceReader {
         }.toList()
     }
 
+    /** KVB: "INR 1,24,356.78 is the Balance in a/c ****4521 as of 14-AUG-2026 10:32:15". Groups: amount, last digits, date, time. */
+    private val AMOUNT_FIRST_BALANCE = Regex(
+        "(?i)(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)\\s+is the (?:available |current |ledger )?balance in (?:your )?a/?c\\s*(?:no\\.?)?\\s*[xX*\u2022]*(\\d{4})\\b" +
+            "(?:\\s+as (?:of|on)\\s+(\\d{1,2}-[A-Za-z]{3}-\\d{2,4})(?:\\s+(\\d{1,2}:\\d{2}(?::\\d{2})?))?)?"
+    )
+    private val STAMP_DATE = java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendPattern("d-MMM-").appendValueReduced(java.time.temporal.ChronoField.YEAR, 2, 4, 2000).toFormatter(java.util.Locale.ENGLISH)
+
+    private class StatedAt(raw: String) {
+        val found: List<List<String>> = AMOUNT_FIRST_BALANCE.findAll(com.zyke.message.domain.util.BodyMemo.bounded(raw).replace('\u00a0', ' '))
+            .map { it.groupValues.drop(1) }.toList()
+    }
+
+    private val statedAtMemo = com.zyke.message.domain.util.BodyMemo { body -> StatedAt(body) }
+
     private val readingsMemo = com.zyke.message.domain.util.BodyMemo { body -> Reading(body) }
     private val statedMemo = com.zyke.message.domain.util.BodyMemo { body -> Stated(body) }
     private val noticeMemo = com.zyke.message.domain.util.BodyMemo { body -> Notice(body, NOTICE_BALANCE) }
@@ -174,7 +189,16 @@ object BalanceReader {
             else -> return emptyList()
         }
         val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
-        return found.lines.map { (account, amount) -> AccountBalance(account, "", amount, date, message.id, message.message.date) }
+        val bank = com.zyke.message.domain.accounts.SenderBank.of(message.message.sender)?.displayString.orEmpty()
+        val withStamp = if (notice.kind != NoticeKind.BALANCE_UPDATE) emptyList() else statedAtMemo.of(message.message).found.mapNotNull { g ->
+            val amount = g[0].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return@mapNotNull null
+            // The balance is as of the time the bank states, which can be earlier than the message arrived.
+            val day = runCatching { java.time.LocalDate.parse(g[2], STAMP_DATE) }.getOrNull()
+            val time = if (g[3].isEmpty()) null else LifeTimes.parse(g[3])
+            val at = if (day == null) message.message.date else day.atTime(time ?: java.time.LocalTime.MIDNIGHT).atZone(zone).toInstant().toEpochMilli()
+            AccountBalance(g[1], bank, amount, day ?: date, message.id, at)
+        }
+        return withStamp + found.lines.map { (account, amount) -> AccountBalance(account, bank, amount, date, message.id, message.message.date) }
     }
 }
 
@@ -212,4 +236,11 @@ object LowBalance {
             )
         }.distinctBy { it.text }
     }
+}
+
+private object LifeTimes {
+    fun parse(raw: String): java.time.LocalTime? = runCatching {
+        val parts = raw.split(':').map { it.toInt() }
+        java.time.LocalTime.of(parts[0], parts[1], parts.getOrElse(2) { 0 })
+    }.getOrNull()
 }

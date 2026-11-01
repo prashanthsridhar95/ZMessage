@@ -164,7 +164,8 @@ object Accounts {
                 is MessageContent.CardBill -> listOfNotNull(hit(message, c.accountNumber, true, c.bankName))
                 // A balance message names accounts without any payment; that is enough for them to be listed.
                 is MessageContent.Notice -> BalanceReader.noticeBalances(message, zone).mapNotNull {
-                    val bank = if (message.message.body.contains("Federal", ignoreCase = true)) BankName.FEDERAL_BANK else BankName.OTHERS
+                    val bank = if (message.message.body.contains("Federal", ignoreCase = true)) BankName.FEDERAL_BANK
+                    else SenderBank.of(message.message.sender) ?: BankName.OTHERS
                     hit(message, it.account, false, bank)
                 }
                 else -> emptyList()

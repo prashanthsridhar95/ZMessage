@@ -28,6 +28,7 @@ object CountedReason {
             message.setAside == SetAside.EXCLUDED -> "Not counted: you left it out of your totals"
             message.setAside == SetAside.TRANSFER -> "Not counted: a transfer between your own accounts"
             tx.isCardPayment && tx.isReceived && WALLET.containsMatchIn(tx.payee) -> "Not counted as income: store credit added to a wallet is not money in your bank"
+            tx.isCardPayment && InternalMoves.reason(tx) != null -> InternalMoves.reason(tx)!!
             tx.isCardPayment -> "Not counted: card bill payment, which is money moving between your own accounts"
             tx.isReceived && isRefundCredit -> "Not counted as income: a refund is tracked separately"
             tx.isReceived -> "Counted as income: money received" + payerSuffix(tx)

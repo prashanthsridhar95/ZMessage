@@ -53,6 +53,29 @@ class GenericTransactionParser {
                 if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
             )
         }
+        KVB_TRANSFER_INWARD.find(body)?.let {
+            val received = it.groupValues[1].equals("inward", ignoreCase = true)
+            return BankTransaction(
+                bank(body), it.groupValues[2], remitterName(it.groupValues[4]), clean(it.groupValues[3]),
+                if (received) BankTransactionType.RECEIVED else BankTransactionType.SENT
+            )
+        }
+        UPI_REVERSED.find(body)?.let {
+            // A payment that bounced back: the money returns to where it left from, which is not income.
+            return BankTransaction(bank(body), "", "UPI reversal", clean(it.groupValues[1]), BankTransactionType.RECEIVED, isInternal = true)
+        }
+        UPI_LITE_ENABLED.find(body)?.let {
+            return BankTransaction(bank(body), it.groupValues[1].takeLast(4), "UPI Lite", clean(it.groupValues[2]), BankTransactionType.SENT, isInternal = true)
+        }
+        INVOICE_DUE.find(body)?.let {
+            return BankTransaction(
+                BankName.OTHERS, "", it.groupValues[1].let(::tidy).orEmpty().ifEmpty { "Bill" }, clean(it.groupValues[2]),
+                BankTransactionType.UPCOMING_DEBIT, dueDate = parseLoose(it.groupValues[3])
+            )
+        }
+        CHALLAN_PAID.find(body)?.let {
+            return BankTransaction(bank(body), "", if (body.contains("MoRTH", ignoreCase = true)) "Challan (MoRTH)" else "Challan", clean(it.groupValues[1]), BankTransactionType.SENT)
+        }
         UPI_MANDATE_CREATED.find(body)?.let {
             return BankTransaction(bank(body), it.groupValues[3], it.groupValues[2].let(::tidy).orEmpty(), clean(it.groupValues[1]), BankTransactionType.MANDATE_SET)
         }
@@ -269,7 +292,7 @@ class GenericTransactionParser {
         if (SELF_TRANSFER_NARRATION.containsMatchIn(narration)) {
             return BankTransaction(BankName.AXIS, account, "Self transfer", amount, type)
         }
-        val named = narrationName(narration)
+        val named = SCHEME_NAMES[narration.substringBefore('/').trim().uppercase()] ?: narrationName(narration)
         val payee = named ?: when {
             THIRD_PARTY_NARRATION.containsMatchIn(narration) -> "Fund transfer"
             else -> ""
@@ -277,17 +300,39 @@ class GenericTransactionParser {
         return BankTransaction(BankName.AXIS, account, payee, amount, type)
     }
 
+    /**
+     * The name in a transfer's remark: "SHRIRAM FINANCE LTD ERSTWHILE SHRIRAM TRANSPORT FINANCE COMPANY LTD." is
+     * "Shriram Finance". Cut at the former name, drop the company suffix, and set shouting capitals in title case.
+     */
+    private fun remitterName(raw: String): String {
+        val first = FORMER_NAME.split(raw.trim(), limit = 2)[0]
+        val bare = COMPANY_SUFFIX.replace(first.trim().trimEnd('.', ',', ' '), "").trim().trimEnd('.', ',', ' ')
+        return titleCase(bare)
+    }
+
+    private fun titleCase(raw: String): String =
+        if (raw.any { it.isLowerCase() }) raw
+        else raw.lowercase().split(' ').joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+
     /** The first part of a "UPI/P2A/123456789012/JOHN DOE/Bank" style narration that reads as a name. */
     private fun narrationName(narration: String): String? {
         if ('/' !in narration) return tidy(narration)
-        return narration.split('/').asSequence()
+        val parts = narration.split('/')
+        // "EASY/PRADHAN MANTRI /12345", "SI/NETFLIX/...", "NACH/ECS/...": a mandate or scheme tag, then who it was for.
+        if (parts.first().trim().uppercase() in SCHEME_TAGS) {
+            parts.asSequence().drop(1).map { it.trim() }
+                .filter { part -> part.any { it.isLetter() } && part.uppercase() !in NARRATION_MARKERS && part.uppercase() !in SCHEME_TAGS && !looksLikeReference(part) }
+                .firstNotNullOfOrNull { tidy(it) }?.let { return titleCase(it) }
+        }
+        return parts.asSequence()
             .map { it.trim() }
             .filter { part ->
-                part.any { it.isLetter() } && part.uppercase() !in NARRATION_MARKERS &&
-                    !(part.none { it == ' ' } && part.any { it.isDigit() } && part.length >= 8)
+                part.any { it.isLetter() } && part.uppercase() !in NARRATION_MARKERS && !looksLikeReference(part)
             }
             .firstNotNullOfOrNull { tidy(it) }
     }
+
+    private fun looksLikeReference(part: String) = part.none { it == ' ' } && part.any { it.isDigit() } && part.length >= 8
 
     private fun parseMovement(body: String): BankTransaction? {
         val direction = firstKeyword(body) ?: return null
@@ -592,7 +637,29 @@ class GenericTransactionParser {
         private val AXIS_ROW = Regex(
             "(?i)^\\s*(Debit|Credit)\\s+$CURRENCY\\s*$NUMBER\\b.{0,60}?\\bA/c\\s*[xX*]*(\\d+)\\s+\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?\\s+(.+?)(?=\\s+(?:WhatsApp|Not You|Avl|Bal)\\b|$)"
         )
-        private val KNOWN_NARRATION = Regex("(?i)^(?:credit ?card|cc)\\s*(?:bill\\s*)?pay|^MOB/|^(?:UPI|NEFT|IMPS|RTGS)/")
+        private val KNOWN_NARRATION = Regex(
+            "(?i)^(?:credit ?card|cc)\\s*(?:bill\\s*)?pay|^MOB/|^(?:UPI|NEFT|IMPS|RTGS)/|^(?:EASY|SI|ECS|NACH|ACH)/|^(?:PMJJBY|PMSBY|APY)\\b"
+        )
+        /** The first token of a narration that names a mandate or a scheme debit, not the payee. */
+        private val SCHEME_TAGS = setOf("EASY", "SI", "ECS", "NACH", "ACH", "AUTOPAY", "SIP", "PMT")
+        /** Government scheme debits that are only ever written as their acronym. */
+        private val SCHEME_NAMES = mapOf(
+            "APY" to "Atal Pension Yojana (APY)", "PMJJBY" to "PMJJBY insurance premium", "PMSBY" to "PMSBY insurance premium"
+        )
+        private val FORMER_NAME = Regex("(?i)\\s+(?:erstwhile|formerly|f\\.?k\\.?a\\.?|\\(formerly)\\b")
+        private val COMPANY_SUFFIX = Regex("(?i)\\s+(?:ltd|limited|pvt\\.? ltd|private limited|llp)\\.?$")
+        /** "NEFT Inward to A/c No:XX1234,INR:9,99,999.00,Ref No:AXNH123,Rem:NAME,Avl Bal INR 5,000 -Pending Verification -KVB". */
+        private val KVB_TRANSFER_INWARD = Regex(
+            "(?i)\\b(?:NEFT|IMPS|RTGS) (Inward|Outward) to A/c(?: No)?:? ?[xX*]*(\\d+) ?,\\s*(?:INR|Rs)\\.?:? ?$NUMBER ?,.{0,60}?\\bRem:\\s*(.{1,120}?)\\s*,\\s*(?:Avl\\.? Bal|$)"
+        )
+        /** "Your UPI transaction of Rs 99.00 has been reversed in your HDFC Bank Credit Card due to technical problem". */
+        private val UPI_REVERSED = Regex("(?i)\\b(?:UPI )?transaction of $CURRENCY\\s*$NUMBER has been reversed in your\\b")
+        private val UPI_LITE_ENABLED = Regex("(?i)\\bUPI LITE is successfully enabled for A/C no\\.? ?[xX*]*(\\d+) with Top-?Up of $CURRENCY\\s*$NUMBER")
+        /** "your Rentomojo invoice for Aug '26 is generated. Total due: ₹2499 (incl. previous dues). Please pay by 20-Aug-2026". */
+        private val INVOICE_DUE = Regex(
+            "(?i)\\byour (.{2,30}?) (?:invoice|bill)\\b.{0,60}?\\b(?:is|has been) generated\\b.{0,60}?\\btotal (?:amount )?due:? ?$CURRENCY ?$NUMBER.{0,150}?\\bpay(?:ment)? by $LOOSE_DATE"
+        )
+        private val CHALLAN_PAID = Regex("(?i)\\bchallan payment of $CURRENCY ?$NUMBER has been (?:done|made|paid)\\b")
         private val CARD_PAYMENT_NARRATION = Regex("(?i)^(?:credit ?card|cc)\\s*(?:bill\\s*)?pay(?:ment)?\\b(?:.{0,20}?[xX*]+\\s*(\\d{4}))?")
         private val SELF_TRANSFER_NARRATION = Regex("(?i)^MOB/SELF ?FT\\b")
         private val THIRD_PARTY_NARRATION = Regex("(?i)^MOB/TPFT\\b")
@@ -644,6 +711,7 @@ class GenericTransactionParser {
             Regex("(?i)Bank of Baroda|\\bBOB\\b") to BankName.BANK_OF_BARODA,
             Regex("(?i)IndusInd") to BankName.INDUSIND,
             Regex("(?i)Federal Bank") to BankName.FEDERAL_BANK,
+            Regex("(?i)\\bKVB\\b|Karur Vysya") to BankName.KVB,
             Regex("(?i)\\bPaytm\\b") to BankName.PAYTM,
             Regex("(?i)\\bAmex\\b|American Express") to BankName.AMERICAN_EXPRESS
         )

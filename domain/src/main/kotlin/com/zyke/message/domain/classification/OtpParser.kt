@@ -12,7 +12,9 @@ class OtpParser {
 
     fun parse(body: String, sender: String): ParsedOtp {
         val codeRegex = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
-        val code = codeRegex.find(body)?.groupValues?.get(1).orEmpty()
+        // "The OTP is 48213679 for Rs.15,000.00 TXN ... Txn Ref: 523412345678": the code is the one the OTP is said to be.
+        val code = (if (codeRegex === NUMERIC_CODE) STATED_CODE.find(body)?.groupValues?.get(1) else null)
+            ?: codeRegex.find(body)?.groupValues?.get(1).orEmpty()
 
         val senderName = if (body.contains("Bank")) {
             SENDER.find(body)?.value?.trim() ?: sender
@@ -23,11 +25,13 @@ class OtpParser {
         val cardNumber = CARD_NUMBER.find(body)?.groupValues?.get(1)
         val amount = AMOUNT.find(body)?.groupValues?.get(1)?.replace(",", "")?.trim()
         val hasPayment = cardNumber != null && amount != null
+        // A bank's transfer OTP names the sum without a card: "for Rs.15,000.00 TXN to NAME".
+        val transferAmount = if (hasPayment) null else TRANSFER_AMOUNT.find(body)?.groupValues?.get(1)?.let(::plainAmount)
 
         return ParsedOtp(
             code = code,
             senderName = senderName,
-            paymentAmount = amount.takeIf { hasPayment },
+            paymentAmount = amount.takeIf { hasPayment } ?: transferAmount,
             cardNumber = cardNumber.takeIf { hasPayment }
         )
     }
@@ -47,6 +51,14 @@ class OtpParser {
             val code = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
             return code.containsMatchIn(body)
         }
+
+        private fun plainAmount(raw: String): String? {
+            val clean = raw.replace(",", "").trimEnd('.')
+            return (if (clean.endsWith(".00")) clean.dropLast(3) else clean).takeIf { it.isNotEmpty() }
+        }
+
+        private val STATED_CODE = "(?i)\\bOTP\\s*(?:is|:|-)\\s*(\\d{4,8})(?!\\d)".toRegex()
+        private val TRANSFER_AMOUNT = "(?i)\\bfor\\s+(?:Rs\\.?|INR\\.?)\\s?([0-9][0-9,]*(?:\\.\\d{1,2})?)\\s+(?:TXN|transaction|transfer|payment)\\b".toRegex()
 
         private val SIMPL_CODE = "\\b([A-Z0-9]{10})\\b".toRegex()
         private val NUMERIC_CODE = "(?:[^\\d]|^)(\\d{4,8})(?:[^\\d]|$)".toRegex()
