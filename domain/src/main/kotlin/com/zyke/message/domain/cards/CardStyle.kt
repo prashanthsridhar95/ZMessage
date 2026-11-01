@@ -44,7 +44,7 @@ object CardThemes {
             BankName.YES_BANK -> "ocean"
             BankName.INDUSIND -> "crimson"
             BankName.FEDERAL_BANK -> "midnight"
-            BankName.PNB, BankName.CANARA, BankName.BANK_OF_BARODA, BankName.INDIAN_BANK -> "graphite"
+            BankName.PNB, BankName.CANARA, BankName.BANK_OF_BARODA, BankName.INDIAN_BANK, BankName.KVB -> "graphite"
             else -> null
         }
         if (id != null) return byId(id)!!
@@ -60,14 +60,14 @@ object CardCatalog {
     val banks: List<String> = listOf(
         "HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "IDFC FIRST Bank", "Yes Bank", "IndusInd Bank",
         "RBL Bank", "Federal Bank", "Bank of Baroda", "Punjab National Bank", "Canara Bank", "AU Small Finance Bank", "American Express",
-        "Standard Chartered", "HSBC", "Citibank", "Union Bank of India", "Bank of India", "Indian Bank"
+        "Standard Chartered", "HSBC", "Citibank", "Union Bank of India", "Bank of India", "Indian Bank", "Karur Vysya Bank"
     )
 
     private val aliases: List<Pair<String, BankName>> = listOf(
         "hdfc" to BankName.HDFC, "icici" to BankName.ICICI, "state bank" to BankName.SBI, "sbi" to BankName.SBI,
         "axis" to BankName.AXIS, "kotak" to BankName.KOTAK, "idfc" to BankName.IDFC_FIRST, "yes bank" to BankName.YES_BANK,
         "indusind" to BankName.INDUSIND, "federal" to BankName.FEDERAL_BANK, "baroda" to BankName.BANK_OF_BARODA,
-        "punjab national" to BankName.PNB, "pnb" to BankName.PNB, "canara" to BankName.CANARA, "indian bank" to BankName.INDIAN_BANK,
+        "punjab national" to BankName.PNB, "pnb" to BankName.PNB, "canara" to BankName.CANARA, "indian bank" to BankName.INDIAN_BANK, "karur vysya" to BankName.KVB, "kvb" to BankName.KVB,
         "american express" to BankName.AMERICAN_EXPRESS, "amex" to BankName.AMERICAN_EXPRESS
     )
 
