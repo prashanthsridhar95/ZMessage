@@ -41,6 +41,9 @@ object BackupCrypto {
     const val FORMAT = "zyke-backup"
     const val VERSION = 1
     const val DEFAULT_ITERATIONS = 310_000
+
+    /** Used for PIN and passphrase protected automatic backups: the OWASP 2023 minimum for PBKDF2-HMAC-SHA256. */
+    const val STRONG_ITERATIONS = 600_000
     const val MIN_PASSPHRASE_LENGTH = 8
 
     private const val KDF_ALG = "PBKDF2WithHmacSHA256"
@@ -62,6 +65,10 @@ object BackupCrypto {
         val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
         val iv = ByteArray(IV_BYTES).also(random::nextBytes)
         val sealed = cipher(Cipher.ENCRYPT_MODE, deriveKey(passphrase, salt, iterations), iv, VERSION).doFinal(plain)
+        return envelope(createdAt, iterations, salt, iv, sealed)
+    }
+
+    private fun envelope(createdAt: Long, iterations: Int, salt: ByteArray, iv: ByteArray, sealed: ByteArray): String {
         val b64 = Base64.getEncoder()
         return buildString {
             append("{\"format\":\"").append(FORMAT).append("\",\"version\":").append(VERSION)
@@ -71,6 +78,54 @@ object BackupCrypto {
             append(",\"cipher\":{\"alg\":\"").append(CIPHER_ALG).append("\",\"iv\":\"").append(b64.encodeToString(iv)).append("\"}")
             append(",\"payload\":\"").append(b64.encodeToString(sealed)).append("\"}")
         }
+    }
+
+    /**
+     * A key stretched once from a PIN or passphrase, kept so that backups can be made later without asking for the
+     * secret again. It carries the salt and the iteration count, which are written into every file made with it, so a
+     * new phone can derive the same key again from the secret alone.
+     */
+    class KeyMaterial(val salt: ByteArray, val iterations: Int, key: ByteArray) {
+        private val bytes = key.copyOf()
+        init { require(salt.isNotEmpty() && iterations in 1..MAX_ITERATIONS && key.size == KEY_BITS / 8) }
+        internal fun spec() = SecretKeySpec(bytes, "AES")
+        /** The raw key, for sealing it in the phone's key store. The caller must not log it. */
+        fun keyBytes(): ByteArray = bytes.copyOf()
+        fun wipe() = bytes.fill(0)
+    }
+
+    /** Derives fresh [KeyMaterial] (new random salt) from a PIN or passphrase. */
+    fun newKeyMaterial(secret: CharArray, iterations: Int = STRONG_ITERATIONS, random: SecureRandom = SecureRandom()): KeyMaterial {
+        require(iterations in 1..MAX_ITERATIONS) { "iterations out of range" }
+        val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
+        return KeyMaterial(salt, iterations, deriveKey(secret, salt, iterations).encoded)
+    }
+
+    /** Writes a file in the same format as [encrypt], but with an already derived key (no secret needed). */
+    fun encryptWith(plain: ByteArray, material: KeyMaterial, createdAt: Long = System.currentTimeMillis(), random: SecureRandom = SecureRandom()): String {
+        val iv = ByteArray(IV_BYTES).also(random::nextBytes)
+        val sealed = cipher(Cipher.ENCRYPT_MODE, material.spec(), iv, VERSION).doFinal(plain)
+        return envelope(createdAt, material.iterations, material.salt, iv, sealed)
+    }
+
+    /** A decrypted file together with the key it was opened with (so the key can be kept for later backups). */
+    class Opened(val plain: ByteArray, val material: KeyMaterial, val createdAt: Long)
+
+    /** Like [decrypt], but also hands back the derived key. */
+    @Throws(BackupException::class)
+    fun open(file: String, secret: CharArray): Opened {
+        val env = parseEnvelope(file)
+        val key = try {
+            deriveKey(secret, env.salt, env.iterations)
+        } catch (e: GeneralSecurityException) {
+            throw BackupException.Corrupt()
+        }
+        val plain = try {
+            cipher(Cipher.DECRYPT_MODE, key, env.iv, env.version).doFinal(env.payload)
+        } catch (e: GeneralSecurityException) {
+            throw BackupException.WrongPassphrase()
+        }
+        return Opened(plain, KeyMaterial(env.salt, env.iterations, key.encoded), env.createdAt)
     }
 
     fun encrypt(plain: String, passphrase: CharArray, createdAt: Long = System.currentTimeMillis()): String =
