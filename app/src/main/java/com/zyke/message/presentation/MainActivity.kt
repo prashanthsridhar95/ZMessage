@@ -467,6 +467,11 @@ class MainActivity : ComponentActivity() {
             DigestScheduler(this@MainActivity).apply(current.morningDigest)
             WeeklyScheduler(this@MainActivity).apply(current.weeklySummary)
             DaysAheadWidget.refresh(this@MainActivity)
+            // Backups: queue what is missing, and refresh the Auto Backup file if its time has passed (no network needed).
+            runCatching {
+                container.backup.scheduler.ensureScheduled()
+                container.backup.runner.runLocalIfDue()
+            }
         }
     }
 

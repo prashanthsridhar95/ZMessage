@@ -20,7 +20,7 @@
 
     <application
         android:name=".ZykeMessagesApplication"
-        android:allowBackup="false"
+        android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -66,6 +66,12 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <!-- The scheduled backup: the system starts it when a backup is due and Wi-Fi/charging conditions hold.
+             Not exported; only the system's job scheduler (BIND_JOB_SERVICE) can start it. -->
+        <service
+            android:name=".data.backup.BackupJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
         <!-- Runs only while a large inbox is being read; stops by itself when every month has been read. -->
         <service
             android:name=".notifications.BackfillService"

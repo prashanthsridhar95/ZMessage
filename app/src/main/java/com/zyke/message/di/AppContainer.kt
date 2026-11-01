@@ -45,6 +45,9 @@ import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
 /** Manual dependency container; one instance lives in the Application. */
 class AppContainer(context: Context) {
+    /** Decided first thing, before any store can write: whether this is a fresh install that should offer "Welcome back". */
+    val needsWelcome: Boolean = com.zyke.message.data.backup.BackupPrefs.needsWelcome(context)
+    val backup by lazy { com.zyke.message.data.backup.BackupHub(context, imageStore) }
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
     val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
     val rcsStore by lazy { RcsMessageStore(context.applicationContext) }

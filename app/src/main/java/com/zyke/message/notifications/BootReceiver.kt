@@ -13,5 +13,6 @@ class BootReceiver : BroadcastReceiver() {
         if (container.settings.settings.value.morningDigest) DigestScheduler(context).apply(true)
         if (container.settings.settings.value.weeklySummary) WeeklyScheduler(context).apply(true)
         ReminderAlarms.schedule(context)
+        runCatching { container.backup.scheduler.ensureScheduled() }
     }
 }

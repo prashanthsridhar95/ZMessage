@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Backups are switched off in the manifest; these rules are a second lock for Android 11 and older. -->
+<!-- Android 11 and older. Auto Backup takes exactly one file: the encrypted snapshot this app keeps fresh itself when the
+     person turns on "Back up to this phone's Android backup". Everything else (preferences, databases, other files,
+     messages, caches, logs, the key store file) is left out. -->
 <full-backup-content>
+    <include domain="file" path="auto_backup/zyke-backup.bin" />
     <exclude domain="sharedpref" path="." />
     <exclude domain="database" path="." />
-    <exclude domain="file" path="." />
     <exclude domain="external" path="." />
+    <exclude domain="root" path="." />
 </full-backup-content>

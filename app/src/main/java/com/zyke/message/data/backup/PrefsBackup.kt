@@ -17,7 +17,8 @@ import java.io.File
 object PrefsBackup {
     private const val SNAPSHOT_VERSION = 1
     // recent_searches: what someone looked up stays on this phone.
-    private val EXCLUDED = setOf("sender_images", "developer", "reminder_alarms", "recent_searches")
+    // backup_secret (the wrapped backup key) and backup_state (Drive link, last results, first-run marker) never travel.
+    private val EXCLUDED = setOf("sender_images", "developer", "reminder_alarms", "recent_searches", "backup_secret", "backup_state")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */
@@ -39,6 +40,24 @@ object PrefsBackup {
             ?.filter(::includes)
             ?.sorted()
             .orEmpty()
+
+    /**
+     * Whether this install already holds someone's setup (any included preference file with a value in it). Reads the
+     * files cheaply without loading them, so it can run before anything else has touched them.
+     */
+    fun hasSetupData(context: Context): Boolean =
+        File(context.applicationInfo.dataDir, "shared_prefs").listFiles().orEmpty().any { f ->
+            f.isFile && f.name.endsWith(".xml") && includes(f.name.removeSuffix(".xml")) &&
+                runCatching {
+                    f.inputStream().use { input ->
+                        val buf = ByteArray(PEEK_BYTES)
+                        val n = input.read(buf).coerceAtLeast(0)
+                        String(buf, 0, n, Charsets.UTF_8).contains("name=\"")
+                    }
+                }.getOrDefault(false)
+        }
+
+    private const val PEEK_BYTES = 512
 
     fun capture(context: Context): ByteArray {
         val app = context.applicationContext

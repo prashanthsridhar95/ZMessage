@@ -68,11 +68,17 @@ class ManifestPolicyTest {
         assertEquals(setOf("query1.finance.yahoo.com"), quoteHosts)
     }
 
+    /**
+     * Android's Auto Backup is switched on for exactly one purpose: carrying the one encrypted snapshot file the app
+     * writes itself (see [backupRulesTakeOnlyTheEncryptedSnapshotFile]). Cleartext traffic stays off.
+     */
     @Test
-    fun backupsAreOff_andCleartextIsOff() {
+    fun autoBackupIsOn_andCleartextIsOff() {
         val application = manifest.getElementsByTagName("application").item(0) as Element
-        assertEquals("false", application.getAttributeNS(android, "allowBackup"))
+        assertEquals("true", application.getAttributeNS(android, "allowBackup"))
         assertEquals("false", application.getAttributeNS(android, "usesCleartextTraffic"))
+        assertEquals("@xml/data_extraction_rules", application.getAttributeNS(android, "dataExtractionRules"))
+        assertEquals("@xml/backup_rules", application.getAttributeNS(android, "fullBackupContent"))
     }
 
     @Test
@@ -100,7 +106,12 @@ class ManifestPolicyTest {
         assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
-        assertEquals(3, services.length)
+        assertEquals(4, services.length)
+        // The scheduled backup job: only the system's job scheduler can start it.
+        val backupJob = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".data.backup.BackupJobService" }
+        assertEquals("false", backupJob.getAttributeNS(android, "exported"))
+        assertEquals("android.permission.BIND_JOB_SERVICE", backupJob.getAttributeNS(android, "permission"))
         // The quick-settings tile is the one exported service: the system's quick-settings host must bind it, and
         // BIND_QUICK_SETTINGS_TILE keeps every other app from doing so. It only opens the entry sheet.
         val tile = (0 until services.length).map { services.item(it) as Element }
@@ -134,11 +145,32 @@ class ManifestPolicyTest {
         assertFalse("<external" in paths || "<files-path" in paths || "<root-path" in paths)
     }
 
+    /**
+     * Auto Backup may take ONE file only: files/auto_backup/zyke-backup.bin, which is already encrypted with the
+     * person's PIN. Preferences, databases, every other file (sender pictures, logs, the key store file, the
+     * message-reading cache), external storage and the app root stay out, in the old and the new rules alike.
+     */
     @Test
-    fun backupRulesExcludeEverything() {
-        val rules = File("src/main/res/xml/backup_rules.xml").readText() +
-            File("src/main/res/xml/data_extraction_rules.xml").readText()
-        assertTrue("sharedpref" in rules)
-        assertFalse("<include" in rules)
+    fun backupRulesTakeOnlyTheEncryptedSnapshotFile() {
+        val engine = File("src/main/java/com/zyke/message/data/backup/BackupEngine.kt").readText()
+        assertTrue("""const val DIR = "auto_backup"""" in engine && """const val NAME = "zyke-backup.bin"""" in engine)
+        for (name in listOf("backup_rules.xml", "data_extraction_rules.xml")) {
+            val root = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(File("src/main/res/xml/$name")).documentElement
+            val sections = if (name == "backup_rules.xml") listOf(root)
+            else listOf("cloud-backup", "device-transfer").map { root.getElementsByTagName(it).item(0) as Element }
+            assertEquals(name, if (name == "backup_rules.xml") 1 else 2, sections.size)
+            for (section in sections) {
+                val includes = section.getElementsByTagName("include")
+                assertEquals(name, 1, includes.length)
+                val include = includes.item(0) as Element
+                assertEquals("file", include.getAttribute("domain"))
+                assertEquals("auto_backup/zyke-backup.bin", include.getAttribute("path"))
+                val excluded = section.getElementsByTagName("exclude").let { list ->
+                    (0 until list.length).map { (list.item(it) as Element).getAttribute("domain") }
+                }
+                assertTrue(name, excluded.containsAll(listOf("sharedpref", "database", "external", "root")))
+            }
+        }
     }
 }

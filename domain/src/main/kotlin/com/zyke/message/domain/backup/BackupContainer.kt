@@ -37,9 +37,10 @@ object BackupContainer {
     /** Total size at which pictures are left out. */
     fun fitsPictures(totalBytes: Long) = totalBytes <= MAX_PICTURE_BYTES
 
-    fun pack(setup: ByteArray, pictures: Map<String, ByteArray>): Packed {
+    /** [leftOut] is true when the caller already saw the pictures were too many to read. */
+    fun pack(setup: ByteArray, pictures: Map<String, ByteArray>, leftOut: Boolean = false): Packed {
         val total = pictures.values.sumOf { it.size.toLong() }
-        val skipped = !fitsPictures(total)
+        val skipped = leftOut || !fitsPictures(total)
         val kept = if (skipped) emptyMap() else pictures
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->

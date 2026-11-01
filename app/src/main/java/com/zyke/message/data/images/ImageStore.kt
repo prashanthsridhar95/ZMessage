@@ -211,6 +211,25 @@ class ImageStore(
         return Bitmap.createScaledBitmap(square, minOf(TARGET, side), minOf(TARGET, side), true)
     }
 
+    /**
+     * The chosen pictures (not logos) as sender key to PNG bytes, for the backup; null when together they are more than
+     * [maxBytes], so they are left out rather than read into memory.
+     */
+    fun chosenPicturesForBackup(maxBytes: Long): Map<String, ByteArray>? {
+        val files = _keys.value.map { it to File(chosenDir, fileName(it)) }.filter { it.second.isFile }
+        if (files.sumOf { it.second.length() } > maxBytes) return null
+        return files.associate { (key, file) -> key to file.readBytes() }
+    }
+
+    /** Replaces the chosen pictures with those from a backup. The app is closed straight afterwards. */
+    fun restoreChosenPictures(pictures: Map<String, ByteArray>) {
+        chosenDir.listFiles()?.forEach { it.delete() }
+        for ((key, bytes) in pictures) runCatching { File(chosenDir, fileName(key)).writeBytes(bytes) }
+        index.edit().putStringSet(KEYS, pictures.keys.toSet()).commit()
+        cache.evictAll()
+        _keys.value = pictures.keys.toSet()
+    }
+
     private fun fileName(key: String): String =
         MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).joinToString("") { "%02x".format(it) } + ".png"
 
