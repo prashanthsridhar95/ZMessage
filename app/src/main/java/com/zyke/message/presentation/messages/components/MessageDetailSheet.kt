@@ -248,7 +248,7 @@ internal fun MessageDetailSheet(
                     )
                     if (item.setAside != com.zyke.message.domain.ledger.SetAside.TRANSFER) {
                         SwitchRow("Leave out of totals", item.setAside == com.zyke.message.domain.ledger.SetAside.EXCLUDED) {
-                            ledger.setExcluded(item.id, item.setAside != com.zyke.message.domain.ledger.SetAside.EXCLUDED)
+                            ledger.toggleExcluded(item.id)
                         }
                     }
                     if (!manual && item.setAside != com.zyke.message.domain.ledger.SetAside.EXCLUDED) {
@@ -310,12 +310,14 @@ private fun DetailRow(label: String, value: String?, onClick: () -> Unit) {
 @Composable
 private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
     val tick = com.zyke.message.presentation.common.rememberTick()
+    // Shown at once on a tap; follows the real value again whenever that arrives or changes.
+    var shown by remember(checked) { mutableStateOf(checked) }
     Row(
-        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Switch, onClickLabel = label, onClick = { tick(); onToggle() }).padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Switch, onClickLabel = label, onClick = { tick(); shown = !shown; onToggle() }).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-        Switch(checked = checked, onCheckedChange = null)
+        Switch(checked = shown, onCheckedChange = null)
     }
 }
 

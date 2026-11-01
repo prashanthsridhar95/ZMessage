@@ -24,8 +24,20 @@ class LedgerActions(
     /** Shows a message with an Undo button; null (the default) shows nothing. */
     private val offerUndo: (message: String, undo: () -> Unit) -> Unit = { _, _ -> }
 ) {
+    /**
+     * Flips "leave out of totals" from what is stored now (not from what the screen last drew, which can be one
+     * change behind after a quick second tap). Returns whether the payment is left out afterwards.
+     */
+    fun toggleExcluded(id: Long): Boolean {
+        val excluded = asides.toggleExcluded(id)
+        com.zyke.message.data.diag.DevLog.d("ledger") { "toggle: id=$id leftOut=$excluded storedKind=${asides.state.value.kindOf(id)}" }
+        offerUndo(if (excluded) "Left out of totals" else "Counted in totals again") { asides.exclude(id, !excluded) }
+        return excluded
+    }
+
     fun setExcluded(id: Long, excluded: Boolean) {
         asides.exclude(id, excluded)
+        com.zyke.message.data.diag.DevLog.d("ledger") { "set: id=$id leftOut=$excluded storedKind=${asides.state.value.kindOf(id)}" }
         offerUndo(if (excluded) "Left out of totals" else "Counted in totals again") { asides.exclude(id, !excluded) }
     }
 
@@ -46,11 +58,13 @@ class LedgerActions(
         if (!on) {
             val previous = asides.state.value.transfers.firstOrNull { it.outId == message.id || it.inId == message.id }
             asides.unlink(message.id)
+            com.zyke.message.data.diag.DevLog.d("ledger") { "not a transfer: id=${message.id} hadLink=${previous != null} storedKind=${asides.state.value.kindOf(message.id)}" }
             offerUndo("Not a transfer") { previous?.let { asides.link(it.outId, it.inId) } }
             return
         }
         val received = (message.content as? MessageContent.Transaction)?.isReceived == true
         asides.link(outId = if (received) null else message.id, inId = if (received) message.id else null)
+        com.zyke.message.data.diag.DevLog.d("ledger") { "mark transfer: id=${message.id} received=$received storedKind=${asides.state.value.kindOf(message.id)}" }
         offerUndo("Marked as a transfer") { asides.unlink(message.id) }
     }
 

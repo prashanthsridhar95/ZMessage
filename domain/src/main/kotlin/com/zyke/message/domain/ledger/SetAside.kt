@@ -38,6 +38,15 @@ data class TransferLink(val outId: Long?, val inId: Long?) {
 interface SetAsideRepository {
     val state: StateFlow<SetAsides>
     fun exclude(id: Long, excluded: Boolean)
+    /**
+     * Flips whether [id] is left out, judged from what is stored now rather than from what a screen last drew, so two
+     * quick taps are two flips. Returns whether it is left out afterwards.
+     */
+    fun toggleExcluded(id: Long): Boolean {
+        val now = id !in state.value.excluded
+        exclude(id, now)
+        return now
+    }
     /** Links the two legs as one transfer; either may be null for a leg not seen. */
     fun link(outId: Long?, inId: Long?)
     /** Takes a message out of any transfer it is in. */
@@ -51,6 +60,7 @@ interface SetAsideRepository {
 object NoSetAsides : SetAsideRepository {
     override val state: StateFlow<SetAsides> = MutableStateFlow(SetAsides())
     override fun exclude(id: Long, excluded: Boolean) = Unit
+    override fun toggleExcluded(id: Long) = false
     override fun link(outId: Long?, inId: Long?) = Unit
     override fun unlink(id: Long) = Unit
     override fun dismissSuggestion(key: String) = Unit
