@@ -49,7 +49,7 @@ class OtpParser {
         }
 
         private val SIMPL_CODE = "\\b([A-Z0-9]{10})\\b".toRegex()
-        private val NUMERIC_CODE = "(?:[^\\d]|^)(\\d{4,7})(?:[^\\d]|$)".toRegex()
+        private val NUMERIC_CODE = "(?:[^\\d]|^)(\\d{4,8})(?:[^\\d]|$)".toRegex()
 
         // Bank name, short codes, or even phone numbers
         private val SENDER =

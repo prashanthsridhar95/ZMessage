@@ -170,3 +170,18 @@ class OtpDetectionTest {
         assertFalse(parser.isOtp("Your order 123456 has shipped"))
     }
 }
+
+class EightDigitOtpTest {
+    private val parser = com.zyke.message.domain.classification.OtpParser.Companion
+
+    @Test fun anEightDigitOtpIsStillAnOtp_andItsCodeIsRead() {
+        val body = "<#> The OTP is 48213977 for Rs.1,250.00 TXN to ANAND, Txn Ref: 412345678901 via DLite MB-IMPS. Valid for 5 mins and Keep it confidential -KVB +abc"
+        assertTrue(parser.isOtp(body))
+        assertEquals("48213977", com.zyke.message.domain.classification.OtpParser().parse(body, "VM-KVBANK").code)
+    }
+
+    @Test fun aSixDigitOtpIsUnchanged() {
+        assertTrue(parser.isOtp("482913 is your OTP for login"))
+        assertEquals("482913", com.zyke.message.domain.classification.OtpParser().parse("482913 is your OTP for login", "AX-BANK").code)
+    }
+}
