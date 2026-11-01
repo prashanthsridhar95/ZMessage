@@ -48,6 +48,7 @@ import com.zyke.message.presentation.settings.SettingsViewModel
 import com.zyke.message.presentation.theme.ZykeMessageTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -183,6 +184,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // The "Your day" widget shows dots for amounts while they are hidden, so it is redrawn when that changes.
+        lifecycleScope.launch {
+            container.settings.settings.map { it.hideAmounts }.distinctUntilChanged().drop(1).collect {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { DaysAheadWidget.refresh(this@MainActivity) }
+            }
+        }
         // Locked from the very first frame, so the inbox never flashes before the lock screen.
         lockedState.value = container.settings.settings.value.appLock &&
             getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
@@ -210,12 +217,24 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !darkTheme
                 }
             }
+            val amountsRevealed by amountReveal.revealed.collectAsStateWithLifecycle()
             CompositionLocalProvider(
                 LocalImageStore provides container.imageStore,
-                com.zyke.message.presentation.common.LocalPrivacyMode provides remember(appSettings.hideAmounts) {
-                    com.zyke.message.presentation.common.PrivacyState(appSettings.hideAmounts) {
-                        container.settings.setHideAmounts(!container.settings.settings.value.hideAmounts)
-                    }
+                com.zyke.message.presentation.common.LocalAmountReveal provides amountReveal,
+                // Hidden = the setting is on and no reveal window is open. The eye turns hiding on at once, and shows
+                // amounts (after the screen lock) only for a window; leaving hiding off for good is a setting.
+                com.zyke.message.presentation.common.LocalPrivacyMode provides remember(appSettings.hideAmounts, amountsRevealed) {
+                    com.zyke.message.presentation.common.PrivacyState(
+                        hidden = appSettings.hideAmounts && !amountsRevealed,
+                        enabled = appSettings.hideAmounts,
+                        toggle = {
+                            when {
+                                !container.settings.settings.value.hideAmounts -> container.settings.setHideAmounts(true)
+                                amountReveal.revealed.value -> amountReveal.hideNow()
+                                else -> amountReveal.requestReveal()
+                            }
+                        }
+                    )
                 }
             ) {
             ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent, customAccent = appSettings.customAccent) {
@@ -373,6 +392,32 @@ class MainActivity : ComponentActivity() {
     private var leftAt = 0L
     private var authenticating = false
 
+    /** Hidden amounts: shown for a short window once the phone's own lock screen has been passed. Nothing is stored. */
+    private val amountReveal: com.zyke.message.presentation.common.TimedAmountReveal by lazy {
+        com.zyke.message.presentation.common.TimedAmountReveal(
+            scope = lifecycleScope,
+            clock = SystemClock::elapsedRealtime,
+            authRequired = { container.settings.settings.value.authForAmounts },
+            screenLockExists = { getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true },
+            authenticate = ::authenticateForAmounts
+        )
+    }
+    private var amountsResult: ((Boolean) -> Unit)? = null
+
+    private val amountsCredential = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        authenticating = false
+        amountsResult?.invoke(result.resultCode == RESULT_OK)
+        amountsResult = null
+    }
+
+    private fun authenticateForAmounts(onResult: (Boolean) -> Unit) {
+        val intent = getSystemService(KeyguardManager::class.java)?.createConfirmDeviceCredentialIntent("Show amounts", "Confirm it is you to see your money figures")
+        if (intent == null) { onResult(false); return }
+        amountsResult = onResult
+        authenticating = true
+        amountsCredential.launch(intent)
+    }
+
     private val credential = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         authenticating = false
         if (result.resultCode == RESULT_OK) lockedState.value = false
@@ -442,6 +487,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         com.zyke.message.data.diag.DevLog.d("lifecycle") { "MainActivity stopped" }
+        // Leaving the app hides the amounts again at once.
+        amountReveal.hideNow()
         leftAt = SystemClock.elapsedRealtime()
     }
 
@@ -484,14 +531,14 @@ private const val LAST_STAGE = 2
 private fun SmsExplainer(onContinue: () -> Unit, onLater: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onLater,
-        title = { androidx.compose.material3.Text("Why Zyke Message reads your messages") },
+        title = { com.zyke.message.presentation.common.Text("Why Zyke Message reads your messages") },
         text = {
             androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
-                androidx.compose.material3.Text("To turn bank and payment texts into a picture of your money: what you spent, what is due, and where you stand.")
-                androidx.compose.material3.Text("\u2022 Everything is read and kept on this phone. Nothing is uploaded.")
-                androidx.compose.material3.Text("\u2022 It never sends, changes or deletes a message.")
-                androidx.compose.material3.Text("\u2022 You can pause reading, export your data, or delete it all from Settings at any time.")
-                androidx.compose.material3.Text("Without this permission the app has nothing to show, but you can still add entries by hand.")
+                com.zyke.message.presentation.common.Text("To turn bank and payment texts into a picture of your money: what you spent, what is due, and where you stand.")
+                com.zyke.message.presentation.common.Text("\u2022 Everything is read and kept on this phone. Nothing is uploaded.")
+                com.zyke.message.presentation.common.Text("\u2022 It never sends, changes or deletes a message.")
+                com.zyke.message.presentation.common.Text("\u2022 You can pause reading, export your data, or delete it all from Settings at any time.")
+                com.zyke.message.presentation.common.Text("Without this permission the app has nothing to show, but you can still add entries by hand.")
             }
         },
         confirmButton = {
@@ -516,9 +563,9 @@ private fun SmsExplainer(onContinue: () -> Unit, onLater: () -> Unit) {
 private fun NotificationAccessPrompt(onOpenSettings: () -> Unit, onLater: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onLater,
-        title = { androidx.compose.material3.Text("Allow notification access") },
+        title = { com.zyke.message.presentation.common.Text("Allow notification access") },
         text = {
-            androidx.compose.material3.Text(
+            com.zyke.message.presentation.common.Text(
                 "Zyke Message can read notifications from your messaging app and Google Pay, so chats and UPI Lite top-ups " +
                     "are counted too. It only reads those, and nothing leaves your phone. Android asks you to allow this on " +
                     "its own settings page: switch Zyke Message on there."

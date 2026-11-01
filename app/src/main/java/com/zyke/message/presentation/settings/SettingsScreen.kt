@@ -32,7 +32,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
+import com.zyke.message.presentation.common.runWhenRevealed
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
@@ -65,6 +66,7 @@ import com.zyke.message.presentation.settings.SettingsContract.State
 fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val amountsHidden by androidx.compose.runtime.rememberUpdatedState(com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden)
 
     LaunchedEffect(viewModel) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
@@ -77,7 +79,9 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
             when (effect) {
                 is Effect.ShareReport -> runCatching { ReportSharing.share(context, effect.fileName, effect.text) }
                     .onFailure { Toast.makeText(context, R.string.report_failed, Toast.LENGTH_LONG).show() }
-                is Effect.ShowMessage -> Toast.makeText(context, effect.text, Toast.LENGTH_SHORT).show()
+                is Effect.ShowMessage -> Toast.makeText(
+                    context, if (amountsHidden) com.zyke.message.domain.privacy.AmountMasker.mask(effect.text) else effect.text, Toast.LENGTH_SHORT
+                ).show()
                 is Effect.ShareData -> runCatching { ReportSharing.share(context, effect.fileName, effect.text, effect.mimeType, effect.subject) }
                     .onFailure { Toast.makeText(context, R.string.report_failed, Toast.LENGTH_LONG).show() }
             }
@@ -413,11 +417,29 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {
             Caption("Messages stay on this phone", maxLines = 5)
+            val reveal = com.zyke.message.presentation.common.LocalAmountReveal.current
+            val screenLock = LocalContext.current.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure == true
             ToggleRow(
                 title = "Hide amounts until tapped",
-                description = "Big money figures show as dots. Tap one to see it for 5 seconds.",
+                description = "Every money amount in the app shows as dots, including in messages and notifications. Tap one to show them for a short while.",
                 checked = state.settings.hideAmounts,
-                onCheckedChange = { onIntent(Intent.SetHideAmounts(it)) },
+                // Showing money for good needs the screen lock, like showing it for a minute does.
+                onCheckedChange = { on ->
+                    if (on) onIntent(Intent.SetHideAmounts(true))
+                    else reveal.runWhenRevealed { onIntent(Intent.SetHideAmounts(false)) }
+                },
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            ToggleRow(
+                title = "Ask for authentication to show amounts",
+                description = if (screenLock) "Your fingerprint, face, PIN, pattern or password is asked before hidden amounts are shown."
+                else "Your phone has no screen lock, so a tap shows amounts for 5 seconds. Set a screen lock in the phone's settings to turn this on.",
+                checked = state.settings.authForAmounts && screenLock,
+                onCheckedChange = { on ->
+                    if (!screenLock) return@ToggleRow
+                    if (on) onIntent(Intent.SetAuthForAmounts(true))
+                    else reveal.runWhenRevealed { onIntent(Intent.SetAuthForAmounts(false)) }
+                },
                 modifier = Modifier.padding(top = 12.dp)
             )
             ToggleRow(

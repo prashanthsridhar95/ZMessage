@@ -25,6 +25,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             headsUp = prefs.getBoolean(HEADS_UP, false),
             lowBalanceFloor = prefs.getString(LOW_BALANCE_FLOOR, null)?.toBigDecimalOrNull(),
             hideAmounts = prefs.getBoolean(HIDE_AMOUNTS, false),
+            authForAmounts = prefs.getBoolean(AUTH_FOR_AMOUNTS, true),
             accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null)),
             customAccent = com.zyke.message.domain.model.ColorMath.parseHex(prefs.getString(CUSTOM_ACCENT, null))
         )
@@ -86,6 +87,11 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(hideAmounts = enabled)
     }
 
+    override fun setAuthForAmounts(enabled: Boolean) {
+        prefs.edit().putBoolean(AUTH_FOR_AMOUNTS, enabled).apply()
+        _settings.value = _settings.value.copy(authForAmounts = enabled)
+    }
+
     override fun setCustomAccent(argb: Long) {
         val hex = com.zyke.message.domain.model.ColorMath.formatHex(argb)
         prefs.edit().putString(CUSTOM_ACCENT, hex).putString(ACCENT, com.zyke.message.domain.model.AccentColor.CUSTOM.name).apply()
@@ -102,6 +108,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private companion object {
         const val HIDE_AMOUNTS = "hide_amounts"
+        const val AUTH_FOR_AMOUNTS = "auth_for_amounts"
         const val ACCENT = "accent"
         const val CUSTOM_ACCENT = "custom_accent"
         const val WEEKLY_SUMMARY = "weekly_summary"

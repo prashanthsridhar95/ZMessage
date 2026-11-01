@@ -25,7 +25,7 @@
 | Reminders (what, amount, day, monthly or not) | User input on the Bills tab | Private SharedPreferences; mentioned in the morning digest if that is on, otherwise only shown in the app | No |
 | Daily and monthly spending limits | User input in Settings | Category and amount in private SharedPreferences | No |
 | Muted senders | User action | Sender names, private SharedPreferences | No |
-| Settings (screenshot protection, theme, app lock, morning digest) | User input | Booleans and one choice | No |
+| Settings (screenshot protection, theme, app lock, morning digest, hide amounts and "ask for authentication to show amounts") | User input | Booleans and one choice | No |
 | Morning digest and widget (off until chosen) | Built on the phone from the inbox | A notification text shown on the lock screen only as a private notification; the widget draws the same lines on the home screen | No |
 | Paired watch (optional; only in a build made with `-PwithWear=true`) | `WatchSnapshot` (`:domain`): today's budget left, this month against last, the next three bills or EMIs (name, amount, days), the count of items to review, the latest total balance, and when it was made. Never message text, sender or account number. With "Hide amounts" on, no amount is sent at all | Latest copy only, in the Wear OS Data Layer on the phone and in private preferences on the watch | Only to your own paired watch, over the Data Layer's local Bluetooth/Wi-Fi link; no server. The default phone build has no Wear code and no Google Play services dependency |
 | Parsing report (masked sample messages) | Created on request in Settings | A text file in the private cache until the next report | Only if the user shares it, through the system share sheet |
@@ -46,6 +46,7 @@ There is no account, no analytics and no crash reporter. The only network use is
 | Another app drives ours | Only the launcher activity is exported; the notification listener service and the three receivers (widget, morning alarm, restart) are not exported, and a unit test pins the list |
 | A rogue app fakes an incoming text to the live-alerts receiver | It is the only exported receiver, guarded by the system-only `BROADCAST_SMS` permission, disabled until the person opts in, and it only ever shows a notification |
 | A code shows on the lock screen or in the clipboard preview | The notification is private (the lock screen says "A new one-time code"), and the copied code is marked sensitive |
+| Someone sees your money figures over your shoulder | Optional "Hide amounts": every amount in the app (screens, message text, snackbars, spoken descriptions) shows as dots, and so do notifications and the widget. Showing them asks for the phone's own screen lock (fingerprint, face, PIN, pattern or password) through the system's confirm-credential screen, then reveals for 60 seconds, or until you leave the app. Nothing about the check is stored; the app never sees a fingerprint, face or PIN. A phone with no screen lock falls back to a tap that shows amounts for 5 seconds |
 | Someone else picks up an unlocked phone | Optional app lock: the phone's own fingerprint, face or screen-lock prompt after 30 seconds away |
 | Digest or widget shows private details | The notification is private on the lock screen; the widget is something you add yourself and shows only short lines such as "Insurance expires tomorrow" |
 | Reverse engineering | R8 minification and obfuscation in release |
@@ -54,6 +55,7 @@ There is no account, no analytics and no crash reporter. The only network use is
 ## Known limits
 
 - The app lock uses the phone's screen-lock prompt, so anyone who knows the phone's PIN can open the app. It is off by default.
+- "Hide amounts" covers what the app draws and posts. A notification posted while amounts were shown keeps its text, and a year-in-review picture or report you choose to share carries real figures.
 - The morning digest alarm is inexact and, after a restart, comes back only because the app registers for the boot broadcast.
 - A device with root or a debugger attached can read app memory.
 - The masking in the diagnostics report is heuristic; review it before sharing.

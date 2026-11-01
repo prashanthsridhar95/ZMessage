@@ -93,6 +93,7 @@ class SettingsViewModel(
             is Intent.SetCustomAccent -> settingsRepository.setCustomAccent(intent.argb)
             is Intent.SetAccent -> settingsRepository.setAccent(intent.accent)
             is Intent.SetHideAmounts -> settingsRepository.setHideAmounts(intent.enabled)
+            is Intent.SetAuthForAmounts -> settingsRepository.setAuthForAmounts(intent.enabled)
             is Intent.SetFetchLogos -> {
                 settingsRepository.setFetchLogos(intent.enabled)
                 if (!intent.enabled) onLogosTurnedOff()
