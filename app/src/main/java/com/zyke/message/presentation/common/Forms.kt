@@ -41,7 +41,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -117,10 +117,19 @@ fun FormField(
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
         val quiet = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
         var focused by remember { mutableStateOf(false) }
+        // A rupee field that opens with a figure already in it (editing something saved) shows dots while amounts are hidden;
+        // focusing it asks for the screen lock, like any other hidden amount. A field that starts empty is typed in plainly.
+        val prefilledMoney = remember { prefix == "\u20B9" && value.isNotEmpty() }
+        val masked = prefilledMoney && LocalPrivacyMode.current.hidden
+        val reveal = LocalAmountReveal.current
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).onFocusChanged { focused = it.isFocused },
+            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).onFocusChanged {
+                focused = it.isFocused
+                if (masked && it.isFocused) reveal.requestReveal()
+            },
+            visualTransformation = if (masked) androidx.compose.ui.text.input.PasswordVisualTransformation('\u2022') else androidx.compose.ui.text.input.VisualTransformation.None,
             singleLine = singleLine,
             maxLines = if (singleLine) 1 else 5,
             isError = error != null,

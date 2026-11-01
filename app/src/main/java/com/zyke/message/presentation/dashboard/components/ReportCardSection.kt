@@ -53,7 +53,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -220,8 +220,9 @@ private fun biggestLevers(card: ReportCard): List<Lever> =
 private fun LeverCard(lever: Lever) {
     val s = lever.subject
     val accent = GradeColors.of(s.grade)
+    val spoken = com.zyke.message.presentation.common.privateSpeech("What to do about ${s.category.displayString}, grade ${s.grade?.label ?: "none"}. ${lever.tip}")
     FintechCard(Modifier.semantics(mergeDescendants = true) {
-        contentDescription = "What to do about ${s.category.displayString}, grade ${s.grade?.label ?: "none"}. ${lever.tip}"
+        contentDescription = spoken
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             GradeChip(s.grade)
@@ -240,6 +241,7 @@ private fun Hero(card: ReportCard) {
     val accent = GradeColors.of(card.overall)
     val shape = RoundedCornerShape(32.dp)
     val surface = MaterialTheme.colorScheme.surface
+    val amountsHidden = com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden
     Column(
         Modifier
             .fillMaxWidth()
@@ -248,8 +250,9 @@ private fun Hero(card: ReportCard) {
             .border(BorderStroke(1.dp, accent.copy(alpha = 0.25f)), shape)
             .padding(horizontal = 20.dp, vertical = 24.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "Report card for ${DisplayFormatters.monthName(card.month)}. Overall grade " +
+                val spoken = "Report card for ${DisplayFormatters.monthName(card.month)}. Overall grade " +
                     "${card.overall?.label ?: "not available yet"}. ${remarkText(card.remark)}"
+                contentDescription = if (amountsHidden) com.zyke.message.domain.privacy.AmountMasker.maskSpoken(spoken) else spoken
             },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

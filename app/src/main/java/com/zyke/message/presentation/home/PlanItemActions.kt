@@ -22,7 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -156,7 +156,8 @@ internal fun PlanItemFrame(
 
 @Composable
 private fun PlanActionButton(label: String, describe: String, onClick: () -> Unit) {
-    TextButton(onClick, Modifier.heightIn(min = 48.dp).semantics { contentDescription = describe }) {
+    val spokenDescribe = com.zyke.message.presentation.common.privateSpeech(describe)
+    TextButton(onClick, Modifier.heightIn(min = 48.dp).semantics { contentDescription = spokenDescribe }) {
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
 }

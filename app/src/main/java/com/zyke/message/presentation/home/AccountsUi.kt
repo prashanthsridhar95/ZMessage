@@ -28,7 +28,7 @@ import androidx.compose.ui.res.painterResource
 import com.zyke.message.R
 import com.zyke.message.presentation.common.LocalOpenSettings
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment

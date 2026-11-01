@@ -87,7 +87,7 @@ class DaysAheadWidget : AppWidgetProvider() {
         views.setViewVisibility(R.id.widget_divider, if (showHero) View.VISIBLE else View.GONE)
         if (digest != null && digest.dueTotal.signum() > 0) {
             views.setTextViewText(R.id.widget_hero_label, "Due soon")
-            views.setTextViewText(R.id.widget_hero_value, DisplayFormatters.rupees(digest.dueTotal))
+            views.setTextViewText(R.id.widget_hero_value, NotificationPrivacy.text(context, DisplayFormatters.rupees(digest.dueTotal)))
             views.setTextViewText(R.id.widget_hero_caption, DisplayFormatters.count(digest.dueCount, "payment", "payments"))
         } else {
             views.setTextViewText(R.id.widget_hero_label, "Today")
@@ -125,14 +125,14 @@ class DaysAheadWidget : AppWidgetProvider() {
 
     private fun bind(context: Context, views: RemoteViews, row: Row, item: DigestItem) {
         views.setImageViewResource(row.dot, dotFor(item))
-        views.setTextViewText(row.title, item.title)
-        views.setTextViewText(row.detail, item.detail)
+        views.setTextViewText(row.title, NotificationPrivacy.text(context, item.title))
+        views.setTextViewText(row.detail, NotificationPrivacy.text(context, item.detail))
         views.setViewVisibility(row.detail, if (item.detail.isBlank()) View.GONE else View.VISIBLE)
-        val amount = item.amount?.let { DisplayFormatters.rupees(it) }
+        val amount = item.amount?.let { NotificationPrivacy.text(context, DisplayFormatters.rupees(it)) }
         views.setTextViewText(row.amount, amount.orEmpty())
         views.setViewVisibility(row.amount, if (amount == null) View.GONE else View.VISIBLE)
         views.setTextColor(row.amount, ContextCompat.getColor(context, if (item.urgent) R.color.widget_urgent else R.color.widget_text))
-        views.setContentDescription(row.container, listOfNotNull(item.title, amount, item.detail.takeIf { it.isNotBlank() }).joinToString(", "))
+        views.setContentDescription(row.container, NotificationPrivacy.spoken(context, listOfNotNull(item.title, amount, item.detail.takeIf { it.isNotBlank() }).joinToString(", ")))
     }
 
     private fun dotFor(item: DigestItem): Int = when {

@@ -30,7 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,6 +59,7 @@ import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.common.privateSpeech
 import com.zyke.message.presentation.dashboard.components.ShareBar
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
@@ -345,11 +346,11 @@ private fun DayCell(day: BudgetDay, isToday: Boolean, inStreak: Boolean, isSelec
     }
     val shape = RoundedCornerShape(10.dp)
     val ink = MaterialTheme.colorScheme.primary
-    val spoken = when (day.status) {
+    val spoken = privateSpeech(when (day.status) {
         DayStatus.UNDER -> "within budget, spent ${DisplayFormatters.rupees(day.spent)}"
         DayStatus.OVER -> "over budget, spent ${DisplayFormatters.rupees(day.spent)}"
         DayStatus.NONE -> "no data"
-    }
+    })
     Column(
         Modifier
             .fillMaxWidth()

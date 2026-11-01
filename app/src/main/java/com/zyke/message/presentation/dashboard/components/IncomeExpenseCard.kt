@@ -34,7 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +77,7 @@ internal fun IncomeExpenseCard(
     canGoForward: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val amountsHidden = com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden
     val dates = (expense.map { it.start } + income.map { it.start }).distinct().sorted()
     val spentByDate = expense.associate { it.start to it.amount }
     val receivedByDate = income.associate { it.start to it.amount }
@@ -141,8 +142,9 @@ internal fun IncomeExpenseCard(
                         }
                     }
                     .semantics {
-                        contentDescription = "Line chart of money spent and received. Spent ${DisplayFormatters.rupees(dashboard.spentTotal)}, " +
+                        val spoken = "Line chart of money spent and received. Spent ${DisplayFormatters.rupees(dashboard.spentTotal)}, " +
                             "received ${DisplayFormatters.rupees(dashboard.receivedTotal)}. Pinch to zoom."
+                        contentDescription = if (amountsHidden) com.zyke.message.domain.privacy.AmountMasker.maskSpoken(spoken) else spoken
                     }
             ) {
                 val pad = 6.dp.toPx()

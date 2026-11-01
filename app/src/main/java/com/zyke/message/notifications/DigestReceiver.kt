@@ -77,6 +77,7 @@ object DigestNotifier {
         )
         val day = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault()).format(LocalDate.now())
         val items = digest.items
+        val hide = NotificationPrivacy.hidden(context)
         val urgent = items.count { it.urgent }
 
         // Collapsed: how many things, and the most pressing one. Expanded: every thing on its own line.
@@ -85,9 +86,9 @@ object DigestNotifier {
             items.size == 1 -> "1 thing today"
             else -> "${items.size} things today" + if (urgent > 0) " · $urgent due now" else ""
         }
-        val preview = items.firstOrNull()?.let { line(it) } ?: "Nothing due or on today"
+        val preview = items.firstOrNull()?.let { line(it, hide) } ?: "Nothing due or on today"
         val style = NotificationCompat.InboxStyle().setSummaryText("Zyke Message")
-        if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it)) }
+        if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it, hide)) }
 
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val notification = NotificationCompat.Builder(context, CHANNEL)
@@ -117,12 +118,13 @@ object DigestNotifier {
     }
 
     /** "Reminder: Rent ₹12,000 today" as one plain line. */
-    private fun line(item: DigestItem): String =
+    private fun line(item: DigestItem, hide: Boolean): String =
         listOfNotNull(item.title, item.amount?.let { DisplayFormatters.rupees(it) }, item.detail.takeIf { it.isNotBlank() }).joinToString(" · ")
+            .let { if (hide) com.zyke.message.domain.privacy.AmountMasker.mask(it) else it }
 
     /** The same line with the title in bold, so the eye finds what each is about. */
-    private fun boldTitle(item: DigestItem): CharSequence {
-        val text = line(item)
+    private fun boldTitle(item: DigestItem, hide: Boolean): CharSequence {
+        val text = line(item, hide)
         return SpannableString(text).apply { setSpan(StyleSpan(Typeface.BOLD), 0, item.title.length.coerceAtMost(text.length), 0) }
     }
 }

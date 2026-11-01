@@ -20,7 +20,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +55,7 @@ private const val CARD_RATIO = 1.586f
 @Composable
 fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = null, onClick: (() -> Unit)? = null) {
     val theme = card.theme
-    val description = listOfNotNull(card.spokenDescription, footer).joinToString(". ")
+    val description = privateSpeech(listOfNotNull(card.spokenDescription, footer).joinToString(". "))
     val shape = RoundedCornerShape(18.dp)
     Box(
         modifier

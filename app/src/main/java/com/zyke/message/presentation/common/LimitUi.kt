@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,8 +46,9 @@ fun LimitStatus(line: LimitLine, modifier: Modifier = Modifier) {
     val color = if (line.isOver) colors.bad else colors.good
     val fraction = line.used.coerceIn(0f, 1f)
     val text = limitText(line)
+    val spokenText = privateSpeech("${line.period.label} limit. $text")
 
-    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "${line.period.label} limit. $text" }) {
+    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spokenText }) {
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,

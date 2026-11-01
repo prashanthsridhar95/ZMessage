@@ -94,12 +94,12 @@ internal object WeeklyNotifier {
         )
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val style = NotificationCompat.InboxStyle().setSummaryText("Zyke Message")
-        lines.forEach { style.addLine(it) }
+        lines.forEach { style.addLine(NotificationPrivacy.text(context, it)) }
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.baseline_message_24)
             .setColor(accent)
-            .setContentTitle(headline)
-            .setContentText(lines.first())
+            .setContentTitle(NotificationPrivacy.text(context, headline))
+            .setContentText(NotificationPrivacy.text(context, lines.first()))
             .setStyle(style)
             .setContentIntent(open)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)

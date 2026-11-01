@@ -23,7 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -171,6 +171,7 @@ private fun SalarySplit(insights: PlanInsights) {
     ).filter { it.second.signum() > 0 }
     val total = parts.sumOf { it.second }.max(BigDecimal.ONE)
     val summary = parts.joinToString(", ") { "${it.first} ${DisplayFormatters.rupees(it.second)}" }
+    val salarySpoken = com.zyke.message.presentation.common.privateSpeech("Where the salary of ${DisplayFormatters.rupees(insights.income)} goes. $summary")
 
     Row(
         Modifier
@@ -178,7 +179,7 @@ private fun SalarySplit(insights: PlanInsights) {
             .height(14.dp)
             .clip(RoundedCornerShape(7.dp))
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            .semantics { contentDescription = "Where the salary of ${DisplayFormatters.rupees(insights.income)} goes. $summary" }
+            .semantics { contentDescription = salarySpoken }
     ) {
         parts.forEach { (_, amount, color) ->
             Box(Modifier.weight((amount.toFloat() / total.toFloat()).coerceAtLeast(0.01f)).fillMaxHeight().background(color))

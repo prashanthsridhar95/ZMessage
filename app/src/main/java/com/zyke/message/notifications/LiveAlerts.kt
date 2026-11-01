@@ -62,7 +62,7 @@ internal object LiveAlerts {
         )
         // The code is the headline, large and spaced so it can be read at a glance and typed from the shade.
         val spaced = if (content.code.length == 6) "${content.code.take(3)} ${content.code.drop(3)}" else content.code
-        val forPayment = content.paymentAmount?.let { " for ${DisplayFormatters.rupees(it)}" }.orEmpty()
+        val forPayment = content.paymentAmount?.let { " for ${if (NotificationPrivacy.hidden(context)) "an amount" else DisplayFormatters.rupees(it)}" }.orEmpty()
         notify(
             context, id,
             title = spaced,
@@ -132,9 +132,9 @@ internal object LiveAlerts {
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.baseline_message_24)
             .setColor(accent)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(if (customView != null) NotificationCompat.DecoratedCustomViewStyle() else NotificationCompat.BigTextStyle().bigText(bigText))
+            .setContentTitle(NotificationPrivacy.text(context, title))
+            .setContentText(NotificationPrivacy.text(context, text))
+            .setStyle(if (customView != null) NotificationCompat.DecoratedCustomViewStyle() else NotificationCompat.BigTextStyle().bigText(NotificationPrivacy.text(context, bigText)))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)

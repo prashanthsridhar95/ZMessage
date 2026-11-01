@@ -51,7 +51,7 @@ import androidx.compose.ui.platform.LocalDensity
 import com.zyke.message.presentation.dashboard.components.CollapsedHeroBar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -333,7 +333,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                         com.zyke.message.presentation.messages.components.RowTitle("Subscriptions")
                         com.zyke.message.presentation.messages.components.Caption("What repeats, what it costs a year, and how to stop it", maxLines = 2)
                     }
-                    androidx.compose.material3.Text("\u203A", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.secondary)
+                    com.zyke.message.presentation.common.Text("\u203A", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.secondary)
                 }
             }
         }

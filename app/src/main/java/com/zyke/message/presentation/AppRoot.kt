@@ -38,7 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import com.zyke.message.presentation.common.SheetHostLayer
 import com.zyke.message.presentation.common.SheetHost
@@ -161,7 +161,7 @@ fun AppRoot(
     com.zyke.message.presentation.common.PageHostLayer(pageHost)
     SheetHostLayer(sheetHost)
     if (web.isOpen && web.minimised) MinimisedLink(web, Modifier.statusBarsPadding().navigationBarsPadding())
-    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))
+    com.zyke.message.presentation.common.PrivateSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))
     }
     }
 }

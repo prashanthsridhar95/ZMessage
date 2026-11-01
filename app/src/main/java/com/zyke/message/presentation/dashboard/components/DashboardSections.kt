@@ -46,7 +46,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -156,7 +156,8 @@ internal fun SectionCard(
     if (asSheet) {
         // A tile on the page; its detail is in a sheet.
         FintechCard(modifier, onClick = { open = true }) {
-            Row(Modifier.semantics { contentDescription = "$title, ${summary.orEmpty()}. Opens details" }, verticalAlignment = Alignment.CenterVertically) {
+            val tileSpoken = com.zyke.message.presentation.common.privateSpeech("$title, ${summary.orEmpty()}. Opens details")
+            Row(Modifier.semantics { contentDescription = tileSpoken }, verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f).heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 if (summary != null) {
                     Caption(summary)
@@ -471,13 +472,14 @@ internal fun TrendChart(
     val fmt = DateTimeFormatter.ofPattern(if (unit == TrendUnit.DAY) "d MMM" else "MMM yy", Locale.getDefault())
     val summary = if (max.signum() > 0) "Peak ${DisplayFormatters.rupees(max)} on ${fmt.format(peak.start)}" else "No activity"
 
+    val chartSpoken = com.zyke.message.presentation.common.privateSpeech("Chart. $summary")
     Column(modifier.fillMaxWidth()) {
         Caption(summary, Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.secondary)
         Row(
             Modifier
                 .fillMaxWidth()
                 .height(96.dp)
-                .semantics { contentDescription = "Chart. $summary" },
+                .semantics { contentDescription = chartSpoken },
             horizontalArrangement = Arrangement.spacedBy(if (points.size > 20) 2.dp else 4.dp),
             verticalAlignment = Alignment.Bottom
         ) {
@@ -874,6 +876,7 @@ private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter
 internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel: String, description: String, modifier: Modifier = Modifier) {
     val max = amounts.maxOf { it }.coerceAtLeast(BigDecimal.ONE)
     val values = amounts.map { it.fractionOf(max) }
+    val spokenDescription = com.zyke.message.presentation.common.privateSpeech(description)
     val rise by rememberGrowingState(1f)
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -883,7 +886,7 @@ internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel:
             Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .semantics { contentDescription = description }
+                .semantics { contentDescription = spokenDescription }
         ) {
             val pad = 6.dp.toPx()
             val usableHeight = size.height - 2 * pad

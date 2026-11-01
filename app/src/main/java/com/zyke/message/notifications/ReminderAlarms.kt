@@ -79,8 +79,8 @@ object ReminderAlarms {
             alarm.key.hashCode(),
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.baseline_message_24)
-                .setContentTitle(reminder.title)
-                .setContentText(text)
+                .setContentTitle(NotificationPrivacy.text(context, reminder.title))
+                .setContentText(NotificationPrivacy.text(context, text))
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .setContentIntent(open)
