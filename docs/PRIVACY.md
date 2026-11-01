@@ -9,7 +9,7 @@
 | Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content |
 | Picture for a sender, searched on the web (only when the person taps "From the web") | Google Images, searched for the sender's name in an in-app page; the picture the person taps is downloaded once | Cropped to 256px in private storage | The sender's name is the search text, as if typed into Google; nothing else |
-| Market prices (off until switched on in Settings) | A public price service (Yahoo Finance), asked for the tickers in your watch list only | Held in memory; the list itself is in private SharedPreferences | The tickers are sent, never message content |
+| Market prices (off until switched on in Settings) | A public price service (Yahoo Finance), asked for the tickers in your watch list, and, while you type in the add-stock box, for matching names | Prices held in memory; the list (ticker, name, exchange) is in private SharedPreferences; what you type in the add-stock box is not stored, only sent while typing | The tickers and the letters you type into the add-stock box are sent, never message content |
 | Entries you add by hand, payments left out of totals, transfers you link | User input | Private SharedPreferences | No |
 | Text you share to the app ("200 for auto") | Another app's Share sheet | Read once to pre-fill the entry form; not stored or logged unless you save the entry. The Quick add widget and the Add entry quick-settings tile only open the form or save an entry you tapped, on the phone | No |
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
@@ -33,13 +33,13 @@
 
 Suggestions, spam scoring, search phrases, alerts and summaries are computed on the phone from messages already in memory; nothing is downloaded or sent. An on-device language model (Gemini Nano) is supported through a small interface but is only used when the phone provides one, and every answer it gives is checked against the message text.
 
-There is no account, no analytics and no crash reporter. The only network use is the logo setting (on by default, can be turned off), the market strip (off until you turn it on) and the optional backup to your own Google Drive (off until you turn it on and sign in).
+There is no account, no analytics and no crash reporter. The only network use is the logo setting (on by default, can be turned off), the market strip and its stock-name suggestions (off until you turn it on; what you type in the add-stock box is sent to Yahoo Finance while you type, and is not stored) and the optional backup to your own Google Drive (off until you turn it on and sign in).
 
 ## Threats considered
 
 | Threat | Mitigation |
 |---|---|
-| App exfiltrates messages | `INTERNET` is used by three files: `LogoFetcher` (a brand's website name), `QuoteFetcher` (tickers from your watch list) and `DriveBackupClient` (opt-in: one PIN-encrypted backup file to your own Drive's private app folder); a unit test enforces that no other file touches the network and which hosts they may call |
+| App exfiltrates messages | `INTERNET` is used by three files: `LogoFetcher` (a brand's website name), `QuoteFetcher` (tickers from your watch list, and what you type in the add-stock box to suggest names) and `DriveBackupClient` (opt-in: one PIN-encrypted backup file to your own Drive's private app folder); a unit test enforces that no other file touches the network and which hosts they may call |
 | The cache database is copied off the phone and read | Each entry is AES-256-GCM encrypted with a Keystore key that cannot be exported, so the file alone is unreadable; backups and device transfer exclude databases; a damaged or old entry is dropped, never trusted |
 | Messages end up in a cloud backup | Android Auto Backup is on only to carry one file, `auto_backup/zyke-backup.bin`, which holds the encrypted setup and never messages; the backup and transfer rules include only that file and exclude preferences, databases, every other file, external storage and the app root, and a unit test pins this. Cloud backup is skipped on a phone that cannot encrypt it |
 | A backup file is stolen and guessed at | The file is AES-256-GCM encrypted with a PBKDF2 (600,000 rounds) key from your PIN. A 6-digit PIN has only 1,000,000 possibilities: this keeps casual finders out, but someone holding the file could try them all offline. The app says so and offers a long passphrase instead; a wrong PIN on the restore screen waits a second per try |

@@ -5,7 +5,7 @@ phone.
 
 ## What the app guarantees
 
-- **Almost no network.** The `INTERNET` permission exists for two settings: "Fetch brand logos" (on by default, can be turned off) and the market strip (off until you turn it on). Only two files can use it. `LogoFetcher.kt` sends a well-known brand's website name to a public icon service; `QuoteFetcher.kt` sends the tickers you typed into your watch list (such as `RELIANCE.NS`) to a public price service. Neither ever sends message text, numbers or amounts, and a unit test keeps network code out of every other file.
+- **Almost no network.** The `INTERNET` permission exists for two settings: "Fetch brand logos" (on by default, can be turned off) and the market strip (off until you turn it on). Only two files can use it. `LogoFetcher.kt` sends a well-known brand's website name to a public icon service; `QuoteFetcher.kt` sends the tickers in your watch list (such as `RELIANCE.NS`) to Yahoo Finance's public price service, and, while you type in the add-stock box (market strip switched on only), the few letters typed so it can suggest names; that text is not stored. Neither ever sends message text, numbers or amounts, and a unit test keeps network code out of every other file.
   `ManifestPolicyTest` fails the build if that changes.
 - **Least privilege.** The only permission is `READ_SMS`. It never writes to, sends or deletes messages.
 - **Nothing leaves unless you send it.** The one exception is the masked parsing report you choose to share.

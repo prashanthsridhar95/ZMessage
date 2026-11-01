@@ -6,7 +6,7 @@ import java.math.MathContext
 import java.math.RoundingMode
 
 /** One thing the person watches: the ticker a price service knows it by, and the name to show. */
-data class WatchSymbol(val symbol: String, val label: String)
+data class WatchSymbol(val symbol: String, val label: String, val exchange: String = "")
 
 /** What the person asked to see. Off until they switch it on, because prices need the internet. */
 data class WatchSettings(
@@ -25,7 +25,9 @@ data class Quote(
     val previousClose: BigDecimal?,
     val currency: String,
     /** Seconds since 1970 of the last trade, when the service said. */
-    val tradedAt: Long? = null
+    val tradedAt: Long? = null,
+    /** The exchange the price is from, as the service named it, or blank. */
+    val exchange: String = ""
 )
 
 /** One line of the strip and the list: a quote with the name it is shown under and what it measures. */
@@ -36,8 +38,10 @@ data class MarketRow(
     val price: BigDecimal,
     val change: BigDecimal?,
     val changePercent: BigDecimal?,
-    /** "INR" for rupees, "USD" for dollars, blank for an index. */
-    val currency: String
+    /** The currency code the quote is in ("INR", "USD", "GBp"...), blank for an index or an exchange rate. */
+    val currency: String,
+    /** Short exchange name (NSE, NASDAQ...) when known. */
+    val exchange: String = ""
 ) {
     val isUp: Boolean get() = (change?.signum() ?: 0) > 0
     val isDown: Boolean get() = (change?.signum() ?: 0) < 0
@@ -50,6 +54,32 @@ object MarketSymbols {
     const val SENSEX = "^BSESN"
 
     private const val GRAMS_PER_TROY_OUNCE = "31.1035"
+
+    /** The most names one watch list holds: enough for anyone, and every one is a request on each refresh. */
+    const val MAX_WATCH = 30
+
+    private val validSymbol = Regex("^[A-Z0-9^][A-Z0-9.\\-=^&_]{0,29}$")
+
+    /** Whether text looks like a ticker the price service could know: letters, digits and . - = ^ & _ only, up to 30 long. */
+    fun isValidSymbol(symbol: String): Boolean = validSymbol.matches(symbol)
+
+    /**
+     * The tickers to try for what was typed, in order. A ticker that says where it trades (RELIANCE.NS, ^GSPC, BTC-USD,
+     * EURUSD=X, GC=F) is tried as it is. A bare one (AAPL, RELIANCE) is tried as it is, then as an NSE name, so old habits work.
+     */
+    fun candidates(input: String): List<String> {
+        val text = input.trim().uppercase().replace(" ", "")
+        if (text.isEmpty() || !isValidSymbol(text)) return emptyList()
+        val says = text.startsWith("^") || text.contains('.') || text.contains('-') || text.endsWith("=X") || text.endsWith("=F")
+        return if (says) listOf(text) else listOf(text, "$text.NS")
+    }
+
+    fun kindOf(symbol: String): MarketKind = when {
+        symbol.startsWith("^") -> MarketKind.INDEX
+        symbol.endsWith("=X") -> MarketKind.CURRENCY
+        symbol.endsWith("=F") -> MarketKind.COMMODITY
+        else -> MarketKind.STOCK
+    }
 
     val suggestions = listOf(
         WatchSymbol(NIFTY, "Nifty 50"),
@@ -108,19 +138,22 @@ object MarketSymbols {
         }
         settings.symbols.forEach { watched ->
             val quote = quotes[watched.symbol] ?: return@forEach
-            val kind = if (watched.symbol.startsWith("^")) MarketKind.INDEX else MarketKind.STOCK
-            add(row(watched.label, watched.symbol, kind, quote.price, quote.previousClose, if (kind == MarketKind.INDEX) "" else quote.currency))
+            val kind = kindOf(watched.symbol)
+            val exchange = watched.exchange.ifBlank { MarketNames.exchange(quote.exchange, null) }
+            val detail = listOf(watched.symbol, exchange).filter { it.isNotBlank() }.joinToString(" \u00B7 ")
+            val currency = if (kind == MarketKind.INDEX || (kind == MarketKind.CURRENCY && watched.symbol != USD_INR)) "" else quote.currency
+            add(row(watched.label, detail, kind, quote.price, quote.previousClose, currency, exchange))
         }
     }
 
-    private fun row(label: String, detail: String, kind: MarketKind, price: BigDecimal, before: BigDecimal?, currency: String): MarketRow {
+    private fun row(label: String, detail: String, kind: MarketKind, price: BigDecimal, before: BigDecimal?, currency: String, exchange: String = ""): MarketRow {
         val change = before?.let { price - it }
         val percent = if (before != null && before.signum() != 0) {
             change!!.multiply(BigDecimal(100)).divide(before, 2, RoundingMode.HALF_UP)
         } else {
             null
         }
-        return MarketRow(label, detail, kind, price, change, percent, currency)
+        return MarketRow(label, detail, kind, price, change, percent, currency, exchange)
     }
 }
 
@@ -133,6 +166,10 @@ object QuoteParser {
     private val before = Regex("\"(?:chartPreviousClose|previousClose)\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)")
     private val currency = Regex("\"currency\"\\s*:\\s*\"([A-Za-z]{3})\"")
     private val time = Regex("\"regularMarketTime\"\\s*:\\s*([0-9]+)")
+    private val exchange = Regex("\"exchangeName\"\\s*:\\s*\"([A-Za-z0-9 ._-]{1,20})\"")
+
+    /** Yahoo quotes London in pence ("GBp") and Johannesburg in cents ("ZAc"); the lower-case letter matters. */
+    private val SUB_UNITS = setOf("GBp", "ZAc")
 
     fun parse(symbol: String, json: String): Quote? {
         val now = price.find(json)?.groupValues?.get(1)?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return null
@@ -140,8 +177,9 @@ object QuoteParser {
             symbol = symbol,
             price = now,
             previousClose = before.find(json)?.groupValues?.get(1)?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 },
-            currency = currency.find(json)?.groupValues?.get(1)?.uppercase().orEmpty(),
-            tradedAt = time.find(json)?.groupValues?.get(1)?.toLongOrNull()
+            currency = currency.find(json)?.groupValues?.get(1)?.let { if (it in SUB_UNITS) it else it.uppercase() }.orEmpty(),
+            tradedAt = time.find(json)?.groupValues?.get(1)?.toLongOrNull(),
+            exchange = exchange.find(json)?.groupValues?.get(1).orEmpty()
         )
     }
 }
@@ -154,4 +192,34 @@ interface WatchlistRepository {
 object NoWatchlist : WatchlistRepository {
     override val watch = kotlinx.coroutines.flow.MutableStateFlow(WatchSettings())
     override fun save(settings: WatchSettings) = Unit
+}
+
+/** The sign to show before a price in a currency, from the code the quote came with. */
+object CurrencySymbols {
+    private val known = mapOf(
+        "INR" to "\u20B9", "USD" to "$", "GBP" to "\u00A3", "EUR" to "\u20AC", "JPY" to "\u00A5", "CNY" to "CN\u00A5", "HKD" to "HK$",
+        "AUD" to "A$", "CAD" to "C$", "NZD" to "NZ$", "SGD" to "S$", "KRW" to "\u20A9", "TWD" to "NT$", "BRL" to "R$", "MXN" to "MX$",
+        "CHF" to "CHF ", "SEK" to "SEK ", "NOK" to "NOK ", "DKK" to "DKK ", "ZAR" to "R", "RUB" to "\u20BD", "TRY" to "\u20BA",
+        "ILS" to "\u20AA", "THB" to "\u0E3F", "IDR" to "Rp", "MYR" to "RM", "PHP" to "\u20B1", "VND" to "\u20AB", "AED" to "AED ", "SAR" to "SAR "
+    )
+
+    /** The text before the number: "\u20B9", "$", "HK$"; the code and a space when there is no common sign; blank for none. Pence and cents come after the number, see [suffix]. */
+    fun prefix(code: String): String = when {
+        code.isBlank() || code == "GBp" || code == "ZAc" -> ""
+        else -> known[code.uppercase()] ?: (code.uppercase() + " ")
+    }
+
+    /** "p" for pence and "c" for cents, which Yahoo uses for London and Johannesburg. */
+    fun suffix(code: String): String = when (code) {
+        "GBp" -> "p"
+        "ZAc" -> "c"
+        else -> ""
+    }
+
+    /** Digits after the point: the currency's own, at least two for anything under 1,000 that is not a whole-number currency. */
+    fun digits(code: String, price: BigDecimal): Int {
+        if (price.abs() < BigDecimal.ONE) return if (price.signum() == 0) 2 else 4
+        val base = runCatching { java.util.Currency.getInstance(code.uppercase()).defaultFractionDigits }.getOrDefault(2)
+        return base.coerceIn(0, 4).let { if (code == "GBp" || code == "ZAc") 2 else it }
+    }
 }

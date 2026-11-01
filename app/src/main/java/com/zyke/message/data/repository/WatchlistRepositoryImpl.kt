@@ -1,6 +1,7 @@
 package com.zyke.message.data.repository
 
 import android.content.Context
+import com.zyke.message.domain.markets.MarketSymbols
 import com.zyke.message.domain.markets.WatchSettings
 import com.zyke.message.domain.markets.WatchSymbol
 import com.zyke.message.domain.markets.WatchlistRepository
@@ -23,7 +24,9 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
             .putBoolean(DOLLAR, settings.showDollar)
             .putBoolean(GOLD, settings.showGold)
             .putString(SYMBOLS, JSONArray().apply {
-                settings.symbols.forEach { put(JSONObject().put("s", it.symbol).put("l", it.label)) }
+                settings.symbols.forEach {
+                    put(JSONObject().put("s", it.symbol).put("l", it.label).apply { if (it.exchange.isNotBlank()) put("x", it.exchange) })
+                }
             }.toString())
             .apply()
     }
@@ -32,7 +35,14 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
         val array = JSONArray(prefs.getString(SYMBOLS, "[]"))
         WatchSettings(
             enabled = prefs.getBoolean(ENABLED, false),
-            symbols = (0 until array.length()).map { array.getJSONObject(it) }.map { WatchSymbol(it.getString("s"), it.getString("l")) },
+            // Lists saved before names and exchanges were kept have only "s" and "l"; one damaged entry never loses the rest.
+            symbols = (0 until array.length()).mapNotNull { index ->
+                runCatching {
+                    val item = array.getJSONObject(index)
+                    val symbol = item.getString("s")
+                    WatchSymbol(symbol, item.optString("l", "").ifBlank { MarketSymbols.defaultLabel(symbol) }, item.optString("x", ""))
+                }.getOrNull()
+            }.distinctBy { it.symbol },
             showDollar = prefs.getBoolean(DOLLAR, true),
             showGold = prefs.getBoolean(GOLD, true)
         )

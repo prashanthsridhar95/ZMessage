@@ -47,7 +47,7 @@ class ManifestPolicyTest {
      * INTERNET exists for three features: the brand-logo fetch (on by default, can be turned off), the market strip's
      * prices (off until switched on) and the optional backup to the person's own Google Drive (off until switched on).
      * The promise "your messages never leave the phone" is kept by making sure the network is reachable from exactly
-     * three files: one sending only a brand's website name, one only a ticker the person typed into their watch list,
+     * three files: one sending only a brand's website name, one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
      * and one only the single PIN-encrypted backup file, to the private app folder of the person's own Drive.
      */
     @Test
@@ -66,7 +66,10 @@ class ManifestPolicyTest {
 
         val quotes = File("src/main/java/com/zyke/message/data/markets/QuoteFetcher.kt").readText()
         val quoteHosts = Regex("https://([a-z0-9.]+)/").findAll(quotes).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("query1.finance.yahoo.com"), quoteHosts)
+        // Prices come from the chart endpoint on query1 and name suggestions from the search endpoint on query2; no other host.
+        assertEquals(setOf("query1.finance.yahoo.com", "query2.finance.yahoo.com"), quoteHosts)
+        assertTrue("https://query1.finance.yahoo.com/v8/finance/chart/" in quotes)
+        assertTrue("https://query2.finance.yahoo.com/v1/finance/search?q=" in quotes)
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()

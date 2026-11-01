@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.data.markets.MarketTicker
+import com.zyke.message.domain.markets.CurrencySymbols
 import com.zyke.message.domain.markets.MarketKind
 import com.zyke.message.domain.markets.MarketRow
 import com.zyke.message.presentation.common.AppButton
@@ -94,13 +95,25 @@ fun MarketPolling() {
     }
 }
 
-internal fun priceText(row: MarketRow): String = when {
-    row.currency == "INR" && row.kind == MarketKind.COMMODITY -> "₹" + indian(row.price, 0)
-    row.currency == "INR" -> "₹" + indian(row.price, 2)
-    row.currency == "USD" -> "$" + FormatCache.number(Locale.US, 2, 2).format(row.price)
-    row.currency.isNotEmpty() -> row.currency + " " + indian(row.price, 2)
-    else -> indian(row.price, 2)
+internal fun priceText(row: MarketRow): String {
+    val code = row.currency
+    return when {
+        // The dollar and gold rows are rupees worked out here; the gold one is a whole number.
+        code == "INR" && row.kind == MarketKind.COMMODITY -> "\u20B9" + indian(row.price, 0)
+        code == "INR" -> "\u20B9" + indian(row.price, 2)
+        code.isEmpty() && row.kind == MarketKind.CURRENCY -> FormatCache.number(Locale.US, 4, 4).format(row.price)
+        code.isEmpty() -> indian(row.price, 2)
+        else -> {
+            // Each quote in its own currency, as the service reported it (never assumed to be rupees).
+            val digits = CurrencySymbols.digits(code, row.price)
+            CurrencySymbols.prefix(code) + FormatCache.number(Locale.US, digits, digits).format(row.price) + CurrencySymbols.suffix(code)
+        }
+    }
 }
+
+private fun changeAmount(row: MarketRow, value: BigDecimal): String =
+    if (row.currency.isEmpty() || row.currency == "INR") indian(value, 2)
+    else CurrencySymbols.digits(row.currency, row.price).let { FormatCache.number(Locale.US, it, it).format(value) }
 
 private fun indian(value: BigDecimal, digits: Int): String =
     FormatCache.number(INDIAN, digits, digits).format(value)
@@ -230,7 +243,7 @@ fun MarketPage(onBack: () -> Unit) {
                 SectionHeader(title, rows.size)
                 rows.forEach { MarketCard(it) }
             }
-            Caption("Choose what to watch in Settings › Market watch. Only the names of what you watch are sent, nothing from your messages.", Modifier.padding(top = 4.dp), maxLines = 4)
+            Caption("Choose what to watch in Settings › Market watch. Only the tickers you watch (and what you type into the add box) are sent to Yahoo Finance, nothing from your messages.", Modifier.padding(top = 4.dp), maxLines = 4)
             // Room for the button to sit below the last card.
             Spacer(Modifier.height(72.dp))
         }
@@ -264,7 +277,7 @@ private fun MarketCard(row: MarketRow) {
                     else -> Tone.NEUTRAL
                 }
                 row.change?.let { change ->
-                    StatusPill(changeText(row) + "  " + (if (change.signum() >= 0) "+" else "−") + indian(change.abs(), 2), tone, Modifier.padding(top = 6.dp))
+                    StatusPill(changeText(row) + "  " + (if (change.signum() >= 0) "+" else "−") + changeAmount(row, change.abs()), tone, Modifier.padding(top = 6.dp))
                 }
             }
         }
