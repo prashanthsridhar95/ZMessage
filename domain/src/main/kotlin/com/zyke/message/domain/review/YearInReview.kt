@@ -8,6 +8,7 @@ import com.zyke.message.domain.model.MessageContent
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
 import java.time.ZoneId
@@ -17,6 +18,10 @@ data class YearCategory(val category: MessageCategory, val amount: BigDecimal)
 data class YearPayee(val name: String, val amount: BigDecimal, val count: Int)
 
 data class YearPayment(val payee: String, val amount: BigDecimal, val date: LocalDate)
+
+data class YearDay(val date: LocalDate, val amount: BigDecimal)
+
+data class YearWeekday(val day: DayOfWeek, val amount: BigDecimal)
 
 data class YearMonth(val month: Month, val spent: BigDecimal, val income: BigDecimal)
 
@@ -41,7 +46,11 @@ data class YearInReview(
     val longestNoSpendStreak: Int,
     val subscriptionsTotal: BigDecimal,
     /** Distinct months of the year that have at least one counted transaction. */
-    val monthsOfData: Int
+    val monthsOfData: Int,
+    /** The single day with the most spending; null when nothing was spent. */
+    val biggestDay: YearDay? = null,
+    /** The weekday with the most spending in total; null when nothing was spent. */
+    val busiestWeekday: YearWeekday? = null
 ) {
     val net: BigDecimal get() = income - spent
 
@@ -78,6 +87,10 @@ data class YearInReview(
         /** How many distinct months in [year] have counted transactions; cheap check for showing an entry point. */
         fun monthsWithData(messages: List<ClassifiedMessage>, year: Int, zone: ZoneId): Int =
             messages.mapNotNull { flow(it, zone) }.filter { it.date.year == year }.map { it.date.month }.distinct().size
+
+        /** Years that have any counted transaction, newest first; for a year selector. */
+        fun yearsWithData(messages: List<ClassifiedMessage>, zone: ZoneId): List<Int> =
+            messages.mapNotNull { flow(it, zone) }.map { it.date.year }.distinct().sortedDescending()
 
         private class Flow(
             val payee: String,
@@ -126,6 +139,13 @@ data class YearInReview(
                 .sortedByDescending { it.amount }.take(TOP)
             val biggest = spends.maxByOrNull { it.amount }?.let { YearPayment(it.payee, it.amount, it.date) }
 
+            val biggestDay = spends.groupBy { it.date }
+                .map { (d, f) -> YearDay(d, f.sumOf { it.amount }) }
+                .maxWithOrNull(compareBy<YearDay> { it.amount }.thenByDescending { it.date })
+            val busiestWeekday = spends.groupBy { it.date.dayOfWeek }
+                .map { (d, f) -> YearWeekday(d, f.sumOf { it.amount }) }
+                .maxWithOrNull(compareBy<YearWeekday> { it.amount }.thenByDescending { it.day })
+
             val first = flows.minOfOrNull { it.date }
             val yearEnd = LocalDate.of(year, 12, 31)
             val last = flows.maxOfOrNull { it.date }
@@ -154,7 +174,7 @@ data class YearInReview(
 
             return YearInReview(
                 year, income, spent, months, topCategories, topPayees, biggest, busiest, quietest,
-                flows.size, daysCovered, average, best, subs, monthsWithData.size
+                flows.size, daysCovered, average, best, subs, monthsWithData.size, biggestDay, busiestWeekday
             )
         }
     }

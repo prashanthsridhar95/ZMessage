@@ -130,4 +130,22 @@ class YearInReviewTest {
         assertTrue(yearWithData(1, 2).monthsToShow(LocalDate.of(2024, 12, 31)).isEmpty())
         assertTrue(YearInReview.build(emptyList(), 2025, zone, null).monthsToShow(null).isEmpty())
     }
+
+    @Test
+    fun biggestDayWeekdayAndYears() {
+        val msgs = listOf(
+            tx("100", d(3, 3)), // Monday
+            tx("250", d(3, 3)), // Monday, same day: 350
+            tx("300", d(3, 5)), // Wednesday
+            tx("50", d(3, 10)), // Monday
+            tx("70", LocalDate.of(2024, 1, 1))
+        )
+        val r = YearInReview.build(msgs, 2025, zone)
+        assertEquals(d(3, 3), r.biggestDay?.date)
+        assertEquals(0, BigDecimal(350).compareTo(r.biggestDay?.amount))
+        assertEquals(java.time.DayOfWeek.MONDAY, r.busiestWeekday?.day)
+        assertEquals(0, BigDecimal(400).compareTo(r.busiestWeekday?.amount))
+        assertEquals(listOf(2025, 2024), YearInReview.yearsWithData(msgs, zone))
+        assertNull(YearInReview.build(emptyList(), 2025, zone).biggestDay)
+    }
 }
