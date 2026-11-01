@@ -17,7 +17,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,7 +101,7 @@ internal class PlanExtraAction(val label: String, val describe: String, val onCl
 /**
  * A plan item with a small "actions" button beside it. Tapping that reveals a row of text buttons (Open, Snooze,
  * Dismiss and whatever [extras] the kind of item adds), each with a 48dp target and the item's name in its description.
- * An item already out of sight (the bills tab keeps showing every bill) says so and offers Restore instead.
+ * A snoozed item (the bills tab keeps showing every bill) says so and offers Restore instead.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -131,7 +130,7 @@ internal fun PlanItemFrame(
             }
         }
         if (hide != null) {
-            StatusPill(hide.until?.let { "Snoozed until ${DayFormat.format(it)}" } ?: "Dismissed", Tone.NEUTRAL, Modifier.padding(bottom = 4.dp))
+            StatusPill("Snoozed until ${DayFormat.format(hide.until ?: today)}", Tone.NEUTRAL, Modifier.padding(bottom = 4.dp))
         }
         if (expanded) {
             FlowRow(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -202,38 +201,6 @@ private fun SnoozeDialog(name: String, today: LocalDate, onDismiss: () -> Unit, 
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
-
-/** The list of what is dismissed or snoozed, each with Restore, so nothing is lost silently. */
-@Composable
-internal fun HiddenPlanItems(hidden: List<PlanHide>, handler: PlanActionHandler) {
-    if (hidden.isEmpty()) {
-        Caption("Nothing is snoozed or dismissed.")
-        return
-    }
-    hidden.forEachIndexed { index, hide ->
-        if (index > 0) HorizontalDivider()
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                RowTitle(hide.label)
-                Caption(
-                    (when (hide.kind) { PlanKind.AGENDA -> "Plan"; PlanKind.BILL -> "Bill"; PlanKind.REMINDER -> "Reminder" }) +
-                        " · " + (hide.until?.let { "Snoozed until ${DayFormat.format(it)}" } ?: "Dismissed")
-                )
-            }
-            PlanActionButton("Restore", "Restore ${hide.label}") { handler.restore(hide.key) }
-        }
-    }
-}
-
-/** "Snoozed & dismissed (n)": a link that opens the list with Restore. Nothing shows when nothing is hidden. */
-@Composable
-internal fun HiddenPlanLink(hidden: List<PlanHide>, handler: PlanActionHandler, modifier: Modifier = Modifier) {
-    if (hidden.isEmpty()) return
-    var open by rememberSaveable { mutableStateOf(false) }
-    com.zyke.message.presentation.common.LinkButton("Snoozed & dismissed (${hidden.size})", { open = true }, modifier)
-    if (open) PlanPage("Snoozed & dismissed", { open = false }) { HiddenPlanItems(hidden, handler) }
-}
-
 
 /** A button in a [RowActions] line: one label on one line, never narrower than the label. */
 internal class RowAction(val label: String, val style: ButtonStyle, val description: String? = null, val onClick: () -> Unit)

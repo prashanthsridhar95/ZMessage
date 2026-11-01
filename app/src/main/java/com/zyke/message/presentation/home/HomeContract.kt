@@ -106,8 +106,6 @@ object HomeContract {
         val planAgenda: List<AgendaItem> = emptyList(),
         val planUpcoming: List<UpcomingItem> = emptyList(),
         val planReminders: List<ReminderDue> = emptyList(),
-        /** Dismissed and still-snoozed things, for the list that restores them. */
-        val planHidden: List<com.zyke.message.domain.plan.PlanHide> = emptyList(),
 
         /** The message whose sheet is open, and the budgeted category whose sheet is open. */
         val detailMessageId: Long? = null,

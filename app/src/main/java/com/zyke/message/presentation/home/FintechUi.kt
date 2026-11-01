@@ -162,7 +162,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
     }
 
-    // Net worth stays put-away until it is asked for: pull down at the top (or tap "Show net worth"). Kept per visit to this tab.
+    // Net worth stays put-away until it is asked for: pull down at the top. Kept per visit to this tab.
     var netWorthShown by rememberSaveable { mutableStateOf(false) }
     val reduceMotion = com.zyke.message.presentation.common.rememberReduceMotion()
     val tick = com.zyke.message.presentation.common.rememberTick()
@@ -194,16 +194,6 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
         }
         item(key = "total") { BalanceHero(overview, onOpen = {}) }
-        if (!netWorthShown) {
-            item(key = "show-net-worth") {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    AppButton(
-                        "Show net worth", { tick(); netWorthShown = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT,
-                        modifier = Modifier.semantics { contentDescription = "Show net worth. You can also pull down at the top of the list." }
-                    )
-                }
-            }
-        }
 
         item(key = "tabs") {
             UnderlineTabs(
@@ -234,40 +224,6 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                     if (tab == 0) "No accounts yet" else "No cards yet",
                     if (tab == 0) "Bank accounts appear here once a message with a balance arrives." else "Cards appear here once a card payment or bill message arrives."
                 )
-            }
-        }
-        // One limit across every credit card: what has been spent on them all this month against it.
-        if (tab == 1 && cards.isNotEmpty()) {
-            item(key = "card-limit") {
-                val status = com.zyke.message.domain.accounts.CardSpend.status(overview.accounts, state.plan.cardSpendLimit)
-                val openSettings = com.zyke.message.presentation.common.LocalOpenSettings.current
-                FintechCard(onClick = openSettings) {
-                    Caption("CARD SPENDING LIMIT")
-                    if (status == null) {
-                        RowTitle("No limit set", Modifier.padding(top = 4.dp))
-                        Caption("Set one limit for all your credit cards in Settings", maxLines = 2)
-                    } else {
-                        Text(
-                            "${DisplayFormatters.rupees(status.used)} of ${DisplayFormatters.rupees(status.limit)}",
-                            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.titleLarge,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = MaterialTheme.colorScheme.primary
-                        )
-                        com.zyke.message.presentation.dashboard.components.ShareBar(
-                            status.fraction,
-                            color = when {
-                                status.isOver -> MaterialTheme.colorScheme.error
-                                status.isNear -> com.zyke.message.presentation.dashboard.components.ChartColors.warning
-                                else -> MaterialTheme.colorScheme.primary
-                            }
-                        )
-                        Caption(
-                            if (status.isOver) "${DisplayFormatters.rupees(status.over)} over the limit, across all cards"
-                            else "${DisplayFormatters.rupees(status.remaining)} left across all your cards",
-                            Modifier.padding(top = 4.dp), maxLines = 2,
-                            color = if (status.isOver) MaterialTheme.colorScheme.error else mutedColor()
-                        )
-                    }
-                }
             }
         }
         if (tab == 1 && cards.isNotEmpty()) {

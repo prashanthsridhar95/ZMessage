@@ -69,16 +69,6 @@ class PlanActionsTest {
     }
 
     @Test
-    fun hiddenListIsSnoozesBySoonestReturnThenDismissed() {
-        var state = PlanActionState()
-        state = PlanActions.dismiss(state, "bill:x", "X", PlanKind.BILL)
-        state = PlanActions.snooze(state, "bill:z", "Z", PlanKind.BILL, today.plusDays(7), today)
-        state = PlanActions.snooze(state, "bill:y", "Y", PlanKind.BILL, today.plusDays(2), today)
-        state = PlanActions.snooze(state, "bill:old", "Old", PlanKind.BILL, today.plusDays(1), today)
-        assertEquals(listOf("Y", "Z", "X"), PlanActions.hidden(state, today.plusDays(1)).map { it.label })
-    }
-
-    @Test
     fun hideForReportsOnlyTheHoldingHide() {
         val state = PlanActions.snooze(PlanActionState(), "bill:a", "A", PlanKind.BILL, today.plusDays(2), today)
         assertEquals(today.plusDays(2), PlanActions.hideFor("bill:a", state, today)?.until)

@@ -49,11 +49,6 @@ object PlanActions {
     fun <T> visible(items: List<T>, state: PlanActionState, today: LocalDate, keyOf: (T) -> String): List<T> =
         if (state.isEmpty) items else items.filter { hideFor(keyOf(it), state, today) == null }
 
-    /** What is out of sight today, newest-to-return first and dismissed last, for the "Snoozed & dismissed" list. */
-    fun hidden(state: PlanActionState, today: LocalDate): List<PlanHide> =
-        state.hides.values.filter { isActive(it, today) }
-            .sortedWith(compareBy<PlanHide> { it.until == null }.thenBy { it.until }.thenBy { it.label.lowercase() })
-
     fun dismiss(state: PlanActionState, key: String, label: String, kind: PlanKind): PlanActionState =
         PlanActionState(state.hides + (key to PlanHide(key, label, kind, null)))
 
@@ -66,7 +61,7 @@ object PlanActions {
     fun restore(state: PlanActionState, key: String): PlanActionState =
         if (key in state.hides) PlanActionState(state.hides - key) else state
 
-    /** Drops the snoozes whose day has come, so the store does not grow. Dismissals stay until restored. */
+    /** Drops the snoozes whose day has come, so the store does not grow. Dismissals stay, so a dismissed item never comes back. */
     fun clean(state: PlanActionState, today: LocalDate): PlanActionState =
         if (state.hides.values.all { isActive(it, today) }) state
         else PlanActionState(state.hides.filterValues { isActive(it, today) })

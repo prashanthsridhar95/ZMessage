@@ -477,7 +477,6 @@ class HomeViewModel(
             val planReminders = memo("planReminders", reminders, hides, today) {
                 PlanActions.visible(reminders, hides, today) { PlanKeys.reminder(it.reminder) }
             }
-            val planHidden = memo("planHidden", hides, today) { PlanActions.hidden(hides, today) }
             val outflow = memo("outflow", upcoming, updated.loanList, updated.reminderList, updated.plan, live, updated.recurringStates, updated.cancelledSubs, today) {
                 com.zyke.message.domain.forecast.UpcomingOutflows.build(
                     from = today, upcoming = upcoming, loans = updated.loanList, reminders = updated.reminderList, plan = updated.plan,
@@ -499,7 +498,7 @@ class HomeViewModel(
                     subscriptions = subscriptions, subscriptionOverview = subscriptionOverview, attention = attention, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
                     agenda = agenda, unreadCount = unread,
-                    planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders, planHidden = planHidden
+                    planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders
                 )
             }
         }

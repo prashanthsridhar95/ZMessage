@@ -425,11 +425,10 @@ private fun SummaryPage(
             }
         }
 
-        if (state.planAgenda.isNotEmpty() || state.planHidden.isNotEmpty()) {
+        if (state.planAgenda.isNotEmpty()) {
             item(key = "plans") {
                 FintechCard {
                     RowTitle("Plans")
-                    if (state.planAgenda.isEmpty()) Caption("Nothing coming up that is not snoozed or dismissed.")
                     state.planAgenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         // A trip opens as its own scene; anything else shows the message.
@@ -447,7 +446,6 @@ private fun SummaryPage(
                             AgendaRow(agendaItem, today, open, more)
                         }
                     }
-                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
@@ -527,7 +525,6 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                         }
                     }
                     if (state.planReminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
-                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
@@ -542,12 +539,11 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                         if (item.paidOn != null) {
                             UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
                         } else {
-                            // Every bill stays on this tab, even an overdue one that was snoozed: it just says so.
+                            // Every bill stays on this tab, even an overdue one that was snoozed or dismissed (dismissed means "not in my plans", not "paid"); a snooze says so.
                             val key = PlanKeys.bill(item)
-                            PlanItemFrame(item.title, key, PlanKind.BILL, today, planHandler, hide = PlanActions.hideFor(key, state.planActions, today), content = row)
+                            PlanItemFrame(item.title, key, PlanKind.BILL, today, planHandler, hide = PlanActions.hideFor(key, state.planActions, today)?.takeIf { it.isSnooze }, content = row)
                         }
                     }
-                    HiddenPlanLink(state.planHidden, planHandler)
                 }
             }
         }
