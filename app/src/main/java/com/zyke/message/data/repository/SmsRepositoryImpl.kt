@@ -70,7 +70,17 @@ class SmsRepositoryImpl(
         )
     }.conflate().flowOn(dispatcher)
 
-    override fun scan(zone: ZoneId, sinceMillis: Long): InboxScan = dataSource.scan(zone, sinceMillis)
+    /**
+     * Null when the inbox cannot be read right now: without the SMS permission the provider refuses the query. That is
+     * "not yet", never a crash (a fresh install crashed on every launch before the permission was granted), and it
+     * leaves what was remembered about the last sync untouched.
+     */
+    override fun scan(zone: ZoneId, sinceMillis: Long): InboxScan? = try {
+        dataSource.scan(zone, sinceMillis)
+    } catch (denied: SecurityException) {
+        com.zyke.message.data.diag.DevLog.d("sync") { "scan: SMS permission not granted, nothing read" }
+        null
+    }
 
     override fun readWindow(fromMillis: Long, untilMillis: Long): List<SmsMessage> = dataSource.readWindow(fromMillis, untilMillis)
 

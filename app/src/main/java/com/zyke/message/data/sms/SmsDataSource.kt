@@ -37,6 +37,7 @@ class SmsDataSource(
      * no text is read, so even a very large inbox is described in a moment. Messages already in the phone's order
      * (newest first) are counted into the month they belong to without building an object for each.
      */
+    /** Throws [SecurityException] without the SMS permission; [SmsRepositoryImpl] turns that into "no scan". */
     fun scan(zone: ZoneId, sinceMillis: Long): InboxScan {
         val ids = LongArray(INITIAL_IDS)
         var idCount = 0
@@ -104,13 +105,19 @@ class SmsDataSource(
     }
 
     private fun readSms(selection: String? = null, args: Array<String>? = null): List<SmsMessage> {
-        val cursor = contentResolver.query(
-            Telephony.Sms.Inbox.CONTENT_URI,
-            PROJECTION,
-            selection,
-            args,
-            "${Telephony.Sms.DATE} DESC"
-        ) ?: return emptyList()
+        val cursor = try {
+            contentResolver.query(
+                Telephony.Sms.Inbox.CONTENT_URI,
+                PROJECTION,
+                selection,
+                args,
+                "${Telephony.Sms.DATE} DESC"
+            )
+        } catch (denied: SecurityException) {
+            // No SMS permission yet: nothing to read, not a crash.
+            com.zyke.message.data.diag.DevLog.d("sync") { "read: SMS permission not granted, reading nothing" }
+            null
+        } ?: return emptyList()
 
         return cursor.use {
             val id = it.getColumnIndexOrThrow(Telephony.Sms._ID)

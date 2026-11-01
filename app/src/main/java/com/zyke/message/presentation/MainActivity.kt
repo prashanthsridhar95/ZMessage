@@ -98,6 +98,8 @@ class MainActivity : ComponentActivity() {
         com.zyke.message.data.diag.DevLog.d("permission") { "SMS permission result: granted=$granted" }
         messagesViewModel.onIntent(MessagesContract.Intent.PermissionResult(granted))
         if (granted) {
+            // Anything that tried to read before the permission was granted found nothing: ask for a full look now.
+            runCatching { container.smsRepository.refresh() }
             homeViewModel.onIntent(HomeContract.Intent.ScreenStarted(true))
             dashboardViewModel.onIntent(DashboardContract.Intent.ScreenStarted(true))
         }
