@@ -14,7 +14,14 @@ object BackupText {
     }
 
     /** "Last backup: today 02:03 · 312 KB · Google Drive". */
-    fun lastBackup(at: Instant, now: Instant, zone: ZoneId, sizeBytes: Long, where: String, locale: Locale = Locale.getDefault()): String {
+    fun lastBackup(at: Instant, now: Instant, zone: ZoneId, sizeBytes: Long, where: String, locale: Locale = Locale.getDefault()): String =
+        lastLine("Last backup", at, now, zone, sizeBytes, where, locale)
+
+    /** "Last saved to folder: today 02:03 · 312 KB · Downloads/Zyke". */
+    fun lastSavedToFolder(at: Instant, now: Instant, zone: ZoneId, sizeBytes: Long, folder: String, locale: Locale = Locale.getDefault()): String =
+        lastLine("Last saved to folder", at, now, zone, sizeBytes, folder, locale)
+
+    private fun lastLine(label: String, at: Instant, now: Instant, zone: ZoneId, sizeBytes: Long, where: String, locale: Locale): String {
         val day = at.atZone(zone).toLocalDate()
         val today = now.atZone(zone).toLocalDate()
         val dayText = when (day) {
@@ -23,7 +30,7 @@ object BackupText {
             else -> DateTimeFormatter.ofPattern("EEE d MMM", locale).format(at.atZone(zone))
         }
         val time = DateTimeFormatter.ofPattern("HH:mm", locale).format(at.atZone(zone))
-        return "Last backup: $dayText $time · ${size(sizeBytes)} · $where"
+        return "$label: $dayText $time · ${size(sizeBytes)} · $where"
     }
 
     /** "Next backup: Sun 2 Nov, 2:00 am", or "as soon as Android allows" when it is already due. */
