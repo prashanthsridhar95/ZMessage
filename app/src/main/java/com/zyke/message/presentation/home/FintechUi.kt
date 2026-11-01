@@ -104,6 +104,94 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
 }
 
 /**
+ * The Cards tab's big number: what the cards have billed and still wait to be paid, and what was spent since the last
+ * statement that is not on a bill yet. Both are sums over the cards the person sees.
+ */
+@Composable
+internal fun CardsHero(cards: List<AccountSummary>) {
+    val billed = remember(cards) { outstandingBilled(cards) }
+    val unbilled = remember(cards) { cards.fold(java.math.BigDecimal.ZERO) { sum, card -> sum + (card.unbilled?.takeIf { it.signum() > 0 } ?: java.math.BigDecimal.ZERO) } }
+    FintechCard {
+        if (cards.isEmpty()) {
+            Caption("CARDS")
+            Text("Your cards", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+            Caption("No cards yet", Modifier.padding(top = 2.dp))
+            return@FintechCard
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f)) {
+                Caption("BILLED")
+                com.zyke.message.presentation.common.PrivateAmount(
+                    rememberAnimatedRupees(billed),
+                    Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+                Caption("to pay on bills", Modifier.padding(top = 2.dp), maxLines = 2)
+            }
+            Column(Modifier.weight(1f)) {
+                Caption("UNBILLED")
+                com.zyke.message.presentation.common.PrivateAmount(
+                    rememberAnimatedRupees(unbilled),
+                    Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1
+                )
+                Caption("spent, not billed yet", Modifier.padding(top = 2.dp), maxLines = 2)
+            }
+        }
+        Caption(
+            DisplayFormatters.count(cards.size, "card", "cards"),
+            Modifier.padding(top = 10.dp),
+            maxLines = 1
+        )
+    }
+}
+
+/** What is still owed on the cards' latest bills: a bill paid in full counts as nothing, a part-paid one only its rest. */
+internal fun outstandingBilled(cards: List<AccountSummary>): java.math.BigDecimal =
+    cards.fold(java.math.BigDecimal.ZERO) { sum, card ->
+        val bill = card.dueAmount
+        sum + when {
+            bill == null || card.billPaid -> java.math.BigDecimal.ZERO
+            else -> (bill - (card.paidSinceBill ?: java.math.BigDecimal.ZERO)).max(java.math.BigDecimal.ZERO)
+        }
+    }
+
+/** The Investments tab's big number: what the funds hold (provident funds the person marked, or the one from the passbook). */
+@Composable
+internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.domain.pf.ProvidentFund?) {
+    val total = remember(funds, pf) {
+        val counted = funds.mapNotNull { it.balance }
+        val fromPassbook = if (funds.isEmpty()) pf?.balance else null
+        val all = counted + listOfNotNull(fromPassbook)
+        if (all.isEmpty()) null else all.fold(java.math.BigDecimal.ZERO) { a, b -> a + b }
+    }
+    val count = if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0
+    FintechCard {
+        Caption("TOTAL INVESTMENTS")
+        if (total != null) {
+            com.zyke.message.presentation.common.PrivateAmount(
+                rememberAnimatedRupees(total),
+                Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
+            Caption(DisplayFormatters.count(count, "fund", "funds"), Modifier.padding(top = 2.dp), maxLines = 2)
+        } else {
+            Text("Your investments", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+            Caption(if (count == 0) "None yet" else "No balance stated yet", Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/**
  * A running clock for screens that count down. It ticks once a second while the app is on screen, stops while it is
  * not, and reads the real time the instant the app comes back, so a countdown never shows the moment it was left at.
  * What the countdown is measured against is always the clock on the phone, so time passes whether or not it is drawn.
@@ -193,11 +281,25 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 }
             }
         }
-        item(key = "total") { BalanceHero(overview, onOpen = {}) }
+        // The big number follows the tab: the bank total only on Accounts, what is billed and unbilled on Cards,
+        // and what is invested under Investments.
+        item(key = "total") {
+            androidx.compose.animation.Crossfade(
+                targetState = tab,
+                animationSpec = if (reduceMotion) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(220),
+                label = "accounts-hero"
+            ) { which ->
+                when (which) {
+                    1 -> CardsHero(cards)
+                    2 -> InvestmentsHero(funds, pf)
+                    else -> BalanceHero(overview, onOpen = {})
+                }
+            }
+        }
 
         item(key = "tabs") {
             UnderlineTabs(
-                labels = listOf("Accounts", "Cards", "Savings"),
+                labels = listOf("Accounts", "Cards", "Investments"),
                 counts = listOf(banks.size, cards.size, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0),
                 selectedIndex = tab,
                 onSelect = { tab = it },
@@ -561,7 +663,7 @@ internal fun AccountSheet(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             RowTitle("Provident fund account")
-                            Caption("Shown under Savings, and left out of your bank total", maxLines = 2)
+                            Caption("Shown under Investments, and left out of your bank total", maxLines = 2)
                         }
                         androidx.compose.material3.Switch(checked = account.isProvidentFund, onCheckedChange = null)
                     }
