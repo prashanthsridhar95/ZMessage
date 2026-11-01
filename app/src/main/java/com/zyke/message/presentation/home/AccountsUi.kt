@@ -15,7 +15,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.painterResource
+import com.zyke.message.R
+import com.zyke.message.presentation.common.LocalOpenSettings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,6 +95,7 @@ internal fun BankAccountTile(
                 RowTitle(account.title)
                 Caption("${account.kind.label} •••• ${account.last4}")
             }
+            AccountActions(account.title, isCard = false, onOpen, onRename, onLeaveOut)
         }
         Row(Modifier.padding(top = 14.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
@@ -100,7 +112,6 @@ internal fun BankAccountTile(
             }
         }
         FlowAndChips(account, low, stale)
-        ActionRow(onOpen, onRename, onLeaveOut)
     }
 }
 
@@ -156,13 +167,16 @@ internal fun CardStatusPanel(
         } else append("Amounts hidden.")
     }
     FintechCard(Modifier.semantics { contentDescription = description }, onClick = onOpen) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+        FlowRow(Modifier.weight(1f).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (dueOpen && due != null) {
                 val days = java.time.temporal.ChronoUnit.DAYS.between(today, due)
                 StatusPill(DisplayFormatters.dueLabel(due, today), if (days <= 3) Tone.BAD else Tone.WARN)
             }
             if (card.billPaid) StatusPill("Bill paid", Tone.GOOD)
             if (unbilled != null) StatusPill("Unbilled", Tone.NEUTRAL)
+        }
+        AccountActions(card.title, isCard = true, onOpen, onRename, onLeaveOut)
         }
         Row(Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
@@ -191,19 +205,49 @@ internal fun CardStatusPanel(
         } else {
             Caption("Add this card's limit to see how much of it is used", Modifier.padding(top = 8.dp), maxLines = 2)
         }
-        ActionRow(onOpen, onRename, onLeaveOut)
     }
 }
 
-/** Open, rename and leave out, as real buttons rather than a menu to discover. */
+/**
+ * The one overflow button at the end of a tile's top line (48dp). Details is also the tile's own tap, but it stays in the
+ * menu so a screen-reader user finds all three in one place; a card adds "Edit card", which opens the cards form in Settings.
+ */
 @Composable
-private fun ActionRow(onOpen: () -> Unit, onRename: () -> Unit, onLeaveOut: () -> Unit) {
-    HorizontalDivider(Modifier.padding(top = 10.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        AppButton("Details", onOpen, style = ButtonStyle.TEXT)
-        AppButton("Rename", onRename, style = ButtonStyle.TEXT)
-        AppButton("Leave out", onLeaveOut, style = ButtonStyle.TEXT)
+private fun AccountActions(
+    name: String,
+    isCard: Boolean,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+    onLeaveOut: () -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    val openSettings = LocalOpenSettings.current
+    Box {
+        IconButton(onClick = { open = true }, Modifier.size(48.dp)) {
+            Icon(painterResource(R.drawable.baseline_more_horiz_24), contentDescription = "Actions for $name")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            ActionItem("Details", null, R.drawable.ic_info_24) { open = false; onOpen() }
+            ActionItem("Rename", null, R.drawable.ic_edit_24) { open = false; onRename() }
+            if (isCard) ActionItem("Edit card", "Limit, bill dates and look", R.drawable.ic_card_24) { open = false; openSettings() }
+            ActionItem("Leave out of totals", "Hidden from totals and lists", R.drawable.ic_visibility_off_24) { open = false; onLeaveOut() }
+        }
     }
+}
+
+@Composable
+private fun ActionItem(label: String, hint: String?, icon: Int, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Column {
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+                if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        leadingIcon = { Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        onClick = onClick,
+        modifier = Modifier.heightIn(min = 48.dp)
+    )
 }
 
 /** A tiny line of the balance's recent readings; decorative, so it carries no description of its own. */

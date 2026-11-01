@@ -40,6 +40,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -158,15 +162,48 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
     }
 
+    // Net worth stays put-away until it is asked for: pull down at the top (or tap "Show net worth"). Kept per visit to this tab.
+    var netWorthShown by rememberSaveable { mutableStateOf(false) }
+    val reduceMotion = com.zyke.message.presentation.common.rememberReduceMotion()
+    val tick = com.zyke.message.presentation.common.rememberTick()
+    val pull = rememberPullToReveal(enabled = !netWorthShown) { tick(); netWorthShown = true }
+
+    Box(Modifier.fillMaxSize().then(pull.modifier)) {
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item(key = "net-worth") {
-            com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
+        if (netWorthShown) {
+            item(key = "net-worth") {
+                val appear = remember { androidx.compose.animation.core.MutableTransitionState(reduceMotion).apply { targetState = true } }
+                androidx.compose.animation.AnimatedVisibility(
+                    appear,
+                    enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None
+                    else androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
+                ) {
+                    Column {
+                        com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            AppButton(
+                                "Hide net worth", { netWorthShown = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+                            )
+                        }
+                    }
+                }
+            }
         }
         item(key = "total") { BalanceHero(overview, onOpen = {}) }
+        if (!netWorthShown) {
+            item(key = "show-net-worth") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    AppButton(
+                        "Show net worth", { tick(); netWorthShown = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT,
+                        modifier = Modifier.semantics { contentDescription = "Show net worth. You can also pull down at the top of the list." }
+                    )
+                }
+            }
+        }
 
         item(key = "tabs") {
             UnderlineTabs(
@@ -269,6 +306,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
         }
 
+    }
+    PullToRevealIndicator(pull.progress, Modifier.align(Alignment.TopCenter))
     }
 
     renamingKey?.let { key ->
@@ -709,4 +748,69 @@ private fun RemoveAccountPicture(account: AccountSummary) {
     val keys by store.keysWithImage.collectAsState()
     val key = ACCOUNT_PICTURE_PREFIX + account.key
     if (key in keys) AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+}
+
+/** Where a pull-down at the top of a list has got to: [progress] runs 0 to 1, and reaching 1 fires the reveal once. */
+internal class PullToReveal(val modifier: Modifier, private val state: androidx.compose.runtime.State<Float>) {
+    val progress: () -> Float = { state.value }
+}
+
+/**
+ * Pull-down-at-the-top as a determinate gesture. Whatever the list itself did not use of a downward drag (so it is at
+ * the top) fills the progress; at full, [onReveal] runs and the pull resets. Letting go early just empties it.
+ */
+@Composable
+internal fun rememberPullToReveal(enabled: Boolean, onReveal: () -> Unit): PullToReveal {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val full = remember(density) { with(density) { 140.dp.toPx() } }
+    val pulled = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val reveal = androidx.compose.runtime.rememberUpdatedState(onReveal)
+    val on = androidx.compose.runtime.rememberUpdatedState(enabled)
+    val fraction = remember(full) { androidx.compose.runtime.derivedStateOf { (pulled.floatValue / full).coerceIn(0f, 1f) } }
+    val connection = remember(full) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                // Pushing back up while a pull is under way takes the pull back first.
+                if (!on.value || pulled.floatValue <= 0f || available.y >= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val back = (-available.y).coerceAtMost(pulled.floatValue)
+                pulled.floatValue -= back
+                return androidx.compose.ui.geometry.Offset(0f, -back)
+            }
+
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (!on.value || available.y <= 0f || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
+                pulled.floatValue += available.y * 0.6f
+                if (pulled.floatValue >= full) {
+                    pulled.floatValue = 0f
+                    reveal.value()
+                }
+                return androidx.compose.ui.geometry.Offset(0f, available.y)
+            }
+
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                pulled.floatValue = 0f
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
+    return remember(connection) { PullToReveal(Modifier.nestedScroll(connection), fraction) }
+}
+
+/** A slim determinate bar with a hint, drawn over the top of the list so nothing moves; invisible until a pull starts. */
+@Composable
+internal fun PullToRevealIndicator(progress: () -> Float, modifier: Modifier = Modifier) {
+    val p = progress()
+    if (p <= 0f) return
+    androidx.compose.material3.Surface(
+        modifier.padding(top = 8.dp).semantics { contentDescription = "Pull to reveal net worth, ${(p * 100).toInt()} percent" },
+        shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 2.dp
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Caption(if (p >= 0.85f) "Almost there" else "Pull to reveal net worth")
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { p }, modifier = Modifier.padding(top = 6.dp).width(160.dp),
+                color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+            )
+        }
+    }
 }
