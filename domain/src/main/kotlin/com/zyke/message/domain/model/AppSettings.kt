@@ -22,6 +22,8 @@ data class AppSettings(
     val lowBalanceFloor: java.math.BigDecimal? = null,
     /** Shows the big money figures as dots until tapped. */
     val hideAmounts: Boolean = false,
+    /** Showing hidden amounts asks for the phone's fingerprint, face or screen lock (when the phone has one). */
+    val authForAmounts: Boolean = true,
     val accent: AccentColor = AccentColor.DEFAULT,
     /** The seed (0xFFRRGGBB) behind [AccentColor.CUSTOM]; null when none has been chosen. */
     val customAccent: Long? = null

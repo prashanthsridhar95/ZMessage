@@ -29,6 +29,8 @@ interface SettingsRepository {
 
     fun setHideAmounts(enabled: Boolean) = Unit
 
+    fun setAuthForAmounts(enabled: Boolean) = Unit
+
     fun setAccent(accent: com.zyke.message.domain.model.AccentColor) = Unit
 
     /** Chooses [AccentColor.CUSTOM] with this seed (0xFFRRGGBB). */
