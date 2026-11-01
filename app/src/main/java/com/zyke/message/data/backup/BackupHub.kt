@@ -4,9 +4,10 @@ import android.content.Context
 import com.zyke.message.data.images.ImageStore
 
 /** The backup parts wired together; one instance lives in the app container. */
-class BackupHub(context: Context, images: ImageStore, val drive: DriveSync? = null, val driveAuth: DriveAuth? = null) {
+class BackupHub(context: Context, images: ImageStore, val driveAuth: DriveAuth? = null) {
     val keys = BackupKeyStore(context)
     val prefs = BackupPrefs(context) { keys.has() }
+    val drive: DriveSync? = driveAuth?.let { GoogleDriveSync(it, DriveBackupClient(), { prefs.driveConsented }, { prefs.driveConsented = true }) }
     val engine = BackupEngine(context, images, keys)
     val runner = BackupRunner(context, prefs, engine, drive)
     val scheduler = BackupScheduler(context, prefs)

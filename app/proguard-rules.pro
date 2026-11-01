@@ -10,7 +10,7 @@
 #  - There are no Parcelable or Serializable classes of our own and no Class.forName / ServiceLoader use.
 #  - Enums are saved by name (SharedPreferences, backups) and read back with valueOf. R8 never renames an enum
 #    constant's name(), but this keeps values()/valueOf() for the domain enums even if a later R8 inlines them.
--keepclassmembers enum com.zyke.message.domain.** {
+-keepclassmembers enum com.zyke.message.domain.**, com.zyke.message.data.backup.** {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }

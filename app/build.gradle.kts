@@ -94,6 +94,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // Optional backup to the person's own Google Drive private app folder: only the sign-in/consent step (Authorization API).
+    implementation(libs.play.services.auth)
     if (withWear) implementation("com.google.android.gms:play-services-wearable:18.2.0")
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
