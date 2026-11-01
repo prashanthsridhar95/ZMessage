@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -254,3 +255,37 @@ val AppTypography = Typography(
     labelMedium = DefaultType.labelMedium.copy(fontFamily = AppFontFamily),
     labelSmall = DefaultType.labelSmall.copy(fontFamily = AppFontFamily)
 )
+
+/**
+ * A row of launcher icon previews for choosing the app icon colour; the chosen one is ringed and ticked. The colours
+ * come from the fixed icon palette ([AppIconChoice.swatch]), not the theme: the real icon is the same in every theme.
+ */
+@Composable
+fun AppIconChoices(
+    selected: com.zyke.message.domain.model.AppIconChoice,
+    onSelect: (com.zyke.message.domain.model.AppIconChoice) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        com.zyke.message.domain.model.AppIconChoice.entries.forEach { icon ->
+            val chosen = icon == selected
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .background(Color(icon.swatch))
+                    .border(if (chosen) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .selectable(selected = chosen, role = Role.RadioButton, onClick = { onSelect(icon) })
+                    .semantics { contentDescription = "${icon.label} icon" + if (chosen) ", selected" else "" },
+                contentAlignment = Alignment.Center
+            ) {
+                // The app's speech-bubble glyph, simplified: a white bubble with a tail, or a tick when chosen.
+                if (chosen) Text("✓", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                else Box(Modifier.size(22.dp, 16.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.92f)))
+            }
+        }
+    }
+}

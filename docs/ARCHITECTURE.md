@@ -157,3 +157,16 @@ content under 1.5 MB, and the result goes through the `shared_logs/` cache folde
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`
 (privacy promise). CI runs them on every pull request.
+
+## Launcher icon colour
+
+Android cannot recolour a launcher icon at run time, so the choice is a fixed palette of `<activity-alias>` entries
+(`.IconDefault`, `.IconBlue` ... `.IconMono`), all targeting `MainActivity`, which itself has no launcher filter. Each
+alias has its own adaptive icon (`mipmap-anydpi-v26/ic_launcher_<id>.xml`: a coloured background vector, the shared
+`zyke_icon` foreground and monochrome layer) and carries the `android.app.shortcuts` meta-data so the "Share logs"
+shortcut works whichever is enabled. Only `.IconDefault` is enabled in the manifest. `AppIconChoice` (domain) lists the
+variants; `AppIconSwitcher` enables the new alias before disabling the others (never zero enabled) with
+`DONT_KILL_APP`, off the main thread, and `MainActivity.onCreate` reconciles the saved choice with the enabled alias
+(after a restore). Settings, Appearance, App icon shows the palette and asks before switching, since launchers differ
+(a few seconds' delay, the app closing, or the icon moving). Custom colours are not possible for the icon.
+`ManifestPolicyTest` keeps the manifest and the enum in step.

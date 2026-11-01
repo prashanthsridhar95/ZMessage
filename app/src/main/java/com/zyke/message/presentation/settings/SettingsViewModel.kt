@@ -91,6 +91,7 @@ class SettingsViewModel(
             is Intent.SetScreenProtection -> settingsRepository.setScreenProtection(intent.enabled)
             is Intent.SetThemeMode -> settingsRepository.setThemeMode(intent.mode)
             is Intent.SetCustomAccent -> settingsRepository.setCustomAccent(intent.argb)
+            is Intent.SetAppIcon -> settingsRepository.setAppIcon(intent.icon)
             is Intent.SetAccent -> settingsRepository.setAccent(intent.accent)
             is Intent.SetHideAmounts -> settingsRepository.setHideAmounts(intent.enabled)
             is Intent.SetRevealDuration -> settingsRepository.setRevealDuration(intent.duration)

@@ -49,6 +49,7 @@ object SettingsContract {
         data class SetScreenProtection(val enabled: Boolean) : Intent
         data class SetThemeMode(val mode: ThemeMode) : Intent
         data class SetCustomAccent(val argb: Long) : Intent
+        data class SetAppIcon(val icon: com.zyke.message.domain.model.AppIconChoice) : Intent
         data class SetAccent(val accent: com.zyke.message.domain.model.AccentColor) : Intent
         data class SetHideAmounts(val enabled: Boolean) : Intent
         data class SetAuthForAmounts(val enabled: Boolean) : Intent

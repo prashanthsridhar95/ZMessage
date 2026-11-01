@@ -496,6 +496,31 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 onCustom = { picking = true }
             )
             Caption("Default uses your phone's wallpaper colours where it has them. The ring is your own colour.", Modifier.padding(top = 8.dp), maxLines = 3)
+            Caption("APP ICON", Modifier.padding(top = 16.dp))
+            val context = LocalContext.current
+            var pendingIcon by rememberSaveable { mutableStateOf<String?>(null) }
+            com.zyke.message.presentation.theme.AppIconChoices(
+                selected = state.settings.appIcon,
+                onSelect = { if (it != state.settings.appIcon) pendingIcon = it.id },
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Caption("The colour of the icon on your home screen. Only these colours are possible: Android cannot recolour an icon freely.", Modifier.padding(top = 8.dp), maxLines = 3)
+            pendingIcon?.let { id ->
+                val icon = com.zyke.message.domain.model.AppIconChoice.fromStored(id)
+                AlertDialog(
+                    onDismissRequest = { pendingIcon = null },
+                    title = { Text("Change app icon to ${icon.label}?") },
+                    text = { Text("Your launcher may take a few seconds to update, and some launchers close the app or move the icon.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            onIntent(Intent.SetAppIcon(icon))
+                            AppIconSwitcher.applyAsync(context, icon)
+                            pendingIcon = null
+                        }) { Text("Change icon") }
+                    },
+                    dismissButton = { TextButton(onClick = { pendingIcon = null }) { Text("Cancel") } }
+                )
+            }
             if (picking) {
                 CustomAccentSheet(
                     initial = customSeed,

@@ -183,6 +183,10 @@ class MainActivity : ComponentActivity() {
         // Opened by the quick-add widget, the quick-settings tile or "Share": the entry sheet follows on Home.
         if (savedInstanceState == null) com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         applyScreenProtection(container.settings.settings.value.screenProtection)
+        // After a restore the saved icon colour may differ from the enabled launcher alias: put them in step, off the main thread.
+        val savedIcon = container.settings.settings.value.appIcon
+        val appContext = applicationContext
+        Thread({ com.zyke.message.presentation.settings.AppIconSwitcher.reconcile(appContext, savedIcon) }, "app-icon-reconcile").start()
         observeScreenProtection()
         // The alarm for the next timed reminder follows whatever reminders there are.
         lifecycleScope.launch {

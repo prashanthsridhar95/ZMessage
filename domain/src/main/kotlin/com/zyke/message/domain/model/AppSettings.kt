@@ -28,5 +28,7 @@ data class AppSettings(
     val revealDuration: com.zyke.message.domain.privacy.RevealDuration = com.zyke.message.domain.privacy.RevealDuration.DEFAULT,
     val accent: AccentColor = AccentColor.DEFAULT,
     /** The seed (0xFFRRGGBB) behind [AccentColor.CUSTOM]; null when none has been chosen. */
-    val customAccent: Long? = null
+    val customAccent: Long? = null,
+    /** Which launcher icon colour is enabled (see [AppIconChoice]); the manifest state follows this. */
+    val appIcon: AppIconChoice = AppIconChoice.DEFAULT
 )

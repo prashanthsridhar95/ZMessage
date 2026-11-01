@@ -28,7 +28,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             authForAmounts = prefs.getBoolean(AUTH_FOR_AMOUNTS, true),
             revealDuration = com.zyke.message.domain.privacy.RevealDuration.fromStored(prefs.getString(REVEAL_DURATION, null)),
             accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null)),
-            customAccent = com.zyke.message.domain.model.ColorMath.parseHex(prefs.getString(CUSTOM_ACCENT, null))
+            customAccent = com.zyke.message.domain.model.ColorMath.parseHex(prefs.getString(CUSTOM_ACCENT, null)),
+            appIcon = com.zyke.message.domain.model.AppIconChoice.fromStored(prefs.getString(APP_ICON, null))
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -112,7 +113,13 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(accent = accent)
     }
 
+    override fun setAppIcon(icon: com.zyke.message.domain.model.AppIconChoice) {
+        prefs.edit().putString(APP_ICON, icon.id).apply()
+        _settings.value = _settings.value.copy(appIcon = icon)
+    }
+
     private companion object {
+        const val APP_ICON = "app_icon"
         const val HIDE_AMOUNTS = "hide_amounts"
         const val AUTH_FOR_AMOUNTS = "auth_for_amounts"
         const val REVEAL_DURATION = "reveal_duration"

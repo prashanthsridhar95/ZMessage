@@ -37,4 +37,7 @@ interface SettingsRepository {
 
     /** Chooses [AccentColor.CUSTOM] with this seed (0xFFRRGGBB). */
     fun setCustomAccent(argb: Long) = Unit
+
+    /** Remembers the launcher icon colour; the caller switches the manifest alias (AppIconSwitcher). */
+    fun setAppIcon(icon: com.zyke.message.domain.model.AppIconChoice) = Unit
 }

@@ -1,5 +1,6 @@
 package com.zyke.message
 
+import com.zyke.message.domain.model.AppIconChoice
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
@@ -109,9 +110,25 @@ class ManifestPolicyTest {
         assertEquals("false", shareLogs.getAttributeNS(android, "exported"))
         assertEquals("true", shareLogs.getAttributeNS(android, "excludeFromRecents"))
         assertEquals(0, shareLogs.getElementsByTagName("intent-filter").length)
-        val shortcutsMeta = main.getElementsByTagName("meta-data").let { list -> (0 until list.length).map { list.item(it) as Element } }
-            .single { it.getAttributeNS(android, "name") == "android.app.shortcuts" }
-        assertEquals("@xml/shortcuts", shortcutsMeta.getAttributeNS(android, "resource"))
+        // The launcher entry is an activity-alias per icon colour (see AppIconChoice); MainActivity itself has none.
+        assertEquals(0, main.getElementsByTagName("intent-filter").length)
+        val aliases = manifest.getElementsByTagName("activity-alias").let { list -> (0 until list.length).map { list.item(it) as Element } }
+        assertEquals(AppIconChoice.entries.size, aliases.size)
+        aliases.forEach { alias ->
+            val name = alias.getAttributeNS(android, "name")
+            assertEquals(name, ".presentation.MainActivity", alias.getAttributeNS(android, "targetActivity"))
+            assertEquals(name, "true", alias.getAttributeNS(android, "exported"))
+            // Only the default icon is enabled in the manifest; the others are switched on from Settings.
+            assertEquals(name, if (name == ".IconDefault") "true" else "false", alias.getAttributeNS(android, "enabled"))
+            val filter = alias.getElementsByTagName("intent-filter").item(0) as Element
+            assertEquals(name, listOf("android.intent.action.MAIN"), filter.getElementsByTagName("action").names("name"))
+            assertEquals(name, listOf("android.intent.category.LAUNCHER"), filter.getElementsByTagName("category").names("name"))
+            assertTrue(name, alias.getAttributeNS(android, "icon").startsWith("@mipmap/"))
+            // The long-press "Share logs" shortcut must work whichever alias is enabled.
+            val meta = alias.getElementsByTagName("meta-data").let { list -> (0 until list.length).map { list.item(it) as Element } }
+                .single { it.getAttributeNS(android, "name") == "android.app.shortcuts" }
+            assertEquals(name, "@xml/shortcuts", meta.getAttributeNS(android, "resource"))
+        }
         val shortcuts = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder()
             .parse(File("src/main/res/xml/shortcuts.xml")).documentElement
         val shortcut = shortcuts.getElementsByTagName("shortcut").let { list -> (0 until list.length).map { list.item(it) as Element } }.single()
@@ -211,6 +228,22 @@ class ManifestPolicyTest {
                     (0 until list.length).map { (list.item(it) as Element).getAttribute("domain") }
                 }
                 assertTrue(name, excluded.containsAll(listOf("sharedpref", "database", "external", "root")))
+            }
+        }
+    }
+
+    /** Every icon colour in the enum has its alias in the manifest and a launcher icon, and the manifest has no others. */
+    @Test
+    fun launcherAliasesMatchTheAppIconChoices() {
+        val aliases = manifest.getElementsByTagName("activity-alias").names("name").map { "com.zyke.message$it" }
+        assertEquals(AppIconChoice.entries.map { it.aliasName }.sorted(), aliases.sorted())
+        assertEquals(1, AppIconChoice.entries.count { it.aliasName.endsWith(".IconDefault") })
+        AppIconChoice.entries.forEach { choice ->
+            val id = if (choice == AppIconChoice.DEFAULT) "ic_launcher" else "ic_launcher_${choice.id}"
+            listOf(id, "${id}_round").forEach { icon ->
+                val file = File("src/main/res/mipmap-anydpi-v26/$icon.xml")
+                assertTrue("$icon missing", file.exists())
+                assertTrue("$icon has no monochrome layer", "<monochrome" in file.readText())
             }
         }
     }
