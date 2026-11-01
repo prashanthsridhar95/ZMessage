@@ -138,6 +138,21 @@ Two optional places keep one encrypted copy of the person's setup, so it comes b
 - **Restore.** `BackupRestorer` opens a file (a wrong PIN waits one second), `PrefsBackup.apply` replaces the setup, `ImageStore.restoreChosenPictures` the pictures; the app then closes so nothing in memory writes the old values back, as with the manual import. A restore asks first if a setup already exists.
 - **Log.** Every run writes one `DevLog` line under `backup` (trigger, place, result, size, duration, failure class); never the PIN, key, token, account, contents, amounts or names.
 
+## Logs and "Share logs"
+
+Two records live in `files/dev_logs/`. `DevLog` is the verbose developer log (developer mode only). `BlackBox` is a small
+always-on record (`blackbox.log`, rotated at about 256 KB, one earlier file kept): `ZykeMessagesApplication.onCreate`
+installs it before anything else, so its crash handler (class names, function names and line numbers; never the exception
+message) and its start-up and screen markers exist even when the container or a store fails. `AppContainer` is built lazily
+for the same reason, so a failure there ends the screen that asked rather than the whole process. Earlier exits from
+`ApplicationExitInfo` are added once each. Writes are synchronous, small and wrapped so they cannot throw.
+
+"Share logs" has three doors (the launcher icon's long-press shortcut, Settings, About, and Developer options) and one
+implementation: `LogShare` reads the files, `LogBundle` (`:domain`, pure, tested) builds the header and keeps the newest
+content under 1.5 MB, and the result goes through the `shared_logs/` cache folder of the FileProvider and `ACTION_SEND`
+(text/plain). The shortcut (`res/xml/shortcuts.xml`) targets `ShareLogsActivity`, a screen-less, non-exported plain
+`Activity` that touches no container, store, view model or Compose; `ManifestPolicyTest` and `BlackBoxPolicyTest` pin this.
+
 ## Quality gates
 
 `:domain:test`, `:app:testDebugUnitTest`, `detekt` (zero issues), Android lint, and `ManifestPolicyTest`

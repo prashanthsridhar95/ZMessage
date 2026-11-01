@@ -97,8 +97,34 @@ class ManifestPolicyTest {
     @Test
     fun onlyTheLauncherActivityIsExported_andTheOnlyServiceIsTheSystemBoundRcsListener() {
         val activities = manifest.getElementsByTagName("activity")
-        assertEquals(1, activities.length)
-        assertEquals("true", (activities.item(0) as Element).getAttributeNS(android, "exported"))
+        assertEquals(2, activities.length)
+        val main = (0 until activities.length).map { activities.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".presentation.MainActivity" }
+        assertEquals("true", main.getAttributeNS(android, "exported"))
+
+        // The launcher icon's "Share logs" shortcut: a static shortcut whose target is a screen-less activity that is
+        // not exported and has no intent filter, so no other app can start it. It must stay out of the recents list.
+        val shareLogs = (0 until activities.length).map { activities.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".presentation.ShareLogsActivity" }
+        assertEquals("false", shareLogs.getAttributeNS(android, "exported"))
+        assertEquals("true", shareLogs.getAttributeNS(android, "excludeFromRecents"))
+        assertEquals(0, shareLogs.getElementsByTagName("intent-filter").length)
+        val shortcutsMeta = main.getElementsByTagName("meta-data").let { list -> (0 until list.length).map { list.item(it) as Element } }
+            .single { it.getAttributeNS(android, "name") == "android.app.shortcuts" }
+        assertEquals("@xml/shortcuts", shortcutsMeta.getAttributeNS(android, "resource"))
+        val shortcuts = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder()
+            .parse(File("src/main/res/xml/shortcuts.xml")).documentElement
+        val shortcut = shortcuts.getElementsByTagName("shortcut").let { list -> (0 until list.length).map { list.item(it) as Element } }.single()
+        assertEquals("share_logs", shortcut.getAttributeNS(android, "shortcutId"))
+        val target = shortcut.getElementsByTagName("intent").item(0) as Element
+        assertEquals("com.zyke.message", target.getAttributeNS(android, "targetPackage"))
+        assertEquals("com.zyke.message.presentation.ShareLogsActivity", target.getAttributeNS(android, "targetClass"))
+        assertTrue(File("src/main/res/drawable/ic_share_24.xml").exists())
+
+        // That activity must keep working when the rest of the app cannot start: no container, stores, view models or Compose.
+        val source = File("src/main/java/com/zyke/message/presentation/ShareLogsActivity.kt").readText()
+        assertFalse("AppContainer" in source || "ViewModel" in source || "SharedPreferences" in source || "androidx.compose" in source)
+        assertTrue(source.contains(": Activity()"))
 
         // Receivers exist for the widget, the morning alarm, the restart, the copy button and live alerts.
         val receivers = manifest.getElementsByTagName("receiver")
@@ -152,9 +178,11 @@ class ManifestPolicyTest {
         assertEquals("false", provider.getAttributeNS(android, "exported"))
         assertEquals("true", provider.getAttributeNS(android, "grantUriPermissions"))
 
-        // And it can only ever expose the reports folder of the private cache.
+        // And it can only ever expose the reports and shared-logs folders of the private cache.
         val paths = File("src/main/res/xml/file_paths.xml").readText()
         assertTrue("""<cache-path name="reports" path="reports/" />""" in paths)
+        assertTrue("""<cache-path name="shared_logs" path="shared_logs/" />""" in paths)
+        assertEquals(2, Regex("<cache-path ").findAll(paths).count())
         assertFalse("<external" in paths || "<files-path" in paths || "<root-path" in paths)
     }
 

@@ -41,7 +41,22 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), for an app that crashes on launch. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- The target of the "Share logs" launcher shortcut. No screen, no intent filter, not exported: the launcher
+             starts static shortcuts through the system on the app's own behalf, and nothing else can reach it. It only
+             opens the share sheet for the log files, so the person decides where they go. -->
+        <activity
+            android:name=".presentation.ShareLogsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:label="@string/shortcut_share_logs"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- Optional: reads incoming chat (RCS) messages from the messaging app's notifications, once the user allows it in system settings. -->
         <service

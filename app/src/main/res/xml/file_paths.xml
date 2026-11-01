@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the reports folder of the private cache can be shared, and only on request (see ReportSharing). -->
+<!-- Only the reports folder of the private cache can be shared, and only on request (see ReportSharing), and the log bundle (see LogShare). -->
 <paths>
     <cache-path name="reports" path="reports/" />
+    <cache-path name="shared_logs" path="shared_logs/" />
 </paths>

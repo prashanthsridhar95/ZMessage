@@ -543,6 +543,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             }
             SectionCard("About") {
                 VersionRow(versionName)
+                ShareLogsLink()
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
             }
         }
@@ -782,6 +783,26 @@ private fun GroupLabel(text: String) {
     )
 }
 
+/** The same sharing the launcher icon's "Share logs" shortcut does, for anyone: say what it holds, then open the share sheet. */
+private fun shareLogs(context: android.content.Context) {
+    when (com.zyke.message.data.diag.LogShare.share(context)) {
+        com.zyke.message.data.diag.LogShare.Result.SHARED -> Unit
+        com.zyke.message.data.diag.LogShare.Result.NOTHING_YET -> Toast.makeText(context, "No logs yet", Toast.LENGTH_SHORT).show()
+        com.zyke.message.data.diag.LogShare.Result.FAILED -> Toast.makeText(context, "Could not share the logs", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** Always visible (not behind the seven taps) so that anyone can send the start-up record when something is wrong. */
+@Composable
+private fun ShareLogsLink() {
+    val context = LocalContext.current
+    TextButton(onClick = { shareLogs(context) }) { Text("Share logs") }
+    Caption(
+        "A small text file of start-up steps and crash details (screen and function names, line numbers, how earlier runs ended). Never message text, amounts or names. It goes nowhere unless you pick an app to send it with. If the app crashes on launch, long-press its icon and choose Share logs.",
+        maxLines = 6
+    )
+}
+
 /** The version, which also unlocks developer options when tapped seven times, as on Android itself. */
 @Composable
 private fun VersionRow(versionName: String) {
@@ -836,14 +857,9 @@ private fun DeveloperContent() {
         )
         Caption("Log size: $sizeKb KB", Modifier.padding(top = 8.dp))
         AppButton(
-            "Share the log file",
-            {
-                val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
-                runCatching { ReportSharing.share(context, "zyke-log-$stamp.txt", com.zyke.message.data.diag.DevLog.readAll(), "text/plain", "Zyke Message developer log") }
-                    .onFailure { Toast.makeText(context, "Could not share the log", Toast.LENGTH_LONG).show() }
-            },
-            Modifier.fillMaxWidth().padding(top = 8.dp),
-            enabled = sizeKb > 0 || tail.isNotEmpty()
+            "Share logs",
+            { shareLogs(context) },
+            Modifier.fillMaxWidth().padding(top = 8.dp)
         )
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppButton("Refresh", { refresh += 1 }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)

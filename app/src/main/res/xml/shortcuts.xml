@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon. "Share logs" opens the share sheet with the black box and developer log, so a phone
+     where the app crashes on launch can still send them. The target is a plain activity that never touches the app. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="share_logs"
+        android:enabled="true"
+        android:icon="@drawable/ic_share_24"
+        android:shortcutShortLabel="@string/shortcut_share_logs"
+        android:shortcutLongLabel="@string/shortcut_share_logs">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.zyke.message"
+            android:targetClass="com.zyke.message.presentation.ShareLogsActivity" />
+    </shortcut>
+</shortcuts>

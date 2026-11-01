@@ -100,6 +100,13 @@ provider itself is never written to.
 2. Add a `MessageContent` subtype and a card composable in `presentation/messages/components`.
 3. Handle it in `MessageItem`. Add unit tests next to the existing ones.
 
+## If the app crashes on launch
+
+Long-press the Zyke Message icon on the home screen and choose **Share logs**. It opens the share sheet with one text file
+(start-up steps, crash class and function names, line numbers, how earlier runs ended; never message text, amounts or
+names) that you can send to whoever is helping. It works even when the app itself cannot start, and also from
+Settings, About, "Share logs". Nothing is sent unless you pick an app to send it with.
+
 ## Font
 
 The UI uses **Plus Jakarta Sans** (SIL OFL, `third_party/fonts/PlusJakartaSans-OFL.txt`), with Regular,
