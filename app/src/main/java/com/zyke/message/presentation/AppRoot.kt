@@ -29,6 +29,13 @@ import com.zyke.message.presentation.common.Motion
 import com.zyke.message.presentation.common.rememberReduceMotion
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
+import com.zyke.message.presentation.common.ChromeScale
+import com.zyke.message.presentation.common.FitText
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -165,7 +172,8 @@ fun AppRoot(
         LocalOpenLink provides { url -> if (isWebLink(url)) web.open(url) else openExternally(context, url) }
     ) {
     com.zyke.message.presentation.settings.LearningOffers()
-    Box(Modifier.fillMaxSize()) {
+    // A notch or punch-hole on the side (landscape) must not sit on top of the screens: pad the whole app by it.
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))) {
     Scaffold(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -202,7 +210,7 @@ fun AppRoot(
     SheetHostLayer(sheetHost)
     if (web.isOpen && web.minimised) MinimisedLink(web, Modifier.statusBarsPadding().navigationBarsPadding())
     if (tour != null) com.zyke.message.presentation.tour.TourHost(tour, tourRegistry)
-    com.zyke.message.presentation.common.PrivateSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))
+    com.zyke.message.presentation.common.PrivateSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding().padding(bottom = SNACKBAR_LIFT))
     }
     }
 }
@@ -216,15 +224,19 @@ fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, 
             Modifier.padding(horizontal = 8.dp),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
         )
-        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            AppTab.entries.forEach { tab ->
-                NavigationBarItem(
-                    modifier = Modifier.tourAnchor(navAnchor(tab)),
-                    selected = tab == selected,
-                    onClick = { onSelect(tab) },
-                    icon = { AnimatedTabIcon(tab, selected = tab == selected, badge = if (tab == AppTab.INBOX) inboxBadge else 0) },
-                    label = { Text(tab.label) }
-                )
+        // Five tabs on a 320 to 360 dp phone get 64 to 72 dp each: the labels follow the text size only up to 1.3, and a
+        // label that still does not fit shrinks (one line, never wrapped or cut mid-word) instead of overflowing.
+        ChromeScale {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                AppTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        modifier = Modifier.tourAnchor(navAnchor(tab)),
+                        selected = tab == selected,
+                        onClick = { onSelect(tab) },
+                        icon = { AnimatedTabIcon(tab, selected = tab == selected, badge = if (tab == AppTab.INBOX) inboxBadge else 0) },
+                        label = { FitText(tab.label, style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, minScale = 0.7f) }
+                    )
+                }
             }
         }
     }

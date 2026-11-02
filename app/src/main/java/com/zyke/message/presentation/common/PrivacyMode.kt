@@ -38,7 +38,9 @@ fun PrivateAmount(
     fontWeight: FontWeight? = null,
     textAlign: TextAlign? = null,
     maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip
+    overflow: TextOverflow = TextOverflow.Clip,
+    /** One line that shrinks (down to about half the size) to fit the room, for the big figures; see [FitText]. */
+    fit: Boolean = false
 ) {
     val privacy = LocalPrivacyMode.current
     if (privacy.hidden) {
@@ -50,6 +52,7 @@ fun PrivateAmount(
             color = color, style = style, fontWeight = fontWeight, textAlign = textAlign, maxLines = 1
         )
     } else {
-        Text(text, modifier, color = color, style = style, fontWeight = fontWeight, textAlign = textAlign, maxLines = maxLines, overflow = overflow)
+        if (fit && maxLines == 1) FitText(text, modifier, style = style, color = color, fontWeight = fontWeight, textAlign = textAlign)
+        else Text(text, modifier, color = color, style = style, fontWeight = fontWeight, textAlign = textAlign, maxLines = maxLines, overflow = overflow)
     }
 }

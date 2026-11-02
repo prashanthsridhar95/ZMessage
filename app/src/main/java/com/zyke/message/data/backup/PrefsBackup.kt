@@ -20,7 +20,7 @@ object PrefsBackup {
     // backup_secret (the wrapped backup key), backup_state (Drive link, last results, first-run marker) and backup_folder
     // (the chosen folder's access grant, which does not survive a reinstall) never travel (and tour_state, so a restored phone does not replay the tour): after a restore the folder
     // setting is off until the person picks a folder again.
-    private val EXCLUDED = setOf("sender_images", "developer", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state")
+    private val EXCLUDED = setOf("sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */

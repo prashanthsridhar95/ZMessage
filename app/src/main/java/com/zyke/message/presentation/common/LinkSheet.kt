@@ -143,7 +143,9 @@ fun LinkSheet(session: WebSession) {
 
     // Swiping the sheet away closes the page; "Minimise" keeps it, as a button that can be moved about.
     AppBottomSheet({ session.close() }) {
-        Column(Modifier.fillMaxWidth().height(640.dp)) {
+        // 640 dp on a tall phone; on a 700 dp one it would run past the screen, so it is four fifths of the window at most.
+        val room = (LocalResponsive.current.heightDp * LINK_SHEET_SHARE).dp
+        Column(Modifier.fillMaxWidth().height(if (room < LINK_SHEET_MAX) room else LINK_SHEET_MAX)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -254,3 +256,6 @@ fun MinimisedLink(session: WebSession, modifier: Modifier = Modifier) {
 private val FAB_SIZE = 56.dp
 private val TARGET_SIZE = 64.dp
 private val CLOSE_REACH = 64.dp
+
+private val LINK_SHEET_MAX = 640.dp
+private const val LINK_SHEET_SHARE = 0.8f

@@ -111,6 +111,7 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
     val step = controller.currentStep ?: return
     val progress = controller.progress ?: return
     val reduceMotion = rememberReduceMotion()
+    val lite = com.zyke.message.presentation.common.LocalLite.current
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
     var confirmLeave by remember { mutableStateOf(false) }
 
@@ -168,6 +169,26 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
         val ringWidth = with(density) { 2.dp.toPx() }
 
         // Decorative: the spotlight is for eyes; the card carries all the meaning for a screen reader.
+        if (lite) {
+            // Lite mode: no off-screen layer. The dim is four plain rectangles around the target (square cut-out),
+            // with the same rounded ring on top; far cheaper for a weak GPU than clearing a hole in a layer.
+            Canvas(Modifier.fillMaxSize().clearAndSetSemantics { }) {
+                val dim = scrimColor.copy(alpha = scrimAlpha)
+                if (animated.width > 1f && animated.height > 1f) {
+                    val top = animated.top.coerceIn(0f, size.height)
+                    val bottom = animated.bottom.coerceIn(0f, size.height)
+                    val left = animated.left.coerceIn(0f, size.width)
+                    val right = animated.right.coerceIn(0f, size.width)
+                    drawRect(dim, Offset.Zero, Size(size.width, top))
+                    drawRect(dim, Offset(0f, bottom), Size(size.width, size.height - bottom))
+                    drawRect(dim, Offset(0f, top), Size(left, bottom - top))
+                    drawRect(dim, Offset(right, top), Size(size.width - right, bottom - top))
+                    drawRoundRect(ringColor, animated.topLeft, animated.size, CornerRadius(radius), style = Stroke(ringWidth))
+                } else {
+                    drawRect(dim)
+                }
+            }
+        } else {
         Canvas(
             Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).clearAndSetSemantics { }
         ) {
@@ -176,6 +197,7 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
                 drawRoundRect(scrimColor, animated.topLeft, animated.size, CornerRadius(radius), blendMode = BlendMode.Clear)
                 drawRoundRect(ringColor, animated.topLeft, animated.size, CornerRadius(radius), style = Stroke(ringWidth))
             }
+        }
         }
 
         BoxWithConstraints(

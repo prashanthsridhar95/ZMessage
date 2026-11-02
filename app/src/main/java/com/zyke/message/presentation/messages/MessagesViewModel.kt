@@ -196,7 +196,7 @@ class MessagesViewModel(
         reduce { copy(isLoading = messages.isEmpty(), hasError = false) }
 
         observeJob = viewModelScope.launch {
-            observeMessages.calm()
+            observeMessages.calm { com.zyke.message.data.perf.LiteRuntime.calmGapMs() }
                 .catch { reduceFeed { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceFeed {
@@ -222,10 +222,10 @@ class MessagesViewModel(
         val query = if (updated.isSearching) updated.query else ""
         // The list, the conversations and the open thread read the same messages and nothing else: side by side.
         val (feed, conversations, thread) = kotlinx.coroutines.coroutineScope {
-            val threadWork = async(deriveContext) {
+            val threadWork = async(deriveContext) { com.zyke.message.data.perf.LiteRuntime.bounded {
                 updated.openThreadKey?.let { conversationBuilder.thread(updated.messages, it, updated.userState, zone) }
-            }
-            val feedWork = async(deriveContext) {
+            } }
+            val feedWork = async(deriveContext) { com.zyke.message.data.perf.LiteRuntime.bounded {
                 FeedBuilder.build(
                     messages = updated.messages,
                     userState = updated.userState,
@@ -234,10 +234,10 @@ class MessagesViewModel(
                     now = updated.now,
                     zone = zone
                 )
-            }
-            val conversationWork = async(deriveContext) {
+            } }
+            val conversationWork = async(deriveContext) { com.zyke.message.data.perf.LiteRuntime.bounded {
                 if (updated.viewMode == ViewMode.SENDERS) conversationBuilder.conversations(updated.messages, updated.userState, query) else emptyList()
-            }
+            } }
             Triple(feedWork.await(), conversationWork.await(), threadWork.await())
         }
         val key = updated.openThreadKey

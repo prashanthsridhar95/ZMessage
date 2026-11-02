@@ -819,12 +819,11 @@ private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
     }
     Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "See where it went", onClick = onOpen)) {
         Caption("Spent · ${periodName(month.range)}")
-        Text(
-            text = rememberAnimatedRupees(month.total),
+        com.zyke.message.presentation.common.FitText(
+            rememberAnimatedRupees(month.total),
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1
+            color = MaterialTheme.colorScheme.primary
         )
         note?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 2) }
     }

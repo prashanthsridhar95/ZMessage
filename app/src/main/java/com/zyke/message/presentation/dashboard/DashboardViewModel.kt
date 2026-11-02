@@ -158,7 +158,7 @@ class DashboardViewModel(
         if (observeJob?.isActive == true) return
 
         observeJob = viewModelScope.launch {
-            observeMessages.calm()
+            observeMessages.calm { com.zyke.message.data.perf.LiteRuntime.calmGapMs() }
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceDashboard { copy(isLoading = false, hasError = false, hasLoaded = true, messages = inbox, now = clock.instant()) }
@@ -225,7 +225,7 @@ class DashboardViewModel(
         // Each figure is worked out from the messages and the person's settings alone, so they are worked out side by side,
         // and one that none of its inputs changed for is not worked out again.
         val built = kotlinx.coroutines.coroutineScope {
-            fun <T> part(work: () -> T) = async(deriveContext) { work() }
+            fun <T> part(work: () -> T) = async(deriveContext) { com.zyke.message.data.perf.LiteRuntime.bounded(work) }
             val categoryDetail = part {
                 updated.openCategory?.let { open ->
                     memos.of("categoryDetail", scoped, query, open, now, updated.budgets, cycle) {

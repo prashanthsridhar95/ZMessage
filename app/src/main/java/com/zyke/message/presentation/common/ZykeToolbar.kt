@@ -1,5 +1,13 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -42,7 +50,8 @@ fun ZykeToolbar(
         modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .statusBarsPadding()
+            // Under the status bar, and under a camera cut-out that is taller than it (some budget phones).
+            .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top))
     ) {
         Row(
             Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 4.dp),
@@ -52,14 +61,19 @@ fun ZykeToolbar(
                 SearchField(search.query, search.onQueryChange, Modifier.weight(1f))
                 BarIcon(R.drawable.baseline_close_24, "Close search", false, 0, search.onClose)
             } else {
-                Image(
-                    modifier = Modifier.height(30.dp),
-                    painter = painterResource(R.drawable.zyke_main),
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                    contentDescription = "Zyke"
-                )
-                Spacer(Modifier.weight(1f))
-                actions()
+                // The buttons are measured first and keep their full size; the logo takes what is left and scales down
+                // rather than pushing a button off a narrow screen.
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    Image(
+                        modifier = Modifier.height(30.dp),
+                        painter = painterResource(R.drawable.zyke_main),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
+                        contentDescription = "Zyke"
+                    )
+                }
+                ChromeScale { Row(verticalAlignment = Alignment.CenterVertically) { actions() } }
             }
         }
     }

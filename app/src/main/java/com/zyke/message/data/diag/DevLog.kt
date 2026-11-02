@@ -25,10 +25,10 @@ object DevLog {
     private const val PREFS = "developer"
     private const val DEVELOPER = "developer_mode"
     private const val LOGGING = "logging"
+    private const val DEVICE = "device_profile"
     private const val MAX_BYTES = 1_500_000L
     private const val TAIL_LINES = 150
     private const val EXIT_HISTORY = 6
-    private const val MEMORY_EVERY_S = 5L
     private const val MB = 1024L * 1024L
     private const val KB = 1024L
     private const val EXIT_TRACE_CHARS = 8_000
@@ -49,6 +49,10 @@ object DevLog {
     /** Whether the person has unlocked developer options. */
     val developerMode: StateFlow<Boolean> = _developerMode.asStateFlow()
 
+    private val _device = MutableStateFlow(com.zyke.message.domain.device.DeviceProfile.OFF)
+    /** The pretend phone chosen under "Simulate a small phone"; only ever applied while developer mode is on (see [simulatedDevice]). */
+    val deviceProfile: StateFlow<com.zyke.message.domain.device.DeviceProfile> = _device.asStateFlow()
+
     private val _logging = MutableStateFlow(false)
     /** Whether lines are being written to the file now. */
     val logging: StateFlow<Boolean> = _logging.asStateFlow()
@@ -60,6 +64,7 @@ object DevLog {
         prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _developerMode.value = prefs?.getBoolean(DEVELOPER, false) == true
         _logging.value = _developerMode.value && prefs?.getBoolean(LOGGING, true) == true
+        _device.value = com.zyke.message.domain.device.DeviceProfile.decode(prefs?.getString(DEVICE, null))
         hook()
         if (_logging.value) {
             installCrashHandler()
@@ -71,6 +76,12 @@ object DevLog {
         prefs?.edit()?.putBoolean(DEVELOPER, on)?.apply()
         _developerMode.value = on
         if (on) setLogging(context, true) else setLogging(context, false)
+    }
+
+    /** Chooses the pretend phone; kept in the developer preferences, which no backup carries. */
+    fun setDeviceProfile(profile: com.zyke.message.domain.device.DeviceProfile) {
+        prefs?.edit()?.putString(DEVICE, com.zyke.message.domain.device.DeviceProfile.encode(profile))?.apply()
+        _device.value = profile
     }
 
     fun setLogging(context: Context, on: Boolean) {
@@ -89,7 +100,7 @@ object DevLog {
         // While logging, memory is noted every few seconds, so a crash for lack of memory shows what led up to it.
         watchMainThread(_logging.value)
         telemetryTask?.cancel(false)
-        telemetryTask = if (_logging.value) telemetry.scheduleWithFixedDelay({ memoryLine() }, 2, MEMORY_EVERY_S, java.util.concurrent.TimeUnit.SECONDS) else null
+        telemetryTask = if (_logging.value) telemetry.scheduleWithFixedDelay({ memoryLine() }, 2, com.zyke.message.data.perf.LiteRuntime.memoryEverySeconds(), java.util.concurrent.TimeUnit.SECONDS) else null
     }
 
     private const val SLOW_MAIN_MS = 100L

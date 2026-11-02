@@ -241,7 +241,8 @@ internal fun CollapsedHeroBar(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1
+            maxLines = 1,
+            fit = true
         )
         DashboardControls(dashboard.direction, onDirection, Modifier.weight(1.4f))
     }

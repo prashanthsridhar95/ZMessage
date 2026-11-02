@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MarqueeSpacing
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -156,6 +157,7 @@ fun MarketStrip(onOpen: () -> Unit) {
     val ticker = LocalContext.current.marketTicker()
     val state by ticker.state.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(16.dp)
+    val still = com.zyke.message.presentation.common.rememberReduceMotion()
     Row(
         Modifier
             .fillMaxWidth()
@@ -178,7 +180,11 @@ fun MarketStrip(onOpen: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .clearAndSetSemantics { contentDescription = "Market watch. " + rows.joinToString(". ") { spoken(it) } }
-                    .basicMarquee(iterations = Int.MAX_VALUE, repeatDelayMillis = 0, spacing = MarqueeSpacing(24.dp), velocity = SCROLL_DP_PER_SECOND.dp),
+                    // Lite mode (or reduced motion): nothing scrolls by itself; the strip is swiped by hand instead.
+                    .then(
+                        if (still) Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                        else Modifier.basicMarquee(iterations = Int.MAX_VALUE, repeatDelayMillis = 0, spacing = MarqueeSpacing(24.dp), velocity = SCROLL_DP_PER_SECOND.dp)
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 rows.forEach { row ->

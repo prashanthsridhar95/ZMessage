@@ -251,7 +251,8 @@ private fun Hero(review: YearInReview, onShare: () -> Unit) {
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1
+            maxLines = 1,
+            fit = true
         )
         Caption("across ${DisplayFormatters.count(review.transactionCount, "payment or credit", "payments and credits")}", maxLines = 2)
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -483,7 +483,7 @@ private fun CategorySheet(
         Column(
             Modifier.fillMaxWidth()
         ) {
-            Text(
+            com.zyke.message.presentation.common.FitText(
                 DisplayFormatters.rupees(detail.total),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,

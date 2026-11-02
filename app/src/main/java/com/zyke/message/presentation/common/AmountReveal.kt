@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
@@ -144,7 +145,15 @@ fun AmountsVisibleChip(modifier: Modifier = Modifier) {
                 }
                 .clickable(role = Role.Button, onClickLabel = "Hide amounts now") { reveal.hideNow() }
         ) {
-            Text(if (openEnded) "Visible · tap to hide" else "Visible · $label", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            // On a narrow phone the chip is only the countdown: the toolbar has four buttons and the logo to fit beside it.
+            val narrow = LocalResponsive.current.isCompact || LocalDensity.current.fontScale >= 1.15f
+            val words = when {
+                narrow && openEnded -> "Visible"
+                narrow -> label
+                openEnded -> "Visible · tap to hide"
+                else -> "Visible · $label"
+            }
+            Text(words, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }

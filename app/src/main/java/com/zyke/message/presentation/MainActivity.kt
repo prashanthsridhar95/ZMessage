@@ -264,8 +264,24 @@ class MainActivity : ComponentActivity() {
             "${info.versionName} (installed $installed)"
         }.getOrNull().orEmpty() }
 
+        // Lite mode (see LiteMode): known before the first screen is built, and followed when the choice or the detection changes.
+        com.zyke.message.data.perf.LiteRuntime.apply(
+            com.zyke.message.domain.model.LiteMode.resolve(container.settings.settings.value.performanceMode, com.zyke.message.data.perf.LowEnd.detected.value)
+        )
+        lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(container.settings.settings.map { it.performanceMode }, com.zyke.message.data.perf.LowEnd.detected) { mode, detected ->
+                com.zyke.message.domain.model.LiteMode.resolve(mode, detected)
+            }.distinctUntilChanged().collect { com.zyke.message.data.perf.LiteRuntime.apply(it) }
+        }
+
         setContent {
             val appSettings by container.settings.settings.collectAsStateWithLifecycle()
+            val lowEnd by com.zyke.message.data.perf.LowEnd.detected.collectAsStateWithLifecycle()
+            val lite = com.zyke.message.domain.model.LiteMode.resolve(appSettings.performanceMode, lowEnd)
+            // The developer's pretend phone counts only while developer options are on.
+            val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+            val pretend by com.zyke.message.data.diag.DevLog.deviceProfile.collectAsStateWithLifecycle()
+            val profile = if (developer) pretend else com.zyke.message.domain.device.DeviceProfile.OFF
             val darkTheme = when (appSettings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -281,6 +297,7 @@ class MainActivity : ComponentActivity() {
             }
             val amountsRevealed by amountReveal.revealed.collectAsStateWithLifecycle()
             CompositionLocalProvider(
+                com.zyke.message.presentation.common.LocalLite provides lite,
                 LocalImageStore provides container.imageStore,
                 com.zyke.message.presentation.backup.LocalBackupHost provides backupHost,
                 com.zyke.message.presentation.common.LocalAmountReveal provides amountReveal,
@@ -301,6 +318,11 @@ class MainActivity : ComponentActivity() {
                 }
             ) {
             ZykeMessageTheme(darkTheme = darkTheme, trueBlack = appSettings.themeMode == ThemeMode.BLACK, accent = appSettings.accent, customAccent = appSettings.customAccent) {
+            com.zyke.message.presentation.common.SimulatedDevice(
+                profile = profile,
+                onReset = { com.zyke.message.data.diag.DevLog.setDeviceProfile(com.zyke.message.domain.device.DeviceProfile.OFF) }
+            ) {
+            com.zyke.message.presentation.common.ProvideResponsive(isLowEnd = lowEnd) {
                 val locked by lockedState
                 // Behind the lock screen nothing is asked; once it is open, the permissions are.
                 var welcomePending by remember { mutableStateOf(container.welcomeStillPending()) }
@@ -452,6 +474,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 }
+            }
+            }
             }
             }
         }

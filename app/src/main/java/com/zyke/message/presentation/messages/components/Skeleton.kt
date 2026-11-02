@@ -30,7 +30,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MessageListSkeleton(modifier: Modifier = Modifier, rows: Int = 7) {
     val reduce = rememberReduceMotion()
-    val animated by rememberInfiniteTransition(label = "skeleton").animateFloat(
+    // No looping pulse with reduced motion or in lite mode: the placeholder just sits there, so no frame is requested.
+    val pulse = if (reduce) null else rememberInfiniteTransition(label = "skeleton").animateFloat(
         initialValue = 0.25f,
         targetValue = 0.6f,
         animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
@@ -40,7 +41,7 @@ fun MessageListSkeleton(modifier: Modifier = Modifier, rows: Int = 7) {
 
     // One announcement instead of a screenful of empty boxes.
     // Read while drawing, so the pulse repaints the placeholder instead of recomposing every row of it on each frame.
-    Column(modifier.graphicsLayer { alpha = if (reduce) 0.4f else animated }.clearAndSetSemantics { contentDescription = "Loading messages" }) {
+    Column(modifier.graphicsLayer { alpha = pulse?.value ?: 0.4f }.clearAndSetSemantics { contentDescription = "Loading messages" }) {
         repeat(rows) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.size(60.dp).background(block, RoundedCornerShape(16.dp)))

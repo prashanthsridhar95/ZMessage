@@ -357,7 +357,7 @@ class HomeViewModel(
         if (observeJob?.isActive == true) return
 
         observeJob = viewModelScope.launch {
-            observeMessages.calm()
+            observeMessages.calm { com.zyke.message.data.perf.LiteRuntime.calmGapMs() }
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceHome {
@@ -402,7 +402,7 @@ class HomeViewModel(
             // The parts that read only the messages and the person's settings are independent pure functions of them:
             // worked out side by side, one task each (the default dispatcher keeps that to the number of cores).
             val parts = kotlinx.coroutines.coroutineScope {
-                fun <T> part(work: () -> T) = async(deriveContext) { work() }
+                fun <T> part(work: () -> T) = async(deriveContext) { com.zyke.message.data.perf.LiteRuntime.bounded(work) }
                 val dashboard = part {
                     memo("dashboard", msgs, updated.budgets, cycle, now) {
                         DashboardBuilder.build(msgs, DashboardQuery(), now, zone, updated.budgets, cycle)

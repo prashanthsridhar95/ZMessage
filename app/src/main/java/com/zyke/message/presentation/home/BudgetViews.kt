@@ -90,7 +90,8 @@ internal fun TodayBudget(daily: DailyBudgetStatus, onAdjust: () -> Unit = {}) {
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Bold,
             color = color,
-            maxLines = 1
+            maxLines = 1,
+            fit = true
         )
         Caption(
             if (over) "over today's ${DisplayFormatters.rupees(daily.allowance)}"

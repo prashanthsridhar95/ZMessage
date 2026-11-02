@@ -97,7 +97,8 @@ internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifi
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                maxLines = 1
+                maxLines = 1,
+                fit = true
             )
             Caption(
                 DisplayFormatters.count(overview.countedBalances, "bank account", "bank accounts"),
@@ -126,8 +127,9 @@ internal fun CardsHero(cards: List<AccountSummary>, modifier: Modifier = Modifie
             Caption("No cards yet", Modifier.padding(top = 2.dp))
             return@FintechCard
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f)) {
+        // Side by side on a normal phone, one above the other on a narrow one or at large text.
+        com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth(), spacing = 16.dp) {
+            Column(Modifier.cell()) {
                 Caption("BILLED")
                 com.zyke.message.presentation.common.PrivateAmount(
                     rememberAnimatedRupees(billed),
@@ -135,11 +137,12 @@ internal fun CardsHero(cards: List<AccountSummary>, modifier: Modifier = Modifie
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
+                    maxLines = 1,
+                    fit = true
                 )
                 Caption("to pay on bills", Modifier.padding(top = 2.dp), maxLines = 1)
             }
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.cell()) {
                 Caption("UNBILLED")
                 com.zyke.message.presentation.common.PrivateAmount(
                     rememberAnimatedRupees(unbilled),
@@ -147,7 +150,8 @@ internal fun CardsHero(cards: List<AccountSummary>, modifier: Modifier = Modifie
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.tertiary,
-                    maxLines = 1
+                    maxLines = 1,
+                    fit = true
                 )
                 Caption("spent, not billed yet", Modifier.padding(top = 2.dp), maxLines = 1)
             }
@@ -189,7 +193,8 @@ internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.d
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                maxLines = 1
+                maxLines = 1,
+                fit = true
             )
             Caption(DisplayFormatters.count(count, "fund", "funds"), Modifier.padding(top = 2.dp), maxLines = 2)
         } else {
@@ -442,7 +447,7 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
     val asOf = fund.balanceAsOf
     FintechCard(onClick = onOpen) {
         Caption("PROVIDENT FUND  ••  ${fund.last4}")
-        Text(
+        com.zyke.message.presentation.common.FitText(
             fund.balance?.let { DisplayFormatters.rupees(it) } ?: "—",
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
@@ -473,7 +478,7 @@ private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onOpen: () -> U
     val asOf = pf.balanceAsOf
     FintechCard(onClick = onOpen) {
         Caption("PROVIDENT FUND (EPF)")
-        Text(
+        com.zyke.message.presentation.common.FitText(
             (pf.balance ?: latest.added)?.let { DisplayFormatters.rupees(it) } ?: "—",
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
@@ -569,7 +574,7 @@ internal fun AccountSheet(
                         else -> "BALANCE"
                     }
                 )
-                Text(
+                com.zyke.message.presentation.common.FitText(
                     (if (account.kind == AccountKind.CREDIT_CARD && account.unbilled != null) account.unbilled else if (account.isCard) account.dueAmount else account.balance)
                         ?.let { DisplayFormatters.rupees(it) } ?: "—",
                     style = MaterialTheme.typography.displaySmall,

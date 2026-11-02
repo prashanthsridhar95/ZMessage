@@ -161,12 +161,12 @@ private fun countdown(departure: Long?, now: Long, status: String): String {
 @Composable
 private fun JourneyScene(mode: TravelMode, progress: Float, onScrub: (Float?) -> Unit, modifier: Modifier = Modifier) {
     val reduceMotion = rememberReduceMotion()
-    val transition = rememberInfiniteTransition(label = "scene")
-    val loop by transition.animateFloat(
+    // The loop only exists while motion is allowed: with reduced motion or lite mode no clock is running at all.
+    val loop = if (reduceMotion) null else rememberInfiniteTransition(label = "scene").animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(LOOP_MS, easing = LinearEasing), RepeatMode.Restart), label = "loop"
     )
-    val t = if (reduceMotion) 0f else loop
+    val t = loop?.value ?: 0f
     val hop = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 

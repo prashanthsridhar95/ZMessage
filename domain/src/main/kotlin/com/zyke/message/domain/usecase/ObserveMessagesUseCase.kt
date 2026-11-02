@@ -98,11 +98,14 @@ class ObserveMessagesUseCase(
      * The same inbox for a screen that rebuilds a lot from it: the first list at once; while older months are still
      * being read, at most one list per [minGapMs] (the newest is kept, never dropped); afterwards every change at once.
      */
-    fun calm(minGapMs: Long = CALM_GAP_MS): Flow<List<ClassifiedMessage>> = kotlinx.coroutines.flow.flow {
+    fun calm(minGapMs: Long = CALM_GAP_MS): Flow<List<ClassifiedMessage>> = calm { minGapMs }
+
+    /** [calm] with the gap asked for each time it matters, so it can follow a setting that changes while the app runs. */
+    fun calm(minGapMs: () -> Long): Flow<List<ClassifiedMessage>> = kotlinx.coroutines.flow.flow {
         var last = 0L
         invoke().conflate().collect { list ->
             if (last != 0L && !progress.value.isDone) {
-                val wait = minGapMs - (System.currentTimeMillis() - last)
+                val wait = minGapMs() - (System.currentTimeMillis() - last)
                 if (wait > 0) kotlinx.coroutines.delay(wait)
             }
             emit(list)

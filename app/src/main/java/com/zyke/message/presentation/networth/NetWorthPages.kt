@@ -115,7 +115,8 @@ internal fun NetWorthCard(accounts: List<AccountSummary>, messages: List<Classif
             figure, Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold,
             color = if (report.netWorth.signum() < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            maxLines = 1
+            maxLines = 1,
+            fit = true
         )
         if (total.signum() > 0) {
             val assetShare = assets.divide(total, 4, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0.02f, 0.98f)

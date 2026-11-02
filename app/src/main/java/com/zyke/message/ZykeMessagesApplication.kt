@@ -27,6 +27,8 @@ class ZykeMessagesApplication : Application() {
         BlackBox.install(this)
         // Then the verbose developer log, which writes only when developer mode is on.
         runCatching { com.zyke.message.data.diag.DevLog.init(this) }.onFailure { BlackBox.mark("lifecycle", "developer log could not start: ${it.javaClass.simpleName}") }
+        // Whether this is a low-end phone: a cached answer at once, worked out on a background thread the first time.
+        runCatching { com.zyke.message.data.perf.LowEnd.init(this) }
         BlackBox.mark("lifecycle", "building the container")
         runCatching { container }.onFailure { BlackBox.mark("lifecycle", "container failed: ${it.javaClass.simpleName}") }
         // The stores are built on first use; start building them now, in parallel and off the main thread, so the
