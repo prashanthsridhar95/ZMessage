@@ -125,7 +125,7 @@ object Tours {
         TourStep(
             "accounts.networth", G.ACCOUNTS, "Net worth",
             "Pull down at the top of Accounts to reveal your net worth: what you own minus what you owe. Tap the card for the full page.",
-            tab = T.ACCOUNTS, anchor = A.ACCOUNTS_TABS, needsData = true, preview = V.NET_WORTH,
+            tab = T.ACCOUNTS, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.NET_WORTH,
             tip = "It stays hidden until you ask for it.", actionLabel = "Try it: pull down",
             covers = setOf("accounts.net_worth")
         ),
@@ -183,7 +183,7 @@ object Tours {
         TourStep(
             "bills.friends", G.BILLS, "Split with friends",
             "Split any payment from its detail, then see who owes you. Friends keeps a running balance for each person and lets you settle up.",
-            tab = T.BILLS, anchor = A.BILLS_FRIENDS, needsData = true, preview = V.FRIEND_SPLIT,
+            tab = T.BILLS, fallbackAnchor = A.BILLS_FRIENDS, needsData = true, preview = V.FRIEND_SPLIT,
             covers = setOf("bills.split", "bills.friends")
         ),
 
@@ -202,13 +202,13 @@ object Tours {
         TourStep(
             "messages.detail", G.MESSAGES, "Open any message",
             "Tap a message to rename the merchant, pick a category (or make your own), and add a picture for it.",
-            tab = T.MESSAGES, anchor = A.NAV_MESSAGES, needsData = true, preview = V.MESSAGE_DETAIL,
+            tab = T.MESSAGES, fallbackAnchor = A.NAV_MESSAGES, needsData = true, preview = V.MESSAGE_DETAIL,
             covers = setOf("messages.detail", "messages.rename", "messages.category", "messages.custom_categories", "messages.picture")
         ),
         TourStep(
             "messages.detail2", G.MESSAGES, "Notes, tags and totals",
             "Add notes and tags, leave a payment out of totals or mark it a transfer, and link it to a goal.",
-            tab = T.MESSAGES, anchor = A.NAV_MESSAGES, needsData = true, preview = V.MESSAGE_DETAIL,
+            tab = T.MESSAGES, fallbackAnchor = A.NAV_MESSAGES, needsData = true, preview = V.MESSAGE_DETAIL,
             covers = setOf("messages.notes_tags", "messages.leave_out", "messages.goal_link")
         ),
         TourStep(

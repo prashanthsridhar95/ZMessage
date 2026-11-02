@@ -232,6 +232,13 @@ class TourPolicyDecisionTest {
         assertEquals(9, s.savedIndex)
     }
 
+    @Test fun aTourThatKeepsFailingAtTheSameStepIsGivenUp() {
+        var s = TourState().withKind(TourInstallKind.FRESH).started(0).moved(9)
+        repeat(TourPolicy.MAX_RESUMES) { assertEquals(TourOffer.RESUME, TourPolicy.offer(s)); s = s.resumed() }
+        assertEquals(TourOffer.BANNER, TourPolicy.offer(s))
+        assertEquals(TourOffer.RESUME, TourPolicy.offer(s.moved(10)))
+    }
+
     @Test fun restoreClearsARunningTourAndMarksTheInstall() {
         val s = TourState().withKind(TourInstallKind.FRESH).started(0).moved(9).restored()
         assertEquals(TourInstallKind.RESTORED, s.installKind)

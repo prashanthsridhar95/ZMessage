@@ -60,6 +60,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.presentation.tour.isHomePage
+import com.zyke.message.presentation.tour.navAnchor
+import com.zyke.message.presentation.tour.toApp
+import com.zyke.message.presentation.tour.toTour
+import com.zyke.message.presentation.tour.tourAnchor
 
 private const val TAB_SLIDE_DIVISOR = 12
 
@@ -93,6 +99,10 @@ fun AppRoot(
     /** Opens one message's sheet on Home, for a page (such as Tags) that lists payments. */
     onOpenMessage: (Long) -> Unit = {},
     onOpenSubscriptions: () -> Unit = {},
+    /** The guided tour, drawn above everything but the snackbar; null where there is none. */
+    tour: com.zyke.message.presentation.tour.TourController? = null,
+    /** How the tour opens Home's own pages (Calendar, Goals, Reminders). */
+    tourHome: com.zyke.message.presentation.tour.TourHomeNav? = null,
     content: @Composable (tab: AppTab, modifier: Modifier, navigate: (AppTab) -> Unit) -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(StartTab) }
@@ -110,6 +120,33 @@ fun AppRoot(
     val pageHost = remember { com.zyke.message.presentation.common.PageHost() }
     val snackbar = remember { SnackbarHostState() }
 
+    val tourRegistry = remember { com.zyke.message.presentation.tour.TourRegistry() }
+    val tourNavigator = remember(tourHome) {
+        object : com.zyke.message.presentation.tour.TourNavigator {
+            private var shown: com.zyke.message.domain.tour.TourPage? = null
+            override fun currentTab() = tab.toTour()
+            override fun showTab(target: com.zyke.message.domain.tour.TourTab) { tab = target.toApp() }
+            override fun open(page: com.zyke.message.domain.tour.TourPage?) {
+                val old = shown
+                shown = page
+                if (old != null && old != page && old.isHomePage) tourHome?.close(old)
+                showSearch = page == com.zyke.message.domain.tour.TourPage.SEARCH
+                val inSettings = page?.isSettings == true
+                showSettings = inSettings
+                com.zyke.message.presentation.tour.TourSettingsRequest.active = inSettings
+                com.zyke.message.presentation.tour.TourSettingsRequest.group = page?.settingsGroup
+                if (page != null && page.isHomePage && page != old) tourHome?.open(page)
+            }
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(tour, tourNavigator) {
+        tour?.attach(tourNavigator)
+        onDispose {
+            tour?.detach(tourNavigator)
+            com.zyke.message.presentation.tour.TourSettingsRequest.active = false
+        }
+    }
+
     val customCategories by remember(context) {
         (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container.customCategories.state
     }.collectAsState()
@@ -118,6 +155,9 @@ fun AppRoot(
         LocalSheetHost provides sheetHost,
         com.zyke.message.presentation.common.LocalPageHost provides pageHost,
         LocalAppSnackbar provides snackbar,
+        com.zyke.message.presentation.tour.LocalTourRegistry provides tourRegistry,
+        com.zyke.message.presentation.tour.LocalTourActive provides (tour?.isRunning == true),
+        com.zyke.message.presentation.tour.LocalTour provides tour,
         LocalOpenSettings provides { showSettings = true },
         com.zyke.message.presentation.common.LocalOpenSearch provides { showSearch = true },
         com.zyke.message.presentation.common.LocalOpenSubscriptions provides { showSettings = false; showSearch = false; tab = AppTab.HOME; onOpenSubscriptions() },
@@ -130,7 +170,7 @@ fun AppRoot(
         // The Zyke toolbar handles the status bar and the bottom bar the navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { toolbar(tab) { showSettings = true } },
-        bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }) }
+        bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }, modifier = Modifier.tourAnchor(TourAnchor.NAV_BAR)) }
     ) { padding ->
         Column(Modifier.padding(padding)) {
         topNote()
@@ -161,6 +201,7 @@ fun AppRoot(
     com.zyke.message.presentation.common.PageHostLayer(pageHost)
     SheetHostLayer(sheetHost)
     if (web.isOpen && web.minimised) MinimisedLink(web, Modifier.statusBarsPadding().navigationBarsPadding())
+    if (tour != null) com.zyke.message.presentation.tour.TourHost(tour, tourRegistry)
     com.zyke.message.presentation.common.PrivateSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = SNACKBAR_LIFT))
     }
     }
@@ -178,6 +219,7 @@ fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, 
         NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
             AppTab.entries.forEach { tab ->
                 NavigationBarItem(
+                    modifier = Modifier.tourAnchor(navAnchor(tab)),
                     selected = tab == selected,
                     onClick = { onSelect(tab) },
                     icon = { AnimatedTabIcon(tab, selected = tab == selected, badge = if (tab == AppTab.INBOX) inboxBadge else 0) },

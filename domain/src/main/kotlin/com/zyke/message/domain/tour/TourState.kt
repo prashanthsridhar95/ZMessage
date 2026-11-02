@@ -30,26 +30,32 @@ data class TourState(
     val bannerDismissedVersion: Int = 0,
     val running: Boolean = false,
     val savedIndex: Int = 0,
-    val autoPlay: Boolean = false
+    val autoPlay: Boolean = false,
+    /** Times a tour was resumed at the same step without the person getting past it: a guard against a crash loop. */
+    val resumeAttempts: Int = 0
 ) {
     val completed: Boolean get() = completedVersion >= TOUR_VERSION
 
     fun withKind(kind: TourInstallKind): TourState = if (installKind == null) copy(installKind = kind) else this
     fun invited(): TourState = copy(offered = true)
     fun started(fromIndex: Int): TourState = copy(offered = true, running = true, savedIndex = fromIndex)
-    fun moved(index: Int): TourState = if (running) copy(savedIndex = index) else this
-    fun finished(): TourState = copy(offered = true, running = false, savedIndex = 0, completedVersion = TOUR_VERSION)
+    fun moved(index: Int): TourState = if (running && index != savedIndex) copy(savedIndex = index, resumeAttempts = 0) else this
+    fun resumed(): TourState = copy(resumeAttempts = resumeAttempts + 1)
+    fun finished(): TourState = copy(offered = true, running = false, savedIndex = 0, resumeAttempts = 0, completedVersion = TOUR_VERSION)
     /** Left early: not completed, so the banner can still offer it; nothing to resume. */
-    fun left(): TourState = copy(offered = true, running = false, savedIndex = 0)
+    fun left(): TourState = copy(offered = true, running = false, savedIndex = 0, resumeAttempts = 0)
     fun bannerDismissed(): TourState = copy(bannerDismissedVersion = TOUR_VERSION)
     /** After a restore the person is not new here: remember it, and make sure no tour is half open. */
-    fun restored(): TourState = copy(installKind = TourInstallKind.RESTORED, running = false, savedIndex = 0)
+    fun restored(): TourState = copy(installKind = TourInstallKind.RESTORED, running = false, savedIndex = 0, resumeAttempts = 0)
     fun withAutoPlay(on: Boolean): TourState = copy(autoPlay = on)
 }
 
 object TourPolicy {
     /** An install that already holds a setup, or was updated (not first installed) some time ago, is not new. */
     const val FRESH_WINDOW_MS = 120_000L
+
+    /** A tour that keeps failing at the same step is given up on after this many resumes. */
+    const val MAX_RESUMES = 2
 
     fun classify(hasSetupData: Boolean, millisSinceFirstInstallAtLastUpdate: Long): TourInstallKind =
         if (!hasSetupData && millisSinceFirstInstallAtLastUpdate < FRESH_WINDOW_MS) TourInstallKind.FRESH else TourInstallKind.UPDATED
@@ -60,7 +66,7 @@ object TourPolicy {
      * banner, until it is dismissed or the tour is finished.
      */
     fun offer(state: TourState): TourOffer = when {
-        state.running && state.savedIndex > 0 -> TourOffer.RESUME
+        state.running && state.savedIndex > 0 && state.resumeAttempts < MAX_RESUMES -> TourOffer.RESUME
         state.completed -> TourOffer.NONE
         state.installKind == TourInstallKind.FRESH && !state.offered -> TourOffer.INVITE
         state.bannerDismissedVersion >= TOUR_VERSION -> TourOffer.NONE
