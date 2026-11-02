@@ -23,6 +23,9 @@ object BillPayments {
     private val AGGREGATOR = Regex("(?i)\\bcred(?:\\.?club)?\\b|\\bbbps\\b|\\bbill\\s*desk\\b|\\bbharat\\s*bill\\b|\\bcc\\s*bill\\b")
     private val CARD_BILL_WORDS = Regex("(?i)\\b(?:credit\\s*card|card)\\b.*\\b(?:bill|dues?|outstanding|payment)\\b|\\b(?:bill|dues?|outstanding|payment)\\b.*\\b(?:credit\\s*card|card)\\b")
 
+    /** "Credit Card XX9999", "CreditCard Payment XX 9999": a card the message names by its digits. */
+    private val CARD_DIGITS = Regex("(?i)card\\s*(?:no\\.?\\s*|payment\\s*)?[x*•]*\\s*(\\d{4})\\b")
+
     private val WHITESPACE = Regex("[\\s\\u00a0]+")
 
     /** What one message body says about a bill payment; worked out once per body, not once per bill that is checked against it. */
@@ -123,14 +126,17 @@ object BillPayments {
                 val fact = facts.of(message.message)
                 val body = fact.flat
                 val tx = message.content as? MessageContent.Transaction
-                val onThisCard = mentionsCard(body, last4) || (tx != null && tx.isCard && tx.accountNumber.endsWith(last4)) ||
-                    // A bank's note that a card bill was debited often leaves the card's digits out: the card's bank and the
-                    // words "card" and "bill" or "payment" then have to carry it.
-                    (fact.billWords && bankNamed(bill, body))
+                val named = mentionsCard(body, last4) || (tx != null && tx.isCard && tx.accountNumber.endsWith(last4))
+                // A note that names a different card by its digits (another card of the bank, or a debit paying another
+                // bank's card) is not this bill.
+                val otherCard = !named && CARD_DIGITS.findAll(body).any { it.groupValues[1] != last4 }
                 val billWords = fact.billWords
+                // A bank's note that a card bill was debited often leaves the card's digits out: the card's bank and the
+                // words "card" and "bill" or "payment" then have to carry it.
+                val onThisCard = named || (!otherCard && billWords && bankNamed(bill, body))
                 val viaService = billWords || fact.aggregator || AGGREGATOR.containsMatchIn(tx?.payee.orEmpty())
                 // Naming no card, a debit for a card bill can still be this bill when it is for the whole of it.
-                val wholeBillOnly = !onThisCard && viaService && tx?.isReceived != true
+                val wholeBillOnly = !onThisCard && !otherCard && viaService && tx?.isReceived != true
                 if ((!onThisCard && !wholeBillOnly) || !fact.paidWords || fact.notYet) return@firstNotNullOfOrNull null
                 // Spending on the card is not paying it, however much it was.
                 if (tx != null && tx.isCard && !tx.isReceived && tx.payee.isNotBlank() && !billWords || fact.spend && tx?.isReceived != true) return@firstNotNullOfOrNull null

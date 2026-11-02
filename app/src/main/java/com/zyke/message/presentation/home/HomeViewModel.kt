@@ -429,7 +429,7 @@ class HomeViewModel(
                 }
                 val attention = part {
                     memo("attention", live, us.dismissedAttention, now, us.dismissedAt) {
-                        AttentionBuilder.build(live.filter { !it.isPromotional }, us.dismissedAttention, now, zone, us.dismissedAt)
+                        AttentionBuilder.build(AttentionBuilder.eligible(live), us.dismissedAttention, now, zone, us.dismissedAt)
                     }
                 }
                 val upcoming = part {

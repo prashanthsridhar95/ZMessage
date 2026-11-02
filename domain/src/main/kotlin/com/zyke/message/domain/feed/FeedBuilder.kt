@@ -58,7 +58,7 @@ object FeedBuilder {
 
         return Feed(
             attention = if (isAll) {
-                AttentionBuilder.build(live.filter { !it.isPromotional }, userState.dismissedAttention, now, zone, userState.dismissedAt)
+                AttentionBuilder.build(AttentionBuilder.eligible(live), userState.dismissedAttention, now, zone, userState.dismissedAt)
             } else {
                 emptyList()
             },

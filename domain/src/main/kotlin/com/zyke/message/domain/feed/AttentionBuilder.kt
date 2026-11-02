@@ -1,5 +1,6 @@
 package com.zyke.message.domain.feed
 
+import com.zyke.message.domain.diag.DiagLog
 import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
@@ -17,6 +18,13 @@ object AttentionBuilder {
     private val BILL_WITHOUT_DUE_DATE_WINDOW: Duration = Duration.ofDays(BILL_WITHOUT_DUE_DATE_DAYS)
     private val BILL_MAX_AGE: Duration = Duration.ofDays(BILL_MAX_AGE_DAYS)
 
+    /**
+     * The messages the strip reads. Marketing (and a muted sender, which is treated the same) stays out, except a card bill
+     * or FASTag alert: a bill that is due is not marketing, and the Bills list shows it whatever the flag says.
+     */
+    fun eligible(messages: List<ClassifiedMessage>): List<ClassifiedMessage> =
+        messages.filter { !it.isPromotional || it.content is MessageContent.CardBill || it.content is MessageContent.FastTag }
+
     /** @param messages newest first */
     fun build(
         messages: List<ClassifiedMessage>,
@@ -26,12 +34,29 @@ object AttentionBuilder {
         dismissedAt: Map<String, Long> = emptyMap()
     ): List<AttentionItem> {
         val today = LocalDate.ofInstant(now, zone)
-        val items = listOfNotNull(freshOtp(messages, now)) + bills(messages, now, today, zone) + lowFastTags(messages)
-        return items.filter { item ->
+        val counts = IntArray(COUNTS)
+        val items = listOfNotNull(freshOtp(messages, now)) + bills(messages, now, today, zone, counts) + lowFastTags(messages)
+        val shown = items.filter { item ->
             val due = (item as? AttentionItem.BillDue)?.dueDate
             !Dismissals.isHidden(item.key, due, today, zone, dismissed, dismissedAt)
-        }.take(MAX_ITEMS)
+        }
+        val final = shown.take(MAX_ITEMS)
+        if (final.isEmpty() && counts[CANDIDATES] > 0) {
+            // Counts only: which step removed the card bills that exist.
+            DiagLog.d("attention") {
+                "no attention items: card bills ${counts[CANDIDATES]}, cards ${counts[CARDS]}, out of date ${counts[STALE]}, " +
+                    "paid ${counts[PAID]}, left ${counts[CARDS] - counts[STALE] - counts[PAID]}, dismissed ${items.size - shown.size}, " +
+                    "dismissals ${dismissed.size}+${dismissedAt.size}, final 0"
+            }
+        }
+        return final
     }
+
+    private const val CANDIDATES = 0
+    private const val CARDS = 1
+    private const val STALE = 2
+    private const val PAID = 3
+    private const val COUNTS = 4
 
     private fun freshOtp(messages: List<ClassifiedMessage>, now: Instant): AttentionItem? {
         val newest = messages.firstOrNull { it.content is MessageContent.Otp } ?: return null
@@ -40,16 +65,18 @@ object AttentionBuilder {
         return AttentionItem.FreshOtp(newest, otp.code, otp.senderName)
     }
 
-    private fun bills(messages: List<ClassifiedMessage>, now: Instant, today: LocalDate, zone: ZoneId): List<AttentionItem> =
+    private fun bills(messages: List<ClassifiedMessage>, now: Instant, today: LocalDate, zone: ZoneId, counts: IntArray): List<AttentionItem> =
         messages
             .filter { it.content is MessageContent.CardBill }
+            .also { counts[CANDIDATES] = it.size }
             .distinctBy {
                 val bill = it.content as MessageContent.CardBill
                 bill.bankName to bill.accountNumber
             }
-            .filter { isStillRelevant(it, it.content as MessageContent.CardBill, now, today) }
+            .also { counts[CARDS] = it.size }
+            .filter { isStillRelevant(it, it.content as MessageContent.CardBill, now, today).also { ok -> if (!ok) counts[STALE]++ } }
             // Once the provider says it was paid, the bill no longer needs attention.
-            .filter { BillPayments.find(it, it.content as MessageContent.CardBill, messages, zone) == null }
+            .filter { (BillPayments.find(it, it.content as MessageContent.CardBill, messages, zone) == null).also { ok -> if (!ok) counts[PAID]++ } }
             .map {
                 val bill = it.content as MessageContent.CardBill
                 val bank = bill.bankName
