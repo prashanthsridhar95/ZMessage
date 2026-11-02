@@ -30,5 +30,7 @@ data class AppSettings(
     /** The seed (0xFFRRGGBB) behind [AccentColor.CUSTOM]; null when none has been chosen. */
     val customAccent: Long? = null,
     /** Which launcher icon colour is enabled (see [AppIconChoice]); the manifest state follows this. */
-    val appIcon: AppIconChoice = AppIconChoice.DEFAULT
+    val appIcon: AppIconChoice = AppIconChoice.DEFAULT,
+    /** How much motion and polish the app spends; Automatic goes lite on phones with little memory (see [LiteMode]). */
+    val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC
 )

@@ -29,7 +29,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             revealDuration = com.zyke.message.domain.privacy.RevealDuration.fromStored(prefs.getString(REVEAL_DURATION, null)),
             accent = com.zyke.message.domain.model.AccentColor.fromStored(prefs.getString(ACCENT, null)),
             customAccent = com.zyke.message.domain.model.ColorMath.parseHex(prefs.getString(CUSTOM_ACCENT, null)),
-            appIcon = com.zyke.message.domain.model.AppIconChoice.fromStored(prefs.getString(APP_ICON, null))
+            appIcon = com.zyke.message.domain.model.AppIconChoice.fromStored(prefs.getString(APP_ICON, null)),
+            performanceMode = com.zyke.message.domain.model.PerformanceMode.fromStored(prefs.getString(PERFORMANCE_MODE, null))
         )
     )
     override val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -113,6 +114,11 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _settings.value = _settings.value.copy(accent = accent)
     }
 
+    override fun setPerformanceMode(mode: com.zyke.message.domain.model.PerformanceMode) {
+        prefs.edit().putString(PERFORMANCE_MODE, mode.name).apply()
+        _settings.value = _settings.value.copy(performanceMode = mode)
+    }
+
     override fun setAppIcon(icon: com.zyke.message.domain.model.AppIconChoice) {
         prefs.edit().putString(APP_ICON, icon.id).apply()
         _settings.value = _settings.value.copy(appIcon = icon)
@@ -120,6 +126,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private companion object {
         const val APP_ICON = "app_icon"
+        const val PERFORMANCE_MODE = "performance_mode"
         const val HIDE_AMOUNTS = "hide_amounts"
         const val AUTH_FOR_AMOUNTS = "auth_for_amounts"
         const val REVEAL_DURATION = "reveal_duration"

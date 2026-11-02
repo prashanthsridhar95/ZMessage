@@ -40,4 +40,6 @@ interface SettingsRepository {
 
     /** Remembers the launcher icon colour; the caller switches the manifest alias (AppIconSwitcher). */
     fun setAppIcon(icon: com.zyke.message.domain.model.AppIconChoice) = Unit
+
+    fun setPerformanceMode(mode: com.zyke.message.domain.model.PerformanceMode) = Unit
 }
