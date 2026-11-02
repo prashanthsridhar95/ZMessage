@@ -915,6 +915,16 @@ private fun UpcomingRow(
                     color = if (urgent) MaterialTheme.colorScheme.error else mutedColor(),
                     maxLines = 2
                 )
+                // Part of it was paid, not all: say how much, and how much is left.
+                val partPaid = item.partPaid
+                if (partPaid != null) {
+                    val left = (item.amount - partPaid).max(java.math.BigDecimal.ZERO)
+                    Caption(
+                        "Part paid ${DisplayFormatters.rupees(partPaid)} \u00B7 ${DisplayFormatters.rupees(left)} left",
+                        color = ChartColors.warning,
+                        maxLines = 2
+                    )
+                }
             }
         },
         amount = { AmountText(DisplayFormatters.rupees(item.paidAmount ?: item.amount), if (paid) good else MaterialTheme.colorScheme.secondary) },

@@ -102,27 +102,27 @@ object BillPayments {
     }
 
     /**
-     * The first message after the bill that says it was paid: it names the card's last digits, speaks of a payment that
-     * happened (not one that will), and carries an amount from the minimum due up to the whole bill.
+     * Every message after the bill that says money went towards it: it names the card's last digits, speaks of a payment
+     * that happened (not one that will), and carries an amount from the minimum due up to the whole bill, oldest first.
      *
      * A bank account's note that money went "towards credit card payment", or to CRED or a bill-payment service, often
-     * names no card at all. When it carries the whole bill's amount, to the rupee, that is taken as the bill being paid
+     * names no card at all. When it carries the whole bill's amount, to the rupee, that is taken as a payment of the bill
      * (a part payment still has to name the card or its bank).
      */
-    fun find(
+    fun payments(
         billMessage: ClassifiedMessage,
         bill: MessageContent.CardBill,
         messages: List<ClassifiedMessage>,
         zone: ZoneId
-    ): BillPayment? {
-        val total = bill.amount.toBigDecimalOrNull() ?: return null
+    ): List<BillPayment> {
+        val total = bill.amount.toBigDecimalOrNull() ?: return emptyList()
         val minimum = bill.minimumDue?.toBigDecimalOrNull() ?: total.multiply(BigDecimal("0.05"))
         val last4 = bill.accountNumber.filter { it.isDigit() }.takeLast(4)
-        if (last4.length < 4) return null
+        if (last4.length < 4) return emptyList()
         val later = laterThan(messages, billMessage.message.date)
         return later.asSequence()
             .filter { it.id != billMessage.id }
-            .firstNotNullOfOrNull { message ->
+            .mapNotNull { message ->
                 val fact = facts.of(message.message)
                 val body = fact.flat
                 val tx = message.content as? MessageContent.Transaction
@@ -137,13 +137,64 @@ object BillPayments {
                 val viaService = billWords || fact.aggregator || AGGREGATOR.containsMatchIn(tx?.payee.orEmpty())
                 // Naming no card, a debit for a card bill can still be this bill when it is for the whole of it.
                 val wholeBillOnly = !onThisCard && !otherCard && viaService && tx?.isReceived != true
-                if ((!onThisCard && !wholeBillOnly) || !fact.paidWords || fact.notYet) return@firstNotNullOfOrNull null
+                if ((!onThisCard && !wholeBillOnly) || !fact.paidWords || fact.notYet) return@mapNotNull null
                 // Spending on the card is not paying it, however much it was.
-                if (tx != null && tx.isCard && !tx.isReceived && tx.payee.isNotBlank() && !billWords || fact.spend && tx?.isReceived != true) return@firstNotNullOfOrNull null
+                if (tx != null && tx.isCard && !tx.isReceived && tx.payee.isNotBlank() && !billWords || fact.spend && tx?.isReceived != true) return@mapNotNull null
                 val amounts = fact.amounts
                 val amount = (if (wholeBillOnly) amounts.firstOrNull { (it - total).abs() <= TOLERANCE }
-                else amounts.firstOrNull { it >= minimum - TOLERANCE && it <= total + TOLERANCE }) ?: return@firstNotNullOfOrNull null
+                else amounts.firstOrNull { it >= minimum - TOLERANCE && it <= total + TOLERANCE }) ?: return@mapNotNull null
                 BillPayment(Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), amount, message.id)
             }
+            .toList()
     }
+
+    private fun total(bill: MessageContent.CardBill): BigDecimal? = bill.amount.toBigDecimalOrNull()
+
+    /** What has been paid towards the bill, counting one payment once however many messages told of it (same day, same amount). */
+    private fun paidSum(payments: List<BillPayment>): BigDecimal =
+        payments.distinctBy { it.date to it.amount }.fold(BigDecimal.ZERO) { sum, payment -> sum + payment.amount }
+
+    /**
+     * That the whole bill was paid, and when: one payment of all of it, or part payments that add up to it (to the rupee).
+     * A part payment alone is not this; see [partial]. The amount is what was paid in all.
+     */
+    fun find(
+        billMessage: ClassifiedMessage,
+        bill: MessageContent.CardBill,
+        messages: List<ClassifiedMessage>,
+        zone: ZoneId
+    ): BillPayment? {
+        val total = total(bill) ?: return null
+        val all = payments(billMessage, bill, messages, zone)
+        if (all.isEmpty()) return null
+        val paid = paidSum(all)
+        if (paid < total - TOLERANCE) return null
+        // The payment that made it whole is the last one; the day it was paid is that day.
+        val last = all.maxByOrNull { it.date } ?: all.last()
+        return BillPayment(last.date, paid, last.messageId)
+    }
+
+    /** Part of the bill was paid, not all of it: how much so far (and when the latest part went), else null. */
+    fun partial(
+        billMessage: ClassifiedMessage,
+        bill: MessageContent.CardBill,
+        messages: List<ClassifiedMessage>,
+        zone: ZoneId
+    ): BillPayment? {
+        val total = total(bill) ?: return null
+        val all = payments(billMessage, bill, messages, zone)
+        if (all.isEmpty()) return null
+        val paid = paidSum(all)
+        if (paid >= total - TOLERANCE) return null
+        val last = all.maxByOrNull { it.date } ?: all.last()
+        return BillPayment(last.date, paid, last.messageId)
+    }
+
+    /** What has been paid towards the bill in all, whole or part; null when nothing has. */
+    fun paidSoFar(
+        billMessage: ClassifiedMessage,
+        bill: MessageContent.CardBill,
+        messages: List<ClassifiedMessage>,
+        zone: ZoneId
+    ): BigDecimal? = payments(billMessage, bill, messages, zone).takeIf { it.isNotEmpty() }?.let { paidSum(it) }
 }

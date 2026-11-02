@@ -22,7 +22,9 @@ data class UpcomingItem(
     val paymentLink: String? = null,
     /** The day the bill was paid, for a bill that has been; such a bill is kept for that day only. */
     val paidOn: LocalDate? = null,
-    val paidAmount: BigDecimal? = null
+    val paidAmount: BigDecimal? = null,
+    /** Part of a card bill was paid, not all of it: how much so far. The bill stays upcoming for the rest. */
+    val partPaid: BigDecimal? = null
 ) {
     /** What "Mark as paid" stores, so a bill the person says they paid (outside the messages) stays gone. */
     val markedPaidKey: String get() = "paid-$key-$date"
@@ -52,6 +54,7 @@ object UpcomingBuilder {
             val due = card.latest.dueDate ?: return@mapNotNull null
             val message = byId[card.latest.messageId] ?: return@mapNotNull null
             val paid = (message.content as? MessageContent.CardBill)?.let { BillPayments.find(message, it, messages, zone) }
+            val part = if (paid != null) null else (message.content as? MessageContent.CardBill)?.let { BillPayments.partial(message, it, messages, zone) }
             // Paid before today: done and gone. Paid today: shown as paid, for today only.
             if (paid != null && !(includePaidToday && paid.date == today)) return@mapNotNull null
             UpcomingItem(
@@ -63,7 +66,8 @@ object UpcomingBuilder {
                 message = message,
                 paymentLink = card.latest.paymentLink.takeIf { paid == null },
                 paidOn = paid?.date,
-                paidAmount = paid?.amount
+                paidAmount = paid?.amount,
+                partPaid = part?.amount
             )
         }
 

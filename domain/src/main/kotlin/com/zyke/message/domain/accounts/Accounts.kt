@@ -75,7 +75,9 @@ data class AccountSummary(
     val detectedBank: BankName = bankName,
     val detectedKind: AccountKind = kind,
     /** What the person set for this account; null when they have not. */
-    val override: AccountOverride? = null
+    val override: AccountOverride? = null,
+    /** Part of the latest bill was paid (all of it was not): how much so far, from the payment messages. */
+    val billPartPaid: BigDecimal? = null
 ) {
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 
@@ -215,6 +217,7 @@ object Accounts {
             val statementOn = if (kind != AccountKind.CREDIT_CARD) null else (card?.statementDay ?: suggested)?.let { lastStatement(today, it) } ?: billedOn
             var unbilled: BigDecimal? = null
             var paidSinceBill: BigDecimal? = null
+            var partPaid: BigDecimal? = null
             if (kind == AccountKind.CREDIT_CARD) {
                 unbilled = statementOn?.let { since ->
                     rows.fold(BigDecimal.ZERO) { sum, row ->
@@ -234,8 +237,9 @@ object Accounts {
                 }?.takeIf { it.signum() > 0 }
                 // A payment made from a bank account may never have reached the card's own messages: the bank's debit note counts too.
                 val newestBill = rows.filter { it.message.content is MessageContent.CardBill }.maxByOrNull { it.message.message.date }?.message
-                val viaMessages = newestBill?.let { BillPayments.find(it, it.content as MessageContent.CardBill, messages, zone) }?.amount
+                val viaMessages = newestBill?.let { BillPayments.paidSoFar(it, it.content as MessageContent.CardBill, messages, zone) }
                 if (viaMessages != null && (paidSinceBill == null || viaMessages > paidSinceBill!!)) paidSinceBill = viaMessages
+                partPaid = newestBill?.let { BillPayments.partial(it, it.content as MessageContent.CardBill, messages, zone) }?.amount
             }
 
             val markedFund = key in providentFunds
@@ -275,7 +279,8 @@ object Accounts {
                 statementOn = statementOn,
                 unbilled = unbilled,
                 billedOn = billedOn,
-                paidSinceBill = paidSinceBill
+                paidSinceBill = paidSinceBill,
+                billPartPaid = partPaid
             )
         }.let { fromMessages ->
             // An account or card the person added is listed even before a message mentions it.

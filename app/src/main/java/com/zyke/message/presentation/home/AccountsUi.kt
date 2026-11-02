@@ -159,6 +159,8 @@ internal fun CardStatusPanel(
     val due = card.dueDate
     val dueAmount = card.dueAmount
     val unbilled = card.unbilled?.takeIf { it.signum() > 0 }
+    val partPaid = card.billPartPaid?.takeIf { dueAmount != null && !card.billPaid }
+    val partLeft = if (partPaid != null && dueAmount != null) (dueAmount - partPaid).max(BigDecimal.ZERO) else null
     val limit = card.userCard?.creditLimit
     val owed = remember(card) { NetWorth.cardOwed(card) }
     val use = remember(owed, limit) { AccountInsights.utilisation(owed, limit) }
@@ -168,6 +170,7 @@ internal fun CardStatusPanel(
         append(card.title).append(" ending ").append(card.last4).append(". ")
         if (!hidden) {
             if (dueOpen && dueAmount != null) append("Bill ${DisplayFormatters.rupees(dueAmount)}, ${DisplayFormatters.dueLabel(due!!, today)}. ")
+            if (partPaid != null && partLeft != null) append("Part paid ${DisplayFormatters.rupees(partPaid)}, ${DisplayFormatters.rupees(partLeft)} left. ")
             if (unbilled != null) append("Unbilled ${DisplayFormatters.rupees(unbilled)}. ")
             if (use != null) append("${(use * 100).toInt()} percent of the limit used. ")
         } else append("Amounts hidden.")
@@ -180,6 +183,7 @@ internal fun CardStatusPanel(
                 StatusPill(DisplayFormatters.dueLabel(due, today), if (days <= 3) Tone.BAD else Tone.WARN)
             }
             if (card.billPaid) StatusPill("Bill paid", Tone.GOOD)
+            else if (partPaid != null) StatusPill("Part paid", Tone.WARN)
             if (markedPaid && dueOpen) StatusPill("Marked as paid", Tone.GOOD)
             if (unbilled != null) StatusPill("Unbilled", Tone.NEUTRAL)
         }
@@ -194,6 +198,12 @@ internal fun CardStatusPanel(
                 Caption("UNBILLED")
                 PrivateAmount(unbilled?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             }
+        }
+        if (partPaid != null && partLeft != null) {
+            Caption(
+                "${DisplayFormatters.rupees(partPaid)} of ${DisplayFormatters.rupees(dueAmount ?: partPaid)} paid \u00B7 ${DisplayFormatters.rupees(partLeft)} left",
+                Modifier.padding(top = 8.dp), color = ChartColors.warning, maxLines = 2
+            )
         }
         // Paying it is one tap away, and so is saying it was paid some other way.
         val payLink = bill?.paymentLink ?: card.paymentLink

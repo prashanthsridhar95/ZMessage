@@ -53,7 +53,54 @@ class BillPaidAutomaticallyTest {
     @Test
     fun aPartPaymentStillHasToNameTheCard() {
         assertEquals(1, needingAttention("Rs 5,000.00 debited from A/c XX5678 on 30-10-26 towards credit card payment" to 5).size)
-        assertTrue(needingAttention("Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 5).isEmpty())
+        // A part payment that does name the card is a part payment: the bill is not settled until all of it is paid.
+        assertEquals(1, needingAttention("Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 5).size)
+    }
+
+    private fun billMessage() = msg(bill, 0)
+
+    private fun paymentsFor(vararg later: Pair<String, Long>): Triple<com.zyke.message.domain.model.ClassifiedMessage, com.zyke.message.domain.model.MessageContent.CardBill, List<com.zyke.message.domain.model.ClassifiedMessage>> {
+        val b = billMessage()
+        val others = later.map { (body, days) -> msg(body, days, "AX-BANK") }
+        val all = (listOf(b) + others).sortedByDescending { it.message.date }
+        return Triple(b, b.content as com.zyke.message.domain.model.MessageContent.CardBill, all)
+    }
+
+    @Test
+    fun aPartPayment_isReportedAsPartial_withWhatWasPaid() {
+        val (b, content, all) = paymentsFor("Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 5)
+        assertEquals(null, com.zyke.message.domain.home.BillPayments.find(b, content, all, zone))
+        val part = com.zyke.message.domain.home.BillPayments.partial(b, content, all, zone)
+        assertEquals(java.math.BigDecimal("5000.00"), part?.amount)
+    }
+
+    @Test
+    fun twoPartPayments_thatAddUp_settleTheBill() {
+        val (b, content, all) = paymentsFor(
+            "Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 4,
+            "Rs 7,345.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 6
+        )
+        val whole = com.zyke.message.domain.home.BillPayments.find(b, content, all, zone)
+        assertEquals(java.math.BigDecimal("12345.00"), whole?.amount)
+        assertEquals(null, com.zyke.message.domain.home.BillPayments.partial(b, content, all, zone))
+    }
+
+    @Test
+    fun theSamePaymentToldTwice_isCountedOnce() {
+        val (b, content, all) = paymentsFor(
+            "Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 5,
+            "Payment of Rs 5,000.00 received on your HDFC Bank Credit Card XX1234" to 5
+        )
+        assertEquals(java.math.BigDecimal("5000.00"), com.zyke.message.domain.home.BillPayments.paidSoFar(b, content, all, zone))
+    }
+
+    @Test
+    fun aPartPaidBill_staysUpcoming_withTheAmountPaid() {
+        val (_, _, all) = paymentsFor("Rs 5,000.00 debited from A/c XX5678 towards HDFC Bank Credit Card XX1234 payment" to 5)
+        val today = java.time.LocalDate.ofInstant(now, zone)
+        val item = com.zyke.message.domain.home.UpcomingBuilder.build(all, today, zone = zone).single { it.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL }
+        assertEquals(java.math.BigDecimal("5000.00"), item.partPaid)
+        assertEquals(null, item.paidOn)
     }
 
     @Test
