@@ -250,6 +250,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         BalanceReader.history(state.messages, zone).mapValues { (_, list) -> com.zyke.message.domain.accounts.AccountInsights.balanceSeries(list) }
     }
     val openSettings = com.zyke.message.presentation.common.LocalOpenSettings.current
+    val markPaidBill = rememberMarkPaid(onIntent)
     if (showNetWorth) {
         com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
     }
@@ -348,11 +349,27 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             val front = cards.getOrNull(deckState.currentPage.coerceIn(0, cards.lastIndex))
             if (front != null) {
                 item(key = "card-front-" + front.key) {
+                    // This card's open bill, from the upcoming list: it has what "Mark as paid" stores. A bill that is open in
+                    // the messages but gone from that list (and not paid in them) was marked as paid by hand.
+                    val frontBill = remember(state.upcoming, front.last4) {
+                        state.upcoming.firstOrNull { item ->
+                            val content = item.message.content as? com.zyke.message.domain.model.MessageContent.CardBill
+                            item.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL && content != null &&
+                                content.accountNumber.filter { it.isDigit() }.takeLast(4) == front.last4
+                        }
+                    }
+                    val frontDue = front.dueDate
+                    val handMarked = !state.isLoading && frontBill == null && !front.billPaid && frontDue != null &&
+                        !frontDue.isBefore(today) && !frontDue.isAfter(today.plusDays(30))
                     CardStatusPanel(
                         front, today,
                         onOpen = { onIntent(HomeContract.Intent.OpenAccount(front.key)) },
                         onRename = { renamingKey = front.key },
-                        onLeaveOut = { leavingKey = front.key }
+                        onLeaveOut = { leavingKey = front.key },
+                        bill = frontBill,
+                        markedPaid = handMarked,
+                        onMarkPaid = { frontBill?.let { markPaidBill(it) } },
+                        onPay = { link -> onIntent(HomeContract.Intent.OpenLink(link)) }
                     )
                 }
             }

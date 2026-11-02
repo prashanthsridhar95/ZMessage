@@ -148,7 +148,13 @@ internal fun CardStatusPanel(
     today: LocalDate,
     onOpen: () -> Unit,
     onRename: () -> Unit,
-    onLeaveOut: () -> Unit
+    onLeaveOut: () -> Unit,
+    /** The upcoming-bill entry of this card's open bill, when there is one: it carries what "Mark as paid" needs. */
+    bill: com.zyke.message.domain.home.UpcomingItem? = null,
+    /** The bill was marked as paid by hand (it is open in the messages but no longer upcoming). */
+    markedPaid: Boolean = false,
+    onMarkPaid: () -> Unit = {},
+    onPay: (String) -> Unit = {}
 ) {
     val due = card.dueDate
     val dueAmount = card.dueAmount
@@ -169,11 +175,12 @@ internal fun CardStatusPanel(
     FintechCard(Modifier.semantics { contentDescription = description }, onClick = onOpen) {
         Row(verticalAlignment = Alignment.Top) {
         FlowRow(Modifier.weight(1f).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (dueOpen && due != null) {
+            if (dueOpen && due != null && !markedPaid) {
                 val days = java.time.temporal.ChronoUnit.DAYS.between(today, due)
                 StatusPill(DisplayFormatters.dueLabel(due, today), if (days <= 3) Tone.BAD else Tone.WARN)
             }
             if (card.billPaid) StatusPill("Bill paid", Tone.GOOD)
+            if (markedPaid && dueOpen) StatusPill("Marked as paid", Tone.GOOD)
             if (unbilled != null) StatusPill("Unbilled", Tone.NEUTRAL)
         }
         AccountActions(card.title, isCard = true, onOpen, onRename, onLeaveOut)
@@ -186,6 +193,28 @@ internal fun CardStatusPanel(
             Column(horizontalAlignment = Alignment.End) {
                 Caption("UNBILLED")
                 PrivateAmount(unbilled?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            }
+        }
+        // Paying it is one tap away, and so is saying it was paid some other way.
+        val payLink = bill?.paymentLink ?: card.paymentLink
+        if (dueOpen && bill != null && bill.paidOn == null) {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (payLink != null) {
+                    AppButton(
+                        "Pay bill", { onPay(payLink) },
+                        Modifier.weight(1f).semantics { contentDescription = "Pay the ${card.title} bill" },
+                        style = ButtonStyle.PRIMARY, size = ButtonSize.COMPACT
+                    )
+                }
+                AppButton(
+                    "Mark as paid", onMarkPaid,
+                    Modifier.weight(1f).semantics { contentDescription = "Mark the ${card.title} bill as paid" },
+                    style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT
+                )
             }
         }
         if (use != null && limit != null) {

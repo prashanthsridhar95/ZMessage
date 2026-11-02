@@ -861,7 +861,7 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit, mo
 
 /** The person says it is paid: the bill goes from the list and the attention strip, and a tap on Undo brings it back. */
 @Composable
-private fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit {
+internal fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit {
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val paidBills = rememberPaidBills()
