@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -80,10 +81,13 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
 
+/** Tall enough for the tallest of the three heroes on the Accounts tab, so switching tabs never moves what is below. */
+private val ACCOUNTS_HERO_MIN_HEIGHT = 176.dp
+
 /** What the accounts hold in all, as the one big number on Home. */
 @Composable
-internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
-    FintechCard(onClick = onOpen) {
+internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    FintechCard(modifier, onClick = onOpen) {
         Caption("TOTAL BALANCE")
         val total = overview.totalBalance
         if (total != null) {
@@ -112,10 +116,10 @@ internal fun BalanceHero(overview: AccountsOverview, onOpen: () -> Unit) {
  * statement that is not on a bill yet. Both are sums over the cards the person sees.
  */
 @Composable
-internal fun CardsHero(cards: List<AccountSummary>) {
+internal fun CardsHero(cards: List<AccountSummary>, modifier: Modifier = Modifier) {
     val billed = remember(cards) { outstandingBilled(cards) }
     val unbilled = remember(cards) { cards.fold(java.math.BigDecimal.ZERO) { sum, card -> sum + (card.unbilled?.takeIf { it.signum() > 0 } ?: java.math.BigDecimal.ZERO) } }
-    FintechCard {
+    FintechCard(modifier) {
         if (cards.isEmpty()) {
             Caption("CARDS")
             Text("Your cards", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
@@ -133,7 +137,7 @@ internal fun CardsHero(cards: List<AccountSummary>) {
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1
                 )
-                Caption("to pay on bills", Modifier.padding(top = 2.dp), maxLines = 2)
+                Caption("to pay on bills", Modifier.padding(top = 2.dp), maxLines = 1)
             }
             Column(Modifier.weight(1f)) {
                 Caption("UNBILLED")
@@ -145,7 +149,7 @@ internal fun CardsHero(cards: List<AccountSummary>) {
                     color = MaterialTheme.colorScheme.tertiary,
                     maxLines = 1
                 )
-                Caption("spent, not billed yet", Modifier.padding(top = 2.dp), maxLines = 2)
+                Caption("spent, not billed yet", Modifier.padding(top = 2.dp), maxLines = 1)
             }
         }
         Caption(
@@ -168,7 +172,7 @@ internal fun outstandingBilled(cards: List<AccountSummary>): java.math.BigDecima
 
 /** The Investments tab's big number: what the funds hold (provident funds the person marked, or the one from the passbook). */
 @Composable
-internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.domain.pf.ProvidentFund?) {
+internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.domain.pf.ProvidentFund?, modifier: Modifier = Modifier) {
     val total = remember(funds, pf) {
         val counted = funds.mapNotNull { it.balance }
         val fromPassbook = if (funds.isEmpty()) pf?.balance else null
@@ -176,7 +180,7 @@ internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.d
         if (all.isEmpty()) null else all.fold(java.math.BigDecimal.ZERO) { a, b -> a + b }
     }
     val count = if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0
-    FintechCard {
+    FintechCard(modifier) {
         Caption("TOTAL INVESTMENTS")
         if (total != null) {
             com.zyke.message.presentation.common.PrivateAmount(
@@ -297,10 +301,12 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 animationSpec = if (reduceMotion) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(220),
                 label = "accounts-hero"
             ) { which ->
+                // One height for all three, so the tabs under the hero stay where they are when the tab changes.
+                val same = Modifier.fillMaxWidth().heightIn(min = ACCOUNTS_HERO_MIN_HEIGHT)
                 when (which) {
-                    1 -> CardsHero(cards)
-                    2 -> InvestmentsHero(funds, pf)
-                    else -> BalanceHero(overview, onOpen = {})
+                    1 -> CardsHero(cards, same)
+                    2 -> InvestmentsHero(funds, pf, same)
+                    else -> BalanceHero(overview, onOpen = {}, modifier = same)
                 }
             }
         }
@@ -359,7 +365,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                         }
                     }
                     val frontDue = front.dueDate
-                    val handMarked = !state.isLoading && frontBill == null && !front.billPaid && frontDue != null &&
+                    val handMarked = !state.isLoading && frontBill == null && !front.billPaid && front.billPartPaid == null && frontDue != null &&
                         !frontDue.isBefore(today) && !frontDue.isAfter(today.plusDays(30))
                     CardStatusPanel(
                         front, today,
