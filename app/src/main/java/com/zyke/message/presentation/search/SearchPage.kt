@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.search
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -311,7 +315,7 @@ private fun SearchScreen(
                 )
             }
             SearchField(
-                query, onQuery, Modifier.weight(1f),
+                query, onQuery, Modifier.weight(1f).tourAnchor(TourAnchor.SEARCH_FIELD),
                 placeholder = "Search payments, accounts, bills", onSearch = onSearch, focusDelayMs = FOCUS_DELAY_MS
             )
         }

@@ -30,7 +30,7 @@ enum class TourAnchor {
     BILLS_DUE, BILLS_REPEATS, BILLS_FRIENDS,
     MESSAGES_FEED, MESSAGES_SEARCH,
     SEARCH_FIELD,
-    SETTINGS_HUB_MONEY, SETTINGS_HUB_MESSAGES, SETTINGS_HUB_APP, SETTINGS_GROUP_BODY, SETTINGS_BACKUP
+    SETTINGS_GROUP_BODY, SETTINGS_BACKUP
 }
 
 /** The small made-up example shown in the coach card when the real thing is not on screen yet (a fresh install has no data). */

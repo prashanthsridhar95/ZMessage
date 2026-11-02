@@ -55,7 +55,7 @@ class TourContentTest {
     }
 
     @Test fun onlyTheStepsThatAskForAnActionBlockAutoPlay() {
-        assertTrue(steps.single { it.id == "accounts.networth" }.needsAction)
+        assertTrue(steps.first().copy(actionLabel = "Try it").needsAction)
         assertFalse(steps.first().needsAction)
     }
 

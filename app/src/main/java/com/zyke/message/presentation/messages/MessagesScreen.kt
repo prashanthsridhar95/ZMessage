@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.messages
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import androidx.compose.foundation.clickable
 import com.zyke.message.presentation.common.LocalOpenSettings
 import android.Manifest
@@ -173,7 +177,8 @@ fun MessagesScreen(
             if (ready) {
                 InboxModeBar(
                     mode = state.viewMode,
-                    onMode = { onIntent(Intent.SetViewMode(it)) }
+                    onMode = { onIntent(Intent.SetViewMode(it)) },
+                    modifier = Modifier.tourAnchor(TourAnchor.MESSAGES_FEED)
                 ) {
                     when {
                         state.viewMode == ViewMode.TIMELINE && !state.isSearching -> QuickFilterTabs(

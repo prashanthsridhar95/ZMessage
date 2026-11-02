@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.dashboard
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.dashboard.components.DirectionSwitch
 import com.zyke.message.presentation.dashboard.components.DirectionHeader
@@ -253,6 +257,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         com.zyke.message.presentation.review.yearToReview(state.messages, today, ZoneId.systemDefault())
     }
 
+    TourScroll(TourTab.INSIGHTS, listState)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
@@ -289,7 +294,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         } else {
             item(key = "hero") {
-                FintechCard {
+                FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_MONTH)) {
                     IncomeExpenseCard(
                         dashboard, state.expenseTrend, state.incomeTrend, state.period,
                         onShift = { onIntent(Intent.ShiftCycle(it)) },
@@ -307,7 +312,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
         val reportCard = state.reportCard
         if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
-            item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }) }
+            item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }, modifier = Modifier.tourAnchor(TourAnchor.INSIGHTS_REPORT_CARD)) }
         }
 
         state.monthlySummary?.takeIf { it.income.signum() > 0 || it.spent.signum() > 0 || it.changes.isNotEmpty() }?.let { summary ->
@@ -320,14 +325,16 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         // The salary strip belongs to the forecast: inside its card when there is one, on its own when there is not.
         if (state.forecast != null || state.salaryRunway != null) {
             item(key = "forecast") {
+              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_FORECAST)) {
                 val forecast = state.forecast
                 if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway, summary = state.monthlySummary.takeIf { !state.source.isActive }, insights = state.planInsights)
                 else state.salaryRunway?.let { com.zyke.message.presentation.dashboard.components.SalaryStripCard(it) }
+              }
             }
         }
         item(key = "subscriptions-entry") {
             val open = com.zyke.message.presentation.common.LocalOpenSubscriptions.current
-            com.zyke.message.presentation.common.FintechCard(onClick = open) {
+            com.zyke.message.presentation.common.FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_SUBSCRIPTIONS), onClick = open) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
                         com.zyke.message.presentation.messages.components.RowTitle("Subscriptions")
@@ -353,6 +360,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
             // The figures fade from the old side to the new one, and each section reads the figures it is fading to.
             item(key = "categories") {
+              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_CATEGORIES)) {
                 FadeBetweenDirections(dashboard) { shown ->
                     val shownTotal = shown.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
                     SectionCard(
@@ -375,6 +383,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                         }
                     }
                 }
+              }
             }
 
             item(key = "vendors") {

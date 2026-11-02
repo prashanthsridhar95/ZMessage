@@ -1,6 +1,11 @@
 package com.zyke.message.presentation
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.zyke.message.R
 import com.zyke.message.presentation.common.ToolbarSearch
 import com.zyke.message.presentation.common.ZykeToolbar
@@ -42,34 +47,44 @@ fun AppToolbar(
         )
         else -> ZykeToolbar {
             if (tab == AppTab.INBOX && inbox.buttonsVisible) {
-                BarIcon(R.drawable.baseline_search_24, "Search", false, 0, callbacks.onToggleSearch)
+                androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.MESSAGES_SEARCH)) {
+                    BarIcon(R.drawable.baseline_search_24, "Search", false, 0, callbacks.onToggleSearch)
+                }
                 BarIcon(
                     R.drawable.baseline_filter_alt_24, "Filter messages",
                     inbox.filterCount > 0, inbox.filterCount, callbacks.onInboxFilters
                 )
             }
             if (tab == AppTab.MONEY && money.buttonsVisible) {
-                BarIcon(
-                    R.drawable.baseline_filter_alt_24, "Filter by category",
-                    money.filterCount > 0, money.filterCount, callbacks.onMoneyFilters
-                )
+                androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.TOOLBAR_FILTER_INSIGHTS)) {
+                    BarIcon(
+                        R.drawable.baseline_filter_alt_24, "Filter by category",
+                        money.filterCount > 0, money.filterCount, callbacks.onMoneyFilters
+                    )
+                }
             }
             // On the Inbox the search button beside it searches the messages; everywhere else this searches everything.
             if (!(tab == AppTab.INBOX && inbox.buttonsVisible)) {
-                BarIcon(R.drawable.ic_search_24, "Search everything", false, 0, com.zyke.message.presentation.common.LocalOpenSearch.current)
+                androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.TOOLBAR_SEARCH)) {
+                    BarIcon(R.drawable.ic_search_24, "Search everything", false, 0, com.zyke.message.presentation.common.LocalOpenSearch.current)
+                }
             }
             val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
             com.zyke.message.presentation.common.AmountsVisibleChip()
-            BarIcon(
-                if (privacy.hidden) R.drawable.ic_visibility_off_24 else R.drawable.ic_visibility_24,
-                when {
-                    privacy.hidden -> "Amounts hidden, tap to unlock"
-                    privacy.enabled -> "Amounts visible, tap to hide"
-                    else -> "Hide amounts"
-                },
-                privacy.hidden, 0, privacy.toggle
-            )
-            BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onOpenSettings)
+            androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.TOOLBAR_EYE)) {
+                BarIcon(
+                    if (privacy.hidden) R.drawable.ic_visibility_off_24 else R.drawable.ic_visibility_24,
+                    when {
+                        privacy.hidden -> "Amounts hidden, tap to unlock"
+                        privacy.enabled -> "Amounts visible, tap to hide"
+                        else -> "Hide amounts"
+                    },
+                    privacy.hidden, 0, privacy.toggle
+                )
+            }
+            androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.TOOLBAR_SETTINGS)) {
+                BarIcon(R.drawable.baseline_settings_24, "Settings", false, 0, onOpenSettings)
+            }
         }
     }
 }

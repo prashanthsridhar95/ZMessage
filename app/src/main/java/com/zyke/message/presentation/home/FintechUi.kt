@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.lifecycle.repeatOnLifecycle
 import com.zyke.message.presentation.format.FormatCache
@@ -256,9 +260,12 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val tick = com.zyke.message.presentation.common.rememberTick()
     val pull = rememberPullToReveal(enabled = !netWorthShown) { tick(); netWorthShown = true }
 
+    val accountsList = androidx.compose.foundation.lazy.rememberLazyListState()
+    TourScroll(TourTab.ACCOUNTS, accountsList)
     Box(Modifier.fillMaxSize().then(pull.modifier)) {
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
+        state = accountsList,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -299,6 +306,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         item(key = "tabs") {
             UnderlineTabs(
+                modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_TABS),
                 labels = listOf("Accounts", "Cards", "Investments"),
                 counts = listOf(banks.size, cards.size, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0),
                 selectedIndex = tab,
@@ -333,7 +341,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             item(key = "card-deck") {
                 val deck = cards.map { DeckCard(it.key, it.faceCard(), cardFooter(it, deckToday)) }
                 com.zyke.message.presentation.common.CardDeck(
-                    deck, deckState,
+                    deck, deckState, modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK),
                     onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) }
                 )
             }

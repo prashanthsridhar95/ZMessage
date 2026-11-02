@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.presentation.common.FintechCard
@@ -228,7 +232,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         if (page == HomePage.HOME) {
             androidx.compose.material3.ExtendedFloatingActionButton(
                 onClick = { entryOpen = true },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).tourAnchor(TourAnchor.HOME_ADD),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) { Text("+ Entry", fontWeight = FontWeight.SemiBold) }
@@ -309,8 +313,11 @@ private fun SummaryPage(
 
     val attention = remember(state.attention) { state.attention.filterNot { it is AttentionItem.FreshOtp } }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
+    val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
+    TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = summaryList,
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -327,11 +334,11 @@ private fun SummaryPage(
             }
         }
 
-        item(key = "balance") { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } }
+        item(key = "balance") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.HOME_BALANCE)) { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } } }
 
         val todayBudget = state.daily
         if (todayBudget != null) {
-            item(key = "today") { FintechCard(onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }) } }
+            item(key = "today") { FintechCard(Modifier.tourAnchor(TourAnchor.HOME_BUDGET), onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }) } }
         } else if (!state.isBlank) {
             // Never just vanish: say what the card needs, and let the person type one.
             item(key = "today") {
@@ -350,7 +357,7 @@ private fun SummaryPage(
         // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
         if (codes.isNotEmpty() || attention.isNotEmpty()) {
             item(key = "priority") {
-                FintechCard(movingOutline = true) {
+                FintechCard(Modifier.tourAnchor(TourAnchor.HOME_CODES), movingOutline = true) {
                     if (codes.isNotEmpty()) {
                         CodePagerContent(
                             codes, now.value,
@@ -367,7 +374,7 @@ private fun SummaryPage(
         }
 
         if (state.review.count > 0) {
-            item(key = "review") { ReviewCard(state.review.count, onOpenReview) }
+            item(key = "review") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.HOME_REVIEW)) { ReviewCard(state.review.count, onOpenReview) } }
         }
 
         if (focus != null) {
@@ -380,7 +387,7 @@ private fun SummaryPage(
 
         if (next != null) {
             item(key = "next") {
-                FintechCard {
+                FintechCard(Modifier.tourAnchor(TourAnchor.HOME_NEXT_DUE)) {
                     Caption("NEXT DUE")
                     val nextRow: @Composable (@Composable () -> Unit) -> Unit = { more ->
                         UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
@@ -395,7 +402,7 @@ private fun SummaryPage(
 
         item(key = "plan-tiles") {
             // Four shortcuts in two rows of two, each a page of its own.
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.tourAnchor(TourAnchor.HOME_SHORTCUTS), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
                     ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
@@ -468,9 +475,12 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     val recurringArranged = remember(state.subscriptions, state.recurringStates, state.cancelledSubs) {
         com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates, state.cancelledSubs.keys)
     }
+    val billsList = androidx.compose.foundation.lazy.rememberLazyListState()
+    TourScroll(TourTab.BILLS, billsList)
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = billsList,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -530,6 +540,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
         }
         if (state.upcoming.isNotEmpty()) {
             item(key = "upcoming") {
+              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_DUE)) {
                 PlainSection("Due") {
                     state.upcoming.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
@@ -545,6 +556,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                         }
                     }
                 }
+              }
             }
         }
         if (state.refunds.isNotEmpty()) {
@@ -569,10 +581,11 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                 }
             }
         }
-        item(key = "friends-link") { FriendsLink(state, onIntent) }
+        item(key = "friends-link") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_FRIENDS)) { FriendsLink(state, onIntent) } }
         val recurring = recurringArranged
         if (recurring.isNotEmpty()) {
             item(key = "subscriptions") {
+              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_REPEATS)) {
                 PlainSection("Repeats monthly") {
                     recurring.forEachIndexed { index, item ->
                         if (index > 0) HorizontalDivider()
@@ -584,6 +597,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                     }
                     LinkButton("Yearly cost and how to cancel", { onIntent(Intent.OpenSubscriptions) })
                 }
+              }
             }
         } else if (state.subscriptionOverview.lines.isNotEmpty()) {
             // Everything that repeats was cancelled or is paused: the full list is still one tap away.

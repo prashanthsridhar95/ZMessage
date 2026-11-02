@@ -126,7 +126,7 @@ object Tours {
             "accounts.networth", G.ACCOUNTS, "Net worth",
             "Pull down at the top of Accounts to reveal your net worth: what you own minus what you owe. Tap the card for the full page.",
             tab = T.ACCOUNTS, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.NET_WORTH,
-            tip = "It stays hidden until you ask for it.", actionLabel = "Try it: pull down",
+            tip = "It stays hidden until you ask for it. Try it after the tour.",
             covers = setOf("accounts.net_worth")
         ),
 
@@ -232,8 +232,8 @@ object Tours {
         // ---- Settings & privacy
         TourStep(
             "settings.open", G.SETTINGS, "Settings",
-            "Everything is set here. Each area shows how it is set now, and a card on top lists what is left to set up.",
-            tab = T.HOME, page = P.SETTINGS_HUB, anchor = A.SETTINGS_HUB_MONEY, covers = setOf("settings.hub")
+            "Tap the gear for Settings. Each area shows how it is set now, and a card on top lists what is left to set up.",
+            tab = T.HOME, anchor = A.TOOLBAR_SETTINGS, covers = setOf("settings.hub")
         ),
         TourStep(
             "settings.money", G.SETTINGS, "Plan, salary and budgets",

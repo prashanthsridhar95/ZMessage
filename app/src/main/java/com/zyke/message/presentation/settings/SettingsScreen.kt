@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.settings
 
+import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.tour.TourTab
+import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.tour.tourAnchor
 import androidx.compose.ui.text.font.FontWeight
 import com.zyke.message.presentation.dashboard.components.LocalSectionsAsSheets
 import androidx.compose.runtime.CompositionLocalProvider
@@ -102,6 +106,7 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     MARKETS("Market watch", R.drawable.ic_trending_24),
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
     APPEARANCE("Appearance", R.drawable.ic_sun_24),
+    HELP("Help and tour", R.drawable.ic_info_24),
     ABOUT("Your data and about", R.drawable.ic_info_24),
     DEVELOPER("Developer options", R.drawable.ic_info_24)
 }
@@ -120,6 +125,10 @@ fun SettingsPage(
 ) {
     var openName by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by rememberSaveable { mutableStateOf(false) }
+    // While the tour runs it asks for one of these pages (or the hub); the person's own taps are blocked meanwhile.
+    androidx.compose.runtime.LaunchedEffect(com.zyke.message.presentation.tour.TourSettingsRequest.active, com.zyke.message.presentation.tour.TourSettingsRequest.group) {
+        if (com.zyke.message.presentation.tour.TourSettingsRequest.active) openName = com.zyke.message.presentation.tour.TourSettingsRequest.group
+    }
     val open = SettingsGroup.entries.firstOrNull { it.name == openName }
     val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
@@ -169,6 +178,7 @@ fun SettingsPage(
                 buildList {
                     add(SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone")
                     add(SettingsGroup.APPEARANCE to state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else "")
+                    add(SettingsGroup.HELP to "Take the app tour")
                     add(SettingsGroup.ABOUT to "Version $versionName")
                     if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
                 }
@@ -180,7 +190,7 @@ fun SettingsPage(
         com.zyke.message.presentation.common.AppPage(group.title, { openName = null }) {
             // This page is about one thing, so its sections show their contents instead of folding away.
             CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().tourAnchor(TourAnchor.SETTINGS_GROUP_BODY), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     GroupContent(group, state, versionName, onIntent, onDeleteAll = { deleting = true })
                 }
             }
@@ -530,6 +540,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
             }
         }
+        SettingsGroup.HELP -> com.zyke.message.presentation.tour.TourHelpSection()
         SettingsGroup.DEVELOPER -> DeveloperContent()
         SettingsGroup.ABOUT -> {
             SectionCard("Take your data with you") {
@@ -549,7 +560,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
                 Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
             }
-            com.zyke.message.presentation.backup.AutoBackupCard()
+            androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.SETTINGS_BACKUP)) { com.zyke.message.presentation.backup.AutoBackupCard() }
             BackupCard()
             SectionCard("Clear data") {
                 Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
