@@ -35,6 +35,7 @@ fun UnderlineTabs(
     showDivider: Boolean = true
 ) {
     if (labels.isEmpty()) return
+    ChromeScale {
     ScrollableTabRow(
         selectedTabIndex = selectedIndex.coerceIn(0, labels.lastIndex),
         modifier = modifier,
@@ -73,5 +74,6 @@ fun UnderlineTabs(
                 }
             )
         }
+    }
     }
 }

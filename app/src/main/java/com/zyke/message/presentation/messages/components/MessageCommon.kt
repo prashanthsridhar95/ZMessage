@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -238,15 +239,20 @@ internal fun CategoryTag(category: MessageCategory, modifier: Modifier = Modifie
     )
 }
 
+private const val AMOUNT_ROW_SHARE = 0.5f
+
 /** Big right-aligned figure such as "- ₹500". */
 @Composable
 internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifier) {
+    // The amount may take at most half the row, so the name beside it never shrinks to nothing (the "bill row" bug on
+    // a 320 to 360 dp phone); it steps down a size there and may use a second line at large text.
+    val screen = com.zyke.message.presentation.common.LocalResponsive.current
     com.zyke.message.presentation.common.PrivateAmount(
-        modifier = modifier,
+        modifier = modifier.widthIn(max = (screen.widthDp * AMOUNT_ROW_SHARE).dp),
         text = text,
         textAlign = TextAlign.End,
-        style = MaterialTheme.typography.titleLarge,
-        maxLines = scaledLines(1),
+        style = if (screen.isCompact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+        maxLines = if (screen.stackRows) 2 else scaledLines(1),
         overflow = TextOverflow.Ellipsis,
         color = color
     )

@@ -248,7 +248,8 @@ private fun SubscriptionsHero(overview: SubscriptionOverview) {
                     Text("\u2248", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     PrivateAmount(
                         yearly, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary, maxLines = 1
+                        color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                        fit = true
                     )
                     Text("a year", Modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.bodyMedium, color = mutedColor())
                 }

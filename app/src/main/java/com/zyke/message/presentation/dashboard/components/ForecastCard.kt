@@ -330,7 +330,8 @@ private fun StatValue(value: String, tone: Tone?, modifier: Modifier = Modifier)
     PrivateAmount(
         value, modifier,
         color = when (tone) { Tone.GOOD -> colors.good; Tone.BAD -> colors.bad; else -> MaterialTheme.colorScheme.primary },
-        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1
+        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1,
+        fit = true
     )
 }
 

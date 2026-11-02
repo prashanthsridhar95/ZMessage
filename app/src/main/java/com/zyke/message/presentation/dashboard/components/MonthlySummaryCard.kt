@@ -173,7 +173,7 @@ private fun ProjectionChip(summary: MonthlySummary, modifier: Modifier = Modifie
             .semantics(mergeDescendants = true) { contentDescription = spoken }
     ) {
         Caption("AT THIS PACE, BY MONTH END")
-        PrivateAmount(DisplayFormatters.rupees(projected), Modifier.padding(top = 2.dp), color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+        PrivateAmount(DisplayFormatters.rupees(projected), Modifier.padding(top = 2.dp), color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, fit = true)
         if (versus != null && !hidden) Text(versus, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium)
     }
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.horizontalScroll
 
 /** Chooses one of a few options; the chosen one is filled, as in the Money tab's Spent / Received switch. */
 @Composable
@@ -28,8 +29,11 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
     val shape = RoundedCornerShape(50)
     val reduce = rememberReduceMotion()
     val tick = rememberTick()
+    // Padding tightens on a narrow phone, and what still does not fit scrolls sideways instead of running off the screen.
+    val side = if (LocalResponsive.current.isCompact) 11.dp else 16.dp
+    ChromeScale {
     Row(
-        modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(3.dp),
+        modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         labels.forEachIndexed { index, label ->
@@ -44,13 +48,14 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
                     .clip(shape)
                     .drawBehind { drawRect(fill) }
                     .selectable(selected = on, role = Role.RadioButton, onClick = { if (!on) tick(); onSelect(index) })
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = side, vertical = 8.dp),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
                 color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary,
                 maxLines = 1
             )
         }
+    }
     }
 }
 

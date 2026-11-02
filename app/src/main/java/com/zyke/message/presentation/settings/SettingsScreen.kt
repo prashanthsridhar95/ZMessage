@@ -488,7 +488,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 modifier = Modifier.padding(top = 12.dp)
             )
         }
-        SettingsGroup.APPEARANCE -> SectionCard("Theme") {
+        SettingsGroup.APPEARANCE -> { SectionCard("Theme") {
             com.zyke.message.presentation.common.ChoiceCards(
                 choices = ThemeMode.entries.map { com.zyke.message.presentation.common.Choice(it, it.label) },
                 selected = state.settings.themeMode,
@@ -539,6 +539,8 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                     onDismiss = { picking = false }
                 )
             }
+        }
+        PerformanceCard(state.settings.performanceMode) { onIntent(Intent.SetPerformanceMode(it)) }
         }
         SettingsGroup.HELP -> com.zyke.message.presentation.tour.TourHelpSection()
         SettingsGroup.DEVELOPER -> DeveloperContent()
@@ -938,6 +940,8 @@ private fun DeveloperContent() {
             )
         }
     }
+
+    SimulatorCard()
 
     SectionCard("Developer mode") {
         AppButton(

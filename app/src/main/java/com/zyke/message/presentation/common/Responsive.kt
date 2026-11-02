@@ -100,13 +100,19 @@ fun ProvideResponsive(isLowEnd: Boolean, content: @Composable () -> Unit) {
  * are outside it and keep following the system size, and their screens scroll.
  */
 @Composable
-fun ChromeScale(content: @Composable () -> Unit) {
+fun ChromeScale(content: @Composable () -> Unit) = CapFontScale(ScreenClass.CHROME_MAX_FONT_SCALE, content)
+
+/**
+ * Text inside [content] follows the system size up to [max] (and never below what the person chose). For fixed-shape
+ * things such as a payment card's face, whose size is a picture's and cannot grow with the text.
+ */
+@Composable
+fun CapFontScale(max: Float, content: @Composable () -> Unit) {
     val density = LocalDensity.current
-    val capped = ScreenClass.chromeFontScale(density.fontScale)
-    if (capped == density.fontScale) {
+    if (density.fontScale <= max) {
         content()
     } else {
-        CompositionLocalProvider(LocalDensity provides Density(density.density, capped), content = content)
+        CompositionLocalProvider(LocalDensity provides Density(density.density, max), content = content)
     }
 }
 

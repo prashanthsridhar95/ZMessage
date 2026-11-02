@@ -102,7 +102,8 @@ internal fun BankAccountTile(
                 PrivateAmount(
                     balance?.let { DisplayFormatters.rupees(it) } ?: "—",
                     style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary, maxLines = 1
+                    color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                    fit = true
                 )
                 Caption(freshness, maxLines = 2)
             }
@@ -192,11 +193,11 @@ internal fun CardStatusPanel(
         Row(Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Caption("BILL")
-                PrivateAmount(dueAmount?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                PrivateAmount(dueAmount?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Caption("UNBILLED")
-                PrivateAmount(unbilled?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                PrivateAmount(unbilled?.let { DisplayFormatters.rupees(it) } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
             }
         }
         if (partPaid != null && partLeft != null) {

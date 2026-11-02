@@ -46,6 +46,7 @@ import com.zyke.message.domain.model.UserCard
 private val CardInk = Color(0xFFFFFFFF)
 private val CardInkSoft = Color(0xFFFFFFFF).copy(alpha = 0.86f)
 private const val CARD_RATIO = 1.586f
+private const val CARD_MAX_FONT_SCALE = 1.15f
 
 /**
  * A payment card drawn as a card: gradient from its colour theme, bank at the top, a chip, the masked number, the
@@ -57,6 +58,8 @@ fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = nu
     val theme = card.theme
     val description = privateSpeech(listOfNotNull(card.spokenDescription, footer).joinToString(". "))
     val shape = RoundedCornerShape(18.dp)
+    // The face keeps the proportions of a real card, so its text stops growing at 1.15 times; the details are in the screen-reader text.
+    CapFontScale(CARD_MAX_FONT_SCALE) {
     Box(
         modifier
             .fillMaxWidth()
@@ -95,9 +98,10 @@ fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = nu
                     )
                 }
             }
-            Text(
+            // Shrinks rather than wraps, so the last four digits are never the part that is cut off on a narrow phone.
+            FitText(
                 "••••  ••••  ••••  ${card.last4.padEnd(4, '•')}",
-                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = CardInk, letterSpacing = 1.sp, maxLines = 1
+                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 1.sp), fontWeight = FontWeight.Medium, color = CardInk, minScale = 0.6f
             )
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
@@ -111,6 +115,7 @@ fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = nu
                 NetworkMark(card.network)
             }
         }
+    }
     }
 }
 
@@ -185,7 +190,8 @@ fun CardDeck(cards: List<DeckCard>, pagerState: PagerState, onOpen: (DeckCard) -
         HorizontalPager(
             pagerState,
             Modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 28.dp),
+            // Less of the next card peeks on a narrow phone, so the front one keeps its width.
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (LocalResponsive.current.isCompact) 20.dp else 28.dp),
             pageSpacing = 12.dp,
             key = { cards[it.coerceIn(cards.indices)].key }
         ) { page ->

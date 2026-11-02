@@ -65,7 +65,9 @@ fun AppButton(
 ) {
     val compact = size == ButtonSize.COMPACT
     val shape = if (compact) CompactShape else RegularShape
-    val padding = if (compact) PaddingValues(horizontal = 14.dp, vertical = 6.dp) else PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+    // Less side padding on a narrow phone, so two buttons in a row keep room for their words.
+    val narrow = LocalResponsive.current.isCompact
+    val padding = if (compact) PaddingValues(horizontal = 14.dp, vertical = 6.dp) else PaddingValues(horizontal = if (narrow) 16.dp else 24.dp, vertical = 12.dp)
     val source = remember { MutableInteractionSource() }
     val sized = modifier.heightIn(min = if (compact) 40.dp else 48.dp).pressScale(source)
     val scheme = MaterialTheme.colorScheme
@@ -76,7 +78,9 @@ fun AppButton(
             style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            softWrap = false
+            softWrap = false,
+            // A label wider than its button ends in an ellipsis; a clipped half-word reads as a bug.
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 

@@ -31,6 +31,7 @@ fun SegmentedTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    ChromeScale {
     Row(
         modifier
             .fillMaxWidth()
@@ -60,5 +61,6 @@ fun SegmentedTabs(
                 )
             }
         }
+    }
     }
 }
