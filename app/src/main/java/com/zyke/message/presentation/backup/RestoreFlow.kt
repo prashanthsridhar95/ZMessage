@@ -248,7 +248,8 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit, fileUri: an
                 AppButton("Replace my setup", {
                     scope.launch {
                         val ok = withContext(Dispatchers.Default) { runCatching { hub.restorer.apply(s.prepared) }.isSuccess }
-                        if (ok) step = Step.Restored else fail("The backup could not be restored.")
+                        // A restored phone is not new here: the tour is not replayed.
+                        if (ok) { com.zyke.message.data.repository.TourSeenRepositoryImpl.markRestored(context); step = Step.Restored } else fail("The backup could not be restored.")
                     }
                 }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             },

@@ -239,6 +239,11 @@ class TourPolicyDecisionTest {
         assertEquals(TourOffer.RESUME, TourPolicy.offer(s.moved(10)))
     }
 
+    @Test fun aTourOpenOnTheFirstStepResumesToo() {
+        val s = TourState().withKind(TourInstallKind.FRESH).started(0)
+        assertEquals(TourOffer.RESUME, TourPolicy.offer(s))
+    }
+
     @Test fun restoreClearsARunningTourAndMarksTheInstall() {
         val s = TourState().withKind(TourInstallKind.FRESH).started(0).moved(9).restored()
         assertEquals(TourInstallKind.RESTORED, s.installKind)

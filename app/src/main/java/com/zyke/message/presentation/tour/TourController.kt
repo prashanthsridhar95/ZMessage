@@ -105,6 +105,18 @@ class TourController(
 
     fun touched() { interaction++ }
 
+    /** What is remembered about the tour; the banner and the invitation read it. */
+    val seen get() = repo.state
+
+    /** "Maybe later" on the invitation: asked once, not completed. */
+    fun declineInvite() = repo.update { it.invited() }
+
+    /** The Home banner is closed for good. */
+    fun dismissBanner() = repo.update { it.bannerDismissed() }
+
+    /** A tour recorded as running that is not going to resume (it kept failing) is closed in the record, so nothing replays it. */
+    fun closeStaleRecord() = repo.update { if (it.running && !isRunning) it.left() else it }
+
     private fun move(change: (TourProgress) -> TourProgress) = guarded("move") {
         val now = progress ?: return@guarded
         val to = change(now)

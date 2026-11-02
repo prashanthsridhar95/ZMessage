@@ -312,6 +312,7 @@ private fun SummaryPage(
     val codes by remember(otps) { derivedStateOf(structuralEqualityPolicy()) { freshCodes(otps, now.value) } }
 
     val attention = remember(state.attention) { state.attention.filterNot { it is AttentionItem.FreshOtp } }
+    val tourBanner = com.zyke.message.presentation.tour.rememberTourBannerVisible()
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
@@ -321,6 +322,9 @@ private fun SummaryPage(
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (tourBanner) {
+            item(key = "tour-banner") { com.zyke.message.presentation.tour.TourBanner() }
+        }
         if (showMarkets) {
             item(key = "market") { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) }
         }

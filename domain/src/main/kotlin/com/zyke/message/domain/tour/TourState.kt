@@ -66,7 +66,7 @@ object TourPolicy {
      * banner, until it is dismissed or the tour is finished.
      */
     fun offer(state: TourState): TourOffer = when {
-        state.running && state.savedIndex > 0 && state.resumeAttempts < MAX_RESUMES -> TourOffer.RESUME
+        state.running && state.resumeAttempts < MAX_RESUMES -> TourOffer.RESUME
         state.completed -> TourOffer.NONE
         state.installKind == TourInstallKind.FRESH && !state.offered -> TourOffer.INVITE
         state.bannerDismissedVersion >= TOUR_VERSION -> TourOffer.NONE

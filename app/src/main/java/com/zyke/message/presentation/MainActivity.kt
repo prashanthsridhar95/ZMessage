@@ -142,6 +142,32 @@ class MainActivity : ComponentActivity() {
     private var permissionStage = -1
     private val showAccessPrompt = mutableStateOf(false)
     private val showSmsExplainer = mutableStateOf(false)
+    /** True once the SMS explainer and the other permission steps are over (answered or dismissed): the tour invitation waits for it. */
+    private val permissionsSettled = mutableStateOf(false)
+
+    private val tourController by lazy { com.zyke.message.presentation.tour.TourController(container.tourSeen) }
+
+    /** Home's own pages are opened and closed through its view-model, like the shortcuts do. */
+    private val tourHome = object : com.zyke.message.presentation.tour.TourHomeNav {
+        override fun open(page: com.zyke.message.domain.tour.TourPage) {
+            val intent = when (page) {
+                com.zyke.message.domain.tour.TourPage.CALENDAR -> HomeContract.Intent.OpenAgenda
+                com.zyke.message.domain.tour.TourPage.GOALS -> HomeContract.Intent.OpenGoals
+                com.zyke.message.domain.tour.TourPage.REMINDERS -> HomeContract.Intent.OpenReminders
+                else -> null
+            }
+            if (intent != null) homeViewModel.onIntent(intent)
+        }
+        override fun close(page: com.zyke.message.domain.tour.TourPage) {
+            val intent = when (page) {
+                com.zyke.message.domain.tour.TourPage.CALENDAR -> HomeContract.Intent.CloseAgenda
+                com.zyke.message.domain.tour.TourPage.GOALS -> HomeContract.Intent.CloseGoals
+                com.zyke.message.domain.tour.TourPage.REMINDERS -> HomeContract.Intent.CloseReminders
+                else -> null
+            }
+            if (intent != null) homeViewModel.onIntent(intent)
+        }
+    }
 
     /**
      * On opening, whatever has not been allowed is asked for, one at a time: SMS access, then permission to show
@@ -165,7 +191,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 askNextPermission()
             }
-            2 -> if (!hasNotificationAccess()) showAccessPrompt.value = true
+            2 -> if (!hasNotificationAccess()) showAccessPrompt.value = true else permissionsSettled.value = true
         }
     }
 
@@ -295,11 +321,12 @@ class MainActivity : ComponentActivity() {
                     NotificationAccessPrompt(
                         onOpenSettings = {
                             showAccessPrompt.value = false
+                            permissionsSettled.value = true
                             runCatching {
                                 startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                             }
                         },
-                        onLater = { showAccessPrompt.value = false }
+                        onLater = { showAccessPrompt.value = false; permissionsSettled.value = true }
                     )
                 }
                 if (welcomePending) {
@@ -329,6 +356,8 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // After Welcome and the permission steps: the tour invitation (fresh installs), or a tour left half-way.
+                com.zyke.message.presentation.tour.TourLaunch(tourController, permissionsSettled.value)
                 AppRoot(
                     inboxBadge = unread,
                     // Collected inside the note, so the progress ticking while the inbox is read redraws only the note.
@@ -348,6 +377,8 @@ class MainActivity : ComponentActivity() {
                     settings = { onDismiss ->
                         SettingsRoute(settingsViewModel, versionName, onDismiss)
                     },
+                    tour = tourController,
+                    tourHome = tourHome,
                     onOpenMessage = { homeViewModel.onIntent(HomeContract.Intent.OpenMessage(it)) },
                     onOpenSubscriptions = { homeViewModel.onIntent(HomeContract.Intent.OpenSubscriptions) },
                     search = { onDismiss, navigate ->
