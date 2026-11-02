@@ -34,6 +34,7 @@ Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cann
   `ManifestPolicyTest`. See [SECURITY.md](SECURITY.md) and [docs/PRIVACY.md](docs/PRIVACY.md).
 - **Accessibility:** WCAG AA text contrast, one-sentence TalkBack descriptions for every message, 48dp targets.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Budget phones:** layouts bend for 320 to 411 dp screens and large text, and a lite mode (automatic on low-memory phones) drops looping animations and effects. See [docs/LOWEND.md](docs/LOWEND.md).
 - **App tour:** a first-launch walkthrough (also in Settings, Help and tour) that opens each screen and explains it; local only. See [docs/TOUR.md](docs/TOUR.md).
 
 ### Three tabs

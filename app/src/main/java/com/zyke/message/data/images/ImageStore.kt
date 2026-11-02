@@ -73,7 +73,7 @@ class ImageStore(
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                 var sample = 1
-                while (bounds.outWidth / (sample * 2) >= MAX_SIDE && bounds.outHeight / (sample * 2) >= MAX_SIDE) sample *= 2
+                while (bounds.outWidth / (sample * 2) >= maxSide() && bounds.outHeight / (sample * 2) >= maxSide()) sample *= 2
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
             }.getOrNull()
         } else {
@@ -191,11 +191,22 @@ class ImageStore(
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.path, bounds)
         var sample = 1
-        while (bounds.outWidth / (sample * 2) >= MAX_SIDE && bounds.outHeight / (sample * 2) >= MAX_SIDE) sample *= 2
-        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        while (bounds.outWidth / (sample * 2) >= maxSide() && bounds.outHeight / (sample * 2) >= maxSide()) sample *= 2
+        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply {
+            inSampleSize = sample
+            // Lite mode: a photo (JPEG, so no transparency to keep) takes half the memory at 16 bits a pixel.
+            if (lite() && bounds.outMimeType == "image/jpeg") inPreferredConfig = Bitmap.Config.RGB_565
+        })
     }
 
-    private fun cacheBytes(): Int = (Runtime.getRuntime().maxMemory() / 32).coerceIn(MIN_CACHE_BYTES.toLong(), MAX_CACHE_BYTES.toLong()).toInt()
+    /** Lite mode, or a phone found to have little memory: pictures are kept small. */
+    private fun lite(): Boolean = com.zyke.message.data.perf.LiteRuntime.isLite || com.zyke.message.data.perf.LowEnd.detected.value
+
+    private fun maxSide(): Int = if (lite()) LITE_MAX_SIDE else MAX_SIDE
+
+    private fun cacheBytes(): Int =
+        if (lite()) MIN_CACHE_BYTES
+        else (Runtime.getRuntime().maxMemory() / 32).coerceIn(MIN_CACHE_BYTES.toLong(), MAX_CACHE_BYTES.toLong()).toInt()
 
     /** Centre-cropped to a square and scaled down, so a 12MP photo costs a few kilobytes. */
     private fun decodeSquare(uri: Uri): Bitmap? {
@@ -242,6 +253,7 @@ class ImageStore(
         const val MIN_CACHE_BYTES = 4 * 1024 * 1024
         const val MAX_CACHE_BYTES = 16 * 1024 * 1024
         const val MAX_SIDE = 512
+        const val LITE_MAX_SIDE = 128
         const val TARGET = 256
         const val RETRY_AFTER_MS = 7L * 24 * 60 * 60 * 1000
     }
