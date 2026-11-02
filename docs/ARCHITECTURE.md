@@ -70,6 +70,12 @@ remembered inside the content lambda restarts. `FormSheet` is built on it (`asPa
 that scrolls by itself (a lazy list or web view) uses `AppPage(scrollable = false)`. `SheetPolicyTest` keeps bare
 `AppBottomSheet` to the compact allow-list and forbids fixed sheet heights.
 
+## Guided tour
+
+First launch and Settings, Help open a guided tour (`presentation/tour/`) that navigates the real app and spotlights real
+elements through `Modifier.tourAnchor`. The content, progress and offer rules are pure and tested in `:domain`
+(`domain/tour/`); see [TOUR.md](TOUR.md) for how to add a step or an anchor.
+
 ## Quick entry from outside the app
 
 Three doors open the same hand-made entry flow: the "Quick add" home-screen widget (`QuickAddWidget`: two cash

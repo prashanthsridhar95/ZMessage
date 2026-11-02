@@ -32,6 +32,7 @@ data class TourTarget(val anchor: TourAnchor? = null, val placeholder: Boolean =
  * process dies. Nothing in here may throw into the app: any failure closes the tour (marked as left, never "resume").
  */
 @Stable
+@Suppress("TooGenericExceptionCaught")
 class TourController(
     private val repo: TourSeenRepository,
     val steps: List<TourStep> = Tours.full()

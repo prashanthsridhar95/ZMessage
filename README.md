@@ -34,6 +34,7 @@ Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cann
   `ManifestPolicyTest`. See [SECURITY.md](SECURITY.md) and [docs/PRIVACY.md](docs/PRIVACY.md).
 - **Accessibility:** WCAG AA text contrast, one-sentence TalkBack descriptions for every message, 48dp targets.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).
+- **App tour:** a first-launch walkthrough (also in Settings, Help and tour) that opens each screen and explains it; local only. See [docs/TOUR.md](docs/TOUR.md).
 
 ### Three tabs
 
