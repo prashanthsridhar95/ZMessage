@@ -354,7 +354,7 @@ private fun CoachCard(
                     if (!touchExploration) {
                         AppButton(
                             if (controller.autoPlay) "Pause" else "Auto-play",
-                            { controller.setAutoPlay(!controller.autoPlay) },
+                            { controller.updateAutoPlay(!controller.autoPlay) },
                             Modifier.semantics { contentDescription = if (controller.autoPlay) "Pause auto-advance" else "Play auto-advance" },
                             style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
                         )

@@ -66,7 +66,7 @@ class TourController(
 
     /** Starts the tour at the beginning, or at the first step of [group]. */
     fun start(group: TourGroup? = null, autoPlay: Boolean? = null) = guarded("start") {
-        if (autoPlay != null) setAutoPlay(autoPlay)
+        if (autoPlay != null) updateAutoPlay(autoPlay)
         origin = navigator?.currentTab()
         shownPage = null
         // Whatever is open (Settings, a page) is closed first, so the tour always begins on a clean tab.
@@ -99,7 +99,7 @@ class TourController(
         repo.update { it.left() }
     }
 
-    fun setAutoPlay(on: Boolean) {
+    fun updateAutoPlay(on: Boolean) {
         autoPlay = on
         repo.update { it.withAutoPlay(on) }
     }
