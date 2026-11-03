@@ -77,8 +77,24 @@ data class AccountSummary(
     /** What the person set for this account; null when they have not. */
     val override: AccountOverride? = null,
     /** Part of the latest bill was paid (all of it was not): how much so far, from the payment messages. */
-    val billPartPaid: BigDecimal? = null
+    val billPartPaid: BigDecimal? = null,
+    /** Credits and debits after the balance's reading that were counted in [balanceAdjustment] (or would have been, see [adjustmentRefused]). */
+    val movementCredits: Int = 0,
+    val movementDebits: Int = 0,
+    /** Payments after the reading that belong to this account but could not be counted (they state an unreadable balance). */
+    val paymentsNotCounted: Int = 0,
+    /** The payments since the reading would have taken a positive balance below zero, so none of them was applied. */
+    val adjustmentRefused: Boolean = false,
+    /** When the reading the balance starts from was made (epoch millis); 0 when there is none. */
+    val balanceAt: Long = 0L,
+    /** The reading is the one the person typed, not one a message stated. */
+    val balanceByYou: Boolean = false,
+    /** How many payments of this account the messages show; with no balance this is what could not be added up. */
+    val paymentCount: Int = 0
 ) {
+    /** Payments counted since the reading. */
+    val movementCount: Int get() = movementCredits + movementDebits
+
     val isCard: Boolean get() = kind != AccountKind.BANK_ACCOUNT
 
     /** Whether this account's payment messages are card messages, however the person typed it: what to look its activity up by. */
@@ -96,6 +112,13 @@ data class AccountsOverview(val accounts: List<AccountSummary>, val totalBalance
 object Accounts {
     /** [bank] is what the body's words suggest; [senderBank] is what the sender header says, which is the better evidence. */
     private class Hit(val message: ClassifiedMessage, val last4: String, val isCard: Boolean, val bank: BankName, val senderBank: BankName?)
+
+    /** A balance worked out for one account: the reading it starts from, what has moved since, and whether the movement was refused. */
+    private class Worked(
+        val balance: AccountBalance, val adjustment: BigDecimal?, val movement: BalanceReader.Movement, val dropped: Boolean,
+        /** The reading it started from, before the movement was added. */
+        val reading: AccountBalance, val byYou: Boolean
+    )
 
     /** One account: the messages that are about it, and whether another bank's account shares its digits. */
     private class Group(val last4: String, val isCard: Boolean, val rows: List<Hit>, val keySuffix: String, val split: Boolean)
@@ -142,18 +165,23 @@ object Accounts {
         // A balance worked out for one account: what it last stated and what has moved since. When the messages that moved
         // it all went one way and the sum went below zero while the statement said otherwise, the statement stands: a
         // payment whose credit never reached the messages is the likelier fault, not an overdraft.
-        class Worked(val balance: AccountBalance, val adjustment: BigDecimal?, val movement: BalanceReader.Movement, val dropped: Boolean)
-        fun work(reading: AccountBalance, movement: BalanceReader.Movement): Worked {
-            if (movement.net.signum() == 0) return Worked(reading, null, movement, false)
+        fun work(reading: AccountBalance, movement: BalanceReader.Movement, byYou: Boolean): Worked {
+            if (movement.net.signum() == 0) return Worked(reading, null, movement, false, reading, byYou)
             val adjusted = reading.amount + movement.net
-            if (adjusted.signum() < 0 && reading.amount.signum() >= 0) return Worked(reading, null, movement, true)
-            return Worked(reading.copy(amount = adjusted), movement.net, movement, false)
+            if (adjusted.signum() < 0 && reading.amount.signum() >= 0) return Worked(reading, null, movement, true, reading, byYou)
+            return Worked(reading.copy(amount = adjusted), movement.net, movement, false, reading, byYou)
         }
-        fun current(last4: String, scope: List<ClassifiedMessage>? = null): Worked? {
-            if (scope == null) return balances[last4]?.let { work(it, BalanceReader.movement(messages, it)) }
-            val reading = BalanceReader.latest(scope, zone).filter { it.account == last4 }
-                .maxWithOrNull(compareBy({ it.asOf }, { it.messageId })) ?: return null
-            return work(reading, BalanceReader.movement(scope, reading))
+        // A balance the person typed counts as a reading at the moment they typed it; a message that states one later wins.
+        fun typed(last4: String, manual: ManualBalance?): AccountBalance? = manual?.let {
+            AccountBalance(last4, "", it.amount, LocalDate.ofInstant(Instant.ofEpochMilli(it.atMillis), zone), 0L, it.atMillis)
+        }
+        fun current(last4: String, scope: List<ClassifiedMessage>? = null, manual: ManualBalance? = null): Worked? {
+            val stated = if (scope == null) balances[last4] else BalanceReader.latest(scope, zone).filter { it.account == last4 }
+                .maxWithOrNull(compareBy({ it.asOf }, { it.at }, { it.messageId }))
+            val own = typed(last4, manual)
+            val byYou = own != null && (stated == null || own.at >= stated.at)
+            val reading = (if (byYou) own else stated) ?: return null
+            return work(reading, BalanceReader.movement(scope ?: messages, reading), byYou)
         }
         // What the newest EPF passbook message says the fund holds, for a fund account that states no balance of its own.
         val passbook = messages.filter { isPassbook(it) }.flatMap { BalanceReader.noticeBalances(it, zone) }
@@ -243,11 +271,14 @@ object Accounts {
             }
 
             val markedFund = key in providentFunds
-            val worked = if (kind == AccountKind.BANK_ACCOUNT) current(last4, if (group.split) rows.map { it.message }.distinct() else null) else null
+            val worked = if (kind == AccountKind.BANK_ACCOUNT) current(last4, if (group.split) rows.map { it.message }.distinct() else null, picked?.manual) else null
             val balance: AccountBalance? = if (kind == AccountKind.BANK_ACCOUNT) {
                 worked?.balance ?: passbook.takeIf { markedFund }
             } else null
-            if (worked != null) audit(key, worked.balance.amount, worked.movement, worked.dropped, worked.adjustment != null)
+            val paymentCount = if (kind == AccountKind.BANK_ACCOUNT) BalanceReader.paymentsOf(rows.map { it.message }, last4) else 0
+            if (kind == AccountKind.BANK_ACCOUNT) {
+                audit(key, worked, paymentCount, now, rows.sumOf { it.message.mergedMessages.size })
+            }
             AccountSummary(
                 key = key,
                 kind = kind,
@@ -258,6 +289,13 @@ object Accounts {
                 balanceAsOf = balance?.asOf,
                 balanceMessageId = balance?.messageId,
                 balanceAdjustment = worked?.adjustment?.takeIf { balance != null && kind == AccountKind.BANK_ACCOUNT && !markedFund },
+                movementCredits = if (worked != null && !markedFund) worked.movement.credits else 0,
+                movementDebits = if (worked != null && !markedFund) worked.movement.debits else 0,
+                paymentsNotCounted = if (worked != null && !markedFund) worked.movement.skips.notCounted else 0,
+                adjustmentRefused = worked?.dropped == true && !markedFund,
+                balanceAt = worked?.reading?.at ?: 0L,
+                balanceByYou = worked?.byYou == true,
+                paymentCount = paymentCount,
                 spent = spent,
                 received = received,
                 activityCount = count,
@@ -294,7 +332,7 @@ object Accounts {
                 val picked = overrides[key]?.takeUnless { it.isEmpty }
                 val kind = picked?.kind ?: detectedKind
                 val (bank, bankLabel) = chosenBank(picked, card, BankName.OTHERS)
-                val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4)?.balance ?: passbook.takeIf { key in providentFunds } else null
+                val balance = if (kind == AccountKind.BANK_ACCOUNT) current(card.last4, null, picked?.manual)?.balance ?: passbook.takeIf { key in providentFunds } else null
                 AccountSummary(
                     key = key, kind = kind, bankName = bank, last4 = card.last4,
                     title = card.name.ifBlank { card.bankName.ifBlank { kind.label } },
@@ -355,12 +393,28 @@ object Accounts {
     private fun shown(card: UserCard, picked: AccountOverride?): UserCard =
         if (picked != null && picked.bank.isNotBlank() && card.bankName != picked.bank) card.copy(bankName = picked.bank) else card
 
-    /** A line for the developer log when a balance came out below zero or an adjustment would have flipped it; counts and signs only. */
-    private fun audit(key: String, balance: BigDecimal, movement: BalanceReader.Movement, dropped: Boolean, applied: Boolean) {
-        if (balance.signum() >= 0 && !dropped) return
+    /**
+     * A line for the developer log when an account's figure may be off: payments after its reading did not all count, the
+     * adjustment was refused, the balance came out below zero, or there is no reading at all but there are payments.
+     * Counts and signs only, with the account's key shortened.
+     */
+    private fun audit(key: String, worked: Worked?, payments: Int, now: Instant, mergedMembers: Int) {
+        val w = worked
+        val noReading = w == null
+        val skips = w?.movement?.skips
+        val unsure = w != null && (w.dropped || skips!!.notCounted > 0 || w.balance.amount.signum() < 0)
+        if (!(unsure || (noReading && payments > 0))) return
         DiagLog.d("accounts") {
-            "balance below zero or adjustment refused: account=${DiagLog.key(key)} balanceSign=${balance.signum()} adjustmentApplied=$applied " +
-                "refusedAsNegative=$dropped netSign=${movement.net.signum()} credits=${movement.credits} debits=${movement.debits}"
+            if (w == null) {
+                "no balance to adjust: account=${DiagLog.key(key)} reading=none payments=$payments mergedMembers=$mergedMembers"
+            } else {
+                val age = java.time.Duration.between(Instant.ofEpochMilli(w.reading.at), now).toDays()
+                "balance may be off: account=${DiagLog.key(key)} reading=present byYou=${w.byYou} readingAgeDays=$age " +
+                    "balanceSign=${w.balance.amount.signum()} adjustmentApplied=${w.adjustment != null} refusedAsNegative=${w.dropped} " +
+                    "netSign=${w.movement.net.signum()} credits=${w.movement.credits} debits=${w.movement.debits} " +
+                    "skipped(beforeReading=${skips!!.beforeReading} statesBalance=${skips.statesBalance} unreadableBalance=${skips.unreadableBalance} " +
+                    "otherAccount=${skips.otherAccount} card=${skips.cardMessage} badAmount=${skips.badAmount}) mergedMembers=$mergedMembers"
+            }
         }
     }
 

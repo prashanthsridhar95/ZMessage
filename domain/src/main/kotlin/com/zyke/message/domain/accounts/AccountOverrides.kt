@@ -10,10 +10,15 @@ import kotlinx.coroutines.flow.StateFlow
 data class AccountOverride(
     /** The bank as the person named it ("ICICI Bank", or free text); blank keeps the detected bank. */
     val bank: String = "",
-    val kind: AccountKind? = null
+    val kind: AccountKind? = null,
+    /** What the person says the account holds, and when they said so; payments after that move it like a stated balance. */
+    val manual: ManualBalance? = null
 ) {
-    val isEmpty: Boolean get() = bank.isBlank() && kind == null
+    val isEmpty: Boolean get() = bank.isBlank() && kind == null && manual == null
 }
+
+/** A balance the person typed for an account that states none (or states it wrongly), as of [atMillis]. */
+data class ManualBalance(val accountKey: String, val amount: java.math.BigDecimal, val atMillis: Long)
 
 /** The person's corrections, by account key. A new map is published on every change, so a state that holds it sees the change. */
 interface AccountOverrideRepository {

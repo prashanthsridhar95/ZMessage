@@ -221,9 +221,7 @@ class ObserveMessagesUseCase(
 
     /** Reads [inbox] (all of it, or one month): from memory where a message is remembered, by the rules where it is new. */
     private suspend fun classifyBatch(inbox: List<SmsMessage>): List<ClassifiedMessage> {
-        val zone = ZoneId.systemDefault()
-        val ordered = inbox.sortedByDescending { it.date }
-            .distinctBy { it.body to Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
+        val ordered = CarrierCopies.drop(inbox.sortedByDescending { it.date })
         val remembered = classificationCache.load(ordered.map { it.id })
         val fresh = ArrayList<ClassifiedMessage>()
 
@@ -257,5 +255,25 @@ class ObserveMessagesUseCase(
         const val SHARE_TIMEOUT_MS = 5_000L
         const val CALM_GAP_MS = 700L
         val DONE: StateFlow<LoadProgress> = MutableStateFlow(LoadProgress())
+    }
+}
+
+/** The copies a carrier delivers twice, which are not messages of their own. */
+object CarrierCopies {
+    /** The same text arriving within this long of the one kept is a copy. */
+    const val WINDOW_MS = 2L * 60 * 1000
+
+    /**
+     * Newest-first [sorted] without the same text arriving within [WINDOW_MS] of the one kept. The same text hours or days
+     * apart (five SIP or mandate debits that read alike) is five payments, never copies of one.
+     */
+    fun drop(sorted: List<SmsMessage>): List<SmsMessage> {
+        val lastKept = HashMap<String, Long>()
+        return sorted.filter { sms ->
+            val kept = lastKept[sms.body]
+            if (kept != null && kept - sms.date <= WINDOW_MS) return@filter false
+            lastKept[sms.body] = sms.date
+            true
+        }
     }
 }

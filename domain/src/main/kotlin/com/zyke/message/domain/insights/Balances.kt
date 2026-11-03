@@ -108,7 +108,7 @@ object BalanceReader {
 
     /** The newest balance seen for each account. */
     fun latest(messages: List<ClassifiedMessage>, zone: ZoneId): List<AccountBalance> =
-        readings(messages, zone).groupBy { it.account }.map { (_, balances) -> balances.maxWith(compareBy({ it.asOf }, { it.messageId })) }
+        readings(messages, zone).groupBy { it.account }.map { (_, balances) -> balances.maxWith(compareBy({ it.asOf }, { it.at }, { it.messageId })) }
 
     /** Every balance an account's messages stated, oldest first, keyed by the account's last digits. */
     fun history(messages: List<ClassifiedMessage>, zone: ZoneId): Map<String, List<AccountBalance>> =
@@ -137,14 +137,30 @@ object BalanceReader {
     }
 
     /** What moved in an account after a stated balance: the net, and how many credits and debits made it. */
-    data class Movement(val net: BigDecimal, val credits: Int, val debits: Int) {
+    data class Movement(val net: BigDecimal, val credits: Int, val debits: Int, val skips: Skips = Skips()) {
         val count: Int get() = credits + debits
+    }
+
+    /**
+     * Why payments were not part of a [Movement], as counts. [notCounted] are the ones after the reading that do belong to
+     * the account and so leave its figure unsure; the rest are not about it or are older than the reading.
+     */
+    data class Skips(
+        val beforeReading: Int = 0,
+        val statesBalance: Int = 0,
+        val unreadableBalance: Int = 0,
+        val otherAccount: Int = 0,
+        val cardMessage: Int = 0,
+        val badAmount: Int = 0
+    ) {
+        val notCounted: Int get() = statesBalance + unreadableBalance + badAmount
     }
 
     /**
      * What came in and went out of [reading]'s account after the message that stated it, from messages that did not
      * state a balance themselves. Added to the stated balance this is the best guess at what the account holds now.
      * Nothing dated before the reading is touched, so an older credit (a salary, however it is filed) never moves it.
+     * A payment the person set aside from the totals or a bill paid from the account still moved the money, so it counts here.
      */
     fun movedSince(messages: List<ClassifiedMessage>, reading: AccountBalance): Pair<BigDecimal, Int> =
         movement(messages, reading).let { it.net to it.count }
@@ -153,21 +169,34 @@ object BalanceReader {
         var net = BigDecimal.ZERO
         var credits = 0
         var debits = 0
+        var before = 0
+        var states = 0
+        var unreadable = 0
+        var other = 0
+        var card = 0
+        var bad = 0
         messages.forEach { message ->
-            if (message.message.date <= reading.at) return@forEach
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isCard || tx.isCardPayment) return@forEach
+            if (message.message.date <= reading.at) { before++; return@forEach }
+            if (tx.isCard) { card++; return@forEach }
             val read = readingsMemo.of(message.message)
-            // A message that states its own balance would be a newer reading, never an adjustment.
-            if (read.balanceMatches && !read.notABalance) return@forEach
-            // One that says "Avl Bal" in a way that cannot be read leaves the account's true figure unknown: guessing from it would drift.
-            if (read.unreadBalance && !read.notABalance) return@forEach
             val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { read.accountInText }
-            if (account != reading.account) return@forEach
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
+            if (account != reading.account) { other++; return@forEach }
+            // A message that states its own balance would be a newer reading, never an adjustment.
+            if (read.balanceMatches && !read.notABalance) { states++; return@forEach }
+            // One that says "Avl Bal" in a way that cannot be read leaves the account's true figure unknown: guessing from it would drift.
+            if (read.unreadBalance && !read.notABalance) { unreadable++; return@forEach }
+            val amount = tx.amount.toBigDecimalOrNull()
+            if (amount == null) { bad++; return@forEach }
             if (tx.isReceived) { net += amount; credits++ } else { net -= amount; debits++ }
         }
-        return Movement(net, credits, debits)
+        return Movement(net, credits, debits, Skips(before, states, unreadable, other, card, bad))
+    }
+
+    /** How many payments of [account] (last four digits) there are in [messages] at all, whatever their date. */
+    fun paymentsOf(messages: List<ClassifiedMessage>, account: String): Int = messages.count { message ->
+        val tx = message.content as? MessageContent.Transaction ?: return@count false
+        !tx.isCard && tx.accountNumber.filter { it.isDigit() }.takeLast(4) == account
     }
 
     /** A plain message that just states what an account holds ("balance in your A/c XX1234 is Rs. 5,000"), not a payment. */
