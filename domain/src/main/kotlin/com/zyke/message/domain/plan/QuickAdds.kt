@@ -80,7 +80,11 @@ object QuickAdds {
 
         val byId = messages.associateBy { it.id }
         val known = plan.items.map { words(it.name) }
-        Subscriptions.find(messages, now, zone).forEach { repeat ->
+        // Several standing orders to one payee (five SIPs) are one plan item for what they come to together.
+        val repeats = Subscriptions.find(messages, now, zone).groupBy { it.payeeKey }.values.map { entries ->
+            if (entries.size == 1) entries.first() else entries.first().copy(amount = entries.sumOf { it.amount })
+        }
+        repeats.forEach { repeat ->
             val message = byId[repeat.messageId] ?: return@forEach
             val category = message.category
             val tx = message.content as? MessageContent.Transaction

@@ -155,7 +155,7 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                             SubscriptionLineRow(
                                 line, today, showState = filter == SubFilter.ALL,
                                 onCancel = { cancellingKey = line.key },
-                                onStillUsing = { stillUsing(line.key, line.name) },
+                                onStillUsing = { stillUsing(line.key, line.label) },
                                 onOpenMessage = { onIntent(Intent.OpenMessage(line.subscription.messageId)) }
                             )
                         }
@@ -176,7 +176,7 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
             onCancelled = {
                 cancellingKey = null
                 onIntent(Intent.CancelSubscription(line.key, today))
-                handler.announce("Marked ${line.name} as cancelled") { onIntent(Intent.RestoreSubscription(line.key)) }
+                handler.announce("Marked ${line.label} as cancelled") { onIntent(Intent.RestoreSubscription(line.key)) }
             }
         )
     }
@@ -277,7 +277,7 @@ private fun CostBar(shares: List<CostShare>, modifier: Modifier = Modifier) {
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     val colors = shares.mapIndexed { i, s -> if (s.line == null) ChartColors.other else ChartColors.forRank(i) }
     val total = remember(shares) { shares.fold(java.math.BigDecimal.ZERO) { sum, s -> sum + s.yearly }.toFloat().coerceAtLeast(1f) }
-    val spoken = "Share of the yearly cost: " + shares.joinToString(", ") { "${it.line?.name ?: "Others"} ${it.percent} percent" }
+    val spoken = "Share of the yearly cost: " + shares.joinToString(", ") { "${it.line?.label ?: "Others"} ${it.percent} percent" }
     Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spoken }) {
         Canvas(Modifier.fillMaxWidth().height(12.dp).clearAndSetSemantics { }) {
             val gap = 2.dp.toPx()
@@ -296,7 +296,7 @@ private fun CostBar(shares: List<CostShare>, modifier: Modifier = Modifier) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.width(8.dp).height(8.dp).background(colors[i], RoundedCornerShape(4.dp)))
                     Spacer(Modifier.width(6.dp))
-                    Caption("${s.line?.name ?: "Others"} ${s.percent}%")
+                    Caption("${s.line?.label ?: "Others"} ${s.percent}%")
                 }
             }
         }
@@ -335,11 +335,11 @@ private fun SubscriptionLineRow(
     var checking by rememberSaveable(line.key) { mutableStateOf(false) }
     val actions = buildList {
         if (cancelled) {
-            add(RowAction("Still using it", ButtonStyle.TONAL, "I still use ${line.name}, bring it back") { onStillUsing() })
+            add(RowAction("Still using it", ButtonStyle.TONAL, "I still use ${line.label}, bring it back") { onStillUsing() })
         } else {
-            add(RowAction("Cancel", ButtonStyle.TONAL, "How to cancel ${line.name}") { onCancel() })
+            add(RowAction("Cancel", ButtonStyle.TONAL, "How to cancel ${line.label}") { onCancel() })
         }
-        add(RowAction("Last charge", ButtonStyle.TEXT, "Open the last ${line.name} charge, ${DisplayFormatters.rupees(sub.amount).takeIf { !hidden } ?: "amount hidden"}") { onOpenMessage() })
+        add(RowAction("Last charge", ButtonStyle.TEXT, "Open the last ${line.label} charge, ${DisplayFormatters.rupees(sub.amount).takeIf { !hidden } ?: "amount hidden"}") { onOpenMessage() })
     }
     PlanRow(
         title = line.name,
@@ -349,7 +349,7 @@ private fun SubscriptionLineRow(
             )
         },
         caption = {
-            Caption(line.cadence.label + " \u00b7 " + if (cancelled) "cancelled ${line.cancelledOn?.let { DayMonth.format(it) }.orEmpty()}" else nextLabel(line, today), maxLines = 2)
+            Caption(listOf(line.cadence.label, sub.reference).filter { it.isNotEmpty() }.joinToString(" \u00b7 ") + " \u00b7 " + if (cancelled) "cancelled ${line.cancelledOn?.let { DayMonth.format(it) }.orEmpty()}" else nextLabel(line, today), maxLines = 2)
         },
         amount = {
             Column(horizontalAlignment = Alignment.End) {
@@ -360,14 +360,16 @@ private fun SubscriptionLineRow(
         actions = actions,
         below = {
             val hasCheck = line.hints.isNotEmpty() && !cancelled
-            if (showState || hasCheck) {
+            val several = sub.ofCount > 1
+            if (showState || hasCheck || several) {
                 FlowRow(
                     Modifier.fillMaxWidth().padding(top = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
+                    if (several) StatusPill(sub.suffix, Tone.NEUTRAL)
                     if (showState) StatusPill(line.state.label, stateTone(line.state))
-                    if (hasCheck) CheckChip(line.hints.size, checking, line.name) { checking = !checking }
+                    if (hasCheck) CheckChip(line.hints.size, checking, line.label) { checking = !checking }
                 }
             }
             if (hasCheck && checking) {
@@ -432,7 +434,7 @@ private fun CancelSheet(line: SubscriptionLine, onDismiss: () -> Unit, onCancell
     val hidden = LocalPrivacyMode.current.hidden
     val context = LocalContext.current
     AdaptiveSheet(
-        title = "Cancel ${line.name}",
+        title = "Cancel ${line.label}",
         onDismiss = onDismiss,
         subtitle = "Looks like it is paid by ${line.channel.label}",
         contentSpacing = 12.dp,
@@ -470,7 +472,7 @@ private fun CancelSheet(line: SubscriptionLine, onDismiss: () -> Unit, onCancell
                 clipboard.setPrimaryClip(ClipData.newPlainText("Subscription details", reference))
                 Toast.makeText(context, "Details copied", Toast.LENGTH_SHORT).show()
             },
-            Modifier.fillMaxWidth().semantics { contentDescription = "Copy the details of ${line.name} to the clipboard" },
+            Modifier.fillMaxWidth().semantics { contentDescription = "Copy the details of ${line.label} to the clipboard" },
             style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT
         )
     }

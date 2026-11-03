@@ -169,7 +169,7 @@ data class YearInReview(
             }
 
             val subKeys = Subscriptions.find(messages, (today ?: yearEnd).atTime(12, 0).atZone(zone).toInstant(), zone)
-                .map { it.key }.toSet()
+                .map { it.payeeKey }.toSet()
             val subs = spends.filter { Subscriptions.keyFor(it.payee) in subKeys }.sumOf { it.amount }
 
             return YearInReview(

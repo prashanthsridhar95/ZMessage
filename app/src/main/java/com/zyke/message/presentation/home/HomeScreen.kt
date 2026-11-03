@@ -1033,8 +1033,9 @@ private fun SubscriptionRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                RowTitle(item.payee)
+                RowTitle(if (item.ofCount > 1) item.payee + " " + item.suffix else item.payee)
                 Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · " + recurring.expectedLabel + " · paid ${item.times} months running")
+                if (item.reference.isNotEmpty()) Caption(item.reference)
                 Caption(if (recurring.isConfirmed) "Confirmed" else "Looks recurring \u2014 is it?")
             }
             Spacer(Modifier.width(12.dp))

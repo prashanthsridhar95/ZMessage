@@ -82,6 +82,9 @@ data class SubscriptionLine(
 ) {
     val key: String get() = subscription.key
     val name: String get() = subscription.payee
+
+    /** The name with "#2 of 5" when the payee has several alike entries; for announcements and descriptions. */
+    val label: String get() = if (subscription.ofCount > 1) "$name ${subscription.suffix}" else name
     val cadence: Cadence get() = subscription.cadence
     val counts: Boolean get() = state == SubscriptionState.ACTIVE
 }
@@ -177,7 +180,7 @@ data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
                     ChronoUnit.DAYS.between(sub.lastPaid, today) > sub.cadence.maxGapDays -> SubscriptionState.PAUSED
                     else -> SubscriptionState.ACTIVE
                 }
-                val info = context.byKey[sub.key]
+                val info = context.byKey[sub.payeeKey]
                 SubscriptionLine(
                     subscription = sub,
                     state = state,
@@ -227,7 +230,8 @@ data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
             }
             val kind = kinds[line.key]
             if (kind != null) {
-                val others = all.filter { it.key != line.key && it.counts && kinds[it.key] == kind }
+                val others = all.filter { it.subscription.payeeKey != line.subscription.payeeKey && it.counts && kinds[it.key] == kind }
+                    .distinctBy { it.subscription.payeeKey }
                 if (others.isNotEmpty()) {
                     result += SubscriptionHint(
                         HintKind.SIMILAR,
@@ -243,7 +247,7 @@ data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
 
         private fun context(shown: List<Subscription>, messages: List<ClassifiedMessage>, zone: ZoneId): Context {
             if (messages.isEmpty()) return Context(emptyMap(), null)
-            val wanted = shown.associateBy { it.key }
+            val wanted = shown.associateBy { it.payeeKey }
             val perKey = HashMap<String, MutableList<ClassifiedMessage>>()
             var oldest = Long.MAX_VALUE
             for (m in messages) {
