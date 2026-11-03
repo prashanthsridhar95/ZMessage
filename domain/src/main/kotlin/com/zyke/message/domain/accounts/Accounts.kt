@@ -344,6 +344,9 @@ object Accounts {
                 )
             }
         }.let { all -> if (all.any { it.isProvidentFund && !it.fromPassbook }) all.filter { !it.fromPassbook } else all }
+         // One account per key, the one read from messages first: a list that shows accounts keyed by this must never see a
+         // key twice (a card the person added that did not match its messages' account would otherwise repeat it).
+         .distinctBy { it.key }
          .filter { it.key !in hidden }.sortedWith(
             // Accounts first, then cards; the busiest first within each.
             compareBy<AccountSummary> { it.isCard }.thenByDescending { it.lastActivity }

@@ -105,7 +105,7 @@ fun MessageList(
                 )
             }
 
-            items(section.items, key = { it.key }, contentType = { it::class }) { feedItem ->
+            items(section.items.distinctBy { it.key }, key = { it.key }, contentType = { it::class }) { feedItem ->
                 when (feedItem) {
                     is FeedItem.Single -> MessageItem(feedItem.message, state, actions, Modifier.animateItem())
                     is FeedItem.Group -> GroupedItem(

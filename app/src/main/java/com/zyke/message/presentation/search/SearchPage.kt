@@ -339,7 +339,7 @@ private fun SearchScreen(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)
         ) {
-            items(items, key = { it.key }, contentType = { it.type }) { item ->
+            items(items.distinctBy { it.key }, key = { it.key }, contentType = { it.type }) { item ->
                 when (item) {
                     is Item.Title -> SectionTitle(item, onClearRecents)
                     is Item.Recent -> RecentRow(item.query, { onRunQuery(item.query) }, { onRemoveRecent(item.query) })

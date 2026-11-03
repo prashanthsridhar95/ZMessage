@@ -87,7 +87,7 @@ fun ThreadSheet(
                         }
                     )
                 }
-                items(section.items, key = { it.key }, contentType = { "message" }) { item ->
+                items(section.items.distinctBy { it.key }, key = { it.key }, contentType = { "message" }) { item ->
                     MessageItem(item = item.newest, state = state, actions = actions, modifier = Modifier.animateItem())
                 }
             }

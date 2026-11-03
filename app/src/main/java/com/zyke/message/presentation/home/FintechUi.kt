@@ -237,9 +237,9 @@ internal fun rememberNowState(): androidx.compose.runtime.State<Long> {
 @Composable
 internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Intent) -> Unit) {
     val overview = state.accounts
-    val banks = overview.accounts.filter { !it.isCard && !it.isProvidentFund }
-    val funds = overview.accounts.filter { it.isProvidentFund }
-    val cards = overview.accounts.filter { it.isCard }
+    val banks = overview.accounts.filter { !it.isCard && !it.isProvidentFund }.distinctBy { it.key }
+    val funds = overview.accounts.filter { it.isProvidentFund }.distinctBy { it.key }
+    val cards = overview.accounts.filter { it.isCard }.distinctBy { it.key }
     var tab by rememberSaveable { mutableStateOf(0) }
     val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }

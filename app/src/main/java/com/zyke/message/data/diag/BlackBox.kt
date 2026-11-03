@@ -17,7 +17,8 @@ import java.util.Locale
  * What it holds: when each run started and which screens opened (class names), the step markers of start-up, an
  * uncaught exception's class names and stack frames (method names and line numbers), and how earlier runs ended
  * according to Android (reason, status, importance, time, the first frames of a trace). Never message text, amounts,
- * account numbers or names: an exception's own message is NOT written, because it can contain such text.
+ * account numbers or names: an exception's own message is NOT written, because it can contain such text. The one exception is the
+ * fixed phrase 'duplicate list key of kind <letters>' (see [safeNote]), which is all a repeated list key needs to be found.
  *
  * It lives in files/dev_logs/blackbox.log (about 256 KB, one earlier file kept), stays on the phone, is never sent by
  * the app, and is shared only when the person chooses "Share logs". Writing is a small synchronous append that can
@@ -89,11 +90,24 @@ object BlackBox {
         var current: Throwable? = error
         var depth = 0
         while (current != null && depth < 5) {
-            append(if (depth == 0) "" else "Caused by: ").append(current.javaClass.name).append('\n')
+            append(if (depth == 0) "" else "Caused by: ").append(current.javaClass.name)
+            safeNote(current)?.let { append(" [").append(it).append(']') }
+            append('\n')
             current.stackTrace.take(FRAMES).forEach { append("    at ").append(it).append('\n') }
             current = current.cause?.takeIf { it !== current }
             depth++
         }
+    }
+
+    /**
+     * The one thing an exception's own message may contribute, and only as a fixed phrase: that a lazy list was given the
+     * same key twice, with the first letters of the key's kind (never digits or names). Anything else is not written.
+     */
+    private fun safeNote(error: Throwable): String? {
+        val text = error.message ?: return null
+        if (!text.contains("was already used")) return null
+        val kind = text.substringAfter("Key ", "").trimStart('"', '\'').takeWhile { it.isLetter() || it == '_' }.take(14)
+        return "duplicate list key" + if (kind.isNotEmpty()) " of kind $kind" else ""
     }
 
     private class Handler(private val previous: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {

@@ -224,3 +224,20 @@ class AccountBankTest {
         assertMoney("-1200", account.balance)
     }
 }
+
+class AccountKeysAreUniqueTest {
+    @Test fun aCardTheUserAddedThatDoesNotMatchItsAccount_neverRepeatsAKey() {
+        val classifier = com.zyke.message.domain.classification.MessageClassifier()
+        val now = java.time.Instant.parse("2026-11-03T06:00:00Z")
+        val zone = java.time.ZoneId.of("Asia/Kolkata")
+        val msg = classifier.classify(com.zyke.message.domain.model.SmsMessage(1, "AD-HDFCBK",
+            "Rs.1,000.00 debited from a/c **5765 on 20-10-26 to VPA shop@upi (UPI Ref 4123). Avl Bal Rs 50,000.00", now.toEpochMilli() - 86_400_000L, true))
+        // the same last four, added as a credit card AND as an account entry: both must not surface under one key twice
+        val cards = listOf(
+            com.zyke.message.domain.model.UserCard(id = "a", last4 = "5765", bankName = "HDFC", type = com.zyke.message.domain.model.CardType.CREDIT, name = "x"),
+            com.zyke.message.domain.model.UserCard(id = "b", last4 = "5765", bankName = "HDFC", type = com.zyke.message.domain.model.CardType.ACCOUNT, name = "y")
+        )
+        val overview = com.zyke.message.domain.accounts.Accounts.build(listOf(msg), cards, now, zone)
+        org.junit.Assert.assertEquals(overview.accounts.map { it.key }.distinct(), overview.accounts.map { it.key })
+    }
+}

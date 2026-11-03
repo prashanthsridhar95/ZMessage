@@ -543,7 +543,7 @@ internal fun ChartLegend(ranking: List<MessageCategory>, modifier: Modifier = Mo
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(ranking.take(ChartColors.NAMED), key = { it.name }, contentType = { "legend" }) { category ->
+        items(ranking.take(ChartColors.NAMED).distinctBy { it.name }, key = { it.name }, contentType = { "legend" }) { category ->
             LegendItem(ChartColors.forCategory(category, ranking), category.displayString)
         }
         if (ranking.size > ChartColors.NAMED) {

@@ -35,7 +35,7 @@ fun SendersList(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(modifier) {
-        items(conversations, key = { it.key }, contentType = { "sender" }) { conversation ->
+        items(conversations.distinctBy { it.key }, key = { it.key }, contentType = { "sender" }) { conversation ->
             SenderRow(conversation, today) { onOpen(conversation.key) }
         }
     }
