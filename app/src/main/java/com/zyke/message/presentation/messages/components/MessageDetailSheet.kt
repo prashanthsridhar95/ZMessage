@@ -327,7 +327,7 @@ private fun SwitchRow(label: String, checked: Boolean, onToggle: () -> Unit) {
 }
 
 /** How the categories are grouped on the sheet, so one is found by where it belongs and not by reading the whole list. */
-private val CATEGORY_GROUPS = listOf(
+internal val CATEGORY_GROUPS = listOf(
     "Everyday" to listOf(MessageCategory.FOOD, MessageCategory.GROCERIES, MessageCategory.SHOPPING, MessageCategory.FUEL, MessageCategory.TRAVEL, MessageCategory.ENTERTAINMENT, MessageCategory.UPI_PAYMENT),
     "Bills and services" to listOf(MessageCategory.UTILITIES, MessageCategory.CREDIT_CARDS, MessageCategory.PAY_LATER, MessageCategory.NETWORK_CARRIERS, MessageCategory.INSURANCE, MessageCategory.FASTAG, MessageCategory.COURIER, MessageCategory.LOYALTY_PROGRAMMES),
     "Money" to listOf(MessageCategory.INVESTMENTS, MessageCategory.SAVINGS, MessageCategory.SALARY),

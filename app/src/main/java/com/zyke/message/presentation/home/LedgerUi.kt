@@ -2,7 +2,21 @@ package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.layout.Arrangement
 import com.zyke.message.presentation.format.FormatCache
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,6 +37,7 @@ import com.zyke.message.domain.ledger.ManualKind
 import com.zyke.message.domain.ledger.OverdueBill
 import com.zyke.message.domain.ledger.ReviewQueue
 import com.zyke.message.domain.ledger.ReviewQueues
+import com.zyke.message.domain.ledger.ReviewSelection
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.common.AmountField
@@ -167,7 +182,53 @@ internal fun ReviewPage(
     teaching?.let { message ->
         TeachSheet(message, onSave = { onTeach(it); teaching = null }, onDismiss = { teaching = null })
     }
-    AppPage("Needs review", onBack) {
+    // Picking several payments: which are picked survives rotation; leaving the page ends it.
+    var picking by rememberSaveable { mutableStateOf(false) }
+    var pickedIds by rememberSaveable { mutableStateOf(emptyList<Long>()) }
+    var lastSection by rememberSaveable { mutableStateOf(SECTION_UNUSUAL) }
+    var bulk by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectable = androidx.compose.runtime.remember(review) { ReviewSelection.selectable(review) }
+    val selectableIds = androidx.compose.runtime.remember(selectable) { selectable.map { it.id } }
+    // Payments that have left the list (handled elsewhere, or by the bulk edit) drop out of the choice.
+    val picked = androidx.compose.runtime.remember(pickedIds, selectableIds) { ReviewSelection.prune(pickedIds, selectableIds) }
+    androidx.compose.runtime.LaunchedEffect(picked) { if (picked != pickedIds) pickedIds = picked }
+    val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+    val pickedMessages = androidx.compose.runtime.remember(picked, selectable) { selectable.filter { it.id in picked } }
+    val sectionIds = if (lastSection == SECTION_UNUSUAL) review.unusual.map { it.id } else review.uncategorised.map { it.id }
+    fun endPicking() { picking = false; pickedIds = emptyList() }
+    fun toggle(id: Long, section: String) {
+        lastSection = section
+        picking = true
+        pickedIds = ReviewSelection.toggle(picked, id)
+    }
+    bulk?.let { modeName ->
+        val mode = BulkMode.entries.firstOrNull { it.name == modeName }
+        if (mode != null && pickedMessages.isNotEmpty()) {
+            BulkEditSheet(
+                mode, pickedMessages, ledger, scope,
+                onApplied = { bulk = null; endPicking() },
+                onDismiss = { bulk = null }
+            )
+        }
+    }
+    AppPage(
+        "Needs review", onBack,
+        footer = if (picking) {
+            {
+                SelectionBar(
+                    count = picked.size,
+                    sectionTitle = if (lastSection == SECTION_UNUSUAL) "unusually large payments" else "payments with no category",
+                    sectionFull = ReviewSelection.allPicked(picked, sectionIds),
+                    onSelectSection = { pickedIds = ReviewSelection.selectAll(picked, sectionIds) },
+                    onClear = { pickedIds = emptyList() },
+                    onAction = { bulk = it.name },
+                    onDone = { endPicking() }
+                )
+            }
+        } else null
+    ) {
+        // Back leaves selection mode first, and the page only after that.
+        androidx.activity.compose.BackHandler(enabled = picking) { endPicking() }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (review.isEmpty) {
                 com.zyke.message.presentation.common.EmptyState("All clear", "Nothing needs a look right now. Anything the app is unsure of will appear here.")
@@ -268,16 +329,14 @@ internal fun ReviewPage(
             }
             if (review.unusual.isNotEmpty()) {
                 SectionHeader("Unusually large payments", review.unusual.size)
+                if (!picking) SelectHint { lastSection = SECTION_UNUSUAL; picking = true }
                 review.unusual.forEach { message ->
                     val tx = message.content as MessageContent.Transaction
-                    FintechCard(onClick = { onOpen(message.id) }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                RowTitle(message.merchant.name)
-                                Caption(stampOf(message) + " \u00B7 far more than you usually pay. Is this right?", maxLines = 2)
-                            }
-                            Text(DisplayFormatters.rupees(tx.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                        }
+                    PickableCard(
+                        message, picking, message.id in picked, { toggle(message.id, SECTION_UNUSUAL) }, { onOpen(message.id) },
+                        caption = stampOf(message) + " \u00B7 far more than you usually pay. Is this right?",
+                        amount = DisplayFormatters.rupees(tx.amount)
+                    ) {
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppButton("Open message", { onOpen(message.id) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Looks right", { onNotTransfer(ReviewQueues.unusualKey(message)) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
@@ -287,17 +346,14 @@ internal fun ReviewPage(
             }
             if (review.uncategorised.isNotEmpty()) {
                 SectionHeader("Payments with no category", review.uncategorised.size)
+                if (!picking) SelectHint { lastSection = SECTION_UNCATEGORISED; picking = true }
                 review.uncategorised.forEach { message ->
                     val tx = message.content as MessageContent.Transaction
-                    FintechCard(onClick = { onOpen(message.id) }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                RowTitle(message.merchant.name)
-                                Caption(stampOf(message) + " \u00B7 file it under a category", maxLines = 2)
-                            }
-                            Text(DisplayFormatters.rupees(tx.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
+                    PickableCard(
+                        message, picking, message.id in picked, { toggle(message.id, SECTION_UNCATEGORISED) }, { onOpen(message.id) },
+                        caption = stampOf(message) + " \u00B7 file it under a category",
+                        amount = DisplayFormatters.rupees(tx.amount)
+                    ) {}
                 }
             }
             if (review.unclear.isNotEmpty()) {
@@ -343,5 +399,110 @@ private fun TransferLeg(label: String, message: com.zyke.message.domain.model.Cl
             Caption(stampOf(message) + (message.merchant.name.takeIf { it.isNotBlank() && tx.payee.isNotBlank() }?.let { " \u00B7 $it" } ?: ""), maxLines = 2)
         }
         Text("\u203A", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.secondary)
+    }
+}
+
+private const val SECTION_UNUSUAL = "unusual"
+private const val SECTION_UNCATEGORISED = "uncategorised"
+
+/** The way in to selection mode for people who do not long-press. */
+@Composable
+private fun SelectHint(onSelect: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Caption("Touch and hold a payment to pick several", Modifier.weight(1f), maxLines = 2)
+        androidx.compose.material3.TextButton(onClick = onSelect, modifier = Modifier.heightIn(min = 48.dp)) { Text("Select") }
+    }
+}
+
+/**
+ * A payment in the review list. Touch and hold picks it; while picking, a tap picks or drops it and a checkbox shows
+ * which are picked. [actions] (the card's own buttons) are hidden while picking.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun PickableCard(
+    message: com.zyke.message.domain.model.ClassifiedMessage,
+    picking: Boolean,
+    picked: Boolean,
+    onToggle: () -> Unit,
+    onOpen: () -> Unit,
+    caption: String,
+    amount: String,
+    actions: @Composable () -> Unit
+) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    Box(
+        Modifier
+            .clip(shape)
+            .combinedClickable(
+                onClickLabel = if (picking) (if (picked) "Drop from selection" else "Add to selection") else "Open message",
+                onClick = { if (picking) onToggle() else onOpen() },
+                onLongClickLabel = "Pick several",
+                onLongClick = onToggle
+            )
+            .then(
+                if (picking) Modifier.semantics(mergeDescendants = true) {
+                    role = Role.Checkbox
+                    toggleableState = ToggleableState(picked)
+                } else Modifier
+            )
+    ) {
+        FintechCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (picking) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Checkbox(checked = picked, onCheckedChange = null)
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    RowTitle(message.merchant.name)
+                    Caption(caption, maxLines = 2)
+                }
+                Text(amount, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            }
+            if (!picking) actions()
+        }
+    }
+}
+
+/** Pinned under the list while payments are picked: how many, and what to do with them. Wraps for large type. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun SelectionBar(
+    count: Int,
+    sectionTitle: String,
+    sectionFull: Boolean,
+    onSelectSection: () -> Unit,
+    onClear: () -> Unit,
+    onAction: (BulkMode) -> Unit,
+    onDone: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "$count selected",
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite; contentDescription = ReviewSelection.announcement(count) },
+            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
+        )
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            BulkMode.entries.forEach { mode ->
+                AppButton(mode.title, { onAction(mode) }, size = ButtonSize.COMPACT, enabled = count > 0)
+            }
+        }
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AppButton(
+                "Select all in this section", onSelectSection, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = !sectionFull,
+                modifier = Modifier.semantics { contentDescription = "Select all $sectionTitle" }
+            )
+            AppButton("Clear", onClear, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = count > 0)
+            AppButton("Done", onDone, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        }
     }
 }

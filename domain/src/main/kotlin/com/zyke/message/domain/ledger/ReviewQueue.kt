@@ -108,7 +108,7 @@ object ReviewQueues {
 
         val uncategorised = txs.filter {
             val tx = it.content as MessageContent.Transaction
-            it.category == MessageCategory.OTHERS && !it.categoryOverridden && !tx.isReceived &&
+            it.category == MessageCategory.OTHERS && !isFiled(it) && !tx.isReceived &&
                 (tx.amount.toBigDecimalOrNull() ?: BigDecimal.ZERO) >= BIG
         }.take(MAX_PER_KIND)
 
@@ -219,6 +219,14 @@ object ReviewQueues {
                 !m.categoryOverridden && !m.categoryOwn && unusualKey(m) !in asides.dismissed
         }.map { it.first }.sortedByDescending { it.message.date }.take(MAX_PER_KIND)
     }
+
+    /**
+     * Whether the person has dealt with a payment that has no category: filed it under a category (a built-in one or
+     * their own), for this payment or its payee, or given it a name. Naming one by itself, in a single sheet or in a bulk
+     * edit, settles the question the same way, so a payment leaves "Payments with no category" however it was handled.
+     */
+    fun isFiled(message: ClassifiedMessage): Boolean =
+        message.categoryOverridden || message.categoryOwn || message.customCategoryId != null || message.merchant.renamed
 
     /** What "looks right" stores for a large debit. */
     fun unusualKey(message: ClassifiedMessage): String = "big:${message.id}"
