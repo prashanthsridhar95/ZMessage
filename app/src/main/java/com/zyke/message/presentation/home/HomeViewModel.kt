@@ -322,10 +322,17 @@ class HomeViewModel(
             com.zyke.message.domain.cards.CardCatalog.bank(typed) == account.detectedBank)
         val bank = if (sameAsDetected) "" else typed
         val kind = edit.kind?.takeIf { it != account.detectedKind }
-        val chosen = com.zyke.message.domain.accounts.AccountOverride(bank = bank, kind = kind)
+        // A balance typed before and left as it is keeps its time; a new or changed one is as of now.
+        val before = accountOverrides.overrides.value[edit.key]?.manual
+        val manual = when {
+            edit.balance == null -> null
+            before != null && before.amount.compareTo(edit.balance) == 0 -> before
+            else -> com.zyke.message.domain.accounts.ManualBalance(edit.key, edit.balance, System.currentTimeMillis())
+        }
+        val chosen = com.zyke.message.domain.accounts.AccountOverride(bank = bank, kind = kind, manual = manual)
         if (chosen.isEmpty) accountOverrides.clear(edit.key) else accountOverrides.set(edit.key, chosen)
         com.zyke.message.data.diag.DevLog.d("accounts") {
-            "edit account key=${com.zyke.message.domain.diag.DiagLog.key(edit.key)} bankChosen=${bank.isNotEmpty()} kindChosen=${kind != null} nameLength=${edit.name.trim().length}"
+            "edit account key=${com.zyke.message.domain.diag.DiagLog.key(edit.key)} bankChosen=${bank.isNotEmpty()} kindChosen=${kind != null} balanceSet=${manual != null} nameLength=${edit.name.trim().length}"
         }
         val existing = account.userCard
         if (existing != null || edit.name.isNotBlank()) {

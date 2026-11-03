@@ -409,7 +409,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         if (target == null) renamingKey = null else {
             EditAccountSheet(
                 target,
-                onSave = { name, bank, kind -> onIntent(HomeContract.Intent.EditAccount(key, name, bank, kind)); renamingKey = null },
+                onSave = { name, bank, kind, balance -> onIntent(HomeContract.Intent.EditAccount(key, name, bank, kind, balance)); renamingKey = null },
                 onDismiss = { renamingKey = null }
             )
         }
@@ -521,7 +521,7 @@ internal fun AccountSheet(
     account: AccountSummary,
     state: HomeContract.State,
     onPay: (String) -> Unit,
-    onEdit: (String, String, AccountKind?) -> Unit,
+    onEdit: (String, String, AccountKind?, java.math.BigDecimal?) -> Unit,
     onStatementDay: (Int?) -> Unit,
     onRemove: () -> Unit,
     onProvidentFund: (Boolean) -> Unit,
@@ -587,15 +587,17 @@ internal fun AccountSheet(
                             "spent since the ${dayFormat.format(account.statementOn!!)} statement"
                         account.isCard && due != null ->
                             "due ${dayFormat.format(due)}" + (account.minimumDue?.let { " · minimum ${DisplayFormatters.rupees(it)}" } ?: "")
-                        asOf != null && account.balanceAdjustment != null ->
-                            "stated ${dayFormat.format(asOf)}, ${DisplayFormatters.rupees(account.balanceAdjustment!!.abs())} ${if (account.balanceAdjustment!!.signum() > 0) "in" else "out"} since"
+                        !account.isCard && balanceWhy(account) != null -> balanceWhy(account)!!
                         asOf != null -> "as of ${dayFormat.format(asOf)}"
                         else -> "Balance not stated"
                     },
-                    maxLines = 2
+                    maxLines = 3
                 )
             }
 
+            if (!account.isCard && (account.balance == null || account.adjustmentRefused || account.paymentsNotCounted > 0)) {
+                AppButton(if (account.balance == null) "Set balance" else "Fix balance", { naming = true }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
             account.balanceMessageId?.takeIf { !account.isCard }?.let { id ->
                 AppButton("See the message this balance came from", { onOpenMessage(id) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
@@ -736,7 +738,7 @@ internal fun AccountSheet(
     }
 
     if (naming) {
-        EditAccountSheet(account, onSave = { name, bank, kind -> onEdit(name, bank, kind); naming = false }, onDismiss = { naming = false })
+        EditAccountSheet(account, onSave = { name, bank, kind, balance -> onEdit(name, bank, kind, balance); naming = false }, onDismiss = { naming = false })
     }
 }
 

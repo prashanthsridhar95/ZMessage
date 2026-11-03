@@ -182,7 +182,11 @@ object HomeContract {
         data object CloseAccount : Intent
         data class NameAccount(val key: String, val name: String) : Intent
         /** Name, bank and type in one go; a blank [bank] and null [kind] reset to what the messages say. */
-        data class EditAccount(val key: String, val name: String, val bank: String, val kind: com.zyke.message.domain.accounts.AccountKind?) : Intent
+        data class EditAccount(
+            val key: String, val name: String, val bank: String, val kind: com.zyke.message.domain.accounts.AccountKind?,
+            /** What the person says the account holds now; null when they gave none. */
+            val balance: java.math.BigDecimal? = null
+        ) : Intent
         data class SetStatementDay(val key: String, val day: Int?) : Intent
         data class SetProvidentFund(val key: String, val on: Boolean) : Intent
         data class RemoveAccount(val key: String) : Intent

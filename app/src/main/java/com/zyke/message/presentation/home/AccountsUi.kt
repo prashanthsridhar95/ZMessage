@@ -57,6 +57,7 @@ import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 
 /** A bank account on the Accounts tab: who, how much and how fresh, this cycle's flow, a trend, and what needs attention. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -84,6 +85,7 @@ internal fun BankAccountTile(
         append(account.title).append(", ").append(account.kind.label).append(" ending ").append(account.last4).append(". ")
         if (hidden) append("Balance hidden. ") else append(balance?.let { "Balance ${DisplayFormatters.rupees(it)}, " } ?: "No balance, ").append(freshness).append(". ")
         if (!hidden) append("This cycle in ${DisplayFormatters.rupees(account.received)}, out ${DisplayFormatters.rupees(account.spent)}. ")
+        if (!hidden) balanceWhy(account)?.let { append(it).append(". ") }
         if (low) append("Low balance. ")
         if (stale) append("Balance may be out of date.")
     }
@@ -106,6 +108,7 @@ internal fun BankAccountTile(
                     fit = true
                 )
                 Caption(freshness, maxLines = 2)
+                BalanceWhy(account, onRename)
             }
             if (series.size >= 2) {
                 Spacer(Modifier.width(12.dp))
@@ -138,6 +141,51 @@ private fun FlowAndChips(account: AccountSummary, low: Boolean, stale: Boolean) 
             if (low) StatusPill("Low balance", Tone.BAD)
             if (stale) StatusPill("Balance may be old", Tone.WARN)
         }
+    }
+}
+
+private val WHY_DAY: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+
+/**
+ * The arithmetic under a bank balance: where it started and what has moved since, so a total that looks wrong can be
+ * checked. Null when there is no balance to explain or nothing has moved. Amounts in it are hidden with the others.
+ */
+internal fun balanceWhy(account: AccountSummary): String? {
+    // Local copies: these come from another module, so they cannot be smart-cast after a null check.
+    val asOf = account.balanceAsOf ?: return null
+    if (account.balance == null || account.isCard) return null
+    val adjustment = account.balanceAdjustment
+    val day = WHY_DAY.format(asOf)
+    val source = if (account.balanceByYou) "Balance set by you on $day" else "From the $day message"
+    val parts = ArrayList<String>()
+    when {
+        adjustment != null -> {
+            val sign = if (adjustment.signum() < 0) "\u2212" else "+"
+            parts += "$sign${DisplayFormatters.rupees(adjustment.abs())} across ${DisplayFormatters.count(account.movementCount, "payment", "payments")} since"
+        }
+        account.adjustmentRefused ->
+            parts += "${DisplayFormatters.count(account.movementCount, "payment", "payments")} since would take it below zero, so ${if (account.movementCount == 1) "it is" else "they are"} not applied"
+    }
+    if (account.paymentsNotCounted > 0) parts += "${DisplayFormatters.count(account.paymentsNotCounted, "payment", "payments")} not counted"
+    return if (parts.isEmpty()) null else "$source, ${parts.joinToString(", ")}"
+}
+
+/** [balanceWhy], with the way to fix it when the figure is unsure or missing. */
+@Composable
+private fun BalanceWhy(account: AccountSummary, onSetBalance: () -> Unit) {
+    val why = balanceWhy(account)
+    val noBalance = account.balance == null
+    val unsure = account.adjustmentRefused || account.paymentsNotCounted > 0
+    if (why != null) Caption(why, maxLines = 3)
+    if (noBalance) {
+        Caption(
+            if (account.paymentCount > 0) "No balance message yet, so ${DisplayFormatters.count(account.paymentCount, "payment", "payments")} cannot be added up"
+            else "No balance message yet",
+            maxLines = 3
+        )
+    }
+    if (noBalance || unsure) {
+        AppButton(if (noBalance) "Set balance" else "Fix balance", onSetBalance, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
 
