@@ -28,7 +28,7 @@ internal object HeadsUpNotifier {
         val history = runCatching { container.observeMessages().first() }.getOrNull() ?: return
         val found = HeadsUps.evaluate(
             message, history, settings.lowBalanceFloor, ZoneId.systemDefault(), System.currentTimeMillis(),
-            container.cancelledSubscriptions.cancelled.value
+            com.zyke.message.domain.insights.RecurringMerges.harmonize(container.cancelledSubscriptions.cancelled.value, container.recurringMerges.merges.value)
         )
         com.zyke.message.data.diag.DevLog.d("receiver") { "heads-up checked: ${found.size} found" }
         found.forEach { post(context, message, it) }

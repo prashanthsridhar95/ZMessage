@@ -58,7 +58,10 @@ internal object WeeklyNotifier {
         val now = Instant.now()
         val today = LocalDate.ofInstant(now, zone)
         val live = container.observeMessages().first().filter { !it.isPromotional && !it.isMuted && it.setAside == null }
-        val subscriptions = RecurringPayments.arrange(Subscriptions.find(live, now, zone), container.recurringPayments.states.value, container.cancelledSubscriptions.cancelled.value.keys)
+        val subscriptions = RecurringPayments.arrange(
+            com.zyke.message.domain.insights.RecurringMerges.apply(Subscriptions.find(live, now, zone), container.recurringMerges.merges.value),
+            container.recurringPayments.states.value, container.cancelledSubscriptions.cancelled.value.keys
+        )
         val next = UpcomingOutflows.build(
             from = today.plusDays(1),
             upcoming = UpcomingBuilder.build(live, today, zone = zone),

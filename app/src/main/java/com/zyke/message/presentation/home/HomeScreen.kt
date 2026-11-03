@@ -475,6 +475,7 @@ private const val REMINDERS_SHOWN = 4
 private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
     val markPaid = rememberMarkPaid(onIntent)
     val planHandler = rememberPlanActionHandler(onIntent)
+    val merge = rememberMergeActions(state, onIntent)
     val recurringArranged = remember(state.subscriptions, state.recurringStates, state.cancelledSubs) {
         com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates, state.cancelledSubs.keys)
     }
@@ -595,7 +596,8 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                         SubscriptionRow(
                             item, today,
                             onConfirm = { onIntent(Intent.ConfirmRecurring(item.subscription.key)) },
-                            onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) }
+                            onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) },
+                            menu = merge.menuFor(item.subscription)
                         ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
                     }
                     LinkButton("Yearly cost and how to cancel", { onIntent(Intent.OpenSubscriptions) })
@@ -1023,6 +1025,7 @@ private fun SubscriptionRow(
     today: LocalDate,
     onConfirm: () -> Unit,
     onIgnore: () -> Unit,
+    menu: List<MenuEntry>,
     onOpen: () -> Unit
 ) {
     val item: Subscription = recurring.subscription
@@ -1032,13 +1035,18 @@ private fun SubscriptionRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                RowTitle(if (item.ofCount > 1) item.payee + " " + item.suffix else item.payee)
+                RowTitle(item.fullName())
+                if (item.isMerged) {
+                    StatusPill("Merged \u00b7 ${item.nameCount} names", Tone.NEUTRAL, Modifier.padding(vertical = 2.dp))
+                    Caption(item.alsoSeenCaption(), maxLines = 3)
+                }
                 Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · " + recurring.expectedLabel + " · paid ${item.times} months running")
                 if (item.reference.isNotEmpty()) Caption(item.reference)
                 Caption(if (recurring.isConfirmed) "Confirmed" else "Looks recurring \u2014 is it?")
             }
             Spacer(Modifier.width(12.dp))
             AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
+            RowMenu(item.fullName(), menu)
         }
         if (!recurring.isConfirmed) {
             Row(Modifier.fillMaxWidth()) {

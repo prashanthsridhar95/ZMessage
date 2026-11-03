@@ -83,6 +83,12 @@ object HomeContract {
         val recurringStates: Map<String, com.zyke.message.domain.repository.RecurringState> = emptyMap(),
         /** Subscriptions the person marked as cancelled, by [Subscription.key], with the day. */
         val cancelledSubs: Map<String, java.time.LocalDate> = emptyMap(),
+        /** The merges of repeating payments reported under several names; already applied to [subscriptions]. */
+        val recurringMerges: List<com.zyke.message.domain.insights.RecurringMerge> = emptyList(),
+        /** Merge suggestions the person turned down. */
+        val mergeDismissed: Set<String> = emptySet(),
+        /** "Same payment under two names?" questions, at most three. */
+        val mergeSuggestions: List<com.zyke.message.domain.insights.MergeSuggestion> = emptyList(),
         /** Every recurring charge with its yearly cost, state, hints and cancel guide. */
         val subscriptionOverview: com.zyke.message.domain.insights.SubscriptionOverview = com.zyke.message.domain.insights.SubscriptionOverview(emptyList()),
         /** Today's share of what is spendable, how much of it is left, and the run of days kept within it; null with no plan. */
@@ -204,6 +210,10 @@ object HomeContract {
         /** Says the subscription was cancelled, on [on]; [RestoreSubscription] takes it back. */
         data class CancelSubscription(val key: String, val on: java.time.LocalDate) : Intent
         data class RestoreSubscription(val key: String) : Intent
+        /** Writes every merge of repeating payments at once (a merge, an unmerge, a rename or an Undo is one write). */
+        data class SetRecurringMerges(val merges: List<com.zyke.message.domain.insights.RecurringMerge>) : Intent
+        data class DismissMergeSuggestion(val id: String) : Intent
+        data class RestoreMergeSuggestion(val id: String) : Intent
         data object OpenReminders : Intent
         data object CloseReminders : Intent
         data object OpenCodes : Intent

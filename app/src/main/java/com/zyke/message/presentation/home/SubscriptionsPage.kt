@@ -18,7 +18,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -118,13 +125,31 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
     val lines = overview.lines
     val cancelling = cancellingKey?.let { key -> lines.firstOrNull { it.key == key } }
     val charges = state.review.cancelledCharges
+    val merge = rememberMergeActions(state, onIntent)
+    // Picking several entries to merge: which are picked survives rotation; leaving the page ends it.
+    var picking by rememberSaveable { mutableStateOf(false) }
+    var pickedKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val liveKeys = remember(lines) { lines.map { it.key }.toSet() }
+    val mergePicked = remember(pickedKeys, liveKeys) { pickedKeys.filter { it in liveKeys } }
+    fun endPicking() { picking = false; pickedKeys = emptyList() }
+    fun toggle(key: String) {
+        picking = true
+        pickedKeys = if (key in mergePicked) mergePicked - key else mergePicked + key
+    }
 
     fun stillUsing(key: String, name: String) {
         onIntent(Intent.RestoreSubscription(key))
         handler.announce("$name is back in your subscriptions") { onIntent(Intent.CancelSubscription(key, today)) }
     }
 
-    AppPage("Subscriptions", onBack) {
+    AppPage(
+        "Subscriptions", onBack,
+        footer = if (picking) {
+            { MergeSelectionBar(mergePicked.size, onMerge = { merge.mergeKeys(mergePicked) }, onClear = { pickedKeys = emptyList() }, onDone = { endPicking() }) }
+        } else null
+    ) {
+        // Back leaves selection mode first, and the page only after that.
+        androidx.activity.compose.BackHandler(enabled = picking) { endPicking() }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (overview.isEmpty) {
                 EmptyState(
@@ -137,6 +162,16 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                         charges,
                         onOpen = { onIntent(Intent.OpenMessage(it.message.id)) },
                         onStillUsing = { charge -> stillUsing(charge.key, charge.name) }
+                    )
+                }
+                if (state.mergeSuggestions.isNotEmpty() && !picking) {
+                    MergeSuggestionCard(
+                        state.mergeSuggestions,
+                        onMerge = { s -> merge.mergeKeys(s.keys) },
+                        onNo = { s ->
+                            onIntent(Intent.DismissMergeSuggestion(s.id))
+                            handler.announce("Okay, will not ask again") { onIntent(Intent.RestoreMergeSuggestion(s.id)) }
+                        }
                     )
                 }
                 SubscriptionsHero(overview)
@@ -154,6 +189,8 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                             SubscriptionLineRow(
                                 line, today, showState = filter == SubFilter.ALL,
+                                picking = picking, picked = line.key in mergePicked, onToggle = { toggle(line.key) },
+                                menu = merge.menuFor(line.subscription) { toggle(line.key) },
                                 onCancel = { cancellingKey = line.key },
                                 onStillUsing = { stillUsing(line.key, line.label) },
                                 onOpenMessage = { onIntent(Intent.OpenMessage(line.subscription.messageId)) }
@@ -319,12 +356,16 @@ private fun FilterRow(filters: List<SubFilter>, selected: SubFilter, overview: S
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SubscriptionLineRow(
     line: SubscriptionLine,
     today: LocalDate,
     showState: Boolean,
+    picking: Boolean,
+    picked: Boolean,
+    onToggle: () -> Unit,
+    menu: List<MenuEntry>,
     onCancel: () -> Unit,
     onStillUsing: () -> Unit,
     onOpenMessage: () -> Unit
@@ -341,49 +382,71 @@ private fun SubscriptionLineRow(
         }
         add(RowAction("Last charge", ButtonStyle.TEXT, "Open the last ${line.label} charge, ${DisplayFormatters.rupees(sub.amount).takeIf { !hidden } ?: "amount hidden"}") { onOpenMessage() })
     }
-    PlanRow(
-        title = line.name,
-        leading = {
-            MerchantChip(
-                line.merchant?.logo ?: MerchantLogo.UPI, size = 44.dp, imageKey = line.merchant?.imageKey, name = line.name, description = null
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    Row(
+        Modifier.fillMaxWidth()
+            .then(
+                if (picking) Modifier.semantics(mergeDescendants = true) { role = Role.Checkbox; toggleableState = ToggleableState(picked) } else Modifier
             )
-        },
-        caption = {
-            Caption(listOf(line.cadence.label, sub.reference).filter { it.isNotEmpty() }.joinToString(" \u00b7 ") + " \u00b7 " + if (cancelled) "cancelled ${line.cancelledOn?.let { DayMonth.format(it) }.orEmpty()}" else nextLabel(line, today), maxLines = 2)
-        },
-        amount = {
-            Column(horizontalAlignment = Alignment.End) {
-                AmountText(DisplayFormatters.rupees(line.yearly), if (cancelled) mutedColor() else MaterialTheme.colorScheme.primary)
-                Caption("a year")
-            }
-        },
-        actions = actions,
-        below = {
-            val hasCheck = line.hints.isNotEmpty() && !cancelled
-            val several = sub.ofCount > 1
-            if (showState || hasCheck || several) {
-                FlowRow(
-                    Modifier.fillMaxWidth().padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    if (several) StatusPill(sub.suffix, Tone.NEUTRAL)
-                    if (showState) StatusPill(line.state.label, stateTone(line.state))
-                    if (hasCheck) CheckChip(line.hints.size, checking, line.label) { checking = !checking }
+            .clip(shape)
+            .combinedClickable(
+                onClickLabel = if (picking) (if (picked) "Drop from selection" else "Add to selection") else "Open the last charge",
+                onClick = { if (picking) onToggle() else onOpenMessage() },
+                onLongClickLabel = "Pick several to merge",
+                onLongClick = onToggle
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (picking) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = picked, onCheckedChange = null) }
+        Box(Modifier.weight(1f)) {
+        PlanRow(
+            title = line.name,
+            leading = {
+                MerchantChip(
+                    line.merchant?.logo ?: MerchantLogo.UPI, size = 44.dp, imageKey = line.merchant?.imageKey, name = line.name, description = null
+                )
+            },
+            caption = {
+                Caption(listOf(line.cadence.label, sub.reference).filter { it.isNotEmpty() }.joinToString(" \u00b7 ") + " \u00b7 " + if (cancelled) "cancelled ${line.cancelledOn?.let { DayMonth.format(it) }.orEmpty()}" else nextLabel(line, today), maxLines = 2)
+                if (sub.isMerged) Caption(sub.alsoSeenCaption(), maxLines = 3)
+            },
+            amount = {
+                Column(horizontalAlignment = Alignment.End) {
+                    AmountText(DisplayFormatters.rupees(line.yearly), if (cancelled) mutedColor() else MaterialTheme.colorScheme.primary)
+                    Caption("a year")
                 }
-            }
-            if (hasCheck && checking) {
-                Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    line.hints.forEach { hint ->
-                        Column {
-                            Text(hintLabel(hint.kind), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = toneColor(Tone.WARN))
-                            Caption(hintText(hint, hidden), maxLines = 4)
+            },
+            more = if (picking) null else ({ RowMenu(line.label, menu) }),
+            actions = if (picking) emptyList() else actions,
+            below = {
+                val hasCheck = line.hints.isNotEmpty() && !cancelled
+                val several = sub.suffix.isNotEmpty()
+                if (showState || hasCheck || several || sub.isMerged) {
+                    FlowRow(
+                        Modifier.fillMaxWidth().padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        if (several) StatusPill(sub.suffix, Tone.NEUTRAL)
+                        if (sub.isMerged) StatusPill("Merged \u00b7 ${sub.nameCount} names", Tone.NEUTRAL)
+                        if (showState) StatusPill(line.state.label, stateTone(line.state))
+                        if (hasCheck) CheckChip(line.hints.size, checking, line.label) { checking = !checking }
+                    }
+                }
+                if (hasCheck && checking) {
+                    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        line.hints.forEach { hint ->
+                            Column {
+                                Text(hintLabel(hint.kind), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = toneColor(Tone.WARN))
+                                Caption(hintText(hint, hidden), maxLines = 4)
+                            }
                         }
                     }
                 }
             }
+        )
         }
-    )
+    }
 }
 
 /** One quiet chip for everything worth a second look; it unfolds the questions in place. */
