@@ -20,7 +20,7 @@ class ObserveMessagesUseCaseTest {
     private fun sms(id: Long, body: String, date: Long) = SmsMessage(id, "S", body, date, true)
 
     @Test
-    fun sortsNewestFirstAndDropsSameDayDuplicates() = runBlocking {
+    fun sortsNewestFirst_andKeepsEveryMessage_evenAlikeOnesTheSameDay() = runBlocking {
         val day = 24L * 60 * 60 * 1000
         val base = 1_700_000_000_000L
         val useCase = ObserveMessagesUseCase(
@@ -37,6 +37,7 @@ class ObserveMessagesUseCaseTest {
         )
 
         val ids = useCase().first().map { it.id }
-        assertEquals(listOf(3L, 2L, 4L), ids)
+        // Alike texts the same day are separate messages (five SIP debits that read alike are five payments).
+        assertEquals(listOf(3L, 2L, 1L, 4L), ids)
     }
 }

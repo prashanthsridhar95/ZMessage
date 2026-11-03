@@ -3,12 +3,12 @@ package com.zyke.message.domain
 import com.zyke.message.domain.accounts.Accounts
 import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.model.SmsMessage
-import com.zyke.message.domain.usecase.CarrierCopies
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import kotlinx.coroutines.launch
 import org.junit.Test
 
 /** The report: "INR 2000.00 deducted from HDFC Bank A/C No 5765 towards Bajaj Finserv Mutual Fund" five times, balance unchanged. */
@@ -30,7 +30,7 @@ class RepeatedAlertsBalanceTest {
     @Test
     fun fiveAlertsOnOneDayHoursApartAreFivePayments_notCopies() {
         val inbox = listOf(sms(balanceMessage, at(1, 9))) + (0 until 5).map { sms(alert, at(5, 9 + it * 2)) }
-        val kept = CarrierCopies.drop(inbox.sortedByDescending { it.date })
+        val kept = inbox.sortedByDescending { it.date }
         assertEquals(6, kept.size)
         val account = total(kept).accounts.single()
         assertEquals(0, BigDecimal("40000").compareTo(account.balance!!))
@@ -38,9 +38,23 @@ class RepeatedAlertsBalanceTest {
     }
 
     @Test
-    fun aCarrierCopyWithinTwoMinutesIsStillDropped() {
-        val inbox = listOf(sms(alert, at(5, 9, 0)), sms(alert, at(5, 9, 1)), sms(alert, at(5, 12)))
-        assertEquals(2, CarrierCopies.drop(inbox.sortedByDescending { it.date }).size)
+    fun fiveAlikeAlertsInOneMinute_areFivePayments_inTheList_andInTheBalance() {
+        val inbox = listOf(sms(balanceMessage, at(1, 9))) + (0 until 5).map { sms(alert, at(5, 13, 44) + it * 2_000L) }
+        val shown = kotlinx.coroutines.runBlocking {
+            val useCase = com.zyke.message.domain.usecase.ObserveMessagesUseCase(Phone(inbox), classifier, kotlinx.coroutines.Dispatchers.Unconfined)
+            var latest = emptyList<com.zyke.message.domain.model.ClassifiedMessage>()
+            val job = launch(kotlinx.coroutines.Dispatchers.Unconfined) { useCase().collect { latest = it } }
+            job.cancel()
+            latest
+        }
+        assertEquals(6, shown.size)
+        val account = Accounts.build(shown, emptyList(), now, zone).accounts.single()
+        assertEquals(0, BigDecimal("40000").compareTo(account.balance!!))
+        assertEquals(5, account.movementCount)
+    }
+
+    private class Phone(private val messages: List<SmsMessage>) : com.zyke.message.domain.repository.SmsRepository {
+        override fun observeInbox() = kotlinx.coroutines.flow.flowOf(messages)
     }
 
     @Test
