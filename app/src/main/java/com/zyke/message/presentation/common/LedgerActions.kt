@@ -11,7 +11,10 @@ import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.ledger.ManualEntryRepository
 import com.zyke.message.domain.ledger.SetAsideRepository
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.CustomCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.domain.nickname.NamingEdits
+import com.zyke.message.domain.nickname.label
 import kotlinx.coroutines.launch
 
 /**
@@ -21,6 +24,7 @@ import kotlinx.coroutines.launch
 class LedgerActions(
     private val asides: SetAsideRepository,
     private val entries: ManualEntryRepository,
+    private val naming: NamingEdits? = null,
     /** Shows a message with an Undo button; null (the default) shows nothing. */
     private val offerUndo: (message: String, undo: () -> Unit) -> Unit = { _, _ -> }
 ) {
@@ -68,6 +72,40 @@ class LedgerActions(
         offerUndo("Marked as a transfer") { asides.unlink(message.id) }
     }
 
+    /**
+     * Names and / or files payments in one step (the same way from every screen) and offers one Undo. A name already in
+     * use brings its category along unless one is chosen in the request. [copyPicture] copies a picture from one key to
+     * another; [removePicture] takes one away again on Undo. Returns null where naming is not available.
+     */
+    fun edit(
+        request: NamingEdits.Request,
+        messages: List<ClassifiedMessage>,
+        pictureKeys: Set<String>,
+        customs: List<CustomCategory>,
+        copyPicture: (from: String, to: String) -> Unit = { _, _ -> },
+        removePicture: (key: String) -> Unit = {},
+        summary: String? = null
+    ): NamingEdits.Outcome? {
+        val edits = naming ?: return null
+        val outcome = edits.apply(request, messages, pictureKeys)
+        outcome.pictureCopies.forEach { (from, to) -> copyPicture(from, to) }
+        com.zyke.message.data.diag.DevLog.d("ledger") {
+            "edit: targets=${outcome.receipt.keys} renamed=${outcome.renamed} refiled=${outcome.refiled} inherited=${outcome.inherited != null} replacedOlder=${outcome.replacedOlder} pictures=${outcome.pictureCopies.size}"
+        }
+        val inherited = outcome.inherited
+        val text = summary ?: when {
+            inherited != null -> "Also set category to ${inherited.label(customs)} like your other \"${outcome.inheritedFrom}\" payments"
+            else -> null
+        }
+        if (text != null && outcome.changedAnything) {
+            offerUndo(text) {
+                edits.undo(outcome.receipt)
+                outcome.pictureCopies.forEach { (_, to) -> removePicture(to) }
+            }
+        }
+        return outcome
+    }
+
     fun deleteEntry(messageId: Long) {
         if (messageId < 0) entries.remove(ManualEntries.entryId(messageId))
     }
@@ -80,7 +118,7 @@ fun rememberLedgerActions(): LedgerActions {
     val scope = rememberCoroutineScope()
     val tick = rememberTick()
     return remember(container, snackbar, scope, tick) {
-        LedgerActions(container.setAsides, container.manualEntries) { message, undo ->
+        LedgerActions(container.setAsides, container.manualEntries, container.namingEdits) { message, undo ->
             scope.launch {
                 // A newer change replaces an older one's offer rather than queueing behind it.
                 snackbar.currentSnackbarData?.dismiss()

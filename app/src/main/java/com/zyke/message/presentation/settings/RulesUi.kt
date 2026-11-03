@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,8 @@ internal fun RulesSection() {
     val pictures by container.imageStore.keysWithImage.collectAsStateWithLifecycle()
     val words by container.tokenRules.rules.collectAsStateWithLifecycle()
     val actions = rememberLedgerActions()
+    val customs = com.zyke.message.presentation.common.LocalCustomCategories.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val view = remember(messages, overrides, nicknames, pictures, words) { Rules.describe(messages, overrides, nicknames, pictures, words) }
     val suggestions = remember(overrides, words) { Rules.suggestTokenRules(overrides, words) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
@@ -104,8 +107,22 @@ internal fun RulesSection() {
     if (open != null) EditRuleSheet(
         rule = open,
         onSave = { category, name ->
-            if (open.category != null && category != null) container.categoryOverrides.set(open.key, category)
-            if (open.nickname != null && !name.isNullOrBlank()) container.nicknames.set(open.key, name)
+            // A category picked here is a deliberate choice; a new name alone brings the category the name already has.
+            val chosen = category?.takeIf { open.category != null && it != open.category }
+            val rename = open.nickname != null && !name.isNullOrBlank() && name.trim() != open.nickname
+            if (chosen != null || rename) {
+                val covered = if (open.key.startsWith("msg:")) open.key.removePrefix("msg:").toLongOrNull()?.let { setOf(it) } ?: emptySet()
+                else messages.filter { com.zyke.message.domain.categories.CategoryKey.of(it) == open.key }.mapTo(HashSet()) { it.id }
+                actions.edit(
+                    com.zyke.message.domain.nickname.NamingEdits.Request(
+                        listOf(com.zyke.message.domain.nickname.NamingEdits.Target(open.key, covered)),
+                        if (rename) name else null, chosen?.let { com.zyke.message.domain.nickname.CategoryChoice.of(it) }
+                    ),
+                    messages, pictures, customs,
+                    copyPicture = { from, to -> scope.launch { container.imageStore.copyChosen(from, to) } },
+                    removePicture = { container.imageStore.removeChosen(it) }
+                )
+            }
             editing = null
         },
         onDismiss = { editing = null }

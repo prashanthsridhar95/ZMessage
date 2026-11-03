@@ -15,6 +15,7 @@ class CategoryOverrideRepositoryImpl(context: Context) : CategoryOverrideReposit
     private val _overrides = MutableStateFlow(load())
     override val overrides: StateFlow<Map<String, MessageCategory>> = _overrides.asStateFlow()
 
+    @Synchronized
     override fun set(key: String, category: MessageCategory?) {
         val editor = prefs.edit()
         if (category == null) editor.remove(key) else editor.putString(key, category.name)
@@ -23,6 +24,20 @@ class CategoryOverrideRepositoryImpl(context: Context) : CategoryOverrideReposit
         _overrides.value = if (category == null) _overrides.value - key else _overrides.value + (key to category)
         com.zyke.message.data.diag.DevLog.d("category") {
             "set key=${com.zyke.message.domain.diag.DiagLog.key(key)} category=$category count $before -> ${_overrides.value.size} storedNow=${prefs.contains(key)}"
+        }
+    }
+
+    override fun setAll(changes: Map<String, MessageCategory?>) {
+        if (changes.isEmpty()) return
+        synchronized(this) {
+            val editor = prefs.edit()
+            var next = _overrides.value
+            for ((key, category) in changes) {
+                if (category == null) { editor.remove(key); next = next - key } else { editor.putString(key, category.name); next = next + (key to category) }
+            }
+            editor.apply()
+            _overrides.value = next
+            com.zyke.message.data.diag.DevLog.d("category") { "set ${changes.size} keys at once -> ${next.size} choices" }
         }
     }
 

@@ -25,6 +25,9 @@ interface CustomCategoryRepository {
     /** Files [key] (see CategoryKey) under category [id]; null takes the choice away. */
     fun assign(key: String, id: String?)
 
+    /** Many keys at once: one saved write and one published state. */
+    fun assignAll(changes: Map<String, String?>) = changes.forEach { (key, id) -> assign(key, id) }
+
     /** Deletes the category; whatever was filed under it goes back to automatic. Null when there is no such category. */
     fun delete(id: String): DeletedCategory?
 
@@ -95,6 +98,21 @@ class CustomCategoryStore(
             else -> current.assignments + (key to id)
         }
         if (next != current.assignments) commit("assign id=${id ?: "none"} key=${com.zyke.message.domain.diag.DiagLog.key(key)}", current.copy(assignments = next))
+    }
+
+    override fun assignAll(changes: Map<String, String?>) {
+        synchronized(lock) {
+            val current = _state.value
+            var next = current.assignments
+            for ((key, id) in changes) {
+                next = when {
+                    id == null -> next - key
+                    current.categories.none { it.id == id } -> next
+                    else -> next + (key to id)
+                }
+            }
+            if (next != current.assignments) commit("assign ${changes.size} keys", current.copy(assignments = next))
+        }
     }
 
     override fun delete(id: String): DeletedCategory? = synchronized(lock) {

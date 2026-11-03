@@ -65,6 +65,7 @@ import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.categories.CategoryOptions
 import com.zyke.message.domain.categories.CustomCategories
 import com.zyke.message.domain.model.CustomCategory
+import com.zyke.message.domain.nickname.label
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -279,8 +280,10 @@ internal fun MessageDetailSheet(
         }
     }
 
-    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction) { categoryScope = null } }
-    nameScope?.let { forTransaction -> NicknameSheet(item, title, actions, forTransaction) { nameScope = null } }
+    val namingLedger = com.zyke.message.presentation.common.rememberLedgerActions()
+    val namingScope = rememberCoroutineScope()
+    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger) { categoryScope = null } }
+    nameScope?.let { forTransaction -> NicknameSheet(item, title, forTransaction, namingLedger, namingScope) { nameScope = null } }
 }
 
 /** A titled card of rows, for settings that belong together. */
@@ -336,7 +339,10 @@ private val CATEGORY_GROUPS = listOf(
  * away. Typing in the search box narrows them all to the ones that match. Tapping the one already chosen takes the choice away.
  */
 @Composable
-private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTransaction: Boolean, onDismiss: () -> Unit) {
+private fun CategorySheet(
+    item: ClassifiedMessage, actions: FeedActions, forTransaction: Boolean,
+    ledger: com.zyke.message.presentation.common.LedgerActions, onDismiss: () -> Unit
+) {
     // What is in effect for the thing being filed: this one transaction's own choice, or its sender's or receiver's.
     val chosenHere = if (forTransaction) item.categoryOwn else item.categoryOverridden && !item.categoryOwn
     val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
@@ -345,6 +351,30 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
     // What this choice is filed under: this one payment, or its sender or receiver.
     val fileKey = if (forTransaction) CategoryKey.messageKey(item.id) else CategoryKey.of(item)
     val customHere = item.customCategoryId.takeIf { chosenHere }
+    // Other payments that carry the same nickname: the choice can be carried to them too.
+    val nicknames by container.nicknames.nicknames.collectAsState()
+    val messages by remember(container) { container.observeMessages() }.collectAsState(initial = emptyList())
+    val nick = item.merchant.name.takeIf { item.merchant.renamed }
+    val coveredIds = remember(messages, fileKey, forTransaction) {
+        if (forTransaction || fileKey == null) setOf(item.id) else messages.filter { CategoryKey.of(it) == fileKey }.mapTo(HashSet()) { it.id }
+    }
+    val sameName = remember(nick, nicknames, messages, fileKey, coveredIds) {
+        if (nick == null || fileKey == null) emptyList()
+        else com.zyke.message.domain.nickname.NicknameProfiles.holders(nick, nicknames, messages, coveredIds, setOf(fileKey))
+    }
+    val sameNameCount = sameName.sumOf { it.messageIds.size }
+    // On for a sender or receiver (the whole name moves together), off for one payment (the person has not asked for more).
+    var alsoSameName by rememberSaveable { mutableStateOf(!forTransaction) }
+    fun fileSameName(choice: com.zyke.message.domain.nickname.CategoryChoice) {
+        if (!alsoSameName || sameName.isEmpty() || nick == null) return
+        ledger.edit(
+            com.zyke.message.domain.nickname.NamingEdits.Request(
+                sameName.map { com.zyke.message.domain.nickname.NamingEdits.Target(it.key, it.messageIds) }, category = choice, inherit = false
+            ),
+            messages, emptySet(), customs,
+            summary = "Also filed $sameNameCount other \"$nick\" ${if (sameNameCount == 1) "payment" else "payments"} under ${choice.label(customs)}"
+        )
+    }
     val set: (MessageCategory?) -> Unit = { category ->
         // A built-in choice (or taking the choice away) replaces any category of the person's own for the same thing.
         fileKey?.let { container.customCategories.assign(it, null) }
@@ -359,6 +389,7 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
             // One thing is filed one way: the built-in choice for the same key is cleared so the two never compete.
             if (forTransaction) actions.onSetMessageCategory(item.id, null) else actions.onSetCategory(item.id, null)
             container.customCategories.assign(key, category.id)
+            fileSameName(com.zyke.message.domain.nickname.CategoryChoice.custom(category.id))
         }
     }
     var adding by remember { mutableStateOf(false) }
@@ -370,7 +401,9 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
     fun choose(category: MessageCategory) {
         com.zyke.message.data.diag.DevLog.d("ui") { "category sheet: chose $category id=${item.id} forTransaction=$forTransaction alreadyChosen=${chosenHere && item.category == category}" }
         // Choosing the one already chosen takes the choice away.
-        set(if (chosenHere && customHere == null && item.category == category) null else category)
+        val removing = chosenHere && customHere == null && item.category == category
+        set(if (removing) null else category)
+        if (!removing) fileSameName(com.zyke.message.domain.nickname.CategoryChoice.of(category))
         onDismiss()
     }
 
@@ -381,6 +414,10 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
                     if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
                     Modifier.padding(top = 2.dp), maxLines = 2
                 )
+            }
+
+            if (sameNameCount > 0 && nick != null) {
+                SwitchRow("Also file the $sameNameCount other \"$nick\" ${if (sameNameCount == 1) "payment" else "payments"} here", alsoSameName) { alsoSameName = !alsoSameName }
             }
 
             FormField(label = "Find a category", value = query, onChange = { query = it }, placeholder = "Type to search")
@@ -453,26 +490,41 @@ private fun CategorySheet(item: ClassifiedMessage, actions: FeedActions, forTran
 
 /** Giving the sender a nickname, in the app's one form shape. */
 @Composable
-private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: FeedActions, forTransaction: Boolean, onDismiss: () -> Unit) {
+private fun NicknameSheet(
+    item: ClassifiedMessage,
+    shownName: String,
+    forTransaction: Boolean,
+    ledger: com.zyke.message.presentation.common.LedgerActions,
+    appScope: kotlinx.coroutines.CoroutineScope,
+    onDismiss: () -> Unit
+) {
     // A name for this transaction, or for the sender or receiver: each is kept and cleared on its own.
     val named = if (forTransaction) item.nicknameOwn else item.merchant.renamed && !item.nicknameOwn
     var name by rememberSaveable { mutableStateOf(if (named) shownName else "") }
+    // The category a name already has is taken by default; this switches that off before saving.
+    var keepCategory by rememberSaveable { mutableStateOf(false) }
     val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val nicknames by container.nicknames.nicknames.collectAsState()
-    val categories by container.categoryOverrides.overrides.collectAsState()
     val pictureKeys by container.imageStore.keysWithImage.collectAsState()
+    val messages by remember(container) { container.observeMessages() }.collectAsState(initial = emptyList())
+    val customs = com.zyke.message.presentation.common.LocalCustomCategories.current
 
     // What the thing being named is filed under: this one payment, or its sender or receiver.
     val targetKey = if (forTransaction) CategoryKey.messageKey(item.id) else CategoryKey.of(item)
+    val coveredIds = androidx.compose.runtime.remember(messages, targetKey, forTransaction) {
+        if (forTransaction || targetKey == null) setOf(item.id) else messages.filter { CategoryKey.of(it) == targetKey }.mapTo(HashSet()) { it.id }
+    }
     // Names already given, best fit to what is typed first, never counting this thing's own current name.
     val suggestions = androidx.compose.runtime.remember(name, nicknames, targetKey) {
         com.zyke.message.domain.nickname.NicknameSuggestions.suggest(name, nicknames.filterKeys { it != targetKey })
     }
-    // If the name is one already used, what it already has, which this one will take too.
-    val inherited = androidx.compose.runtime.remember(name, nicknames, categories, pictureKeys, targetKey) {
-        targetKey?.let { com.zyke.message.domain.nickname.NicknameSuggestions.inherit(name, it, nicknames, categories, pictureKeys) }
+    // If the name is one already used, what its other payments have: the category most of them are filed under, and a picture.
+    val profile = androidx.compose.runtime.remember(name, nicknames, messages, pictureKeys, targetKey, coveredIds) {
+        targetKey?.let {
+            com.zyke.message.domain.nickname.NicknameProfiles.profile(name, nicknames, messages, pictureKeys, coveredIds, setOf(it))
+        }
     }
+    val inheritedCategory = profile?.category?.takeIf { !it.isEmpty }
 
     FormSheet(
         title = if (forTransaction) "Name this transaction" else "Name ${CategoryKey.label(item)}",
@@ -480,23 +532,30 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
         onPrimary = {
-            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: save id=${item.id} forTransaction=$forTransaction nameLength=${name.length} inherits=${inherited != null}" }
-            actions.onRename(item.id, name, forTransaction)
-            // A name that is already in use brings its category and picture along, unless this one has its own already.
-            if (inherited != null && targetKey != null) {
-                inherited.category?.let { category ->
-                    if (container.categoryOverrides.overrides.value[targetKey] == null) container.categoryOverrides.set(targetKey, category)
-                }
-                inherited.imageKey?.let { source ->
-                    if (targetKey !in container.imageStore.keysWithImage.value) scope.launch { container.imageStore.copyChosen(source, targetKey) }
-                }
+            com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: save id=${item.id} forTransaction=$forTransaction nameLength=${name.length} inherits=${profile != null && !keepCategory}" }
+            if (targetKey != null) {
+                ledger.edit(
+                    com.zyke.message.domain.nickname.NamingEdits.Request(
+                        listOf(com.zyke.message.domain.nickname.NamingEdits.Target(targetKey, coveredIds)), name, inherit = !keepCategory
+                    ),
+                    messages, pictureKeys, customs,
+                    copyPicture = { from, to -> appScope.launch { container.imageStore.copyChosen(from, to) } },
+                    removePicture = { container.imageStore.removeChosen(it) }
+                )
             }
             onDismiss()
         },
         secondaryLabel = if (named) "Remove this name" else null,
         onSecondary = {
             com.zyke.message.data.diag.DevLog.d("ui") { "name sheet: remove id=${item.id} forTransaction=$forTransaction" }
-            actions.onRename(item.id, "", forTransaction)
+            if (targetKey != null) {
+                ledger.edit(
+                    com.zyke.message.domain.nickname.NamingEdits.Request(
+                        listOf(com.zyke.message.domain.nickname.NamingEdits.Target(targetKey, coveredIds)), "", inherit = false
+                    ),
+                    messages, pictureKeys, customs, summary = "Name removed"
+                )
+            }
             onDismiss()
         }
     ) {
@@ -512,9 +571,22 @@ private fun NicknameSheet(item: ClassifiedMessage, shownName: String, actions: F
                 ) { picked -> name = suggestions.first { (if (it.uses > 1) "${it.name} \u00B7 ${it.uses}" else it.name) == picked }.name }
             }
         }
-        inherited?.let { details ->
-            val parts = listOfNotNull(details.category?.let { "the category ${it.displayString}" }, details.imageKey?.let { "its picture" })
-            Caption("\"${name.trim()}\" is already in use: this will also take ${parts.joinToString(" and ")}.", maxLines = 3)
+        if (inheritedCategory != null && profile != null) {
+            val inheritedLabel = inheritedCategory.label(customs)
+            val current = CustomCategories.label(item, customs)
+            FormGroup("Category") {
+                Chips(
+                    listOf(ChipOption("Use $inheritedLabel", !keepCategory), ChipOption("Keep $current", keepCategory)),
+                    onSelect = { keepCategory = it == 1 }
+                )
+                Caption(
+                    "from ${profile.transactions} other \"${name.trim()}\" ${if (profile.transactions == 1) "payment" else "payments"}",
+                    maxLines = 2
+                )
+            }
+        }
+        if (profile?.imageKey != null) {
+            Caption("\"${name.trim()}\" is already in use: this will also take its picture.", maxLines = 3)
         }
     }
 }

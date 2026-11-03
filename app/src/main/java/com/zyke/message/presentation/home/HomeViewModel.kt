@@ -258,17 +258,6 @@ class HomeViewModel(
             Intent.CloseQuickAdds -> reduce { copy(showQuickAdds = false) }
             is Intent.DismissQuick -> io { userStateRepository.dismissAttention(intent.key) }
             is Intent.AddQuick -> addQuick(intent.quick)
-            is Intent.Rename -> {
-                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
-                com.zyke.message.data.diag.DevLog.d("nickname") {
-                    "home: rename id=${intent.messageId} onlyThis=${intent.onlyThis} nameLength=${intent.name.length} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
-                }
-                message?.let {
-                    val own = CategoryKey.messageKey(it.id)
-                    // Naming this one transaction and naming its sender or receiver are two separate things.
-                    if (intent.onlyThis) io { nicknames.set(own, intent.name) } else CategoryKey.of(it)?.let { key -> io { nicknames.set(key, intent.name) } }
-                }
-            }
             is Intent.StartSplit -> reduce { copy(detailMessageId = null, splittingMessageId = intent.messageId) }
             Intent.CancelSplit -> reduce { copy(splittingMessageId = null) }
             is Intent.SaveSplit -> {

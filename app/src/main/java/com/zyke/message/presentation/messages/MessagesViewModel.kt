@@ -126,17 +126,6 @@ class MessagesViewModel(
             }
             Intent.CancelMerge -> reduce { copy(mergeRequest = null) }
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
-            is Intent.Rename -> {
-                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
-                com.zyke.message.data.diag.DevLog.d("nickname") {
-                    "messages: rename id=${intent.messageId} onlyThis=${intent.onlyThis} nameLength=${intent.name.length} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
-                }
-                message?.let {
-                    val own = CategoryKey.messageKey(it.id)
-                    // Naming this one transaction and naming its sender or receiver are two separate things.
-                    if (intent.onlyThis) nicknames.set(own, intent.name) else CategoryKey.of(it)?.let { key -> nicknames.set(key, intent.name) }
-                }
-            }
             is Intent.SetMessageCategory -> {
                 com.zyke.message.data.diag.DevLog.d("category") { "messages: this transaction id=${intent.messageId} -> ${intent.category}" }
                 categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)

@@ -9,6 +9,9 @@ interface NicknameRepository {
 
     /** A blank [name] removes the nickname. */
     fun set(key: String, name: String?)
+
+    /** Many names in one change: one saved write and one published state. A null or blank name removes the nickname. */
+    fun setAll(changes: Map<String, String?>) = changes.forEach { (key, name) -> set(key, name) }
 }
 
 object NoNicknames : NicknameRepository {

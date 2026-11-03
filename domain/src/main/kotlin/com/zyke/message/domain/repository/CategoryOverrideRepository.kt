@@ -11,6 +11,9 @@ interface CategoryOverrideRepository {
     /** Passing null goes back to the automatic category. */
     fun set(key: String, category: MessageCategory?)
 
+    /** Many choices in one change: one saved write and one published state. */
+    fun setAll(changes: Map<String, MessageCategory?>) = changes.forEach { (key, category) -> set(key, category) }
+
     fun clearAll()
 }
 

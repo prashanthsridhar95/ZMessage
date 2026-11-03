@@ -23,8 +23,6 @@ data class FeedActions(
     val onSetMessageCategory: (messageId: Long, category: MessageCategory?) -> Unit = { _, _ -> },
     /** Mute or unmute the sender of this message. */
     val onToggleMute: (messageId: Long) -> Unit = {},
-    /** Give this message's sender / receiver a nickname; blank removes it. */
-    val onRename: (messageId: Long, name: String, onlyThis: Boolean) -> Unit = { _, _, _ -> },
     /** Say that [duplicateId] is the same transaction as [primaryId]; asks first. */
     val onRequestMerge: (primaryId: Long, duplicateId: Long) -> Unit = { _, _ -> },
     /** Make a merged message a message of its own again. */
