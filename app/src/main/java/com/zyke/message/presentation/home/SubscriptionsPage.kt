@@ -183,6 +183,16 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                 FilterRow(filters, filter, overview) { picked = it.name }
                 SegmentedTabs(SORTS.map { it.label }, sortIndex, { sortIndex = it })
                 val rows = remember(overview, filter, sortIndex) { overview.view(filter.state, SORTS[sortIndex]) }
+                // The same payment reported under two names is merged here: one obvious button, then tap the entries.
+                if (!picking && rows.size >= 2) {
+                    AppButton(
+                        "Merge duplicate entries", { picking = true },
+                        Modifier.fillMaxWidth().semantics { contentDescription = "Merge duplicate subscription entries: pick the entries that are the same payment" },
+                        style = ButtonStyle.TONAL
+                    )
+                } else if (picking) {
+                    Caption("Tap the entries that are the same payment (for example your bank's name and your fund house's), then tap Merge.", maxLines = 3)
+                }
                 FintechCard {
                     rows.forEachIndexed { index, line ->
                         key(line.key) {

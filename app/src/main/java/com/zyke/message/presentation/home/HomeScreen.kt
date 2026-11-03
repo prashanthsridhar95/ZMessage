@@ -600,7 +600,7 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
                             menu = merge.menuFor(item.subscription)
                         ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
                     }
-                    LinkButton("Yearly cost and how to cancel", { onIntent(Intent.OpenSubscriptions) })
+                    LinkButton("Merge duplicates, yearly cost, how to cancel", { onIntent(Intent.OpenSubscriptions) })
                 }
               }
             }
