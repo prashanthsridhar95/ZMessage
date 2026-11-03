@@ -418,7 +418,6 @@ private fun SubscriptionLineRow(
             },
             caption = {
                 Caption(listOf(line.cadence.label, sub.reference).filter { it.isNotEmpty() }.joinToString(" \u00b7 ") + " \u00b7 " + if (cancelled) "cancelled ${line.cancelledOn?.let { DayMonth.format(it) }.orEmpty()}" else nextLabel(line, today), maxLines = 2)
-                if (sub.isMerged) Caption(sub.alsoSeenCaption(), maxLines = 3)
             },
             amount = {
                 Column(horizontalAlignment = Alignment.End) {
@@ -431,14 +430,13 @@ private fun SubscriptionLineRow(
             below = {
                 val hasCheck = line.hints.isNotEmpty() && !cancelled
                 val several = sub.suffix.isNotEmpty()
-                if (showState || hasCheck || several || sub.isMerged) {
+                if (showState || hasCheck || several) {
                     FlowRow(
                         Modifier.fillMaxWidth().padding(top = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         if (several) StatusPill(sub.suffix, Tone.NEUTRAL)
-                        if (sub.isMerged) StatusPill("Merged \u00b7 ${sub.nameCount} names", Tone.NEUTRAL)
                         if (showState) StatusPill(line.state.label, stateTone(line.state))
                         if (hasCheck) CheckChip(line.hints.size, checking, line.label) { checking = !checking }
                     }

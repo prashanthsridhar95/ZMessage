@@ -1036,10 +1036,6 @@ private fun SubscriptionRow(
         ) {
             Column(Modifier.weight(1f)) {
                 RowTitle(item.fullName())
-                if (item.isMerged) {
-                    StatusPill("Merged \u00b7 ${item.nameCount} names", Tone.NEUTRAL, Modifier.padding(vertical = 2.dp))
-                    Caption(item.alsoSeenCaption(), maxLines = 3)
-                }
                 Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · " + recurring.expectedLabel + " · paid ${item.times} months running")
                 if (item.reference.isNotEmpty()) Caption(item.reference)
                 Caption(if (recurring.isConfirmed) "Confirmed" else "Looks recurring \u2014 is it?")
