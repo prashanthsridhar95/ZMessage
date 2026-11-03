@@ -195,6 +195,17 @@ class RecurringGroupsTest {
         assertEquals(emptyMap<String, String>(), RecurringGroups.matchingNames("Mahindra Manulife", listOf(sub("Mahindra Manulife Value"))))
     }
 
+    @Test fun unitNameCallsFundInstalmentsSips() {
+        assertEquals("SIP", RecurringGroups.unitName(funds + icc[3]))
+        assertEquals("payment", RecurringGroups.unitName(listOf(netflix, sub("Spotify India", id = 2))))
+    }
+
+    @Test fun groupListKeysCanNeverEqualAnEntryKey() {
+        val tricky = sub("group:g1", id = 77)
+        assertFalse(RecurringGroups.isGroupKey(tricky.key))
+        assertEquals("g1", RecurringGroups.groupIdOf(RecurringGroups.listKey("g1")))
+    }
+
     @Test fun normalizeDropsRepeatsAndEmpties() {
         val out = RecurringGroups.normalize(listOf(RecurringGroup("a", "A", listOf("k1", "k2")), RecurringGroup("b", "B", listOf("k2")), RecurringGroup("a", "A2", listOf("k9")), RecurringGroup("c", " ", listOf("k5"))))
         assertEquals(listOf("a"), out.map { it.id })

@@ -56,6 +56,8 @@ import com.zyke.message.domain.insights.CancelGuides
 import com.zyke.message.domain.insights.CancelledCharge
 import com.zyke.message.domain.insights.CostShare
 import com.zyke.message.domain.insights.HintKind
+import com.zyke.message.domain.insights.RecurringGroups
+import com.zyke.message.domain.insights.RecurringListItem
 import com.zyke.message.domain.insights.SubscriptionHint
 import com.zyke.message.domain.insights.SubscriptionLine
 import com.zyke.message.domain.insights.SubscriptionOverview
@@ -126,12 +128,24 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
     val cancelling = cancellingKey?.let { key -> lines.firstOrNull { it.key == key } }
     val charges = state.review.cancelledCharges
     val merge = rememberMergeActions(state, onIntent)
-    // Picking several entries to merge: which are picked survives rotation; leaving the page ends it.
+    // Picking several entries to merge or group: which are picked survives rotation; leaving the page ends it.
     var picking by rememberSaveable { mutableStateOf(false) }
     var pickedKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    val liveKeys = remember(lines) { lines.map { it.key }.toSet() }
-    val mergePicked = remember(pickedKeys, liveKeys) { pickedKeys.filter { it in liveKeys } }
     fun endPicking() { picking = false; pickedKeys = emptyList() }
+    val group = rememberGroupActions(state, onIntent, onSaved = { endPicking() })
+    // A picked key is an entry's key or "group:<id>" for a group row.
+    val liveKeys = remember(lines, state.recurringGroups) { lines.map { it.key }.toSet() + state.recurringGroups.map { RecurringGroups.listKey(it.id) } }
+    val mergePicked = remember(pickedKeys, liveKeys) { pickedKeys.filter { it in liveKeys } }
+    val pickedGroupIds = remember(mergePicked) { mergePicked.mapNotNull { RecurringGroups.groupIdOf(it) } }
+    val pickedEntryKeys = remember(mergePicked) { mergePicked.filter { !RecurringGroups.isGroupKey(it) } }
+    // Entries a group action would file: the ticked ones and the members of ticked groups.
+    val pickedFromGroups = remember(pickedGroupIds, lines, state.recurringGroups) {
+        val wanted = state.recurringGroups.filter { it.id in pickedGroupIds }.flatMap { it.memberKeys }.toSet()
+        lines.filter { l -> RecurringGroups.keysOf(l.subscription).any { it in wanted } }.map { it.key }
+    }
+    val groupEntryCount = (pickedEntryKeys + pickedFromGroups).distinct().size
+    val canGroup = groupEntryCount >= 2 && (pickedGroupIds.size != 1 || pickedEntryKeys.isNotEmpty())
+    val canMerge = pickedGroupIds.isEmpty() && pickedEntryKeys.size >= 2
     fun toggle(key: String) {
         picking = true
         pickedKeys = if (key in mergePicked) mergePicked - key else mergePicked + key
@@ -145,7 +159,15 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
     AppPage(
         "Subscriptions", onBack,
         footer = if (picking) {
-            { MergeSelectionBar(mergePicked.size, onMerge = { merge.mergeKeys(mergePicked) }, onClear = { pickedKeys = emptyList() }, onDone = { endPicking() }) }
+            {
+                MergeSelectionBar(
+                    mergePicked.size, canMerge = canMerge, canGroup = canGroup,
+                    onMerge = { merge.mergeKeys(pickedEntryKeys) },
+                    // A ticked group takes the others in: the first one is added to, the rest fold into it.
+                    onGroup = { group.open((pickedEntryKeys + pickedFromGroups).distinct(), pickedGroupIds.firstOrNull(), null) },
+                    onClear = { pickedKeys = emptyList() }, onDone = { endPicking() }
+                )
+            }
         } else null
     ) {
         // Back leaves selection mode first, and the page only after that.
@@ -174,6 +196,16 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                         }
                     )
                 }
+                if (state.groupSuggestions.isNotEmpty() && !picking) {
+                    GroupSuggestionCard(
+                        state.groupSuggestions,
+                        onGroup = { s -> group.open(s.keys, null, s.name) },
+                        onNo = { s ->
+                            onIntent(Intent.DismissGroupSuggestion(s.id))
+                            handler.announce("Okay, will not ask again") { onIntent(Intent.RestoreGroupSuggestion(s.id)) }
+                        }
+                    )
+                }
                 SubscriptionsHero(overview)
 
                 val filters = remember(overview) {
@@ -187,24 +219,34 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                 if (!picking && rows.size >= 2) {
                     AppButton(
                         "Merge duplicate entries", { picking = true },
-                        Modifier.fillMaxWidth().semantics { contentDescription = "Merge duplicate subscription entries: pick the entries that are the same payment" },
+                        Modifier.fillMaxWidth().semantics { contentDescription = "Merge duplicate subscription entries: pick the entries that are the same payment, or group different payments to one provider" },
                         style = ButtonStyle.TONAL
                     )
                 } else if (picking) {
-                    Caption("Tap the entries that are the same payment (for example your bank's name and your fund house's), then tap Merge.", maxLines = 3)
+                    Caption("Tap the entries, then tap Merge (the same payment under two names) or Group (different payments to one provider).", maxLines = 4)
                 }
+                // Groups only fold rows together here; the totals above and every other screen still read each entry.
+                val items = remember(rows, state.recurringGroups) { RecurringGroups.arrange(rows, state.recurringGroups, { it.subscription }, { it.state }) }
                 FintechCard {
-                    rows.forEachIndexed { index, line ->
-                        key(line.key) {
+                    items.forEachIndexed { index, item ->
+                        key(item.listKey) {
                             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                            SubscriptionLineRow(
-                                line, today, showState = filter == SubFilter.ALL,
-                                picking = picking, picked = line.key in mergePicked, onToggle = { toggle(line.key) },
-                                menu = merge.menuFor(line.subscription) { toggle(line.key) },
-                                onCancel = { cancellingKey = line.key },
-                                onStillUsing = { stillUsing(line.key, line.label) },
-                                onOpenMessage = { onIntent(Intent.OpenMessage(line.subscription.messageId)) }
-                            )
+                            val row: @Composable (SubscriptionLine, Boolean) -> Unit = { line, grouped ->
+                                SubscriptionLineRow(
+                                    line, today, showState = filter == SubFilter.ALL,
+                                    picking = picking, picked = line.key in mergePicked, onToggle = { toggle(line.key) },
+                                    menu = merge.menuFor(line.subscription, group.entryMenu(line.subscription, grouped)) { toggle(line.key) },
+                                    onCancel = { cancellingKey = line.key },
+                                    onStillUsing = { stillUsing(line.key, line.label) },
+                                    onOpenMessage = { onIntent(Intent.OpenMessage(line.subscription.messageId)) }
+                                )
+                            }
+                            when (item) {
+                                is RecurringListItem.Single -> row(item.item, false)
+                                is RecurringListItem.Group -> SubscriptionGroupBlock(
+                                    item, picking = picking, picked = item.listKey in mergePicked, onPick = { toggle(item.listKey) }, group = group
+                                ) { line -> row(line, true) }
+                            }
                         }
                     }
                 }
@@ -226,6 +268,38 @@ internal fun SubscriptionsPage(state: State, onIntent: (Intent) -> Unit, onBack:
                 handler.announce("Marked ${line.label} as cancelled") { onIntent(Intent.RestoreSubscription(line.key)) }
             }
         )
+    }
+}
+
+/** A group on the subscriptions list: its header (yearly total) and, when opened, its entries as ordinary rows. */
+@Composable
+private fun SubscriptionGroupBlock(
+    item: RecurringListItem.Group<SubscriptionLine>,
+    picking: Boolean,
+    picked: Boolean,
+    onPick: () -> Unit,
+    group: GroupActions,
+    row: @Composable (SubscriptionLine) -> Unit
+) {
+    // Closed to begin with; remembered per group, and across rotation.
+    var expanded by rememberSaveable(item.group.id) { mutableStateOf(false) }
+    val sub = item.members.first()
+    val subtitle = item.countLabel() + " \u00b7 " + DisplayFormatters.rupees(item.monthly) + " a month" +
+        (item.stateSummary.takeIf { it.isNotEmpty() }?.let { " \u00b7 $it" } ?: "")
+    GroupHeaderRow(
+        name = item.name, subtitle = subtitle, spokenAmounts = item.spokenTotals(),
+        expanded = expanded, onToggle = { expanded = !expanded },
+        picking = picking, picked = picked, onPick = onPick,
+        menu = group.groupMenu(item.group, canCancel = item.cancelledCount < item.count),
+        leading = { MerchantChip(sub.merchant?.logo ?: MerchantLogo.UPI, size = 44.dp, imageKey = sub.merchant?.imageKey, name = item.name, description = null) }
+    ) {
+        Column(horizontalAlignment = Alignment.End) {
+            AmountText(DisplayFormatters.rupees(item.yearly), if (item.dormant) mutedColor() else MaterialTheme.colorScheme.primary)
+            Caption("a year")
+        }
+    }
+    GroupMembers(expanded) {
+        item.members.forEach { line -> key(line.key) { row(line) } }
     }
 }
 
@@ -402,7 +476,7 @@ private fun SubscriptionLineRow(
             .combinedClickable(
                 onClickLabel = if (picking) (if (picked) "Drop from selection" else "Add to selection") else "Open the last charge",
                 onClick = { if (picking) onToggle() else onOpenMessage() },
-                onLongClickLabel = "Pick several to merge",
+                onLongClickLabel = "Pick several to merge or group",
                 onLongClick = onToggle
             ),
         verticalAlignment = Alignment.CenterVertically

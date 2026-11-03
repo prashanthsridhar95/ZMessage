@@ -476,9 +476,9 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
     val markPaid = rememberMarkPaid(onIntent)
     val planHandler = rememberPlanActionHandler(onIntent)
     val merge = rememberMergeActions(state, onIntent)
-    val recurringArranged = remember(state.subscriptions, state.recurringStates, state.cancelledSubs) {
-        com.zyke.message.domain.insights.RecurringPayments.arrange(state.subscriptions, state.recurringStates, state.cancelledSubs.keys)
-    }
+    val group = rememberGroupActions(state, onIntent)
+    // Entries and groups, already arranged by the view model; a group only folds rows, each entry still counts on its own.
+    val recurringArranged = state.recurringItems
     val billsList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.BILLS, billsList)
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
@@ -591,14 +591,22 @@ private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit
             item(key = "subscriptions") {
               androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_REPEATS)) {
                 PlainSection("Repeats monthly") {
-                    recurring.forEachIndexed { index, item ->
-                        if (index > 0) HorizontalDivider()
-                        SubscriptionRow(
-                            item, today,
-                            onConfirm = { onIntent(Intent.ConfirmRecurring(item.subscription.key)) },
-                            onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) },
-                            menu = merge.menuFor(item.subscription)
-                        ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
+                    recurring.forEachIndexed { index, listItem ->
+                        androidx.compose.runtime.key(listItem.listKey) {
+                            if (index > 0) HorizontalDivider()
+                            val entry: @Composable (com.zyke.message.domain.insights.RecurringItem, Boolean) -> Unit = { item, grouped ->
+                                SubscriptionRow(
+                                    item, today,
+                                    onConfirm = { onIntent(Intent.ConfirmRecurring(item.subscription.key)) },
+                                    onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) },
+                                    menu = merge.menuFor(item.subscription, group.entryMenu(item.subscription, grouped))
+                                ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
+                            }
+                            when (listItem) {
+                                is com.zyke.message.domain.insights.RecurringListItem.Single -> entry(listItem.item, false)
+                                is com.zyke.message.domain.insights.RecurringListItem.Group -> BillsGroupBlock(listItem, today, group) { member -> entry(member, true) }
+                            }
+                        }
                     }
                     LinkButton("Merge duplicates, yearly cost, how to cancel", { onIntent(Intent.OpenSubscriptions) })
                 }
@@ -1017,6 +1025,29 @@ private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit)
         amount = { AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary) },
         actions = listOf(RowAction("Mark as paid", ButtonStyle.OUTLINE) { onSettle() })
     )
+}
+
+/** A group in the "Repeats monthly" card: the monthly sum on its header and, when opened, its entries as ordinary rows. */
+@Composable
+private fun BillsGroupBlock(
+    item: com.zyke.message.domain.insights.RecurringListItem.Group<com.zyke.message.domain.insights.RecurringItem>,
+    today: LocalDate,
+    group: GroupActions,
+    entry: @Composable (com.zyke.message.domain.insights.RecurringItem) -> Unit
+) {
+    // Closed to begin with; remembered per group, and across rotation.
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable(item.group.id) { androidx.compose.runtime.mutableStateOf(false) }
+    GroupHeaderRow(
+        name = item.name, subtitle = item.countLabel() + " \u00b7 " + item.nextDueLabel(), spokenAmounts = item.spokenTotals(),
+        expanded = expanded, onToggle = { expanded = !expanded },
+        picking = false, picked = false, onPick = { expanded = !expanded },
+        menu = group.groupMenu(item.group, canCancel = true)
+    ) {
+        AmountText(DisplayFormatters.rupees(item.monthly), MaterialTheme.colorScheme.secondary)
+    }
+    GroupMembers(expanded) {
+        item.members.forEach { member -> androidx.compose.runtime.key(member.subscription.key) { entry(member) } }
+    }
 }
 
 @Composable

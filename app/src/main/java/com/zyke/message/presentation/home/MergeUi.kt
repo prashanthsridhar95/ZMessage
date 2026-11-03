@@ -45,8 +45,10 @@ import com.zyke.message.R
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.insights.MergeAliases
 import com.zyke.message.domain.insights.MergeSuggestion
+import com.zyke.message.domain.insights.RecurringGroups
 import com.zyke.message.domain.insights.RecurringMerge
 import com.zyke.message.domain.insights.RecurringMerges
+import com.zyke.message.domain.insights.RecurringNames
 import com.zyke.message.domain.insights.Subscription
 import com.zyke.message.domain.nickname.NicknameSuggestions
 import com.zyke.message.presentation.common.AppButton
@@ -107,13 +109,12 @@ internal class MergeActions(
     val unmerge: (Subscription) -> Unit,
     val rename: (String) -> Unit
 ) {
-    /** The menu entries a row of [sub] gets. */
-    fun menuFor(sub: Subscription, onSelect: (() -> Unit)? = null): List<MenuEntry> = buildList {
+    /** The menu entries a row of [sub] gets; every entry can be renamed, merged and (via [extra]) grouped. */
+    fun menuFor(sub: Subscription, extra: List<MenuEntry> = emptyList(), onSelect: (() -> Unit)? = null): List<MenuEntry> = buildList {
+        add(MenuEntry("Rename") { rename(sub.key) })
         add(MenuEntry("Merge with…") { mergeWith(sub.key) })
-        if (sub.isMerged) {
-            add(MenuEntry("Rename") { rename(sub.key) })
-            add(MenuEntry("Unmerge") { unmerge(sub) })
-        }
+        if (sub.isMerged) add(MenuEntry("Unmerge") { unmerge(sub) })
+        addAll(extra)
         if (onSelect != null) add(MenuEntry("Select several", onSelect))
     }
 }
@@ -130,6 +131,7 @@ internal fun rememberMergeActions(state: State, onIntent: (Intent) -> Unit): Mer
     var renaming by rememberSaveable { mutableStateOf<String?>(null) }
     val pool = remember(state.subscriptionOverview) { state.subscriptionOverview.lines.map { it.subscription }.distinctBy { it.key } }
     val merges = state.recurringMerges
+    val names = state.recurringNames
 
     fun write(next: List<RecurringMerge>, previous: List<RecurringMerge>, text: String) {
         onIntent(Intent.SetRecurringMerges(next))
@@ -149,18 +151,34 @@ internal fun rememberMergeActions(state: State, onIntent: (Intent) -> Unit): Mer
     renaming?.let { key ->
         val sub = pool.firstOrNull { it.key == key }
         if (sub != null) {
+            val hasName = sub.alias.isNotEmpty() || state.recurringNames.containsKey(key)
             RenameSheet(
-                sub,
+                sub, hasName,
                 onSave = { name ->
                     renaming = null
-                    write(RecurringMerges.renamed(merges, key, name, System.currentTimeMillis()), merges, "Renamed to ${name.trim().ifEmpty { sub.payee }}")
+                    val trimmed = name.trim()
+                    // Back to the payee's own name is a reset, not a name that happens to match.
+                    val next = if (trimmed == sub.payee && !sub.isMerged) RecurringNames.reset(names, RecurringGroups.keysOf(sub)) else RecurringNames.set(names, key, trimmed)
+                    onIntent(Intent.SetRecurringNames(next))
+                    handler.announce("Renamed to $trimmed") { onIntent(Intent.SetRecurringNames(names)) }
+                },
+                onReset = {
+                    renaming = null
+                    onIntent(Intent.SetRecurringNames(RecurringNames.reset(names, RecurringGroups.keysOf(sub))))
+                    // A merged entry may carry the name it was merged under: that goes too.
+                    val clearMerge = sub.isMerged && merges.any { key in it.allKeys && it.displayName != null }
+                    if (clearMerge) onIntent(Intent.SetRecurringMerges(RecurringMerges.renamed(merges, key, "", System.currentTimeMillis())))
+                    handler.announce("Name reset to ${sub.payee}") {
+                        onIntent(Intent.SetRecurringNames(names))
+                        if (clearMerge) onIntent(Intent.SetRecurringMerges(merges))
+                    }
                 },
                 onDismiss = { renaming = null }
             )
         } else renaming = null
     }
 
-    return remember(pool, merges, onIntent, handler) {
+    return remember(pool, merges, names, onIntent, handler) {
         MergeActions(
             mergeWith = { key -> keys = listOf(key); choose = true },
             mergeKeys = { list -> keys = list; choose = false },
@@ -173,18 +191,20 @@ internal fun rememberMergeActions(state: State, onIntent: (Intent) -> Unit): Mer
 }
 
 @Composable
-private fun RenameSheet(sub: Subscription, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+private fun RenameSheet(sub: Subscription, hasName: Boolean, onSave: (String) -> Unit, onReset: () -> Unit, onDismiss: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val nicknames by container.nicknames.nicknames.collectAsState()
-    var name by rememberSaveable { mutableStateOf(sub.alias.ifEmpty { sub.payee }) }
+    var name by rememberSaveable { mutableStateOf(sub.title) }
     val suggestions = remember(name, nicknames) { NicknameSuggestions.suggest(name, nicknames) }
     FormSheet(
-        title = "Rename", subtitle = "Merged · ${sub.nameCount} names", onDismiss = onDismiss,
-        primaryLabel = "Save", primaryEnabled = name.isNotBlank(), onPrimary = { onSave(name) }
+        title = "Rename", subtitle = if (sub.isMerged) "Merged · ${sub.nameCount} names" else "Shown as ${sub.fullName()}", onDismiss = onDismiss,
+        primaryLabel = "Save", primaryEnabled = name.isNotBlank(), onPrimary = { onSave(name) },
+        secondaryLabel = if (hasName) "Reset name" else null, onSecondary = if (hasName) onReset else null
     ) {
         FormField("Name", name, { name = it }, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences)
         if (suggestions.isNotEmpty()) FormGroup("Names you have used") { SuggestionRow(suggestions.map { it.name }) { name = it } }
-        Caption(sub.alsoSeenCaption(), maxLines = 4)
+        if (sub.isMerged) Caption(sub.alsoSeenCaption(), maxLines = 4)
+        else Caption("Paid to ${sub.payee}. A name you choose replaces \"#2 of 4\" in the lists.", maxLines = 3)
     }
 }
 
@@ -459,10 +479,18 @@ internal fun MergeSuggestionCard(
     }
 }
 
-/** Pinned under the list while entries are picked. */
+/** Pinned under the list while entries are picked: Merge (one payment, two names) and Group (different payments, one provider). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun MergeSelectionBar(count: Int, onMerge: () -> Unit, onClear: () -> Unit, onDone: () -> Unit) {
+internal fun MergeSelectionBar(
+    count: Int,
+    canMerge: Boolean,
+    canGroup: Boolean,
+    onMerge: () -> Unit,
+    onGroup: () -> Unit,
+    onClear: () -> Unit,
+    onDone: () -> Unit
+) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "$count selected",
@@ -470,9 +498,12 @@ internal fun MergeSelectionBar(count: Int, onMerge: () -> Unit, onClear: () -> U
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
         )
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppButton("Merge", onMerge, size = ButtonSize.COMPACT, enabled = count >= 2)
+            AppButton("Merge", onMerge, size = ButtonSize.COMPACT, enabled = canMerge)
+            AppButton("Group", onGroup, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT, enabled = canGroup)
             AppButton("Clear", onClear, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = count > 0)
             AppButton("Done", onDone, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         }
+        Caption("Merge: one payment reported under two names", maxLines = 2)
+        Caption("Group: different payments to the same provider", maxLines = 2)
     }
 }

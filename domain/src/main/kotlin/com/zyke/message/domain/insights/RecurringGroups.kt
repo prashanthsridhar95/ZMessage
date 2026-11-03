@@ -236,6 +236,14 @@ object RecurringGroups {
         return w.take(2).joinToString(" ")
     }
 
+    /** "SIP" when the members read like fund instalments, else "payment": what to call a group's members. */
+    fun unitName(entries: List<Subscription>): String {
+        val fundLike = entries.count { e ->
+            providerOf(e) != null || namesOf(e).any { n -> words(n).any { it == "fund" || it == "sip" || it == "mutual" } || MergeAliases.looksLikeAggregator(n) }
+        }
+        return if (entries.isNotEmpty() && fundLike * 2 >= entries.size) "SIP" else "payment"
+    }
+
     /**
      * A name to prefill for a group of [entries]: the fund house most of them belong to ("Mahindra Manulife Fund"),
      * else the leading words they all share, else empty.
