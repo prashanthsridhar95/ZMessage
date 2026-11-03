@@ -35,15 +35,29 @@ data class Subscription(
     val ordinal: Int = 1,
     val ofCount: Int = 1,
     /** The mandate or reference the charges quote ("UMRN …4009"); empty when they quote none or all quote the same. */
-    val reference: String = ""
+    val reference: String = "",
+    /** The name the person chose for a merged entry; empty keeps [payee]. Never part of [key]. */
+    val alias: String = "",
+    /** Names of the other entries merged into this one ("Also seen as"); empty for an ordinary entry. */
+    val alsoSeenAs: List<String> = emptyList(),
+    /** Keys of the entries folded into this one by [RecurringMerges.apply]. */
+    val mergedKeys: List<String> = emptyList()
 ) {
     fun daysUntilDue(today: LocalDate): Long = ChronoUnit.DAYS.between(today, nextDue)
 
     /** Stable identity for the person's confirm / ignore choice. */
     val key: String get() = Subscriptions.keyFor(payee) + (if (variant.isEmpty()) "" else Subscriptions.VARIANT_SEPARATOR + variant)
 
-    /** "#2 of 5" for one of several alike entries; empty for an ordinary one. */
-    val suffix: String get() = if (ofCount > 1) "#$ordinal of $ofCount" else ""
+    /** "#2 of 5" for one of several alike entries; empty for an ordinary one (and for a renamed merged one). */
+    val suffix: String get() = if (ofCount > 1 && alias.isEmpty()) "#$ordinal of $ofCount" else ""
+
+    /** What to show as the name: the person's own for a merged entry, else the payee. */
+    val title: String get() = alias.ifEmpty { payee }
+
+    val isMerged: Boolean get() = mergedKeys.isNotEmpty()
+
+    /** How many names this entry is known by ("Merged · 2 names"). */
+    val nameCount: Int get() = alsoSeenAs.size + 1
 
     /** The payee key shared by every entry of the same payee. */
     val payeeKey: String get() = Subscriptions.keyFor(payee)

@@ -81,10 +81,10 @@ data class SubscriptionLine(
     val cancelledOn: LocalDate?
 ) {
     val key: String get() = subscription.key
-    val name: String get() = subscription.payee
+    val name: String get() = subscription.title
 
     /** The name with "#2 of 5" when the payee has several alike entries; for announcements and descriptions. */
-    val label: String get() = if (subscription.ofCount > 1) "$name ${subscription.suffix}" else name
+    val label: String get() = if (subscription.suffix.isNotEmpty()) "$name ${subscription.suffix}" else name
     val cadence: Cadence get() = subscription.cadence
     val counts: Boolean get() = state == SubscriptionState.ACTIVE
 }

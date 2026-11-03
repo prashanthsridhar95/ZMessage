@@ -70,7 +70,8 @@ object QuickAdds {
         dismissed: Set<String>,
         now: Instant,
         zone: ZoneId,
-        budgets: Map<MessageCategory, BigDecimal> = emptyMap()
+        budgets: Map<MessageCategory, BigDecimal> = emptyMap(),
+        merges: List<com.zyke.message.domain.insights.RecurringMerge> = emptyList()
     ): List<QuickAdd> {
         val found = ArrayList<QuickAdd>()
 
@@ -81,7 +82,7 @@ object QuickAdds {
         val byId = messages.associateBy { it.id }
         val known = plan.items.map { words(it.name) }
         // Several standing orders to one payee (five SIPs) are one plan item for what they come to together.
-        val repeats = Subscriptions.find(messages, now, zone).groupBy { it.payeeKey }.values.map { entries ->
+        val repeats = com.zyke.message.domain.insights.RecurringMerges.apply(Subscriptions.find(messages, now, zone), merges).groupBy { it.payeeKey }.values.map { entries ->
             if (entries.size == 1) entries.first() else entries.first().copy(amount = entries.sumOf { it.amount })
         }
         repeats.forEach { repeat ->
@@ -96,7 +97,7 @@ object QuickAdds {
                 PlanItem(
                     id = "quick-" + repeat.payee.lowercase().replace(NON_WORD, "-"),
                     kind = if (saving) PlanItemKind.INVESTMENT else PlanItemKind.OUTFLOW,
-                    name = repeat.payee.trim(),
+                    name = repeat.title.trim(),
                     amount = repeat.amount,
                     dayOfMonth = repeat.lastPaid.dayOfMonth
                 )

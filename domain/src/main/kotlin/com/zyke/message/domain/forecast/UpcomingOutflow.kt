@@ -67,7 +67,7 @@ object UpcomingOutflows {
             }
         }
         recurring.filter { it.isConfirmed && inRange(it.subscription.nextDue) }.forEach {
-            found += OutflowItem(it.subscription.payee, it.subscription.amount, it.subscription.nextDue, OutflowSource.RECURRING)
+            found += OutflowItem(it.subscription.title, it.subscription.amount, it.subscription.nextDue, OutflowSource.RECURRING)
         }
 
         val kept = mutableListOf<OutflowItem>()
