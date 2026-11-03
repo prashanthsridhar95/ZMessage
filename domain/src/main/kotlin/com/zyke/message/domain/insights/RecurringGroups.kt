@@ -254,6 +254,24 @@ object RecurringGroups {
     }
 
     /**
+     * Names that make [entries] read as parts of the group [groupName] ("Mahindra Manulife Fund · Manufacturing"): the
+     * words of each entry's title that the group name does not already say. An entry with nothing left, or already
+     * starting with the group name, keeps its title. By entry key.
+     */
+    fun matchingNames(groupName: String, entries: List<Subscription>): Map<String, String> {
+        val said = words(groupName).toHashSet()
+        val out = LinkedHashMap<String, String>()
+        for (e in entries) {
+            val title = e.title.trim()
+            if (title.lowercase().startsWith(groupName.trim().lowercase())) continue
+            val rest = title.split(' ').filter { w -> w.isNotBlank() && words(w).let { it.isNotEmpty() && it.none { x -> x in said || x in STOP_WORDS } } }
+            val tail = rest.joinToString(" ")
+            out[e.key] = if (tail.isEmpty()) title else groupName.trim() + " · " + tail
+        }
+        return out
+    }
+
+    /**
      * Groups worth proposing: entries (two or more) that belong to one fund house (a known name, with a fund word
      * where the name is also a bank's or insurer's), or that share the first two words of their payee. At most three,
      * each entry in at most one, none that is already in a group the list shows, none the person said no to

@@ -186,6 +186,15 @@ class RecurringGroupsTest {
         assertFalse(RecurringGroups.isGroupKey(icc[0].key))
     }
 
+    @Test fun matchingNamesKeepOnlyWhatTheGroupNameDoesNotSay() {
+        val names = RecurringGroups.matchingNames("Mahindra Manulife Fund", funds + icc[3])
+        assertEquals("Mahindra Manulife Fund · Manufacturing", names[funds[0].key])
+        assertEquals("Mahindra Manulife Fund · Multi", names[funds[1].key])
+        assertEquals("Mahindra Manulife Fund · Value", names[funds[2].key])
+        assertTrue(names[icc[3].key]!!.startsWith("Mahindra Manulife Fund · Indian Clearing Corp"))
+        assertEquals(emptyMap<String, String>(), RecurringGroups.matchingNames("Mahindra Manulife", listOf(sub("Mahindra Manulife Value"))))
+    }
+
     @Test fun normalizeDropsRepeatsAndEmpties() {
         val out = RecurringGroups.normalize(listOf(RecurringGroup("a", "A", listOf("k1", "k2")), RecurringGroup("b", "B", listOf("k2")), RecurringGroup("a", "A2", listOf("k9")), RecurringGroup("c", " ", listOf("k5"))))
         assertEquals(listOf("a"), out.map { it.id })

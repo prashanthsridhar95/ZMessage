@@ -93,6 +93,7 @@ class HomeViewModel(
     private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions,
     private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
     private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges,
+    private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -101,7 +102,8 @@ class HomeViewModel(
         plan = planRepository.plan.value, cards = cardRepository.cards.value, hiddenAccounts = hiddenAccounts.hidden.value, accountOverrides = accountOverrides.overrides.value, pfAccountKeys = pfAccounts.keys.value, events = calendarEvents.events.value,
         goalList = goalRepository.goals.value, reminderList = reminderRepository.reminders.value, loanList = loanRepository.loans.value, asides = setAsideRepository.state.value,
         planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value,
-        cancelledSubs = cancelledSubscriptions.cancelled.value, recurringMerges = recurringMerges.merges.value, mergeDismissed = recurringMerges.dismissed.value)
+        cancelledSubs = cancelledSubscriptions.cancelled.value, recurringMerges = recurringMerges.merges.value, mergeDismissed = recurringMerges.dismissed.value,
+        recurringGroups = recurringGroups.groups.value, recurringNames = recurringGroups.names.value, groupDismissed = recurringGroups.dismissed.value)
 ) {
 
     // Declared before init: the first collections below can run at once and reach the memo.
@@ -149,6 +151,9 @@ class HomeViewModel(
         viewModelScope.launch { cancelledSubscriptions.cancelled.collect { cancelled -> reduceHome { copy(cancelledSubs = cancelled) } } }
         viewModelScope.launch { recurringMerges.merges.collect { list -> reduceHome { copy(recurringMerges = list) } } }
         viewModelScope.launch { recurringMerges.dismissed.collect { ids -> reduceHome { copy(mergeDismissed = ids) } } }
+        viewModelScope.launch { recurringGroups.groups.collect { list -> reduceHome { copy(recurringGroups = list) } } }
+        viewModelScope.launch { recurringGroups.names.collect { names -> reduceHome { copy(recurringNames = names) } } }
+        viewModelScope.launch { recurringGroups.dismissed.collect { ids -> reduceHome { copy(groupDismissed = ids) } } }
         viewModelScope.launch { calendarEvents.events.collect { events -> reduceHome { copy(events = events) } } }
         viewModelScope.launch { pfAccounts.keys.collect { keys -> reduceHome { copy(pfAccountKeys = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
@@ -247,6 +252,10 @@ class HomeViewModel(
             is Intent.SetRecurringMerges -> io { recurringMerges.setAll(com.zyke.message.domain.insights.RecurringMerges.normalize(intent.merges)) }
             is Intent.DismissMergeSuggestion -> io { recurringMerges.dismiss(intent.id) }
             is Intent.RestoreMergeSuggestion -> io { recurringMerges.undismiss(intent.id) }
+            is Intent.SetRecurringGroups -> io { recurringGroups.setGroups(com.zyke.message.domain.insights.RecurringGroups.normalize(intent.groups)) }
+            is Intent.SetRecurringNames -> io { recurringGroups.setNames(intent.names) }
+            is Intent.DismissGroupSuggestion -> io { recurringGroups.dismiss(intent.id) }
+            is Intent.RestoreGroupSuggestion -> io { recurringGroups.undismiss(intent.id) }
             Intent.OpenReminders -> reduce { copy(showReminders = true) }
             Intent.CloseReminders -> reduce { copy(showReminders = false) }
             Intent.OpenCodes -> reduce { copy(showCodes = true) }
@@ -480,11 +489,19 @@ class HomeViewModel(
             val refunds = parts.refunds
             val owed = parts.owed
             // The one place merges are applied: everything below (and the screens) sees each merged payment once.
-            val subscriptions = memo("subsMerged", parts.subscriptions, updated.recurringMerges) {
+            val subsMerged = memo("subsMerged", parts.subscriptions, updated.recurringMerges) {
                 com.zyke.message.domain.insights.RecurringMerges.apply(parts.subscriptions, updated.recurringMerges)
+            }
+            // The person's own names go on after the merges (an entry's key is the merged entry's key), so lists, sheets,
+            // hints and spoken labels all read the same title. Groups are NOT applied here: they only arrange rows below.
+            val subscriptions = memo("subsNamed", subsMerged, updated.recurringNames) {
+                com.zyke.message.domain.insights.RecurringNames.apply(subsMerged, updated.recurringNames)
             }
             val mergeSuggestions = memo("mergeSuggestions", subscriptions, updated.mergeDismissed) {
                 com.zyke.message.domain.insights.MergeSuggestions.find(subscriptions, updated.mergeDismissed)
+            }
+            val groupSuggestions = memo("groupSuggestions", subscriptions, updated.recurringGroups, updated.groupDismissed) {
+                com.zyke.message.domain.insights.RecurringGroups.suggest(subscriptions, updated.recurringGroups, updated.groupDismissed)
             }
             val recent = parts.recent
             val alerts = parts.alerts
@@ -538,6 +555,14 @@ class HomeViewModel(
             val subscriptionOverview = memo("subscriptionOverview", subscriptions, updated.recurringStates, cancelledSubs, live, today) {
                 com.zyke.message.domain.insights.SubscriptionOverview.build(subscriptions, updated.recurringStates, cancelledSubs, today, live, zone)
             }
+            // Bills' "Repeats monthly" card: the same entries as the outflow forecast uses, arranged into rows. Groups only
+            // fold rows together; every aggregate above reads the individual entries.
+            val recurringItems = memo("recurringItems", subscriptions, updated.recurringStates, cancelledSubs, updated.recurringGroups) {
+                com.zyke.message.domain.insights.RecurringGroups.arrange(
+                    com.zyke.message.domain.insights.RecurringPayments.arrange(subscriptions, updated.recurringStates, cancelledSubs.keys),
+                    updated.recurringGroups, { it.subscription }
+                )
+            }
             val budgetStatus = memo("budgetStatus", dashboard) {
                 dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
             }
@@ -545,7 +570,7 @@ class HomeViewModel(
                 copy(
                     cycle = cycle, daily = daily, dailySuggestion = dailySuggestion, goals = goals, reminders = reminders, providentFund = providentFund,
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
-                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, subscriptionOverview = subscriptionOverview, attention = attention, review = review, thisMonth = dashboard,
+                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
                     agenda = agenda, unreadCount = unread,
                     planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders
@@ -602,7 +627,8 @@ class HomeViewModel(
         private val dailyOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository = com.zyke.message.domain.budget.NoDailyBudgetOverride,
         private val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository = com.zyke.message.domain.repository.NoCancelledSubscriptions,
         private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
-        private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges
+        private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges,
+        private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -613,7 +639,7 @@ class HomeViewModel(
                 goalRepository = goalRepository, reminderRepository = reminderRepository, hiddenAccounts = hiddenAccounts, pfAccounts = pfAccounts, calendarEvents = calendarEvents,
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
                 recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride,
-                cancelledSubscriptions = cancelledSubscriptions, accountOverrides = accountOverrides, recurringMerges = recurringMerges
+                cancelledSubscriptions = cancelledSubscriptions, accountOverrides = accountOverrides, recurringMerges = recurringMerges, recurringGroups = recurringGroups
             ) as T
     }
 

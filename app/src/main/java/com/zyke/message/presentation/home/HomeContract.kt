@@ -87,6 +87,16 @@ object HomeContract {
         val recurringMerges: List<com.zyke.message.domain.insights.RecurringMerge> = emptyList(),
         /** Merge suggestions the person turned down. */
         val mergeDismissed: Set<String> = emptySet(),
+        /** The groups of different payments to one provider; display only, applied to [subscriptionItems]. */
+        val recurringGroups: List<com.zyke.message.domain.insights.RecurringGroup> = emptyList(),
+        /** The person's own names for entries, by key; already applied to [subscriptions]. */
+        val recurringNames: Map<String, String> = emptyMap(),
+        /** Group suggestions the person turned down. */
+        val groupDismissed: Set<String> = emptySet(),
+        /** "File these together?" questions about different payments to one provider, at most three. */
+        val groupSuggestions: List<com.zyke.message.domain.insights.GroupSuggestion> = emptyList(),
+        /** The rows of Bills' "Repeats monthly" card: entries and groups, in due order. Display only. */
+        val recurringItems: List<com.zyke.message.domain.insights.RecurringListItem<com.zyke.message.domain.insights.RecurringItem>> = emptyList(),
         /** "Same payment under two names?" questions, at most three. */
         val mergeSuggestions: List<com.zyke.message.domain.insights.MergeSuggestion> = emptyList(),
         /** Every recurring charge with its yearly cost, state, hints and cancel guide. */
@@ -212,6 +222,12 @@ object HomeContract {
         data class RestoreSubscription(val key: String) : Intent
         /** Writes every merge of repeating payments at once (a merge, an unmerge, a rename or an Undo is one write). */
         data class SetRecurringMerges(val merges: List<com.zyke.message.domain.insights.RecurringMerge>) : Intent
+        /** Writes every group of repeating payments at once (create, add, remove, rename, ungroup or Undo is one write). */
+        data class SetRecurringGroups(val groups: List<com.zyke.message.domain.insights.RecurringGroup>) : Intent
+        /** Writes every entry name at once (a rename, a reset or an Undo is one write). */
+        data class SetRecurringNames(val names: Map<String, String>) : Intent
+        data class DismissGroupSuggestion(val id: String) : Intent
+        data class RestoreGroupSuggestion(val id: String) : Intent
         data class DismissMergeSuggestion(val id: String) : Intent
         data class RestoreMergeSuggestion(val id: String) : Intent
         data object OpenReminders : Intent
