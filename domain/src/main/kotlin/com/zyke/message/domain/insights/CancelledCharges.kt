@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.util.toBigDecimalOrNull
@@ -120,9 +121,9 @@ object CancelledCharges {
     }
 
     private fun debit(m: ClassifiedMessage): MessageContent.Transaction? {
-        if (m.isPromotional || m.isMuted || m.setAside != null) return null
+        if (m.isPromotional || m.isMuted || Counting.spend(m) == null) return null
         val tx = m.content as? MessageContent.Transaction ?: return null
-        return tx.takeIf { !it.isReceived && !it.isCardPayment && it.payee.isNotBlank() }
+        return tx.takeIf { it.payee.isNotBlank() }
     }
 
     private fun day(m: ClassifiedMessage, zone: ZoneId): LocalDate = Instant.ofEpochMilli(m.message.date).atZone(zone).toLocalDate()

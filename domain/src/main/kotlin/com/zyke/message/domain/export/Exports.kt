@@ -1,5 +1,6 @@
 package com.zyke.message.domain.export
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
@@ -24,6 +25,7 @@ object Exports {
                 val counted = when {
                     message.setAside != null -> "no: ${message.setAside!!.label.lowercase()}"
                     tx.isCardPayment -> "no: card bill payment"
+                    Counting.refund(message) != null -> "refund: lowers spending"
                     else -> "yes"
                 }
                 val manual = ManualEntries.isManual(message)

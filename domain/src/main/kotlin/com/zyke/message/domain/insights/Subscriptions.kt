@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
@@ -80,8 +81,8 @@ object Subscriptions {
 
         val payments = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (tx.isReceived || message.setAside != null || tx.payee.isBlank()) return@mapNotNull null
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
+            if (tx.payee.isBlank()) return@mapNotNull null
+            val amount = Counting.spend(message) ?: return@mapNotNull null
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(earliest) || date.isAfter(today)) return@mapNotNull null
             val ref = reference(message.message.body)

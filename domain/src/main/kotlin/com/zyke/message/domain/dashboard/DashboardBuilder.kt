@@ -1,5 +1,7 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -25,6 +27,7 @@ object DashboardBuilder {
         val date: LocalDate
     ) {
         val direction get() = if (tx.isReceived) FlowDirection.RECEIVED else FlowDirection.SPENT
+        val refund: Boolean get() = tx.isReceived && tx.isCard
     }
 
     fun build(
@@ -36,12 +39,16 @@ object DashboardBuilder {
         cycle: CycleRule = CycleRule.CALENDAR
     ): Dashboard {
         val today = LocalDate.ofInstant(now, zone)
-        val movements = messages.mapNotNull { toMovement(it, zone) }
+        val all = messages.mapNotNull { toMovement(it, zone) }
+        // A card refund lowers what was spent; it is not something received.
+        val movements = all.filter { !it.refund }
+        val refunds = all.filter { it.refund }
 
         val range = rangeFor(query.period, today, movements.minOfOrNull { it.date }, cycle, query.customRange)
         val inRange = movements.filter { it.date in range }
 
-        val spentTotal = inRange.filter { it.direction == FlowDirection.SPENT }.sumOf { it.amount }
+        val spentTotal = inRange.filter { it.direction == FlowDirection.SPENT }.sumOf { it.amount } -
+            refunds.filter { it.date in range }.sumOf { it.amount }
         val receivedTotal = inRange.filter { it.direction == FlowDirection.RECEIVED }.sumOf { it.amount }
 
         val selected = inRange.filter {
@@ -79,8 +86,12 @@ object DashboardBuilder {
     private fun toMovement(message: ClassifiedMessage, zone: ZoneId): Movement? {
         val tx = message.content as? MessageContent.Transaction ?: return null
         // Paying a card's bill is money moving between the person's own accounts, neither income nor a new expense.
-        if (tx.isCardPayment) return null
-        val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return null
+        val amount = when (val counted = Counting.of(message)) {
+            is Counted.Spend -> counted.amount
+            is Counted.Income -> counted.amount
+            is Counted.Refund -> counted.amount
+            is Counted.NotCounted -> return null
+        }
         val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
         return Movement(message, tx, amount, date)
     }

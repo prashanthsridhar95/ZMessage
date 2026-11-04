@@ -1,5 +1,6 @@
 package com.zyke.message.domain.home
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
@@ -34,8 +35,7 @@ object DebitPayments {
             .sortedBy { it.message.date }
             .firstNotNullOfOrNull { message ->
                 val tx = message.content as? MessageContent.Transaction ?: return@firstNotNullOfOrNull null
-                if (tx.isReceived || tx.isCardPayment) return@firstNotNullOfOrNull null
-                val paid = tx.amount.toBigDecimalOrNull() ?: return@firstNotNullOfOrNull null
+                val paid = Counting.spend(message) ?: return@firstNotNullOfOrNull null
                 if ((paid - amount).abs() > room) return@firstNotNullOfOrNull null
                 val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
                 if (date.isBefore(due.minusDays(EARLY_DAYS)) || date.isAfter(due.plusDays(LATE_DAYS))) return@firstNotNullOfOrNull null

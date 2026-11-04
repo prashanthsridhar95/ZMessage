@@ -1,5 +1,7 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -89,18 +91,23 @@ object PlanInsightsBuilder {
 
         val moves = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(monthStart) || date.isAfter(today)) return@mapNotNull null
-            if (tx.isCardPayment) return@mapNotNull null
-            Move(date, amount, tx.isReceived, "${tx.payee} ${message.merchant.name}".lowercase())
+            val who = "${tx.payee} ${message.merchant.name}".lowercase()
+            when (val counted = Counting.of(message)) {
+                is Counted.Spend -> Move(date, counted.amount, false, who)
+                is Counted.Income -> Move(date, counted.amount, true, who)
+                is Counted.Refund -> Move(date, counted.amount, false, who, refund = true)
+                is Counted.NotCounted -> null
+            }
         }
-        val sent = moves.filter { !it.received }
+        val sent = moves.filter { !it.received && !it.refund }
+        val refundedTotal = moves.filter { it.refund }.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount }
         val received = moves.filter { it.received }
 
         val statuses = plan.items.map { item -> status(item, sent) }
         val paidTotal = statuses.mapNotNull { it.paidAmount }.fold(BigDecimal.ZERO, BigDecimal::add)
-        val totalSent = sent.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount }
+        val totalSent = sent.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount } - refundedTotal
         val totalReceived = received.fold(BigDecimal.ZERO) { sum, m -> sum + m.amount }
 
         val enteredReceived = plan.salary?.let { salary ->
@@ -173,7 +180,7 @@ object PlanInsightsBuilder {
         return PlanItemStatus(item, match?.amount, match?.date)
     }
 
-    private class Move(val date: LocalDate, val amount: BigDecimal, val received: Boolean, val who: String)
+    private class Move(val date: LocalDate, val amount: BigDecimal, val received: Boolean, val who: String, val refund: Boolean = false)
 
     private const val LATE_AFTER_DAYS = 3
 }

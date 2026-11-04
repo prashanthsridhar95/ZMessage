@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.forecast.UpcomingOutflow
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -38,11 +39,14 @@ data class WeeklySummary(
             val thisStart = today.minusDays(6)
             val lastStart = today.minusDays(13)
             val debits = messages.mapNotNull { m ->
-                if (m.isPromotional || m.isMuted || m.setAside != null) return@mapNotNull null
+                if (m.isPromotional || m.isMuted) return@mapNotNull null
                 val tx = m.content as? MessageContent.Transaction ?: return@mapNotNull null
-                if (tx.isReceived || tx.isCardPayment) return@mapNotNull null
-                val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return@mapNotNull null
+                val amount = Counting.spend(m) ?: return@mapNotNull null
                 Triple(m, tx, amount) to LocalDate.ofInstant(Instant.ofEpochMilli(m.message.date), zone)
+            }
+            val refunds = messages.mapNotNull { m ->
+                if (m.isPromotional || m.isMuted) return@mapNotNull null
+                Counting.refund(m)?.let { it to LocalDate.ofInstant(Instant.ofEpochMilli(m.message.date), zone) }
             }
             val thisWeek = debits.filter { it.second in thisStart..today }.map { it.first }
             val lastWeek = debits.filter { it.second in lastStart..thisStart.minusDays(1) }.map { it.first }
@@ -50,8 +54,9 @@ data class WeeklySummary(
                 .maxByOrNull { it.value }
             val biggest = thisWeek.maxByOrNull { it.third }?.let { WeeklyPayment(it.second.payee.ifBlank { "a payee" }, it.third) }
             return WeeklySummary(
-                spent = thisWeek.fold(BigDecimal.ZERO) { s, t -> s + t.third },
-                spentLastWeek = lastWeek.fold(BigDecimal.ZERO) { s, t -> s + t.third },
+                spent = thisWeek.fold(BigDecimal.ZERO) { s, t -> s + t.third } - refunds.filter { it.second in thisStart..today }.sumOf { it.first },
+                spentLastWeek = lastWeek.fold(BigDecimal.ZERO) { s, t -> s + t.third } -
+                    refunds.filter { it.second in lastStart..thisStart.minusDays(1) }.sumOf { it.first },
                 topCategory = top?.key,
                 topCategoryAmount = top?.value ?: BigDecimal.ZERO,
                 biggest = biggest,

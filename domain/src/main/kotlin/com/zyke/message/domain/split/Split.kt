@@ -1,5 +1,6 @@
 package com.zyke.message.domain.split
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
@@ -57,8 +58,7 @@ object SplitInsights {
         val byId = messages.associateBy { it.id }
         val credits = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (!tx.isReceived || tx.isCardPayment) return@mapNotNull null
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
+            val amount = Counting.income(message) ?: return@mapNotNull null
             Credit(message.id, message.message.date, amount, "${tx.payee} ${message.merchant.name}".lowercase())
         }
         val used = HashSet<Long>()

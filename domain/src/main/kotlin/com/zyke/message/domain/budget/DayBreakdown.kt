@@ -1,5 +1,7 @@
 package com.zyke.message.domain.budget
 
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
@@ -37,9 +39,13 @@ object DayBreakdowns {
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
             if (Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate() != date) return@forEach
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
             // Paying a card's bill is neither income nor a new expense.
-            if (tx.isCardPayment) return@forEach
+            val amount = when (val counted = Counting.of(message)) {
+                is Counted.Spend -> counted.amount
+                is Counted.Income -> counted.amount
+                is Counted.Refund -> counted.amount
+                is Counted.NotCounted -> return@forEach
+            }
             val item = DayItem(
                 message.id, tx.payee.ifBlank { message.merchant.name }.ifBlank { message.message.sender }, amount, message.category, message.message.date
             )

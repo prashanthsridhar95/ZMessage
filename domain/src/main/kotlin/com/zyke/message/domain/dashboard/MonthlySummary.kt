@@ -1,5 +1,7 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.insights.DigestFormat
@@ -175,12 +177,14 @@ data class MonthlySummary(
 
         /** Card-bill payments and anything set aside (left out, or a transfer between own accounts) are neither income nor spending. */
         private fun flow(message: ClassifiedMessage, zone: ZoneId): Flow? {
-            if (message.setAside != null) return null
-            val tx = message.content as? MessageContent.Transaction ?: return null
-            if (tx.isCardPayment) return null
-            val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return null
             val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
-            return Flow(message.category, amount, tx.isReceived, date)
+            return when (val counted = Counting.of(message)) {
+                is Counted.Spend -> Flow(message.category, counted.amount, false, date)
+                is Counted.Income -> Flow(message.category, counted.amount, true, date)
+                // A card refund lowers what was spent; it is never income.
+                is Counted.Refund -> Flow(message.category, counted.amount.negate(), false, date)
+                is Counted.NotCounted -> null
+            }
         }
     }
 }

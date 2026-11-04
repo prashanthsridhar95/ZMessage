@@ -1,5 +1,6 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageCategory
@@ -121,9 +122,8 @@ object Budgets {
     /** What went out in [category] in [range]; payments the person set aside (left out, or transfers) do not count. */
     fun spentIn(messages: List<ClassifiedMessage>, range: DateRange, category: MessageCategory, zone: ZoneId): BigDecimal =
         messages.fold(BigDecimal.ZERO) { sum, message ->
-            val tx = message.content as? MessageContent.Transaction ?: return@fold sum
-            if (tx.isReceived || message.setAside != null || message.category != category) return@fold sum
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@fold sum
+            if (message.category != category) return@fold sum
+            val amount = Counting.signedSpend(message) ?: return@fold sum
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(range.start) || date.isAfter(range.endInclusive)) sum else sum + amount
         }

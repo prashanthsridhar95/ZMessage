@@ -1,5 +1,6 @@
 package com.zyke.message.domain.budget
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.dashboard.DateRange
@@ -128,11 +129,10 @@ object DailyBudgets {
     fun spendByDay(messages: List<ClassifiedMessage>, zone: ZoneId, planned: List<PlanItem> = emptyList()): Map<LocalDate, BigDecimal> {
         val byDay = HashMap<LocalDate, BigDecimal>()
         messages.forEach { message ->
-            val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived || message.setAside != null || message.category in COMMITTED) return@forEach
+            if (message.category in COMMITTED) return@forEach
+            val amount = Counting.signedSpend(message) ?: return@forEach
             // A regular outgoing the plan already set aside (a subscription, a SIP) is not spending from the day's allowance.
             if (PlanMatching.isPlanned(message, planned)) return@forEach
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
             val day = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             byDay[day] = (byDay[day] ?: BigDecimal.ZERO) + amount
         }

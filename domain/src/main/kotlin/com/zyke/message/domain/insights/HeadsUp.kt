@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.ledger.UnusualSpend
@@ -26,8 +27,7 @@ object HeadsUps {
         cancelled: Map<String, java.time.LocalDate> = emptyMap()
     ): List<HeadsUp> {
         val tx = message.content as? MessageContent.Transaction ?: return emptyList()
-        if (tx.isReceived || tx.isCardPayment) return emptyList()
-        val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return emptyList()
+        val amount = Counting.spend(message) ?: return emptyList()
         val result = mutableListOf<HeadsUp>()
 
         // A charge from a subscription the person said they cancelled.
@@ -42,10 +42,10 @@ object HeadsUps {
         // The person's usual: debits in the last 90 days, not counting this one (it may already be in the inbox).
         val usual = history.mapNotNull { m ->
             val t = m.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (t.isReceived || t.isCardPayment || m.isPromotional || m.isMuted || m.setAside != null || ManualEntries.isManual(m)) return@mapNotNull null
+            if (m.isPromotional || m.isMuted || ManualEntries.isManual(m)) return@mapNotNull null
             if (m.message.body == message.message.body) return@mapNotNull null
             if (m.message.date < nowMs - UnusualSpend.HISTORY_DAYS * DAY_MS || m.message.date > nowMs) return@mapNotNull null
-            t.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+            Counting.spend(m)
         }
         if (UnusualSpend.isUnusual(amount, usual)) {
             result += HeadsUp(

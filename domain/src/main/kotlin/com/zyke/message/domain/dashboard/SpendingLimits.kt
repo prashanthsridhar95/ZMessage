@@ -1,5 +1,6 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -71,9 +72,7 @@ object SpendingLimits {
         val spentToday = HashMap<MessageCategory, BigDecimal>()
         val spentMonth = HashMap<MessageCategory, BigDecimal>()
         messages.forEach { message ->
-            val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived || message.setAside != null) return@forEach
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
+            val amount = Counting.signedSpend(message) ?: return@forEach
             val date = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
             if (date.isBefore(monthStart) || date.isAfter(today)) return@forEach
             spentMonth.merge(message.category, amount, BigDecimal::add)

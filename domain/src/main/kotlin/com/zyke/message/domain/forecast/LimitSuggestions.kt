@@ -1,5 +1,6 @@
 package com.zyke.message.domain.forecast
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.cycle.CycleRule
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -45,8 +46,8 @@ object LimitSuggestions {
 
         val spends = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            if (tx.isReceived || tx.isCardPayment || message.category !in SpendForecasts.FLEXIBLE) return@mapNotNull null
-            val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return@mapNotNull null
+            if (message.category !in SpendForecasts.FLEXIBLE) return@mapNotNull null
+            val amount = Counting.spend(message) ?: return@mapNotNull null
             Triple(message.category, LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone), amount)
         }
         // Only cycles that have any spending count, so a phone that is new to the app is not read as thrift.

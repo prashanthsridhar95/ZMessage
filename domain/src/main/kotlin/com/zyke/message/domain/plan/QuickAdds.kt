@@ -1,5 +1,6 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.insights.Subscriptions
 import com.zyke.message.domain.model.BankName
@@ -158,11 +159,10 @@ object QuickAdds {
         val months = completeMonths(now, zone).toSet()
         val spend = HashMap<MessageCategory, HashMap<java.time.YearMonth, BigDecimal>>()
         messages.forEach { message ->
-            val tx = message.content as? MessageContent.Transaction ?: return@forEach
-            if (tx.isReceived || message.setAside != null || message.category in COMMITTED || message.category in budgets) return@forEach
+            if (message.category in COMMITTED || message.category in budgets) return@forEach
             val m = month(message, zone)
             if (m !in months) return@forEach
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
+            val amount = Counting.signedSpend(message) ?: return@forEach
             val byMonth = spend.getOrPut(message.category) { HashMap() }
             byMonth[m] = (byMonth[m] ?: BigDecimal.ZERO) + amount
         }

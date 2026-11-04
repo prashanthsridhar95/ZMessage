@@ -1,5 +1,6 @@
 package com.zyke.message.domain.plan
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.util.BodyMemo
@@ -52,7 +53,7 @@ internal object SalaryTiming {
             val month = YearMonth.from(date)
             if (month < oldest) oldest = month
             val tx = message.content as? MessageContent.Transaction ?: continue
-            if (!tx.isReceived || tx.isCardPayment || message.setAside != null) continue
+            if (Counting.income(message) == null) continue
             if (month < earliest || notIncome.of(message.message)) continue
             val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it >= MIN_AMOUNT } ?: continue
             credits += Credit(month, date.dayOfMonth, amount)

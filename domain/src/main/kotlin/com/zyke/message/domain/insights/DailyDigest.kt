@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.life.LifeAgenda
@@ -99,11 +100,7 @@ object DailyDigest {
         }
 
         val yesterday = today.minusDays(1)
-        val spentYesterday = live.mapNotNull { message ->
-            val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            val day = Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate()
-            if (day == yesterday && !tx.isReceived && !tx.isCardPayment) tx.amount.toBigDecimalOrNull() else null
-        }.fold(BigDecimal.ZERO, BigDecimal::add)
+        val spentYesterday = Counting.netSpent(live.filter { Instant.ofEpochMilli(it.message.date).atZone(zone).toLocalDate() == yesterday })
         if (spentYesterday.signum() > 0) items += DigestItem(DigestKind.SPENT, "You spent", "yesterday", spentYesterday)
 
         if (items.isEmpty()) return null

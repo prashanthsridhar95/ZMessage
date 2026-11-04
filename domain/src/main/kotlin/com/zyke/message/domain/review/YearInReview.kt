@@ -1,5 +1,7 @@
 package com.zyke.message.domain.review
 
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.insights.Subscriptions
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -97,32 +99,38 @@ data class YearInReview(
             val category: MessageCategory,
             val amount: BigDecimal,
             val received: Boolean,
-            val date: LocalDate
+            val date: LocalDate,
+            /** A card refund: lowers the year's spending, is neither a spend of its own nor income. */
+            val refund: Boolean = false
         )
 
         /** Card-bill payments, set-aside messages, promotions and muted senders are neither income nor spending. */
         private fun flow(message: ClassifiedMessage, zone: ZoneId): Flow? {
-            if (message.setAside != null || message.isPromotional || message.isMuted) return null
+            if (message.isPromotional || message.isMuted) return null
             val tx = message.content as? MessageContent.Transaction ?: return null
-            if (tx.isCardPayment) return null
-            val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return null
             val date = LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone)
             val name = message.merchant.name.ifBlank { tx.payee }.ifBlank { "Unknown" }
-            return Flow(name, message.category, amount, tx.isReceived, date)
+            return when (val counted = Counting.of(message)) {
+                is Counted.Spend -> Flow(name, message.category, counted.amount, false, date)
+                is Counted.Income -> Flow(name, message.category, counted.amount, true, date)
+                is Counted.Refund -> Flow(name, message.category, counted.amount, false, date, refund = true)
+                is Counted.NotCounted -> null
+            }
         }
 
         fun build(messages: List<ClassifiedMessage>, year: Int, zone: ZoneId, today: LocalDate? = null): YearInReview {
             val flows = messages.mapNotNull { flow(it, zone) }.filter { it.date.year == year }
-            val spends = flows.filter { !it.received }
+            val spends = flows.filter { !it.received && !it.refund }
+            val refunds = flows.filter { it.refund }
             val credits = flows.filter { it.received }
 
-            val spent = spends.sumOf { it.amount }
+            val spent = spends.sumOf { it.amount } - refunds.sumOf { it.amount }
             val income = credits.sumOf { it.amount }
 
             val months = Month.entries.map { m ->
                 YearMonth(
                     m,
-                    spends.filter { it.date.month == m }.sumOf { it.amount },
+                    spends.filter { it.date.month == m }.sumOf { it.amount } - refunds.filter { it.date.month == m }.sumOf { it.amount },
                     credits.filter { it.date.month == m }.sumOf { it.amount }
                 )
             }

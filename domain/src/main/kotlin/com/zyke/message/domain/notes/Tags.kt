@@ -1,5 +1,6 @@
 package com.zyke.message.domain.notes
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
@@ -20,9 +21,7 @@ object Tags {
     }
 
     private fun spentOn(message: ClassifiedMessage): BigDecimal {
-        val tx = message.content as? MessageContent.Transaction ?: return BigDecimal.ZERO
-        if (tx.isReceived || message.setAside != null || tx.isCardPayment) return BigDecimal.ZERO
-        return tx.amount.replace(",", "").toBigDecimalOrNull() ?: BigDecimal.ZERO
+        return Counting.spend(message) ?: BigDecimal.ZERO
     }
 
     /** Tags already in use ([allTags] holds one entry per use) that fit [typed], best first, then most used; without those [already] on the payment. */

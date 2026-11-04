@@ -1,5 +1,6 @@
 package com.zyke.message.domain.insights
 
+import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.util.toBigDecimalOrNull
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
@@ -28,8 +29,8 @@ object SpendAlerts {
         val cutoff = nowMillis - RECENT.toMillis()
         val payments = messages.mapNotNull { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@mapNotNull null
-            val amount = tx.amount.toBigDecimalOrNull() ?: return@mapNotNull null
-            if (tx.isReceived || message.setAside != null || tx.payee.isBlank()) null else Payment(message, tx.payee.trim().lowercase(), amount)
+            val amount = Counting.spend(message) ?: return@mapNotNull null
+            if (tx.payee.isBlank()) null else Payment(message, tx.payee.trim().lowercase(), amount)
         }
         val alerts = mutableListOf<SpendAlert>()
 
