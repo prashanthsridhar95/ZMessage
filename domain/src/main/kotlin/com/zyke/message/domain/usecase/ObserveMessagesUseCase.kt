@@ -74,7 +74,9 @@ class ObserveMessagesUseCase(
     /** The person's notes and tags on single payments. */
     private val paymentNotes: com.zyke.message.domain.repository.PaymentNotesRepository = com.zyke.message.domain.repository.NoPaymentNotes,
     /** The categories the person made, and what is filed under them. */
-    private val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository = com.zyke.message.domain.repository.NoCustomCategories
+    private val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository = com.zyke.message.domain.repository.NoCustomCategories,
+    /** What the person said about which debits paid a credit card's bill. */
+    private val cardBills: com.zyke.message.domain.ledger.CardBillRepository = com.zyke.message.domain.ledger.NoCardBills
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -166,6 +168,10 @@ class ObserveMessagesUseCase(
                     val nickname = own ?: CategoryKey.of(message)?.let(nicknames::get)
                     if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true), nicknameOwn = own != null) else message
                 }
+            }
+            .combine(cardBills.state) { classified, decisions ->
+                // A payment of a card's bill moves the person's own money: the swipes were counted when they were made.
+                com.zyke.message.domain.ledger.CardBillPayments.apply(classified, decisions, ZoneId.systemDefault())
             }
             .combine(setAsides.state) { classified, asides ->
                 DiagLog.d("pipeline") { "set aside: ${asides.excluded.size} left out, ${asides.transfers.size} transfers, ${asides.dismissed.size} dismissed suggestions, over ${classified.size} messages" }

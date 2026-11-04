@@ -37,7 +37,9 @@ data class ClassifiedMessage(
     /** The person's own labels on this payment, sorted. */
     val tags: List<String> = emptyList(),
     /** The person's own category (see [CustomCategory]) this is filed under; [category] is then OTHERS. Null for the built-in ones. */
-    val customCategoryId: String? = null
+    val customCategoryId: String? = null,
+    /** This debit from a bank account paid a credit card's bill (or may have): see CardBillPayments. Set while the inbox is put together. */
+    val cardBill: com.zyke.message.domain.ledger.CardBillMatch? = null
 ) : java.io.Serializable {
     val id: Long get() = message.id
 }

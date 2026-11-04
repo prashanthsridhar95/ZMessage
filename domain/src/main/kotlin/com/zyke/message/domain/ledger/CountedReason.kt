@@ -29,9 +29,12 @@ object CountedReason {
             message.setAside == SetAside.TRANSFER -> "Not counted: a transfer between your own accounts"
             tx.isCardPayment && tx.isReceived && WALLET.containsMatchIn(tx.payee) -> "Not counted as income: store credit added to a wallet is not money in your bank"
             tx.isCardPayment && InternalMoves.reason(tx) != null -> InternalMoves.reason(tx)!!
+            tx.isCardPayment && !tx.isReceived && message.cardBill?.kind == CardBillKind.CERTAIN ->
+                "Not counted: credit card bill payment (the swipes were already counted)"
             tx.isCardPayment -> "Not counted: card bill payment, which is money moving between your own accounts"
             tx.isReceived && isRefundCredit -> "Not counted as income: a refund is tracked separately"
             tx.isReceived -> "Counted as income: money received" + payerSuffix(tx)
+            message.cardBill?.kind == CardBillKind.SUSPECTED -> "Counted as spending: a debit" + payeeSuffix(tx) + ", though it may be a credit card bill payment"
             else -> "Counted as spending: a debit" + payeeSuffix(tx)
         }
     }

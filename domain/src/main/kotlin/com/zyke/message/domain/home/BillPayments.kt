@@ -197,4 +197,15 @@ object BillPayments {
         messages: List<ClassifiedMessage>,
         zone: ZoneId
     ): BigDecimal? = payments(billMessage, bill, messages, zone).takeIf { it.isNotEmpty() }?.let { paidSum(it) }
+
+    /** The ids of the messages that [payments] takes for a bill payment, over the most recent bills. */
+    fun paymentMessageIds(messages: List<ClassifiedMessage>, zone: ZoneId): Set<Long> {
+        val bills = messages.filter { it.content is MessageContent.CardBill }.sortedByDescending { it.message.date }.take(MAX_BILLS_CHECKED)
+        if (bills.isEmpty()) return emptySet()
+        val ids = HashSet<Long>()
+        for (bill in bills) payments(bill, bill.content as MessageContent.CardBill, messages, zone).mapTo(ids) { it.messageId }
+        return ids
+    }
+
+    private const val MAX_BILLS_CHECKED = 24
 }

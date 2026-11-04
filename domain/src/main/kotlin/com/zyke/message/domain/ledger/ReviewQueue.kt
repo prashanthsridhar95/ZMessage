@@ -53,9 +53,11 @@ data class ReviewQueue(
     /** Debits far above what the person usually pays. */
     val unusual: List<ClassifiedMessage> = emptyList(),
     /** Charges that came after the person marked their subscription as cancelled. */
-    val cancelledCharges: List<com.zyke.message.domain.insights.CancelledCharge> = emptyList()
+    val cancelledCharges: List<com.zyke.message.domain.insights.CancelledCharge> = emptyList(),
+    /** Payments that may have paid a credit card's bill; they stay in the spending until the person says. */
+    val cardBills: List<ClassifiedMessage> = emptyList()
 ) {
-    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size + cancelledCharges.size
+    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size + cancelledCharges.size + cardBills.size
     val isEmpty: Boolean get() = count == 0
 }
 
@@ -98,6 +100,8 @@ object ReviewQueues {
 
         val txs = live.filter { it.content is MessageContent.Transaction && !ManualEntries.isManual(it) }
             .filter { (it.content as MessageContent.Transaction).let { tx -> !tx.isCardPayment && last4(tx).isNotEmpty() } }
+            // Asked about on its own: "is this a credit card bill payment?"
+            .filter { it.cardBill?.kind != CardBillKind.SUSPECTED }
         val debits = txs.filter { !(it.content as MessageContent.Transaction).isReceived }
         val credits = txs.filter { (it.content as MessageContent.Transaction).isReceived }
 
@@ -119,7 +123,10 @@ object ReviewQueues {
         val cancelledCharges = com.zyke.message.domain.insights.CancelledCharges.find(live, cancelled, zone, now)
             .filter { it.reviewKey !in asides.dismissed }.take(MAX_PER_KIND)
 
-        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual, cancelledCharges)
+        val cardBills = live.filter { it.cardBill?.kind == CardBillKind.SUSPECTED && it.content is MessageContent.Transaction }
+            .sortedByDescending { it.message.date }.take(MAX_PER_KIND)
+
+        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual, cancelledCharges, cardBills)
     }
 
     /**
