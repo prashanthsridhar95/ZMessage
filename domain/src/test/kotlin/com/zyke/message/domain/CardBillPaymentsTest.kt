@@ -136,6 +136,9 @@ class CardBillPaymentsTest {
             val paid = messages.single { it.message.date == at(28, 14) }
             assertEquals("$name: ${paid.content}", true, (paid.content as MessageContent.Transaction).isCardPayment)
             assertConsumersAgree(messages, spent = 50_000)
+            // The month says so quietly: the payment is listed, and not counted.
+            assertMoney(50_000, MonthlySummary.build(messages, now, zone).cardBillTotal, "$name card bill total")
+            assertTrue(name, com.zyke.message.domain.ledger.CountedReason.explain(paid).contains("credit card bill payment (the swipes were already counted)"))
         }
     }
 

@@ -7,6 +7,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.zyke.message.ZykeMessagesApplication
+import com.zyke.message.domain.ledger.CardBillRepository
+import com.zyke.message.domain.ledger.NoCardBills
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.ledger.ManualEntryRepository
 import com.zyke.message.domain.ledger.SetAsideRepository
@@ -25,6 +27,7 @@ class LedgerActions(
     private val asides: SetAsideRepository,
     private val entries: ManualEntryRepository,
     private val naming: NamingEdits? = null,
+    private val cardBills: CardBillRepository = NoCardBills,
     /** Shows a message with an Undo button; null (the default) shows nothing. */
     private val offerUndo: (message: String, undo: () -> Unit) -> Unit = { _, _ -> }
 ) {
@@ -106,6 +109,23 @@ class LedgerActions(
         return outcome
     }
 
+    /**
+     * The answer to "is this a credit card bill payment?" for [messages]. Yes keeps them out of the totals (the swipes were
+     * counted already) and, with [always], does the same for later payments to the same payees; No counts them as spending.
+     * One Undo takes the whole answer back.
+     */
+    fun answerCardBill(messages: List<ClassifiedMessage>, isBillPayment: Boolean, always: Boolean) {
+        if (messages.isEmpty()) return
+        val keys = messages.associate { it.id to com.zyke.message.domain.categories.CategoryKey.of(it) }
+        keys.forEach { (id, key) -> cardBills.answer(id, key, isBillPayment, always) }
+        val many = messages.size > 1
+        val text = when {
+            isBillPayment -> if (many) "${messages.size} payments marked as credit card bill payments" else "Marked as a credit card bill payment"
+            else -> if (many) "${messages.size} payments counted as spending" else "Counted as spending"
+        }
+        offerUndo(text) { keys.forEach { (id, key) -> cardBills.forget(id, key) } }
+    }
+
     fun deleteEntry(messageId: Long) {
         if (messageId < 0) entries.remove(ManualEntries.entryId(messageId))
     }
@@ -118,7 +138,7 @@ fun rememberLedgerActions(): LedgerActions {
     val scope = rememberCoroutineScope()
     val tick = rememberTick()
     return remember(container, snackbar, scope, tick) {
-        LedgerActions(container.setAsides, container.manualEntries, container.namingEdits) { message, undo ->
+        LedgerActions(container.setAsides, container.manualEntries, container.namingEdits, container.cardBills) { message, undo ->
             scope.launch {
                 // A newer change replaces an older one's offer rather than queueing behind it.
                 snackbar.currentSnackbarData?.dismiss()

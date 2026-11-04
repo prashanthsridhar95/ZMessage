@@ -193,8 +193,17 @@ internal fun ReviewPage(
     val picked = androidx.compose.runtime.remember(pickedIds, selectableIds) { ReviewSelection.prune(pickedIds, selectableIds) }
     androidx.compose.runtime.LaunchedEffect(picked) { if (picked != pickedIds) pickedIds = picked }
     val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
-    val pickedMessages = androidx.compose.runtime.remember(picked, selectable) { selectable.filter { it.id in picked } }
-    val sectionIds = if (lastSection == SECTION_UNUSUAL) review.unusual.map { it.id } else review.uncategorised.map { it.id }
+    val cardBillIds = androidx.compose.runtime.remember(review) { review.cardBills.mapTo(HashSet()) { it.id } }
+    // Payments to edit in bulk are the unusual and uncategorised ones; the card-bill question has its own two answers.
+    val pickedMessages = androidx.compose.runtime.remember(picked, selectable, cardBillIds) { selectable.filter { it.id in picked && it.id !in cardBillIds } }
+    val pickedCardBills = androidx.compose.runtime.remember(picked, review) { review.cardBills.filter { it.id in picked } }
+    // "Always treat payments to the same payee like this" is on unless the person turns it off.
+    var alwaysSame by rememberSaveable { mutableStateOf(true) }
+    val sectionIds = when (lastSection) {
+        SECTION_UNUSUAL -> review.unusual.map { it.id }
+        SECTION_CARDBILL -> review.cardBills.map { it.id }
+        else -> review.uncategorised.map { it.id }
+    }
     fun endPicking() { picking = false; pickedIds = emptyList() }
     fun toggle(id: Long, section: String) {
         lastSection = section
@@ -217,7 +226,14 @@ internal fun ReviewPage(
             {
                 SelectionBar(
                     count = picked.size,
-                    sectionTitle = if (lastSection == SECTION_UNUSUAL) "unusually large payments" else "payments with no category",
+                    sectionTitle = when (lastSection) {
+                        SECTION_UNUSUAL -> "unusually large payments"
+                        SECTION_CARDBILL -> "possible credit card bill payments"
+                        else -> "payments with no category"
+                    },
+                    cardBillMode = lastSection == SECTION_CARDBILL,
+                    onCardBillAnswer = { isBill -> ledger.answerCardBill(pickedCardBills, isBill, alwaysSame); endPicking() },
+                    cardBillCount = pickedCardBills.size,
                     sectionFull = ReviewSelection.allPicked(picked, sectionIds),
                     onSelectSection = { pickedIds = ReviewSelection.selectAll(picked, sectionIds) },
                     onClear = { pickedIds = emptyList() },
@@ -232,6 +248,31 @@ internal fun ReviewPage(
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (review.isEmpty) {
                 com.zyke.message.presentation.common.EmptyState("All clear", "Nothing needs a look right now. Anything the app is unsure of will appear here.")
+            }
+            if (review.cardBills.isNotEmpty()) {
+                SectionHeader("Credit card bill payments?", review.cardBills.size)
+                Caption("These stay in your spending until you say. A card bill payment is not counted: the card's swipes already were.", maxLines = 3)
+                if (!picking) SelectHint { lastSection = SECTION_CARDBILL; picking = true }
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Switch whether to remember this for the payee", onClick = { alwaysSame = !alwaysSame }),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = alwaysSame, onCheckedChange = null) }
+                    Text("Remember my answer for the same payee", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                }
+                review.cardBills.forEach { message ->
+                    val tx = message.content as MessageContent.Transaction
+                    PickableCard(
+                        message, picking, message.id in picked, { toggle(message.id, SECTION_CARDBILL) }, { onOpen(message.id) },
+                        caption = stampOf(message) + " \u00B7 " + (message.cardBill?.reason ?: "May have paid a credit card bill"),
+                        amount = DisplayFormatters.rupees(tx.amount)
+                    ) {
+                        com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth().padding(top = 10.dp), spacing = 8.dp) {
+                            AppButton("Yes, card bill", { ledger.answerCardBill(listOf(message), true, alwaysSame) }, Modifier.cell(), size = ButtonSize.COMPACT)
+                            AppButton("No, spending", { ledger.answerCardBill(listOf(message), false, alwaysSame) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
             }
             if (review.bills.isNotEmpty()) {
                 SectionHeader("Bills that need a look", review.bills.size)
@@ -404,6 +445,7 @@ private fun TransferLeg(label: String, message: com.zyke.message.domain.model.Cl
 
 private const val SECTION_UNUSUAL = "unusual"
 private const val SECTION_UNCATEGORISED = "uncategorised"
+private const val SECTION_CARDBILL = "cardbill"
 
 /** The way in to selection mode for people who do not long-press. */
 @Composable
@@ -475,7 +517,10 @@ private fun SelectionBar(
     onSelectSection: () -> Unit,
     onClear: () -> Unit,
     onAction: (BulkMode) -> Unit,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    cardBillMode: Boolean = false,
+    cardBillCount: Int = 0,
+    onCardBillAnswer: (Boolean) -> Unit = {}
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -488,7 +533,10 @@ private fun SelectionBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            BulkMode.entries.forEach { mode ->
+            if (cardBillMode) {
+                AppButton("Yes, card bill payments", { onCardBillAnswer(true) }, size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
+                AppButton("No, spending", { onCardBillAnswer(false) }, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
+            } else BulkMode.entries.forEach { mode ->
                 AppButton(mode.title, { onAction(mode) }, size = ButtonSize.COMPACT, enabled = count > 0)
             }
         }

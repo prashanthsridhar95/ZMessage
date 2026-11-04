@@ -146,7 +146,7 @@ class ParsingReportFormatsTest {
         assertEquals("Credit card payment XX5678", t.payee)
         assertEquals(MessageCategory.CREDIT_CARDS, m.category)
         assertFalse(m.message.body.isEmpty())
-        assertTrue(CountedReason.explain(m).startsWith("Not counted: card bill payment"))
+        assertTrue(CountedReason.explain(m).startsWith("Not counted: credit card bill payment"))
     }
 
     @Test

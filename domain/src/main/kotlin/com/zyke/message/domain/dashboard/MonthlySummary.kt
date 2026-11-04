@@ -1,5 +1,6 @@
 package com.zyke.message.domain.dashboard
 
+import com.zyke.message.domain.ledger.CardBillPayments
 import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.ledger.Counted
 import com.zyke.message.domain.util.toBigDecimalOrNull
@@ -45,6 +46,9 @@ data class CategoryChange(
     }
 }
 
+/** A payment of a credit card's bill from a bank account: not counted, since the card's swipes were counted when they were made. */
+data class CardBillPaid(val messageId: Long, val atMillis: Long, val label: String, val amount: BigDecimal)
+
 /** This month so far against the same days of last month. */
 data class MonthlySummary(
     val range: DateRange,
@@ -62,8 +66,13 @@ data class MonthlySummary(
     /** Days in this cycle, whole. */
     val cycleDays: Int = 0,
     /** Run-rate guess of the whole cycle's spend; null while there is too little to go on. */
-    val projectedSpent: BigDecimal? = null
+    val projectedSpent: BigDecimal? = null,
+    /** Card bill payments made this cycle, newest first; kept out of [spent] and [income]. */
+    val cardBillPayments: List<CardBillPaid> = emptyList()
 ) {
+    /** What the card bill payments of the cycle add up to. */
+    val cardBillTotal: BigDecimal get() = cardBillPayments.fold(BigDecimal.ZERO) { sum, p -> sum + p.amount }
+
     /** Spent so far minus spent at the same point last month; negative means below last month. */
     val spentDelta: BigDecimal get() = spent - previousSpent
 
@@ -171,9 +180,19 @@ data class MonthlySummary(
                 cumulativeSpent = cumThis,
                 previousCumulativeSpent = cumPrev,
                 cycleDays = cycleDays,
-                projectedSpent = project(cumThis.lastOrNull() ?: BigDecimal.ZERO, elapsed, cycleDays)
+                projectedSpent = project(cumThis.lastOrNull() ?: BigDecimal.ZERO, elapsed, cycleDays),
+                cardBillPayments = cardBillPayments(messages, range, zone)
             )
         }
+
+        private fun cardBillPayments(messages: List<ClassifiedMessage>, range: DateRange, zone: ZoneId): List<CardBillPaid> =
+            messages.mapNotNull { message ->
+                if (!CardBillPayments.isCountedAsBillPayment(message)) return@mapNotNull null
+                val tx = message.content as MessageContent.Transaction
+                val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return@mapNotNull null
+                if (LocalDate.ofInstant(Instant.ofEpochMilli(message.message.date), zone) !in range) return@mapNotNull null
+                CardBillPaid(message.id, message.message.date, message.merchant.name.ifBlank { tx.payee }.ifBlank { "Credit card" }, amount)
+            }.sortedByDescending { it.atMillis }
 
         /** Card-bill payments and anything set aside (left out, or a transfer between own accounts) are neither income nor spending. */
         private fun flow(message: ClassifiedMessage, zone: ZoneId): Flow? {

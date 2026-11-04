@@ -82,6 +82,7 @@ internal fun MonthlySummaryCard(summary: MonthlySummary, onOpenCategory: (Messag
         summary = summary.spentDeltaPercent?.let { if (it > 0) "+$it%" else "$it%" }
     ) {
         Hero(summary)
+        CardBillLine(summary)
         SegmentedTabs(TABS, tab, { tab = it }, Modifier.padding(top = 14.dp))
         Crossfade(tab, Modifier.fillMaxWidth().padding(top = 14.dp), animationSpec = if (reduce) snap() else tween(180), label = "monthTab") { shown ->
             Column(Modifier.fillMaxWidth()) {
@@ -91,6 +92,47 @@ internal fun MonthlySummaryCard(summary: MonthlySummary, onOpenCategory: (Messag
                     else -> Categories(summary, onOpenCategory)
                 }
             }
+        }
+    }
+}
+
+private val BillDayFormat = com.zyke.message.presentation.format.FormatCache.pattern("d MMM", java.util.Locale.getDefault())
+
+/**
+ * One quiet line under the headline when a credit card's bill was paid this month: the money left the bank, but it is not
+ * spending again (the card's swipes were counted on the day of each swipe). Tap for the payments themselves.
+ */
+@Composable
+private fun CardBillLine(summary: MonthlySummary) {
+    if (summary.cardBillPayments.isEmpty()) return
+    var open by rememberSaveable { mutableStateOf(false) }
+    val total = DisplayFormatters.rupees(summary.cardBillTotal)
+    val hidden = LocalPrivacyMode.current.hidden
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp)
+            .clickable(onClickLabel = "Show the card bill payments") { open = true }
+            .semantics(mergeDescendants = true) { contentDescription = if (hidden) "Card bill payments, not counted" else "Card bill payments $total, not counted" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Caption("Card bill payments \u00B7 not counted", Modifier.weight(1f), maxLines = 2)
+        PrivateAmount(total, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+        Text("\u203A", Modifier.padding(start = 6.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+    }
+    if (open) {
+        com.zyke.message.presentation.common.AdaptiveSheet("Card bill payments", { open = false }) {
+            Caption("These paid off your credit card. They are not counted as spending, because each swipe was already counted on the day you made it.", maxLines = 4)
+            summary.cardBillPayments.forEach { payment ->
+                key(payment.messageId) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(payment.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Caption(BillDayFormat.format(java.time.Instant.ofEpochMilli(payment.atMillis).atZone(java.time.ZoneId.systemDefault())))
+                        }
+                        PrivateAmount(DisplayFormatters.rupees(payment.amount), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                    }
+                }
+            }
+            Caption("Not right? Open the payment and choose \"This is not a card bill payment\".", Modifier.padding(top = 12.dp), maxLines = 3)
         }
     }
 }

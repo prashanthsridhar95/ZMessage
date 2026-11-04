@@ -261,6 +261,16 @@ internal fun MessageDetailSheet(
                             DetailRow("This is a transfer between my accounts", null) { ledger.markTransfer(item, true) }
                         }
                     }
+                    if (!manual && item.setAside == null) {
+                        // A debit the app took for paying a credit card's bill, or may have: the person has the last word.
+                        val cardBill = item.cardBill
+                        if (com.zyke.message.domain.ledger.CardBillPayments.isCountedAsBillPayment(item)) {
+                            DetailRow("This is not a card bill payment", null) { ledger.answerCardBill(listOf(item), false, false) }
+                        } else if (cardBill != null && cardBill.kind == com.zyke.message.domain.ledger.CardBillKind.SUSPECTED) {
+                            Caption(cardBill.reason, maxLines = 2)
+                            DetailRow("Yes, this paid my credit card bill", null) { ledger.answerCardBill(listOf(item), true, true) }
+                        }
+                    }
                     if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) GoalLinkRow(item)
                     if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
                 }
