@@ -304,6 +304,8 @@ private fun SummaryPage(
     val focus = state.nudges.firstOrNull()
     val next = state.planUpcoming.firstOrNull()
     val planHandler = rememberPlanActionHandler(onIntent)
+    // Deposits maturing within the same two weeks as the rest of the agenda; dismissed or snoozed like any plan item.
+    val maturities = com.zyke.message.presentation.investments.rememberMaturitiesAhead(state.planActions, today)
     var affordOpen by rememberSaveable { mutableStateOf(false) }
     // The clock ticks every second, but only the code card needs to see it: Home itself changes only when a code appears or runs out.
     val now = rememberNowState()
@@ -435,12 +437,19 @@ private fun SummaryPage(
             }
         }
 
-        if (state.planAgenda.isNotEmpty()) {
+        if (state.planAgenda.isNotEmpty() || maturities.isNotEmpty()) {
             item(key = "plans") {
                 FintechCard {
                     RowTitle("Plans")
-                    state.planAgenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
+                    maturities.forEachIndexed { index, maturity ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        val open = { com.zyke.message.presentation.investments.InvestmentRequests.pending.value = com.zyke.message.presentation.investments.InvestmentRequest(maturity.holding.id) }
+                        PlanItemFrame(maturity.holding.name, com.zyke.message.domain.plan.PlanKeys.maturity(maturity), PlanKind.AGENDA, today, planHandler, onOpen = open) { more ->
+                            com.zyke.message.presentation.investments.MaturityRow(maturity, open, more)
+                        }
+                    }
+                    state.planAgenda.take(MAX_PLANS).forEachIndexed { index, agendaItem ->
+                        if (index > 0 || maturities.isNotEmpty()) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         // A trip opens as its own scene; anything else shows the message.
                         val open = { onIntent(if (agendaItem.kind == LifeKind.TRAVEL) Intent.OpenJourney(agendaItem.message.id) else Intent.OpenMessage(agendaItem.message.id)) }
                         val remindOn = agendaItem.date ?: today.plusDays(1)

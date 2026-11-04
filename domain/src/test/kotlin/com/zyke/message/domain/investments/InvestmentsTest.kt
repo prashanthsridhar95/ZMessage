@@ -456,4 +456,16 @@ class InvestmentsTest {
         assertTrue(Portfolio.maturingSoon(listOf(h), today, 5).isEmpty())
         assertTrue(Portfolio.maturingSoon(listOf(h.copy(status = HoldingStatus.CLOSED)), today).isEmpty())
     }
+
+    @Test fun renewalDraft_startsAtMaturity_withMaturityAmount() {
+        val old = fd(start = LocalDate.of(2025, 11, 12), given = "108000")
+        val next = InvestmentMath.renewalDraft(old, "fd9", today)
+        assertEquals(LocalDate.of(2026, 11, 12), next.startDate)
+        assertEquals(bd("108000"), next.invested)
+        assertEquals(12, next.terms.tenureMonths)
+        assertNull(next.terms.maturityAmountGiven)
+        assertEquals("fd1", next.renewedFrom)
+        assertEquals(HoldingStatus.ACTIVE, next.status)
+        assertEquals(LocalDate.of(2027, 11, 12), InvestmentMath.maturityDate(next))
+    }
 }

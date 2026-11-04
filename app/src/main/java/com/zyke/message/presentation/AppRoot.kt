@@ -123,6 +123,12 @@ fun AppRoot(
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
+    // A deposit's reminder (or a row on Home) asks for Investments: show the Accounts tab, which then opens the holding.
+    val investmentRequest = com.zyke.message.presentation.investments.InvestmentRequests.pending.value
+    androidx.compose.runtime.LaunchedEffect(investmentRequest) {
+        if (investmentRequest != null) { showSettings = false; showSearch = false; tab = AppTab.ACCOUNTS }
+    }
+
     val sheetHost = remember { SheetHost() }
     val pageHost = remember { com.zyke.message.presentation.common.PageHost() }
     val snackbar = remember { SnackbarHostState() }

@@ -209,6 +209,23 @@ object InvestmentMath {
         return installmentDates(h).firstOrNull { !it.isBefore(today) }
     }
 
+    /**
+     * The successor of a matured deposit: starts on the old maturity date with the maturity amount as its principal (the amount
+     * from the receipt when there is one), the same tenure and terms; the person edits whatever the bank changed.
+     */
+    fun renewalDraft(old: Holding, newId: String, today: LocalDate): Holding {
+        val start = maturityDate(old) ?: today
+        val principal = if (old.kind == InvestmentKind.RECURRING_DEPOSIT) BigDecimal.ZERO else (maturityValue(old) ?: old.invested)
+        return old.copy(
+            id = newId, invested = principal, currentValue = null, valueAsOf = null, startDate = start, status = HoldingStatus.ACTIVE,
+            closedOn = null, closedAmount = null, history = emptyList(), renewedFrom = old.id, receiptNo = "",
+            terms = old.terms.copy(
+                tenureMonths = tenureMonths(old) ?: 12, maturityDate = null, maturityAmountGiven = null,
+                installmentsPaidOverride = null, installmentDay = old.terms.installmentDay
+            )
+        )
+    }
+
     // ---- funds, shares, gold
 
     fun gain(current: BigDecimal, invested: BigDecimal): BigDecimal = current - invested

@@ -137,3 +137,12 @@ internal object PlanSuggestions {
     val reminders = listOf("Rent", "Electricity bill", "Credit card bill", "Insurance premium", "EMI", "SIP", "School fee", "Mobile recharge", "Water bill", "Internet bill", "Maintenance", "Pay back")
     val events = listOf("Dentist", "Doctor appointment", "Dinner", "Meeting", "Birthday", "Anniversary", "Flight", "Gym", "Call", "Interview")
 }
+
+/** A quiet panel for a computed answer shown beside a form ("Matures on…"), with a one-line note on where it came from. */
+@Composable
+internal fun FintechPreviewCard(text: String, note: String, modifier: Modifier = Modifier) {
+    FintechCard(modifier) {
+        Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        Caption(note, Modifier.padding(top = 4.dp), maxLines = 2)
+    }
+}

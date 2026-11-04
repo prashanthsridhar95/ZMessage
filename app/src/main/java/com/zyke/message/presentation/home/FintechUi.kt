@@ -3,6 +3,7 @@ package com.zyke.message.presentation.home
 import com.zyke.message.domain.tour.TourAnchor
 import com.zyke.message.domain.tour.TourTab
 import com.zyke.message.presentation.tour.TourScroll
+import com.zyke.message.presentation.investments.investmentItems
 import com.zyke.message.presentation.tour.tourAnchor
 import com.zyke.message.presentation.common.AdaptiveSheet
 import androidx.lifecycle.repeatOnLifecycle
@@ -174,36 +175,6 @@ internal fun outstandingBilled(cards: List<AccountSummary>): java.math.BigDecima
         }
     }
 
-/** The Investments tab's big number: what the funds hold (provident funds the person marked, or the one from the passbook). */
-@Composable
-internal fun InvestmentsHero(funds: List<AccountSummary>, pf: com.zyke.message.domain.pf.ProvidentFund?, modifier: Modifier = Modifier) {
-    val total = remember(funds, pf) {
-        val counted = funds.mapNotNull { it.balance }
-        val fromPassbook = if (funds.isEmpty()) pf?.balance else null
-        val all = counted + listOfNotNull(fromPassbook)
-        if (all.isEmpty()) null else all.fold(java.math.BigDecimal.ZERO) { a, b -> a + b }
-    }
-    val count = if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0
-    FintechCard(modifier) {
-        Caption("TOTAL INVESTMENTS")
-        if (total != null) {
-            com.zyke.message.presentation.common.PrivateAmount(
-                rememberAnimatedRupees(total),
-                Modifier.padding(top = 6.dp),
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                fit = true
-            )
-            Caption(DisplayFormatters.count(count, "fund", "funds"), Modifier.padding(top = 2.dp), maxLines = 2)
-        } else {
-            Text("Your investments", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-            Caption(if (count == 0) "None yet" else "No balance stated yet", Modifier.padding(top = 2.dp))
-        }
-    }
-}
-
 /**
  * A running clock for screens that count down. It ticks once a second while the app is on screen, stops while it is
  * not, and reads the real time the instant the app comes back, so a countdown never shows the moment it was left at.
@@ -249,6 +220,15 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         else -> emptyList()
     }
     val pf = state.providentFund
+    // What the provident fund(s) hold, from messages: counted once in the Investments total, as net worth counts it.
+    val pfTotal = remember(funds, pf) {
+        val counted = funds.mapNotNull { it.balance }
+        val fromPassbook = if (funds.isEmpty()) pf?.balance else null
+        (counted + listOfNotNull(fromPassbook)).takeIf { it.isNotEmpty() }?.fold(java.math.BigDecimal.ZERO) { a, b -> a + b }
+    }
+    val invest = com.zyke.message.presentation.investments.rememberInvestmentsModel(pfTotal, deckToday)
+    com.zyke.message.presentation.investments.MigrateNetWorthEntries()
+    com.zyke.message.presentation.investments.HandleInvestmentRequests(invest) { tab = 2 }
     var showNetWorth by rememberSaveable { mutableStateOf(false) }
     var renamingKey by rememberSaveable { mutableStateOf<String?>(null) }
     var leavingKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -310,7 +290,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 val same = Modifier.fillMaxWidth().heightIn(min = ACCOUNTS_HERO_MIN_HEIGHT)
                 when (which) {
                     1 -> CardsHero(cards, same)
-                    2 -> InvestmentsHero(funds, pf, same)
+                    2 -> com.zyke.message.presentation.investments.InvestmentsHero(invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0, same)
                     else -> BalanceHero(overview, onOpen = {}, modifier = same)
                 }
             }
@@ -320,7 +300,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             UnderlineTabs(
                 modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_TABS),
                 labels = listOf("Accounts", "Cards", "Investments"),
-                counts = listOf(banks.size, cards.size, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0),
+                counts = listOf(banks.size, cards.size, invest.summary.count + (if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0)),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
@@ -328,17 +308,11 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         }
 
         if (tab == 2) {
-            if (pf == null && funds.isEmpty()) {
-                item(key = "pf-empty") {
-                    com.zyke.message.presentation.common.EmptyState(
-                        "No provident fund yet",
-                        "Passbook messages from EPFO show up here, and you can mark any account as a provident fund from its sheet."
-                    )
+            investmentItems(invest) {
+                if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
+                funds.forEach { fund ->
+                    item(key = fund.key) { FundTile(fund, pf) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
                 }
-            }
-            if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
-            funds.forEach { fund ->
-                item(key = fund.key) { FundTile(fund, pf) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
             }
         } else if (shown.isEmpty()) {
             item(key = "empty") {
@@ -403,6 +377,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     }
     PullToRevealIndicator(pull.progress, Modifier.align(Alignment.TopCenter))
     }
+
+    com.zyke.message.presentation.investments.InvestmentsDialogs(invest)
 
     renamingKey?.let { key ->
         val target = overview.accounts.firstOrNull { it.key == key }
