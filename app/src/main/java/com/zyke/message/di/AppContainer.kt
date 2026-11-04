@@ -99,6 +99,7 @@ class AppContainer(context: Context) {
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
     val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository by lazy { com.zyke.message.data.repository.AccountOverrideRepositoryImpl(context) }
     val netWorth: com.zyke.message.domain.repository.NetWorthRepository by lazy { com.zyke.message.data.repository.NetWorthRepositoryImpl(context) }
+    val investments: com.zyke.message.domain.investments.HoldingRepository by lazy { com.zyke.message.data.repository.HoldingRepositoryImpl(context) }
     val loans: com.zyke.message.domain.repository.LoanRepository by lazy { com.zyke.message.data.repository.LoanRepositoryImpl(context) }
     val recurringPayments: com.zyke.message.domain.repository.RecurringConfirmationRepository by lazy { com.zyke.message.data.repository.RecurringConfirmationRepositoryImpl(context) }
     val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository by lazy { com.zyke.message.data.repository.RecurringMergeRepositoryImpl(context) }
