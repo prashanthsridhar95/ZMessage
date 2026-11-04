@@ -49,6 +49,7 @@ only; Insights links there. The unused `BudgetDialog` was deleted.
 | Subscriptions vs Recurring vs Regular payments | Already one: `RecurringPayments` / `Subscriptions` feed the single "Repeats monthly" section and the "Regular payment" calendar kind |
 | Net worth vs Accounts totals | Keep. Accounts totals are bank balances from messages; Net worth adds the person's own assets and loans, and is reached from the balance card |
 | Year in review vs Monthly summary | Keep. Different periods (a year, a month) and different pages |
+| Card swipe vs card bill payment | One rule: `Counting.of(message)` (domain/ledger/Counting.kt) says whether a message is spending, income, a card refund or not counted, and every total reads it. A card swipe is spending on the day of the swipe; the bank debit that pays the card's bill is not counted again (`CardBillPayments` finds it: card-bill wording, the bill's amount, a matching "payment received" on the card, or a bill-payment service the person confirms in Needs review). The bank balance still falls by it. A credit on a card that is not a bill payment is a refund and lowers spending; it is never income |
 | Mute / hide / leave out of totals | Keep. Muted sender (hide a sender's messages), hidden account (leave out of totals) and set-aside (leave a payment out) act on different objects |
 | Alerts toggles | Not audited toggle by toggle; Settings > Reminders and alerts is the one entry point and none was merged |
 | GlobalSearch vs feed search | Keep. Feed search filters the inbox list; GlobalSearch is the app-wide page |
