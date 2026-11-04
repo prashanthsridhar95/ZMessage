@@ -213,9 +213,10 @@ internal fun LazyListScope.investmentItems(m: InvestmentsModel, providentFundTil
                             "Deposits remind you before they mature, and funds show how they have grown.",
                         Modifier.padding(top = 6.dp, bottom = 12.dp), maxLines = 6
                     )
-                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Three equal tiles in one row (one under another on a narrow screen or at large text), never 2 + 1.
+                    com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
                         listOf(InvestmentKind.FIXED_DEPOSIT, InvestmentKind.RECURRING_DEPOSIT, InvestmentKind.MUTUAL_FUND).forEach { kind ->
-                            AppButton(kind.label, { m.ui.addKind = kind }, style = ButtonStyle.TONAL)
+                            KindTile(kind.label, { m.ui.addKind = kind }, Modifier.cell())
                         }
                     }
                 }
@@ -376,3 +377,22 @@ private fun ClosedRow(m: InvestmentsModel, h: Holding) {
 
 /** Newly made successor id. */
 internal fun newHoldingId(): String = UUID.randomUUID().toString()
+
+
+/** One of the three common things to add: an even tile with a centred label that may use two lines. */
+@Composable
+private fun KindTile(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+            .clickable(role = Role.Button, onClickLabel = "Add $label", onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2
+        )
+    }
+}

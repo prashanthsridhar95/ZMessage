@@ -76,10 +76,12 @@ internal fun BankAccountTile(
     val hidden = LocalPrivacyMode.current.hidden
     val low = AccountInsights.isLowBalance(balance)
     val stale = AccountInsights.isStale(asOf, today)
+    // One short line: when the balance is from, and how many payments came after it. The full arithmetic is in the details.
     val freshness = when {
-        asOf == null -> "balance not stated"
-        account.balanceAdjustment != null -> "stated ${AccountInsights.age(asOf, today)}, plus later payments"
-        else -> "as of ${AccountInsights.age(asOf, today)}"
+        asOf == null -> "No balance yet"
+        account.balanceAdjustment != null && account.movementCount > 0 ->
+            "As of ${AccountInsights.age(asOf, today)} \u00b7 ${DisplayFormatters.count(account.movementCount, "payment", "payments")} since"
+        else -> "As of ${AccountInsights.age(asOf, today)}"
     }
     val description = buildString {
         append(account.title).append(", ").append(account.kind.label).append(" ending ").append(account.last4).append(". ")
@@ -107,7 +109,7 @@ internal fun BankAccountTile(
                     color = MaterialTheme.colorScheme.primary, maxLines = 1,
                     fit = true
                 )
-                Caption(freshness, maxLines = 2)
+                Caption(freshness, maxLines = 1)
                 BalanceWhy(account, onRename)
             }
             if (series.size >= 2) {
@@ -170,23 +172,20 @@ internal fun balanceWhy(account: AccountSummary): String? {
     return if (parts.isEmpty()) null else "$source, ${parts.joinToString(", ")}"
 }
 
-/** [balanceWhy], with the way to fix it when the figure is unsure or missing. */
+/** Only when something needs doing: a short line and the button; the full arithmetic lives in the account's details. */
 @Composable
 private fun BalanceWhy(account: AccountSummary, onSetBalance: () -> Unit) {
-    val why = balanceWhy(account)
     val noBalance = account.balance == null
     val unsure = account.adjustmentRefused || account.paymentsNotCounted > 0
-    if (why != null) Caption(why, maxLines = 3)
-    if (noBalance) {
-        Caption(
-            if (account.paymentCount > 0) "No balance message yet, so ${DisplayFormatters.count(account.paymentCount, "payment", "payments")} cannot be added up"
-            else "No balance message yet",
-            maxLines = 3
-        )
+    if (!noBalance && !unsure) return
+    val line = when {
+        noBalance && account.paymentCount > 0 -> "${DisplayFormatters.count(account.paymentCount, "payment", "payments")} not added up"
+        noBalance -> null
+        account.adjustmentRefused -> "Payments since could not be applied"
+        else -> "${DisplayFormatters.count(account.paymentsNotCounted, "payment", "payments")} not counted"
     }
-    if (noBalance || unsure) {
-        AppButton(if (noBalance) "Set balance" else "Fix balance", onSetBalance, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-    }
+    if (line != null) Caption(line, maxLines = 1)
+    AppButton(if (noBalance) "Set balance" else "Fix balance", onSetBalance, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
 }
 
 /** A credit card's line under the deck: what is due or unbilled, how much of the limit is in use, and the actions. */
