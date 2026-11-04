@@ -439,6 +439,10 @@ class MainActivity : ComponentActivity() {
                                     com.zyke.message.domain.search.SearchKind.STOCK -> Unit
                                     com.zyke.message.domain.search.SearchKind.PAGE -> when (hit.id) {
                                         com.zyke.message.domain.search.SearchPages.ACCOUNTS -> { onDismiss(); navigate(AppTab.ACCOUNTS) }
+                                        com.zyke.message.domain.search.SearchPages.INVESTMENTS -> {
+                                            onDismiss()
+                                            com.zyke.message.presentation.investments.InvestmentRequests.pending.value = com.zyke.message.presentation.investments.InvestmentRequest(null)
+                                        }
                                         com.zyke.message.domain.search.SearchPages.BILLS -> { onDismiss(); navigate(AppTab.BILLS) }
                                         com.zyke.message.domain.search.SearchPages.INSIGHTS -> { onDismiss(); navigate(AppTab.MONEY) }
                                         com.zyke.message.domain.search.SearchPages.MESSAGES -> { onDismiss(); navigate(AppTab.INBOX) }

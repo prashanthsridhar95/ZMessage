@@ -77,6 +77,11 @@ fun TourPreview(kind: TourPreviewKind, modifier: Modifier = Modifier) {
                 Line("Net worth", "₹3,42,000")
                 Sub("You own ₹4,10,000 · You owe ₹68,000")
             }
+            TourPreviewKind.INVESTMENT -> {
+                Line("Society FD", "₹1,07,186")
+                Sub("Matures 12 Mar 2027 · interest ₹7,186 · 128 days to go")
+                Pills("Reminder 7 days before" to Tone.NEUTRAL)
+            }
             TourPreviewKind.MONTH_COMPARE -> {
                 Line("This month", "₹24,300")
                 Bar(0.8f, null)

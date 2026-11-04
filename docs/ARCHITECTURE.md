@@ -113,6 +113,39 @@ none exist, and carry-over choices and moves are copied (`BudgetMigration`, pure
 place. `PrefsBackup` copies every prefs file, so backups carry the unified store, and a backup made before the merge
 restores and migrates on the next start. See `docs/UNIFICATION.md` for the other overlaps that were audited.
 
+## Investments
+
+A holding is something the person typed in from a receipt or statement: a fixed or recurring deposit, a mutual fund,
+stocks, gold, bonds, PPF/NPS or anything else (`Holding`, `domain/investments`). EPF stays automatic (read from
+passbook messages) and is added to the same totals as "Provident fund (from messages)".
+
+* **Maths** (`InvestmentMath`, pure, tested). Fixed deposit: `P * (1 + r/n) ^ (n * t)`, `t` = tenure months / 12, else days / 365;
+  simple interest `P * (1 + r*t)`; a maturity amount typed from the receipt (`maturityAmountGiven`) replaces the sum, and
+  accrual between start and maturity then runs geometrically from principal to that amount. Recurring deposit: installment `M`
+  at the start of each month `k = 1..N`, `sum M * (1 + r/n) ^ (n * (N-k+1) / 12)` (n = 4, the usual Indian bank formula).
+  Accrued values never fall and never pass the maturity value. Funds, shares and gold: gain = current - invested, CAGR =
+  `(current/invested) ^ (365.25/days) - 1` from 30 days. Everything is rounded to the rupee and labelled "Estimated".
+* **Portfolio** (`Portfolio.summarize`): totals (deposits use the accrued estimate unless a value was entered), allocation,
+  maturities, stale (older than 45 days) and missing values. Closed and renewed holdings are listed apart and never counted.
+* **Store** (`HoldingStore`, atomic under one lock like `SetAsideStore`; `HoldingRepositoryImpl`, prefs `investments`, lazy
+  in `AppContainer`): add, update, remove, update value (history capped at 60), mark matured, close, renew (a successor
+  starting on the old maturity) and an exact per-holding `undo`.
+* **Reminders**: `InvestmentReminders.build` derives `ManagedReminder`s (`inv:<holdingId>:mat|rd:<date>`, 9:00) from active
+  deposits: configurable lead days and "on the day", plus an optional monthly RD installment reminder two days before.
+  They are a second source for the existing `ReminderAlarms` (which keeps one inexact alarm for the next reminder with a
+  time): `everything()` joins the person's reminders with the derived ones on every `schedule()`, so a changed, closed or
+  deleted holding simply stops producing reminders and nothing stale needs cancelling. `MainActivity` re-schedules when
+  holdings change, `BootReceiver` after a restart. The notification (channel `reminders_timed`, text through
+  `NotificationPrivacy`) opens the Investments tab on that holding (`InvestmentRequests`). The same dates feed the
+  calendar (`CalendarKind.MATURITY`) and Home's Plans card (`PlanKeys.maturity`, same Snooze/Dismiss, 14 days).
+* **Net worth, no double counting**: `NetWorth.build` takes holdings (their current value, deposits estimated) and the ids
+  of manual entries already migrated. `HoldingStore.migrate` copies old entries of the kinds fixed deposit, mutual funds,
+  stocks, gold and retirement into holdings once (id `nw:<itemId>`, invested = current = the old amount) and records their ids in the
+  same locked write, so an entry counts exactly once before and after. The originals stay in `net_worth`, hidden. The
+  net-worth form no longer offers those kinds. Tested: totals match before and after.
+* **UI**: `presentation/investments/` (hero, allocation bar, rows, detail page, form, value and close sheets). No network,
+  no logo lookup (a drawn kind tile is used), receipts are a typed number only.
+
 ## Subscriptions and the salary strip
 
 `Subscriptions.find` stays the one detector of repeating charges; it now also keeps the charge before the latest and the

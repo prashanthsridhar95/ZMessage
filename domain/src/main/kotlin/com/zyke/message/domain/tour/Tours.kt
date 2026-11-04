@@ -130,6 +130,21 @@ object Tours {
             covers = setOf("accounts.net_worth")
         ),
 
+        TourStep(
+            "accounts.investments", G.ACCOUNTS, "Investments tracker",
+            "Open Investments and tap Add investment to enter a fixed deposit, recurring deposit, mutual fund, stocks or gold. A receipt is enough, no message needed.",
+            tab = T.ACCOUNTS, anchor = A.INVESTMENTS_ADD, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.INVESTMENT,
+            tip = "Enter the maturity amount from your receipt if your fund society has its own terms.",
+            covers = setOf("investments.tracker", "investments.add_fd_rd", "investments.growth")
+        ),
+        TourStep(
+            "accounts.maturity", G.ACCOUNTS, "Maturity reminders",
+            "Each deposit reminds you at 9:00, 7 days before it matures and on the day. Change the days per deposit, or turn on a monthly reminder for RD installments.",
+            tab = T.ACCOUNTS, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.INVESTMENT,
+            tip = "Maturities also show in the Calendar and in Plans on Home. Update a fund's value now and then to see its growth.",
+            covers = setOf("investments.maturity_reminders", "investments.update_value")
+        ),
+
         // ---- Insights
         TourStep(
             "insights.month", G.INSIGHTS, "This month against last",

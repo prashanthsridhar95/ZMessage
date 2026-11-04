@@ -23,6 +23,7 @@
 | Split payments (friends' names, their shares, which are paid) | User input in the message sheet | Names and amounts in private SharedPreferences; nobody is contacted or asked for money | No |
 | Savings goals (name, target, saved so far, date) | User input on the Accounts tab | Names and amounts in private SharedPreferences | No |
 | Reminders (what, amount, day, monthly or not) | User input on the Bills tab | Private SharedPreferences; mentioned in the morning digest if that is on, otherwise only shown in the app | No |
+| Investments (fixed and recurring deposits, funds, stocks, gold: name, institution, amounts, dates, rate, receipt number, value history) | User input on the Accounts tab, Investments | Private SharedPreferences file `investments` (versioned JSON), copied by the backup like every other preferences file. Maturity and installment reminders are worked out from it on the phone and fired by the existing local reminder alarm (no server, no push); with "Hide amounts" on, no notification carries an amount | No |
 | Daily and monthly spending limits | User input in Settings | Category and amount in private SharedPreferences | No |
 | Muted senders | User action | Sender names, private SharedPreferences | No |
 | Settings (screenshot protection, theme, app lock, morning digest, hide amounts and "ask for authentication to show amounts") | User input | Booleans and one choice | No |

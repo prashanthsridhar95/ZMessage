@@ -98,10 +98,11 @@ internal fun NetWorthCard(accounts: List<AccountSummary>, messages: List<Classif
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val items by container.netWorth.items.collectAsState()
     val loans by container.loans.loans.collectAsState()
+    val invested by container.investments.state.collectAsState()
     val today = remember { LocalDate.now() }
     val debits = remember(messages) { Loans.debitsFrom(messages, ZoneId.systemDefault()) }
-    val report = remember(items, accounts, loans, debits, today) {
-        NetWorth.build(items, accounts, Loans.statuses(loans, today, debits), today)
+    val report = remember(items, accounts, loans, debits, today, invested) {
+        NetWorth.build(items, accounts, Loans.statuses(loans, today, debits), today, invested.holdings, invested.migratedItemIds)
     }
     val assets = report.totalAssets
     val liabilities = report.totalLiabilities
@@ -144,11 +145,14 @@ internal fun NetWorthCard(accounts: List<AccountSummary>, messages: List<Classif
 internal fun NetWorthPage(accounts: List<AccountSummary>, messages: List<ClassifiedMessage>, onBack: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val items by container.netWorth.items.collectAsState()
+    val invested by container.investments.state.collectAsState()
     val loans by container.loans.loans.collectAsState()
     val today = remember { LocalDate.now() }
     val debits = remember(messages) { Loans.debitsFrom(messages, ZoneId.systemDefault()) }
     val statuses = remember(loans, debits, today) { Loans.statuses(loans, today, debits) }
-    val report = remember(items, accounts, statuses, today) { NetWorth.build(items, accounts, statuses, today) }
+    val report = remember(items, accounts, statuses, today, invested) {
+        NetWorth.build(items, accounts, statuses, today, invested.holdings, invested.migratedItemIds)
+    }
     var showLoans by rememberSaveable { mutableStateOf(false) }
 
     AppPage("Net worth", onBack) {
@@ -156,7 +160,12 @@ internal fun NetWorthPage(accounts: List<AccountSummary>, messages: List<Classif
             NetWorthContent(
                 report = report, loanStatuses = statuses, today = today,
                 onSave = { container.netWorth.save(it) }, onRemove = { container.netWorth.remove(it) },
-                onOpenLoans = { showLoans = true }, items = items
+                onOpenLoans = { showLoans = true }, items = items,
+                // An investment opens on the Investments tab, where it is kept.
+                onOpenHolding = { id ->
+                    com.zyke.message.presentation.investments.InvestmentRequests.pending.value = com.zyke.message.presentation.investments.InvestmentRequest(id)
+                    onBack()
+                }
             )
         }
     }
@@ -177,7 +186,8 @@ private fun NetWorthContent(
     today: LocalDate,
     onSave: (NetWorthItem) -> Unit,
     onRemove: (String) -> Unit,
-    onOpenLoans: () -> Unit
+    onOpenLoans: () -> Unit,
+    onOpenHolding: (String) -> Unit
 ) {
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -218,8 +228,10 @@ private fun NetWorthContent(
     )
 
     SectionHeader("Assets", report.assets.size)
-    if (report.assets.isEmpty()) Caption("Nothing yet. Add cash, deposits, funds, stocks, gold or property.", maxLines = 2)
-    report.assets.forEach { line -> LineCard(line, onClick = line.itemId?.let { id -> { editing = id } }) }
+    if (report.assets.isEmpty()) Caption("Nothing yet. Add cash or property here; deposits, funds, stocks and gold go under Accounts, Investments.", maxLines = 2)
+    report.assets.forEach { line ->
+        LineCard(line, onClick = line.itemId?.let { id -> { editing = id } } ?: line.holdingId?.let { id -> { onOpenHolding(id) } })
+    }
 
     SectionHeader("Liabilities", report.liabilities.size)
     if (report.liabilities.isEmpty()) Caption("Nothing yet. Card dues and loans appear here.", maxLines = 2)
@@ -286,12 +298,14 @@ private fun NetWorthItemSheet(item: NetWorthItem?, today: LocalDate, onSave: (Ne
         secondaryLabel = if (onRemove != null) "Delete" else null,
         onSecondary = onRemove
     ) {
+        // Deposits, funds, stocks, gold and retirement savings are kept under Accounts, Investments.
+        val kinds = NetWorthKind.values().filter { it !in com.zyke.message.domain.investments.HoldingStore.MIGRATED }
         PickField(
-            "Kind", NetWorthKind.values().map { it.label }, kind.label,
-            onPick = { picked -> NetWorthKind.values().firstOrNull { it.label == picked }?.let { kindName = it.name } }
+            "Kind", kinds.map { it.label }, kind.label,
+            onPick = { picked -> kinds.firstOrNull { it.label == picked }?.let { kindName = it.name } }
         )
         FormField(
-            "Name", name, { name = it }, placeholder = "Savings FD, Zerodha holdings, Gold chain",
+            "Name", name, { name = it }, placeholder = "Savings account, Gold chain, Flat",
             capitalization = KeyboardCapitalization.Sentences
         )
         AmountField(if (kind.isLiability) "Amount owed" else "Current value", amountText, { amountText = it })

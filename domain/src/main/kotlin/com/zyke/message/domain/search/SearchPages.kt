@@ -13,9 +13,14 @@ object SearchPages {
     const val GOALS = "goals"
     const val REMINDERS = "reminders"
     const val SUBSCRIPTIONS = "subscriptions"
+    const val INVESTMENTS = "investments"
 
     val all = listOf(
         SearchPageEntry(ACCOUNTS, "Accounts", "Bank accounts and cards", listOf("bank", "card", "balance")),
+        SearchPageEntry(
+            INVESTMENTS, "Investments", "Deposits, funds, stocks and gold, and how they have grown",
+            listOf("fd", "fixed deposit", "rd", "recurring deposit", "mutual fund", "sip", "stocks", "gold", "maturity", "returns", "receipt", "net worth")
+        ),
         SearchPageEntry(BILLS, "Bills", "What is due and what you paid", listOf("due", "paid", "emi")),
         SearchPageEntry(INSIGHTS, "Insights", "Spending, income and trends", listOf("spend", "report", "chart", "budget")),
         SearchPageEntry(MESSAGES, "Messages", "Every message, sorted", listOf("inbox", "sms", "otp")),

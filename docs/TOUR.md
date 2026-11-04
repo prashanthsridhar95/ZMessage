@@ -5,7 +5,7 @@ Settings, Help and tour (the whole tour, auto-play, or any chapter on its own).
 
 ## How it works
 
-* **Content** lives in one place, `domain/.../tour/Tours.kt` (`Tours.full()`): about 45 steps in 10 chapters
+* **Content** lives in one place, `domain/.../tour/Tours.kt` (`Tours.full()`): about 46 steps in 10 chapters
   (`TourGroup`). A step is `TourStep(id, group, title, body, tab, anchor, page, ...)`. Plain English, present tense: what it is,
   where it is, what to do with it. Body at most 220 characters, optional `tip`. Nothing else holds tour words.
 * **Progress** is `TourProgress` (pure: `next`, `back`, `skip`, `jumpToGroup`, `resume`). **Offers** are `TourPolicy.offer(state)`

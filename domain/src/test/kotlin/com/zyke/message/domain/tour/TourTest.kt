@@ -75,6 +75,7 @@ class TourContentTest {
             "home.shortcut_reminders", "home.shortcut_afford", "home.plans", "home.snooze_dismiss", "home.mark_paid", "home.pay_bill",
             "add.entry_button", "add.widget", "add.quick_tile", "add.share_to_app",
             "accounts.tabs", "accounts.hero_number", "accounts.card_deck", "accounts.edit_account", "accounts.net_worth", "accounts.leave_out",
+            "investments.tracker", "investments.add_fd_rd", "investments.growth", "investments.maturity_reminders", "investments.update_value",
             "insights.month_vs_last", "insights.heading_salary", "insights.budgets", "insights.report_card", "insights.categories",
             "insights.subscriptions", "insights.cancel_helper", "insights.year_in_review", "insights.filters", "insights.direction",
             "bills.due_list", "bills.mark_paid", "bills.snooze", "bills.repeats", "bills.split", "bills.friends",
