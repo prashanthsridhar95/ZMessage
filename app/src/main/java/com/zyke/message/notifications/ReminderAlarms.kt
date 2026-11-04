@@ -10,10 +10,14 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.zyke.message.R
 import com.zyke.message.ZykeMessagesApplication
+import com.zyke.message.domain.investments.InvestmentReminders
+import com.zyke.message.domain.investments.ManagedReminder
+import com.zyke.message.domain.reminders.Reminder
 import com.zyke.message.domain.reminders.ReminderAlarm
 import com.zyke.message.domain.reminders.Reminders
 import com.zyke.message.presentation.MainActivity
 import com.zyke.message.presentation.format.DisplayFormatters
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -36,7 +40,7 @@ object ReminderAlarms {
         val pending = pendingIntent(app)
         alarms.cancel(pending)
         val container = (app as ZykeMessagesApplication).container
-        val next = Reminders.nextAlarm(container.reminders.reminders.value, LocalDateTime.now(), posted(app)) ?: return
+        val next = Reminders.nextAlarm(everything(container), LocalDateTime.now(), posted(app)) ?: return
         val at = next.at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
     }
@@ -49,13 +53,24 @@ object ReminderAlarms {
         val done = posted(app).toMutableSet()
         val now = LocalDateTime.now()
         while (true) {
-            val next = Reminders.nextAlarm(container.reminders.reminders.value, now, done) ?: break
+            val next = Reminders.nextAlarm(everything(container), now, done) ?: break
             if (next.at.isAfter(now.plusMinutes(1))) break
             post(app, next)
             done += next.key
         }
         remember(app, done)
         schedule(app)
+    }
+
+    /**
+     * The person's own reminders, plus those the Investments tracker derives from active deposits (maturity and RD
+     * installments). The second source is recomputed on every call from the saved holdings, so a changed, renewed, closed
+     * or deleted deposit simply stops producing its reminders: there is nothing stale to cancel.
+     */
+    private fun everything(container: com.zyke.message.di.AppContainer): List<Reminder> {
+        val own = container.reminders.reminders.value
+        val managed = InvestmentReminders.build(container.investments.state.value.holdings, LocalDate.now()).map { it.toReminder() }
+        return if (managed.isEmpty()) own else own + managed
     }
 
     private fun post(context: Context, alarm: ReminderAlarm) {
@@ -66,12 +81,19 @@ object ReminderAlarms {
                 description = "A reminder at the time you set for it"
             }
         )
+        val reminder = alarm.reminder
+        val managed = ManagedReminder.isManaged(reminder.id)
+        val launch = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // A deposit's reminder opens the Investments tab, on that deposit.
+        if (managed) {
+            launch.setAction(com.zyke.message.presentation.investments.InvestmentRequests.ACTION_OPEN)
+                .putExtra(com.zyke.message.presentation.investments.InvestmentRequests.EXTRA_HOLDING, ManagedReminder.holdingIdOf(reminder.id))
+        }
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            context, if (managed) alarm.key.hashCode() else 0, launch,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val reminder = alarm.reminder
-        val text = listOfNotNull(
+        val text = if (managed) "Open Investments" else listOfNotNull(
             reminder.amount?.let { DisplayFormatters.rupees(it) },
             if (reminder.repeatsMonthly) "every month" else null
         ).joinToString(" · ").ifEmpty { "Due today" }

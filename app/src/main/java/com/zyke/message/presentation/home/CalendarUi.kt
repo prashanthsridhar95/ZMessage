@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +95,7 @@ private fun kindColor(kind: CalendarKind): Color = when (kind) {
     CalendarKind.LIFE -> Color(0xFF2FB8C8)
     CalendarKind.WARRANTY -> Color(0xFFC2689A)
     CalendarKind.GOAL -> Color(0xFF7AA33A)
+    CalendarKind.MATURITY -> MaterialTheme.colorScheme.tertiary
 }
 
 /**
@@ -126,8 +128,10 @@ internal fun CalendarPage(
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    val entries = remember(month, messages, reminders, events, goals, plan, now) {
-        CalendarBuilder.month(month, messages, reminders, events, goals, plan, now, zone)
+    val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val holdings by container.investments.state.collectAsState()
+    val entries = remember(month, messages, reminders, events, goals, plan, now, holdings) {
+        CalendarBuilder.month(month, messages, reminders, events, goals, plan, now, zone, holdings.holdings)
     }
     val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
 

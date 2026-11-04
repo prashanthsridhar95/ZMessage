@@ -204,6 +204,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
+        com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -211,6 +212,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Opened by the quick-add widget, the quick-settings tile or "Share": the entry sheet follows on Home.
         if (savedInstanceState == null) com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
+        if (savedInstanceState == null) com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
         applyScreenProtection(container.settings.settings.value.screenProtection)
         // After a restore the saved icon colour may differ from the enabled launcher alias: put them in step, off the main thread.
         val savedIcon = container.settings.settings.value.appIcon
@@ -226,6 +228,14 @@ class MainActivity : ComponentActivity() {
                         com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
                         DaysAheadWidget.refresh(this@MainActivity)
                     }
+                }
+            }
+        }
+        // Deposit reminders follow the holdings the same way: any change in them moves the alarm.
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.investments.state.collect {
+                    com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
                 }
             }
         }
