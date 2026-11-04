@@ -2,6 +2,8 @@ package com.zyke.message.domain.networth
 
 import com.zyke.message.domain.accounts.AccountKind
 import com.zyke.message.domain.accounts.AccountSummary
+import com.zyke.message.domain.investments.Holding
+import com.zyke.message.domain.investments.Portfolio
 import com.zyke.message.domain.loans.LoanStatus
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -38,7 +40,10 @@ enum class LineSource {
     ENTERED,
 
     /** Worked out from a loan's terms and its schedule. */
-    LOANS
+    LOANS,
+
+    /** Kept in the Investments tracker (a deposit's figure is an estimate from its terms). */
+    INVESTMENTS
 }
 
 /** One row of the net-worth page. Every row says where its number came from and when it was last true. */
@@ -54,7 +59,9 @@ data class NetWorthLine(
     val stale: Boolean,
     val note: String = "",
     /** The manual entry to edit, when it is one. */
-    val itemId: String? = null
+    val itemId: String? = null,
+    /** The investment to open, when it is one. */
+    val holdingId: String? = null
 )
 
 data class NetWorthReport(
@@ -90,7 +97,10 @@ object NetWorth {
         items: List<NetWorthItem>,
         accounts: List<AccountSummary>,
         loans: List<LoanStatus>,
-        today: LocalDate
+        today: LocalDate,
+        holdings: List<Holding> = emptyList(),
+        /** Entries already copied into [holdings]: skipped here so nothing is counted twice. */
+        migratedItemIds: Set<String> = emptySet()
     ): NetWorthReport {
         val assets = ArrayList<NetWorthLine>()
         val liabilities = ArrayList<NetWorthLine>()
@@ -120,7 +130,16 @@ object NetWorth {
                 note = "Estimated from the schedule, as if every EMI was paid on time"
             )
         }
-        items.forEach { item ->
+        holdings.filter { it.isActiveish }.forEach { h ->
+            val v = Portfolio.value(h, today)
+            val asOf = h.valueAsOf ?: h.startDate
+            assets += NetWorthLine(
+                key = "holding-${h.id}", name = h.name, kindLabel = h.kind.label, amount = v.current,
+                source = LineSource.INVESTMENTS, asOf = asOf, stale = v.stale,
+                note = if (v.estimated) "Estimated from the deposit's terms" else "", holdingId = h.id
+            )
+        }
+        items.filter { it.id !in migratedItemIds }.forEach { item ->
             val line = NetWorthLine(
                 key = "item-${item.id}", name = item.name, kindLabel = item.kind.label, amount = item.amount,
                 source = LineSource.ENTERED, asOf = item.asOf, stale = isStale(item.asOf, today), note = item.note, itemId = item.id

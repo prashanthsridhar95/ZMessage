@@ -85,6 +85,7 @@ private fun sourceText(line: NetWorthLine): String {
         LineSource.MESSAGES -> "From your messages$asOf"
         LineSource.ENTERED -> "Entered by you$asOf"
         LineSource.LOANS -> "Worked out from your loan$asOf"
+        LineSource.INVESTMENTS -> "From your investments$asOf"
     }
 }
 

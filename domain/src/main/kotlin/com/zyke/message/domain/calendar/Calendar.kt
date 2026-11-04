@@ -36,7 +36,8 @@ enum class CalendarKind(val label: String) {
     SALARY("Salary"),
     LIFE("Order, trip or appointment"),
     WARRANTY("Warranty or return date"),
-    GOAL("Goal")
+    GOAL("Goal"),
+    MATURITY("Deposit maturity")
 }
 
 /** One line on one day of the calendar. */
@@ -65,7 +66,8 @@ object CalendarBuilder {
         goals: List<Goal>,
         plan: MoneyPlan,
         now: Instant,
-        zone: ZoneId
+        zone: ZoneId,
+        holdings: List<com.zyke.message.domain.investments.Holding> = emptyList()
     ): Map<LocalDate, List<CalendarEntry>> {
         val today = LocalDate.ofInstant(now, zone)
         val inMonth = { date: LocalDate -> YearMonth.from(date) == month }
@@ -137,6 +139,14 @@ object CalendarBuilder {
         goals.forEach { goal ->
             val date = goal.targetDate?.takeIf(inMonth) ?: return@forEach
             all += CalendarEntry(CalendarKind.GOAL, goal.name, "Goal date", date, goal.target)
+        }
+
+        holdings.filter { it.isActiveish && it.isDeposit }.forEach { h ->
+            val on = com.zyke.message.domain.investments.InvestmentMath.maturityDate(h)?.takeIf(inMonth) ?: return@forEach
+            all += CalendarEntry(
+                CalendarKind.MATURITY, "${h.kind.short} matures \u00b7 ${h.name}", h.institution.ifBlank { "Deposit" }, on,
+                com.zyke.message.domain.investments.InvestmentMath.maturityValue(h), done = on.isBefore(today)
+            )
         }
 
         return all.groupBy { it.date }.mapValues { (_, list) ->

@@ -76,4 +76,8 @@ object PlanKeys {
     fun bill(item: com.zyke.message.domain.home.UpcomingItem): String = PlanActions.key(PlanKind.BILL, item.markedPaidKey)
 
     fun reminder(reminder: com.zyke.message.domain.reminders.Reminder): String = PlanActions.key(PlanKind.REMINDER, reminder.id)
+
+    /** A deposit's maturity on Home's Plans card: one per holding and date, so a renewal is not hidden by the old snooze. */
+    fun maturity(item: com.zyke.message.domain.investments.Maturity): String =
+        PlanActions.key(PlanKind.AGENDA, "inv-${item.holding.id}-${item.on}")
 }
