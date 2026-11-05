@@ -189,11 +189,44 @@ message) and its start-up and screen markers exist even when the container or a 
 for the same reason, so a failure there ends the screen that asked rather than the whole process. Earlier exits from
 `ApplicationExitInfo` are added once each. Writes are synchronous, small and wrapped so they cannot throw.
 
-"Share logs" has three doors (the launcher icon's long-press shortcut, Settings, About, and Developer options) and one
+"Share logs" has three doors (the launcher icon's long-press shortcut (next to "Demo mode", see below), Settings, About, and Developer options) and one
 implementation: `LogShare` reads the files, `LogBundle` (`:domain`, pure, tested) builds the header and keeps the newest
 content under 1.5 MB, and the result goes through the `shared_logs/` cache folder of the FileProvider and `ACTION_SEND`
 (text/plain). The shortcut (`res/xml/shortcuts.xml`) targets `ShareLogsActivity`, a screen-less, non-exported plain
 `Activity` that touches no container, store, view model or Compose; `ManifestPolicyTest` and `BlackBoxPolicyTest` pin this.
+
+## Demo mode
+
+For showing the app to someone else without showing the person's own money. Entered from the launcher icon's long-press
+shortcut ("Demo mode", `DemoActivity`, same plain screen-less shape as "Share logs") or from Settings, Demo mode. The whole
+app then runs on a made-up person ("Asha Menon"), and nothing real is read, shown, written or announced.
+
+* **Data.** `DemoData.build(now, zone)` (`:domain/demo`, pure, deterministic, tested) writes six months of SMS bodies in real
+  banks' wording, dated back from `now` so it always looks current, plus the setup (cards, plan, budgets, goals, deposits, loan,
+  reminders, events, names, categories, a market strip with fixed prices). The bodies go through the real `MessageClassifier` and
+  the real pipeline, so every card, the card-bill matching (a bill paid from the account is not spending twice), recurring
+  payments and the SIP series are computed by the app, not painted. `DemoDataTest` pins this.
+* **Isolation by construction.** The switch is one boolean in its own preference file, `demo_mode`, read first thing in
+  `Application.onCreate`; the process is restarted to change it (`RestartActivity`, in its own `:restart` process), so a process
+  is wholly real or wholly demo. In a demo process `AppContainer(DemoContext(app), demo = true)` is built: `DemoContext` is a
+  `ContextWrapper` whose preference files are in-memory (`MemoryPrefs`), whose private folders are a scratch folder under the
+  cache that is emptied at the start and end, and whose `applicationContext` is itself, so every `XxxRepositoryImpl(context)`
+  is the app's ordinary store but cannot reach the real files; there is no path back to them. The inbox is `DemoSmsRepository`
+  (a fixed list; no provider, no SMS permission), the classification cache is `NoClassificationCache`, `ImageStore` is offline,
+  `MarketTicker` answers from fixed prices (no request for prices, search or charts) and `DemoSeeder` loads the setup into the
+  in-memory stores. Writes made in the demo go to memory and vanish with the process. `DemoPolicyTest` reads the sources and
+  keeps these doors shut.
+* **Nothing in the background.** In a demo process `canNotify` is false and receivers, schedulers, the reminder alarm, the
+  widget, the chat-notification reader, boot handling, backups (engine, runner, scheduler, job, `PrefsBackup.capture/apply`) and
+  `DataWipe` all refuse; the launcher-icon colour and the live-alert component are left alone. Entering clears the app's
+  notifications; real alarms are only cancelled, and the real app sets them again on its next start.
+* **Lock and persistence.** Entering needs no unlock because nothing real is shown; leaving restarts the real app, which asks
+  for the app lock exactly as on any cold start. The switch survives the process being killed in the background (so coming back
+  to a demonstration never shows the real data) and is cleared only by "Exit demo mode". `demo_mode` is in `PrefsBackup`'s
+  exclusion list and is never in Auto Backup, so a backup can neither carry it nor restore it.
+* **UI.** A slim line under the toolbar on every tab ("Demo mode · sample data, not yours" and Exit, which asks first). No SMS,
+  notification or notification-access prompts; the tour is not offered on the way in (it is under Settings, Help); photos and web
+  picture search, app-icon colours, backup and "Delete all my data" are not offered in the demo.
 
 ## Budget phones and lite mode
 

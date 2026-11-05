@@ -14,6 +14,8 @@ object DataWipe {
     private const val CACHE_KEY_ALIAS = "zyke_classification_cache"
 
     fun wipe(context: Context) {
+        // In Demo mode "delete" would reach the real files; there is nothing of the demo on disk to delete, so do nothing.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val app = context.applicationContext
         com.zyke.message.data.diag.DevLog.d("wipe") { "deleting all app data" }
         runCatching { app.getSystemService(NotificationManager::class.java)?.cancelAll() }

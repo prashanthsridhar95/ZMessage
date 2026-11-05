@@ -32,6 +32,8 @@ import com.zyke.message.domain.classification.MessageClassifier
 import com.zyke.message.domain.repository.BudgetRepository
 import com.zyke.message.domain.repository.CardRepository
 import com.zyke.message.domain.repository.ClassificationCache
+import com.zyke.message.domain.repository.NoClassificationCache
+import com.zyke.message.data.demo.DemoSmsRepository
 import com.zyke.message.domain.repository.CategoryOverrideRepository
 import com.zyke.message.domain.repository.MoneyPlanRepository
 import com.zyke.message.domain.repository.MutedSenderRepository
@@ -43,25 +45,37 @@ import com.zyke.message.domain.repository.WishlistRepository
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
 
-/** Manual dependency container; one instance lives in the Application. */
-class AppContainer(context: Context) {
+/**
+ * Manual dependency container; one instance lives in the Application.
+ *
+ * With [demo] set (Demo mode) the caller passes a [com.zyke.message.data.demo.DemoContext]: every store below is the app's
+ * ordinary one but reads and writes in-memory preferences, the inbox is [DemoSmsRepository] (a fixed made-up list, never the
+ * phone's), nothing is cached on disk, the market strip has fixed prices, and no backup place can run. A demo container
+ * holds no reference to the real context's files or preferences.
+ */
+class AppContainer(context: Context, val demo: Boolean = false) {
     private val appContext: Context = context.applicationContext ?: context
     /** Decided first thing, before any store can write: whether this is a fresh install that should offer "Welcome back". */
-    val needsWelcome: Boolean = com.zyke.message.data.backup.BackupPrefs.needsWelcome(context)
+    val needsWelcome: Boolean = !demo && com.zyke.message.data.backup.BackupPrefs.needsWelcome(context)
     /** [needsWelcome] and not answered yet. Never throws: if anything about the first launch fails, the app just opens. */
     /** Whether this is a fresh install, decided in the same breath (before any setup is written); it only picks how the tour is offered. */
-    init { com.zyke.message.data.backup.FirstRun.step("tour kind", Unit) { com.zyke.message.data.repository.TourSeenRepositoryImpl.decideKindNow(context) } }
+    init { if (!demo) com.zyke.message.data.backup.FirstRun.step("tour kind", Unit) { com.zyke.message.data.repository.TourSeenRepositoryImpl.decideKindNow(context) } }
     val tourSeen: com.zyke.message.domain.tour.TourSeenRepository by lazy { com.zyke.message.data.repository.TourSeenRepositoryImpl(context) }
     fun welcomeStillPending(): Boolean =
-        com.zyke.message.data.backup.FirstRun.step("welcome state", false) { needsWelcome && !com.zyke.message.data.backup.FirstRun.isDone(appContext) }
+        !demo && com.zyke.message.data.backup.FirstRun.step("welcome state", false) { needsWelcome && !com.zyke.message.data.backup.FirstRun.isDone(appContext) }
 
-    val backup by lazy { com.zyke.message.data.backup.BackupHub(context, imageStore, com.zyke.message.data.backup.FirstRun.step("drive auth", null) { com.zyke.message.data.backup.GmsDriveAuth(context) }) }
+    /** The made-up inbox and setup of Demo mode; built only when asked for. */
+    val demoData: com.zyke.message.domain.demo.DemoDataset by lazy { com.zyke.message.domain.demo.DemoData.build(System.currentTimeMillis()) }
+
+    val backup by lazy {
+        com.zyke.message.data.backup.BackupHub(context, imageStore, if (demo) null else com.zyke.message.data.backup.FirstRun.step("drive auth", null) { com.zyke.message.data.backup.GmsDriveAuth(context) })
+    }
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
     val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
     val rcsStore by lazy { RcsMessageStore(context.applicationContext) }
     private val smsDataSource by lazy { SmsDataSource(context.applicationContext.contentResolver, rcsStore) }
 
-    val smsRepository: SmsRepository by lazy { SmsRepositoryImpl(smsDataSource) }
+    val smsRepository: SmsRepository by lazy { if (demo) DemoSmsRepository(demoData.messages) else SmsRepositoryImpl(smsDataSource) }
     val userMessageState: UserMessageStateRepository by lazy { UserMessageStateRepositoryImpl(context) }
     val budgets: BudgetRepository by lazy { BudgetRepositoryImpl(context) }
     val categoryOverrides: CategoryOverrideRepository by lazy { CategoryOverrideRepositoryImpl(context) }
@@ -76,7 +90,7 @@ class AppContainer(context: Context) {
     val goalSavings by lazy { com.zyke.message.domain.goals.GoalSavings(goals, goalContributions) }
     val reminders: ReminderRepository by lazy { ReminderRepositoryImpl(context) }
     val planActions: com.zyke.message.domain.repository.PlanActionRepository by lazy { com.zyke.message.data.repository.PlanActionRepositoryImpl(context) }
-    val imageStore by lazy { ImageStore(context) { settings.settings.value.fetchLogos } }
+    val imageStore by lazy { ImageStore(context, offline = demo) { settings.settings.value.fetchLogos } }
     val messageClassifier by lazy { MessageClassifier() }
     val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
     val nicknames: NicknameRepository by lazy { NicknameRepositoryImpl(context) }
@@ -96,7 +110,12 @@ class AppContainer(context: Context) {
     val namingEdits by lazy { com.zyke.message.domain.nickname.NamingEdits(nicknames, categoryOverrides, customCategories) }
     val paidBills: com.zyke.message.domain.home.PaidBillRepository by lazy { com.zyke.message.data.repository.PaidBillRepositoryImpl(context) }
     val watchlist: com.zyke.message.domain.markets.WatchlistRepository by lazy { com.zyke.message.data.repository.WatchlistRepositoryImpl(context) }
-    val markets by lazy { com.zyke.message.data.markets.MarketTicker(watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)) }
+    val markets by lazy {
+        com.zyke.message.data.markets.MarketTicker(
+            watchlist, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+            fixedQuotes = if (demo) demoData.quotes else null
+        )
+    }
     val dailyBudgetOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository by lazy { com.zyke.message.data.repository.DailyBudgetOverrideRepositoryImpl(context) }
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
     val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository by lazy { com.zyke.message.data.repository.AccountOverrideRepositoryImpl(context) }
@@ -112,7 +131,7 @@ class AppContainer(context: Context) {
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
      * new or reinstalled build, which may read messages differently, starts again from the messages themselves.
      */
-    val classificationCache: ClassificationCache by lazy { EncryptedClassificationCache(context, cacheTag(context)) }
+    val classificationCache: ClassificationCache by lazy { if (demo) NoClassificationCache else EncryptedClassificationCache(context, cacheTag(context)) }
 
     /** Outlives every screen, so the inbox is read once and shared, and keeps being read when a screen goes. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -138,6 +157,11 @@ class AppContainer(context: Context) {
             { classificationCache }, { observeMessages }
         )
         for (part in parts) appScope.launch { runCatching { part() } }
+    }
+
+    init {
+        // Last, so every store above exists: fill the in-memory ones with the made-up setup.
+        if (demo) DemoSeeder.seed(this, demoData)
     }
 
     private fun cacheTag(context: Context): String {

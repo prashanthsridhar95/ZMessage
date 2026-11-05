@@ -52,6 +52,8 @@ class BackupScheduler(context: Context, private val prefs: BackupPrefs) {
     }
 
     private fun schedule(m: BackupMechanism, fromJobId: Int?, now: Instant) {
+        // Demo mode leaves the real queued backups exactly as they are (no queueing, no cancelling).
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val view = prefs.view.value
         val pair = ids(m)
         if (!enabled(m, view)) {

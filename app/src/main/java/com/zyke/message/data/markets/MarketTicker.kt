@@ -57,9 +57,14 @@ sealed interface HistoryOutcome {
  * Keeps the latest prices for the person's watch list. It asks only while a screen that shows them is open (see
  * the polling effect in the UI) and only when the person has switched the strip on.
  */
-class MarketTicker(private val watchlist: WatchlistRepository, private val scope: CoroutineScope) {
+class MarketTicker(
+    private val watchlist: WatchlistRepository,
+    private val scope: CoroutineScope,
+    /** Demo mode: these prices are shown and the network is never asked (no request, for prices, search or charts). */
+    private val fixedQuotes: Map<String, Quote>? = null
+) {
     private val fetcher = QuoteFetcher()
-    private val quotes = HashMap<String, Quote>()
+    private val quotes = HashMap<String, Quote>().also { if (fixedQuotes != null) it.putAll(fixedQuotes) }
     private val lock = Mutex()
     private val _state = MutableStateFlow(MarketState())
     val state: StateFlow<MarketState> = _state
@@ -70,6 +75,13 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
     suspend fun refresh() {
         val wanted = watchlist.watch.value
         if (!wanted.enabled) return
+        if (fixedQuotes != null) {
+            lock.withLock {
+                quotes.putAll(fixedQuotes)
+                _state.update { MarketState(rows = MarketSymbols.rows(wanted, quotes), updatedAt = System.currentTimeMillis(), loading = false, offline = false) }
+            }
+            return
+        }
         lock.withLock {
             _state.update { it.copy(loading = true) }
             val symbols = MarketSymbols.needed(wanted)
@@ -97,11 +109,12 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
      * Whether the service knows this ticker, so a typo is caught when it is added instead of leaving a line that never fills.
      * Returns the quote, or null.
      */
-    suspend fun check(symbol: String): Quote? = withContext(Dispatchers.IO) { fetch(symbol) }
+    suspend fun check(symbol: String): Quote? = fixedQuotes?.get(symbol) ?: if (fixedQuotes != null) null else withContext(Dispatchers.IO) { fetch(symbol) }
 
     /** The first of the typed text's candidate tickers (see [MarketSymbols.candidates]) that has a price, or null. */
-    suspend fun checkTyped(input: String): Quote? = withContext(Dispatchers.IO) {
-        MarketSymbols.candidates(input).firstNotNullOfOrNull { fetch(it) }
+    suspend fun checkTyped(input: String): Quote? {
+        if (fixedQuotes != null) return MarketSymbols.candidates(input).firstNotNullOfOrNull { fixedQuotes[it] }
+        return withContext(Dispatchers.IO) { MarketSymbols.candidates(input).firstNotNullOfOrNull { fetch(it) } }
     }
 
     /**
@@ -109,7 +122,7 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
      * caller shows the local list otherwise. Cancelling the caller drops the answer.
      */
     suspend fun search(query: String): SearchOutcome {
-        if (!watchlist.watch.value.enabled) return SearchOutcome.Unreachable
+        if (!watchlist.watch.value.enabled || fixedQuotes != null) return SearchOutcome.Unreachable
         return withContext(Dispatchers.IO) {
             val reply = fetcher.search(query)
             if (reply == null) {
@@ -133,6 +146,12 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
      */
     suspend fun history(symbol: String, range: ChartRange, force: Boolean = false): HistoryOutcome {
         if (!watchlist.watch.value.enabled) return HistoryOutcome.Off
+        if (fixedQuotes != null) {
+            val quote = fixedQuotes[symbol] ?: return HistoryOutcome.NoData
+            return HistoryOutcome.Ready(
+                com.zyke.message.domain.demo.DemoData.priceHistory(symbol, range, quote.price.toDouble(), quote.previousClose?.toDouble(), System.currentTimeMillis())
+            )
+        }
         val key = symbol + "|" + range.label
         val kept = synchronized(charts) { charts[key] }
         val now = System.currentTimeMillis()

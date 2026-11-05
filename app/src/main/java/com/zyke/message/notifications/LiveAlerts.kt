@@ -32,6 +32,8 @@ internal object LiveAlerts {
 
     /** Turns the receiver on or off. It starts disabled, so a phone that never opted in never runs this code. */
     fun setEnabled(context: Context, enabled: Boolean) {
+        // Demo mode must not change the phone's real component settings.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         context.packageManager.setComponentEnabledSetting(
             ComponentName(context, SmsReceiver::class.java),
             if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
@@ -40,7 +42,7 @@ internal object LiveAlerts {
     }
 
     fun canNotify(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        !com.zyke.message.data.demo.DemoMode.active && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     fun post(context: Context, message: ClassifiedMessage) {

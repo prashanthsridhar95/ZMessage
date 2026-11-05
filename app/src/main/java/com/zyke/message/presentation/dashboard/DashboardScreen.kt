@@ -121,7 +121,8 @@ fun DashboardRoute(viewModel: DashboardViewModel, onRequestPermission: () -> Uni
 
     val openLink = com.zyke.message.presentation.common.LocalOpenLink.current
     LaunchedEffect(viewModel) {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
+        // Demo mode reads no messages, so it needs no permission and never asks for it.
+        val granted = com.zyke.message.data.demo.DemoMode.active || ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
         viewModel.onIntent(Intent.ScreenStarted(granted))
     }

@@ -19,6 +19,8 @@ object AppIconSwitcher {
 
     /** Makes [choice] the one enabled alias. Idempotent: does nothing when it already is. */
     fun apply(context: Context, choice: AppIconChoice) {
+        // Demo mode must not change the real launcher icon.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         try {
             val pm = context.packageManager
             val target = ComponentName(context, choice.aliasName)
@@ -41,6 +43,8 @@ object AppIconSwitcher {
      * Cheap when they agree (reads only).
      */
     fun reconcile(context: Context, stored: AppIconChoice) {
+        // The demo's saved icon is not the person's: leave the real one alone.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         try {
             val pm = context.packageManager
             val enabled = AppIconChoice.entries.filter { choice ->

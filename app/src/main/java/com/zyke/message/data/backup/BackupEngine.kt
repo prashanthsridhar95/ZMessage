@@ -21,6 +21,7 @@ class BackupEngine(context: Context, private val images: ImageStore, private val
 
     @Throws(BackupFailureException::class)
     fun build(createdAt: Long = System.currentTimeMillis()): BuiltBackup {
+        check(!com.zyke.message.data.demo.DemoMode.active) { "Demo mode is never backed up" }
         val material = keys.load() ?: throw BackupFailureException(BackupFailure.NO_KEY)
         val setup = PrefsBackup.capture(app)
         val pictures = images.chosenPicturesForBackup(BackupContainer.MAX_PICTURE_BYTES)

@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        // Demo mode: a new real message is neither read nor announced.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val container = (context.applicationContext as ZykeMessagesApplication).container
         if (!container.settings.settings.value.liveAlerts || container.settings.settings.value.readingPaused) return
 

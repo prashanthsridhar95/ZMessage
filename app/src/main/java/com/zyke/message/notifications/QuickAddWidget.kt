@@ -37,6 +37,10 @@ class QuickAddWidget : AppWidgetProvider() {
         if (intent.action != ACTION_PRESET) return super.onReceive(context, intent)
         val amount = intent.getIntExtra(EXTRA_AMOUNT, 0)
         if (amount <= 0) return
+        if (com.zyke.message.data.demo.DemoMode.active) {
+            Toast.makeText(context, "Demo mode: nothing was saved", Toast.LENGTH_SHORT).show()
+            return
+        }
         val repo = (context.applicationContext as ZykeMessagesApplication).container.manualEntries
         repo.save(
             ManualEntry(

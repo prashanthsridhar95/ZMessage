@@ -46,5 +46,6 @@
     <string name="quick_add_income">Income</string>
     <string name="quick_add_saved">Added cash spend ₹%1$d</string>
     <string name="shortcut_share_logs">Share logs</string>
+    <string name="shortcut_demo_mode">Demo mode</string>
     <string name="tile_add_entry">Add entry</string>
 </resources>

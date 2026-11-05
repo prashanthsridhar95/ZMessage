@@ -187,6 +187,8 @@ fun AppRoot(
         bottomBar = { AppBottomBar(selected = tab, inboxBadge = inboxBadge, onSelect = { tab = it }, modifier = Modifier.tourAnchor(TourAnchor.NAV_BAR)) }
     ) { padding ->
         Column(Modifier.padding(padding)) {
+        // Demo mode: a slim, always-visible line saying what is shown is made up, with the way out.
+        if (com.zyke.message.data.demo.DemoMode.active) com.zyke.message.presentation.demo.DemoBanner()
         topNote()
         Box(Modifier.weight(1f)) {
         // Tabs slide the way you moved along the bar, so where you are in the app is felt, not just read.

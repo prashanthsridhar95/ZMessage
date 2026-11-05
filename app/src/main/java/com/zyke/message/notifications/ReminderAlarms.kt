@@ -39,6 +39,8 @@ object ReminderAlarms {
         val alarms = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pending = pendingIntent(app)
         alarms.cancel(pending)
+        // Demo mode sets no alarm; a real one is cleared above and set again by the real app on its next start.
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val container = (app as ZykeMessagesApplication).container
         val next = Reminders.nextAlarm(everything(container), LocalDateTime.now(), posted(app)) ?: return
         val at = next.at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -47,6 +49,7 @@ object ReminderAlarms {
 
     /** Posts every reminder whose moment has come, then sets the alarm for the one after. */
     fun fireDue(context: Context) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
         com.zyke.message.data.diag.DevLog.d("reminder") { "alarm fired" }
         val app = context.applicationContext
         val container = (app as ZykeMessagesApplication).container

@@ -9,6 +9,8 @@ import com.zyke.message.ZykeMessagesApplication
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        // Demo mode sets no alarms and schedules no backups (the real app does, on its next start).
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val container = (context.applicationContext as ZykeMessagesApplication).container
         if (container.settings.settings.value.morningDigest) DigestScheduler(context).apply(true)
         if (container.settings.settings.value.weeklySummary) WeeklyScheduler(context).apply(true)

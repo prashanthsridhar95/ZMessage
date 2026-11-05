@@ -25,6 +25,8 @@ import kotlinx.coroutines.withContext
  */
 class ImageStore(
     context: Context,
+    /** Demo mode: no logo is looked up and no picture is fetched from the web. */
+    private val offline: Boolean = false,
     private val logosEnabled: () -> Boolean
 ) : SenderImageRepository {
 
@@ -67,6 +69,7 @@ class ImageStore(
 
     /** The picture behind a web page's image: a data address is read directly, an https one is downloaded. */
     suspend fun fetchPicked(address: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (offline) return@withContext null
         if (address.startsWith("data:image", ignoreCase = true)) {
             runCatching {
                 val bytes = android.util.Base64.decode(address.substringAfter("base64,"), android.util.Base64.DEFAULT)
@@ -133,7 +136,7 @@ class ImageStore(
         val file = File(logoDir, fileName(domain))
         decodeFile(file)?.let { return@withContext it.also { bitmap -> cache.put(LOGO + domain, bitmap) } }
 
-        if (!logosEnabled() || recentlyFailed(domain) || !inFlight.add(domain)) return@withContext null
+        if (offline || !logosEnabled() || recentlyFailed(domain) || !inFlight.add(domain)) return@withContext null
         try {
             val bitmap = logoFetcher.fetch(domain)
             if (bitmap == null) {

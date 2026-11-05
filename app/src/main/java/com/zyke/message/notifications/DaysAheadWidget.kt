@@ -40,7 +40,8 @@ class DaysAheadWidget : AppWidgetProvider() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                val canRead = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+                // Demo mode shows the plain "Today" face: nothing from the demo (or the real inbox) goes on the home screen.
+                val canRead = com.zyke.message.data.demo.DemoMode.active || ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
                 val digest = if (canRead) DigestProvider.load(context) else null
                 ids.forEach { id ->
                     val options = manager.getAppWidgetOptions(id)

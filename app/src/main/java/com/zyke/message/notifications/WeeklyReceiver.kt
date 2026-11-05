@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 /** Posts the weekly summary on Sunday morning and arms next week's alarm. Not exported; nothing leaves the phone. */
 class WeeklyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {

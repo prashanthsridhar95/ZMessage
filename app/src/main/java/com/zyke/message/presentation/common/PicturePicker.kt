@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun rememberPicturePicker(key: String, label: String): (() -> Unit)? {
     val store = LocalImageStore.current ?: return null
+    // Demo mode: no photos from the gallery and no web search.
+    if (com.zyke.message.data.demo.DemoMode.active) return null
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     // 0 nothing open, 1 choosing where from, 2 searching the web.

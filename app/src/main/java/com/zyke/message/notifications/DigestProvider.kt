@@ -16,6 +16,7 @@ internal object DigestProvider {
 
     /** Null when SMS access is missing or there is nothing worth saying. */
     suspend fun load(context: Context): DigestSummary? {
+        if (com.zyke.message.data.demo.DemoMode.active) return null
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return null
         val container = (context.applicationContext as ZykeMessagesApplication).container
         val messages = container.observeMessages().first()

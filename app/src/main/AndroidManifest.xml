@@ -55,7 +55,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -73,7 +73,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -91,7 +91,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -109,7 +109,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -127,7 +127,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -145,7 +145,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -163,7 +163,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -181,7 +181,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Long-press the icon: "Share logs" (see ShareLogsActivity), whichever icon colour is enabled. -->
+            <!-- Long-press the icon: "Share logs" (ShareLogsActivity) and "Demo mode" (DemoActivity), whichever icon colour is enabled. -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -196,6 +196,26 @@
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:label="@string/shortcut_share_logs"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- The target of the "Demo mode" launcher shortcut. Like ShareLogsActivity: no screen, no intent filter, not exported,
+             so nothing else can start it. It switches Demo mode on and restarts the app (see DemoSwitch). -->
+        <activity
+            android:name=".presentation.DemoActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:label="@string/shortcut_demo_mode"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Starts the app again in a fresh process (Demo mode is entered and left that way). Its own process, so the one it
+             replaces can end at once. No screen, no filter, not exported. -->
+        <activity
+            android:name=".presentation.RestartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:process=":restart"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- Optional: reads incoming chat (RCS) messages from the messaging app's notifications, once the user allows it in system settings. -->

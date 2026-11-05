@@ -30,6 +30,8 @@ class BackupRunner(
     /** Which places succeeded. [driveToken] is for a run the person started after signing in on screen. */
     suspend fun run(trigger: BackupTrigger, places: Set<BackupMechanism>, driveToken: String? = null): Map<BackupMechanism, Boolean> {
         if (places.isEmpty()) return emptyMap()
+        // Demo state is never backed up, and a backup never runs while demonstrating.
+        if (com.zyke.message.data.demo.DemoMode.active) return emptyMap()
         return lock.withLock {
             prefs.setRunning(true)
             try {
@@ -45,6 +47,7 @@ class BackupRunner(
      * backup since: what to catch up on while the app is open.
      */
     suspend fun runOfflineIfDue() {
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val view = prefs.view.value
         val now = Instant.now()
         val due = OFFLINE_PLACES.filter { m ->

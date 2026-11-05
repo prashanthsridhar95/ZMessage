@@ -176,6 +176,12 @@ class MainActivity : ComponentActivity() {
      */
     private fun startPermissionFlow() {
         if (permissionStage != -1) return
+        // Demo mode reads no messages, notifications or anything else of the phone's: nothing is asked for.
+        if (com.zyke.message.data.demo.DemoMode.active) {
+            permissionStage = LAST_STAGE + 1
+            permissionsSettled.value = true
+            return
+        }
         permissionStage = 0
         askNextPermission()
     }
@@ -564,7 +570,7 @@ class MainActivity : ComponentActivity() {
         if (leftAt != 0L && SystemClock.elapsedRealtime() - leftAt > REFRESH_AFTER_MS) container.smsRepository.refreshRecent()
         keepReadingInBackground()
         // After an update the phone can leave the notification reader unconnected until it is asked to reconnect.
-        if (hasNotificationAccess()) {
+        if (!com.zyke.message.data.demo.DemoMode.active && hasNotificationAccess()) {
             runCatching {
                 android.service.notification.NotificationListenerService.requestRebind(
                     android.content.ComponentName(this, com.zyke.message.data.sms.RcsNotificationListener::class.java)

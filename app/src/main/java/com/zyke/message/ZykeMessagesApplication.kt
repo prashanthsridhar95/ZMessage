@@ -9,7 +9,11 @@ class ZykeMessagesApplication : Application() {
      * Built on first use rather than in [onCreate], so a failure while building it takes down the screen that asked,
      * not the whole process: the "Share logs" shortcut (a separate screen that never asks for it) keeps working.
      */
-    val container: AppContainer by lazy { AppContainer(this) }
+    val container: AppContainer by lazy {
+        // Demo mode (see DemoMode): a process is either wholly the real app or wholly the made-up demo, decided here once.
+        // The demo container is built over a DemoContext, so none of its stores can reach the real preference files.
+        if (com.zyke.message.data.demo.DemoMode.active) AppContainer(com.zyke.message.data.demo.DemoContext(this), demo = true) else AppContainer(this)
+    }
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
@@ -25,6 +29,11 @@ class ZykeMessagesApplication : Application() {
         super.onCreate()
         // Before anything else, so even a crash while the rest starts is recorded (black box; independent of developer mode).
         BlackBox.install(this)
+        // The tiny restart helper (RestartActivity, its own process) only starts the app again; it needs none of the rest.
+        if (com.zyke.message.presentation.RestartActivity.isRestartProcess()) return
+        // Then: is this the demo? Everything below, and every receiver that wakes this process, goes by the answer.
+        com.zyke.message.data.demo.DemoMode.init(this)
+        if (!com.zyke.message.data.demo.DemoMode.active) com.zyke.message.data.demo.DemoMode.cleanUp(this)
         // Then the verbose developer log, which writes only when developer mode is on.
         runCatching { com.zyke.message.data.diag.DevLog.init(this) }.onFailure { BlackBox.mark("lifecycle", "developer log could not start: ${it.javaClass.simpleName}") }
         // Whether this is a low-end phone: a cached answer at once, worked out on a background thread the first time.

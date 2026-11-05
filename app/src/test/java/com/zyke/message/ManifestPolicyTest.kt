@@ -98,7 +98,7 @@ class ManifestPolicyTest {
     @Test
     fun onlyTheLauncherActivityIsExported_andTheOnlyServiceIsTheSystemBoundRcsListener() {
         val activities = manifest.getElementsByTagName("activity")
-        assertEquals(2, activities.length)
+        assertEquals(4, activities.length)
         val main = (0 until activities.length).map { activities.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".presentation.MainActivity" }
         assertEquals("true", main.getAttributeNS(android, "exported"))
@@ -110,6 +110,16 @@ class ManifestPolicyTest {
         assertEquals("false", shareLogs.getAttributeNS(android, "exported"))
         assertEquals("true", shareLogs.getAttributeNS(android, "excludeFromRecents"))
         assertEquals(0, shareLogs.getElementsByTagName("intent-filter").length)
+        // The "Demo mode" shortcut's target is built the same way, and so is the helper that restarts the app in a fresh process
+        // (its own ":restart" process, so the one being replaced can end at once): neither is exported or has a filter.
+        for (name in listOf(".presentation.DemoActivity", ".presentation.RestartActivity")) {
+            val helper = (0 until activities.length).map { activities.item(it) as Element }.single { it.getAttributeNS(android, "name") == name }
+            assertEquals(name, "false", helper.getAttributeNS(android, "exported"))
+            assertEquals(name, "true", helper.getAttributeNS(android, "excludeFromRecents"))
+            assertEquals(name, 0, helper.getElementsByTagName("intent-filter").length)
+        }
+        assertEquals(":restart", (0 until activities.length).map { activities.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".presentation.RestartActivity" }.getAttributeNS(android, "process"))
         // The launcher entry is an activity-alias per icon colour (see AppIconChoice); MainActivity itself has none.
         assertEquals(0, main.getElementsByTagName("intent-filter").length)
         val aliases = manifest.getElementsByTagName("activity-alias").let { list -> (0 until list.length).map { list.item(it) as Element } }
@@ -131,17 +141,28 @@ class ManifestPolicyTest {
         }
         val shortcuts = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder()
             .parse(File("src/main/res/xml/shortcuts.xml")).documentElement
-        val shortcut = shortcuts.getElementsByTagName("shortcut").let { list -> (0 until list.length).map { list.item(it) as Element } }.single()
-        assertEquals("share_logs", shortcut.getAttributeNS(android, "shortcutId"))
-        val target = shortcut.getElementsByTagName("intent").item(0) as Element
-        assertEquals("com.zyke.message", target.getAttributeNS(android, "targetPackage"))
-        assertEquals("com.zyke.message.presentation.ShareLogsActivity", target.getAttributeNS(android, "targetClass"))
-        assertTrue(File("src/main/res/drawable/ic_share_24.xml").exists())
+        val shortcutList = shortcuts.getElementsByTagName("shortcut").let { list -> (0 until list.length).map { list.item(it) as Element } }
+        assertEquals(listOf("share_logs", "demo_mode"), shortcutList.map { it.getAttributeNS(android, "shortcutId") })
+        val targets = mapOf(
+            "share_logs" to ("com.zyke.message.presentation.ShareLogsActivity" to "ic_share_24"),
+            "demo_mode" to ("com.zyke.message.presentation.DemoActivity" to "ic_shortcut_demo_24")
+        )
+        for (shortcut in shortcutList) {
+            val id = shortcut.getAttributeNS(android, "shortcutId")
+            val target = shortcut.getElementsByTagName("intent").item(0) as Element
+            assertEquals("com.zyke.message", target.getAttributeNS(android, "targetPackage"))
+            assertEquals(targets.getValue(id).first, target.getAttributeNS(android, "targetClass"))
+            assertTrue(File("src/main/res/drawable/${targets.getValue(id).second}.xml").exists())
+            assertTrue(id, shortcut.getAttributeNS(android, "shortcutShortLabel").startsWith("@string/"))
+        }
 
         // That activity must keep working when the rest of the app cannot start: no container, stores, view models or Compose.
         val source = File("src/main/java/com/zyke/message/presentation/ShareLogsActivity.kt").readText()
         assertFalse("AppContainer" in source || "ViewModel" in source || "SharedPreferences" in source || "androidx.compose" in source)
         assertTrue(source.contains(": Activity()"))
+        val demo = File("src/main/java/com/zyke/message/presentation/DemoActivity.kt").readText()
+        assertFalse("AppContainer" in demo || "ViewModel" in demo || "androidx.compose" in demo || "container" in demo.substringAfter("class DemoActivity"))
+        assertTrue(demo.contains(": Activity()"))
 
         // Receivers exist for the widget, the morning alarm, the restart, the copy button and live alerts.
         val receivers = manifest.getElementsByTagName("receiver")

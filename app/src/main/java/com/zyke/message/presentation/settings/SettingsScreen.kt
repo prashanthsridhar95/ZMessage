@@ -73,7 +73,8 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
     val amountsHidden by androidx.compose.runtime.rememberUpdatedState(com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden)
 
     LaunchedEffect(viewModel) {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
+        // Demo mode reads no messages, so it needs no permission and never asks for it.
+        val granted = com.zyke.message.data.demo.DemoMode.active || ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
             PackageManager.PERMISSION_GRANTED
         viewModel.onIntent(Intent.ScreenStarted(granted))
     }
@@ -107,6 +108,7 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
     APPEARANCE("Appearance", R.drawable.ic_sun_24),
     HELP("Help and tour", R.drawable.ic_info_24),
+    DEMO("Demo mode", R.drawable.ic_demo_24),
     ABOUT("Your data and about", R.drawable.ic_info_24),
     DEVELOPER("Developer options", R.drawable.ic_info_24)
 }
@@ -179,6 +181,7 @@ fun SettingsPage(
                     add(SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone")
                     add(SettingsGroup.APPEARANCE to state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else "")
                     add(SettingsGroup.HELP to "Take the app tour")
+                    add(SettingsGroup.DEMO to if (com.zyke.message.data.demo.DemoMode.active) "On \u00B7 sample data" else "Show the app with sample data")
                     add(SettingsGroup.ABOUT to "Version $versionName")
                     if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
                 }
@@ -506,15 +509,19 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 onCustom = { picking = true }
             )
             Caption("Default uses your phone's wallpaper colours where it has them. The ring is your own colour.", Modifier.padding(top = 8.dp), maxLines = 3)
-            Caption("APP ICON", Modifier.padding(top = 16.dp))
+            val demoOn = com.zyke.message.data.demo.DemoMode.active
+            if (!demoOn) Caption("APP ICON", Modifier.padding(top = 16.dp))
             val context = LocalContext.current
             var pendingIcon by rememberSaveable { mutableStateOf<String?>(null) }
-            com.zyke.message.presentation.theme.AppIconChoices(
-                selected = state.settings.appIcon,
-                onSelect = { if (it != state.settings.appIcon) pendingIcon = it.id },
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Caption("The colour of the icon on your home screen. Only these colours are possible: Android cannot recolour an icon freely.", Modifier.padding(top = 8.dp), maxLines = 3)
+            // The launcher icon is the phone's, not the demo's: Demo mode leaves it alone.
+            if (!demoOn) {
+                com.zyke.message.presentation.theme.AppIconChoices(
+                    selected = state.settings.appIcon,
+                    onSelect = { if (it != state.settings.appIcon) pendingIcon = it.id },
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Caption("The colour of the icon on your home screen. Only these colours are possible: Android cannot recolour an icon freely.", Modifier.padding(top = 8.dp), maxLines = 3)
+            }
             pendingIcon?.let { id ->
                 val icon = com.zyke.message.domain.model.AppIconChoice.fromStored(id)
                 AlertDialog(
@@ -543,6 +550,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         PerformanceCard(state.settings.performanceMode) { onIntent(Intent.SetPerformanceMode(it)) }
         }
         SettingsGroup.HELP -> com.zyke.message.presentation.tour.TourHelpSection()
+        SettingsGroup.DEMO -> com.zyke.message.presentation.demo.DemoModeSettings()
         SettingsGroup.DEVELOPER -> DeveloperContent()
         SettingsGroup.ABOUT -> {
             SectionCard("Take your data with you") {
@@ -562,8 +570,11 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 )
                 Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
             }
-            androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.SETTINGS_BACKUP)) { com.zyke.message.presentation.backup.AutoBackupCard() }
-            BackupCard()
+            val demo = com.zyke.message.data.demo.DemoMode.active
+            androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.SETTINGS_BACKUP)) {
+                if (demo) com.zyke.message.presentation.demo.DemoBackupNote() else com.zyke.message.presentation.backup.AutoBackupCard()
+            }
+            if (!demo) BackupCard()
             SectionCard("Clear data") {
                 Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
                 AppButton(
@@ -572,16 +583,18 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                     style = ButtonStyle.OUTLINE,
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                 )
-                AppButton(
-                    text = "Delete all my data",
-                    onClick = onDeleteAll,
-                    style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
+                if (!demo) {
+                    AppButton(
+                        text = "Delete all my data",
+                        onClick = onDeleteAll,
+                        style = ButtonStyle.OUTLINE,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    )
+                }
             }
             SectionCard("About") {
                 VersionRow(versionName)
-                ShareLogsLink()
+                if (!demo) ShareLogsLink()
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
             }
         }

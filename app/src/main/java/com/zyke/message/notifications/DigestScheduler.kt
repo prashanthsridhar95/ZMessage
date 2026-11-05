@@ -19,7 +19,8 @@ class DigestScheduler(context: Context) {
 
     fun apply(enabled: Boolean) {
         val pending = pendingIntent()
-        if (!enabled) {
+        // Demo mode never schedules anything (and clears an alarm left by the real app, which sets it again on its next start).
+        if (!enabled || com.zyke.message.data.demo.DemoMode.active) {
             alarms.cancel(pending)
             return
         }

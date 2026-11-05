@@ -16,6 +16,8 @@ class BackupJobService : JobService() {
     private val running = ConcurrentHashMap<Int, Job>()
 
     override fun onStartJob(params: JobParameters): Boolean {
+        // Demo mode: no backup. The real app queues the next one when it starts again.
+        if (com.zyke.message.data.demo.DemoMode.active) return false
         val hub = runCatching { (application as ZykeMessagesApplication).container.backup }.getOrNull() ?: return false
         val place = hub.scheduler.mechanismFor(params.jobId) ?: return false
         running[params.jobId] = scope.launch {

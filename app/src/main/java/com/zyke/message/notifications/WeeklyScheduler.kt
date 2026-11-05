@@ -18,7 +18,7 @@ class WeeklyScheduler(context: Context) {
     fun apply(enabled: Boolean) {
         val pending = pendingIntent()
         alarms.cancel(pending)
-        if (!enabled) return
+        if (!enabled || com.zyke.message.data.demo.DemoMode.active) return
         val now = LocalDateTime.now()
         var first = now.toLocalDate().atTime(LocalTime.of(SUMMARY_HOUR, 0)).with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
         if (!first.isAfter(now)) first = first.plusWeeks(1)

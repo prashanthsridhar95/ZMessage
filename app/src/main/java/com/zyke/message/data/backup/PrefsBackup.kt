@@ -20,7 +20,8 @@ object PrefsBackup {
     // backup_secret (the wrapped backup key), backup_state (Drive link, last results, first-run marker) and backup_folder
     // (the chosen folder's access grant, which does not survive a reinstall) never travel (and tour_state, so a restored phone does not replay the tour): after a restore the folder
     // setting is off until the person picks a folder again.
-    private val EXCLUDED = setOf("sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state")
+    // demo_mode: the Demo mode switch is never saved or restored (it would turn a restored phone into a demonstration).
+    private val EXCLUDED = setOf("sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */
@@ -62,6 +63,7 @@ object PrefsBackup {
     private const val PEEK_BYTES = 512
 
     fun capture(context: Context): ByteArray {
+        check(!com.zyke.message.data.demo.DemoMode.active) { "Demo mode is never backed up" }
         val app = context.applicationContext
         val prefsJson = JSONObject()
         for (name in existingNames(app)) {
@@ -125,6 +127,7 @@ object PrefsBackup {
      */
     @Suppress("UNCHECKED_CAST")
     fun apply(context: Context, snapshot: Snapshot) {
+        check(!com.zyke.message.data.demo.DemoMode.active) { "Demo mode never restores a setup" }
         val app = context.applicationContext
         for (name in (existingNames(app) + snapshot.files.keys).distinct()) {
             val editor = app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()

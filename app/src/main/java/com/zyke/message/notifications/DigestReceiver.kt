@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 /** Posts the morning digest. It reads the inbox on the phone and shows one notification; nothing is sent anywhere. */
 class DigestReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
@@ -50,8 +51,9 @@ object DigestNotifier {
     private const val CHANNEL = "digest_morning"
     private const val NOTIFICATION_ID = 802
 
+    /** Never in Demo mode: no notification is posted while demonstrating, so nothing real or made-up lands in the shade. */
     fun canNotify(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        !com.zyke.message.data.demo.DemoMode.active && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /** A quiet day still gets its line, so a missing notification means something is wrong, not that nothing is due. */
