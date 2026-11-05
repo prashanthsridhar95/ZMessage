@@ -86,4 +86,32 @@ class AttentionStripTest {
             com.zyke.message.domain.diag.DiagLog.sink = null
         }
     }
+
+    private fun fastTags(vararg ms: ClassifiedMessage) =
+        AttentionBuilder.build(ms.toList(), emptySet(), now, zone, emptyMap()).filterIsInstance<AttentionItem.LowFastTag>()
+
+    private val lowFastTag = "Your FASTag linked to vehicle TN38DC3528 is low on balance. Recharge now"
+    private val recharge = "Recharge successful: IDFC FIRST Bank FASTag on TN38DC3528 credited with Rs.200.0 on 05-11-2026 16:28. Avbl Bal: Rs.302.0"
+
+    @Test
+    fun aRechargeAfterTheLowBalanceAlert_clearsIt_whateverOrderTheListArrivesIn() {
+        val low = msg(lowFastTag, 1, "AD-FASTAG")
+        val top = msg(recharge, 0, "AD-IDFCFB")
+        assertTrue(low.content is MessageContent.FastTag)
+        assertTrue(top.content is MessageContent.FastTag)
+        assertEquals(0, fastTags(top, low).size)
+        assertEquals(0, fastTags(low, top).size)
+    }
+
+    @Test
+    fun aLowBalanceAlertAfterTheRecharge_stillShows() {
+        assertEquals(1, fastTags(msg(recharge, 1, "AD-IDFCFB"), msg(lowFastTag, 0, "AD-FASTAG")).size)
+    }
+
+    @Test
+    fun aRechargeWrittenWithSpaces_stillClearsTheAlert() {
+        val low = msg(lowFastTag, 1, "AD-FASTAG")
+        val top = msg(recharge.replace("TN38DC3528", "TN 38 DC 3528"), 0, "AD-IDFCFB")
+        if (top.content is MessageContent.FastTag) assertEquals(0, fastTags(low, top).size)
+    }
 }

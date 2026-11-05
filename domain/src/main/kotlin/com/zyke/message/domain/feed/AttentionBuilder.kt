@@ -100,13 +100,20 @@ object AttentionBuilder {
         }
     }
 
-    /** A vehicle needs a top-up if its newest FASTag message says so. */
+    /**
+     * A vehicle needs a top-up if its newest FASTag message says so. Newest is decided by date here (not by the order the
+     * list happens to arrive in), and the vehicle number is compared without spaces, dashes or case, so a recharge,
+     * toll or parking message written "TN 38 DC 3528" clears an alert written "TN38DC3528".
+     */
     private fun lowFastTags(messages: List<ClassifiedMessage>): List<AttentionItem> =
         messages
             .filter { it.content is MessageContent.FastTag }
-            .distinctBy { (it.content as MessageContent.FastTag).event.vehicleNumber }
+            .sortedByDescending { it.message.date }
+            .distinctBy { vehicleKey((it.content as MessageContent.FastTag).event.vehicleNumber) }
             .mapNotNull {
                 val event = (it.content as MessageContent.FastTag).event
                 if (event is FastTagEvent.RechargeNeeded) AttentionItem.LowFastTag(it, event.vehicleNumber) else null
             }
+
+    private fun vehicleKey(number: String): String = number.filter { it.isLetterOrDigit() }.uppercase()
 }
