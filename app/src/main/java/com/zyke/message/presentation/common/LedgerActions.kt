@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.ledger.CardBillRepository
 import com.zyke.message.domain.ledger.NoCardBills
+import com.zyke.message.domain.ledger.NoSamePayments
+import com.zyke.message.domain.ledger.SamePaymentRepository
 import com.zyke.message.domain.ledger.ManualEntries
 import com.zyke.message.domain.ledger.ManualEntryRepository
 import com.zyke.message.domain.ledger.SetAsideRepository
@@ -28,6 +30,7 @@ class LedgerActions(
     private val entries: ManualEntryRepository,
     private val naming: NamingEdits? = null,
     private val cardBills: CardBillRepository = NoCardBills,
+    private val samePayments: SamePaymentRepository = NoSamePayments,
     /** Shows a message with an Undo button; null (the default) shows nothing. */
     private val offerUndo: (message: String, undo: () -> Unit) -> Unit = { _, _ -> }
 ) {
@@ -126,6 +129,24 @@ class LedgerActions(
         offerUndo(text) { keys.forEach { (id, key) -> cardBills.forget(id, key) } }
     }
 
+    /**
+     * The answer to "is this the same payment as the bank debit?" for [messages] (texts that repeat another message's
+     * payment). Yes leaves them out of the totals (the debit is the payment); No counts each as a payment of its own. With
+     * [always], later texts from the same sender are treated alike. One Undo takes the whole answer back.
+     */
+    fun answerSamePayment(messages: List<ClassifiedMessage>, same: Boolean, always: Boolean) {
+        val asked = messages.filter { !same || it.samePayment != null }
+        if (asked.isEmpty()) return
+        val keys = asked.associate { it.id to com.zyke.message.domain.categories.CategoryKey.of(it) }
+        asked.forEach { samePayments.answer(it.id, it.samePayment?.primaryId, keys[it.id], same, always) }
+        val many = asked.size > 1
+        val text = when {
+            same -> if (many) "${asked.size} messages marked as the same payment" else "Marked as the same payment"
+            else -> if (many) "${asked.size} payments counted separately" else "Counted as a separate payment"
+        }
+        offerUndo(text) { keys.forEach { (id, key) -> samePayments.forget(id, key) } }
+    }
+
     fun deleteEntry(messageId: Long) {
         if (messageId < 0) entries.remove(ManualEntries.entryId(messageId))
     }
@@ -138,7 +159,7 @@ fun rememberLedgerActions(): LedgerActions {
     val scope = rememberCoroutineScope()
     val tick = rememberTick()
     return remember(container, snackbar, scope, tick) {
-        LedgerActions(container.setAsides, container.manualEntries, container.namingEdits, container.cardBills) { message, undo ->
+        LedgerActions(container.setAsides, container.manualEntries, container.namingEdits, container.cardBills, container.samePayments) { message, undo ->
             scope.launch {
                 // A newer change replaces an older one's offer rather than queueing behind it.
                 snackbar.currentSnackbarData?.dismiss()

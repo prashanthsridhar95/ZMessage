@@ -28,6 +28,8 @@ internal fun TransactionCard(
     val account = content.accountNumber.takeIf { it.isNotEmpty() }?.let { "•• $it" }
         ?: content.bankName.displayString.takeIf { it.isNotEmpty() }
     val sign = if (content.isReceived) "+" else "-"
+    // A gateway's or merchant's text for a payment the bank's debit already shows: it says so, and its amount is quiet.
+    val repeatOf = item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { "Same payment as ${it.primaryLabel}" }
 
     MessageRow(onClick, modifier) {
         MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
@@ -35,13 +37,17 @@ internal fun TransactionCard(
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(item.merchant.displayName)
-            Caption(listOfNotNull(account, time).joinToString(" · "))
+            Caption(listOfNotNull(repeatOf ?: account, time).joinToString(" · "), maxLines = 2)
         }
 
         Spacer(Modifier.width(12.dp))
         AmountText(
             text = "$sign ${DisplayFormatters.rupees(content.amount)}",
-            color = if (content.isReceived) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            color = when {
+                repeatOf != null -> mutedColor()
+                content.isReceived -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.secondary
+            }
         )
     }
 }

@@ -53,7 +53,7 @@ object BillPayments {
     private class Ordered(source: List<ClassifiedMessage>) {
         val ref = java.lang.ref.WeakReference(source)
         val size = source.size
-        val sorted: List<ClassifiedMessage> = source.filter { it.content !is MessageContent.CardBill }.sortedBy { it.message.date }
+        val sorted: List<ClassifiedMessage> = source.filter { it.content !is MessageContent.CardBill && it.samePayment?.kind != com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }.sortedBy { it.message.date }
         val dates = LongArray(sorted.size) { sorted[it].message.date }
     }
 

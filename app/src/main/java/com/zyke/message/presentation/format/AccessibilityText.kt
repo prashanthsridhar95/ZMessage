@@ -20,7 +20,8 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             val who = merchant.displayName.ifEmpty { c.bankName.displayString }
             val amount = DisplayFormatters.rupees(c.amount)
             val verb = if (c.isReceived) "Received $amount from $who" else "Paid $amount to $who"
-            verb + account(c.accountNumber, c.isCard)
+            val repeat = samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { ". Same payment as the ${it.primaryLabel}, not counted again" }.orEmpty()
+            verb + account(c.accountNumber, c.isCard) + repeat
         }
         is MessageContent.CardBill -> {
             val due = c.dueDate?.let { ", ${DisplayFormatters.dueLabel(it, today).replaceFirst("Due", "due")}" }.orEmpty()

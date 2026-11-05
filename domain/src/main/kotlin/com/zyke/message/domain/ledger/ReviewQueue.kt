@@ -55,9 +55,11 @@ data class ReviewQueue(
     /** Charges that came after the person marked their subscription as cancelled. */
     val cancelledCharges: List<com.zyke.message.domain.insights.CancelledCharge> = emptyList(),
     /** Payments that may have paid a credit card's bill; they stay in the spending until the person says. */
-    val cardBills: List<ClassifiedMessage> = emptyList()
+    val cardBills: List<ClassifiedMessage> = emptyList(),
+    /** Texts that may repeat another message's payment (a gateway's or merchant's confirmation); they stay counted until the person says. */
+    val samePayments: List<ClassifiedMessage> = emptyList()
 ) {
-    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size + cancelledCharges.size + cardBills.size
+    val count: Int get() = transfers.size + unclear.size + uncategorised.size + duplicates.size + bills.size + unusual.size + cancelledCharges.size + cardBills.size + samePayments.size
     val isEmpty: Boolean get() = count == 0
 }
 
@@ -107,7 +109,7 @@ object ReviewQueues {
 
         val transfers = transfers(debits, credits, asides)
 
-        val unclear = live.filter { it.content is MessageContent.Generic && com.zyke.message.domain.classification.GenericTransactionParser.mentionsMoney(it.message) }
+        val unclear = live.filter { it.content is MessageContent.Generic && !SamePayment.isRepeat(it) && com.zyke.message.domain.classification.GenericTransactionParser.mentionsMoney(it.message) }
             .take(MAX_PER_KIND)
 
         val uncategorised = txs.filter {
@@ -116,7 +118,8 @@ object ReviewQueues {
                 (tx.amount.toBigDecimalOrNull() ?: BigDecimal.ZERO) >= BIG
         }.take(MAX_PER_KIND)
 
-        val duplicates = duplicates(live, asides)
+        // A confirmation of a bank debit is asked about on its own: "is this the same payment?"
+        val duplicates = duplicates(live.filter { it.samePayment == null }, asides)
         val bills = overdueBills(live, dismissed, now, zone)
         val unusual = unusual(txs, asides, now).filter { u -> uncategorised.none { it.id == u.id } }
 
@@ -126,7 +129,10 @@ object ReviewQueues {
         val cardBills = live.filter { it.cardBill?.kind == CardBillKind.SUSPECTED && it.content is MessageContent.Transaction }
             .sortedByDescending { it.message.date }.take(MAX_PER_KIND)
 
-        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual, cancelledCharges, cardBills)
+        val samePayments = live.filter { it.samePayment?.kind == SamePaymentKind.SUSPECTED && it.content is MessageContent.Transaction }
+            .sortedByDescending { it.message.date }.take(MAX_PER_KIND)
+
+        return ReviewQueue(transfers, unclear, uncategorised, duplicates, bills, unusual, cancelledCharges, cardBills, samePayments)
     }
 
     /**

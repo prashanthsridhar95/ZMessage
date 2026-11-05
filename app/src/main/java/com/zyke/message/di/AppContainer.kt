@@ -90,6 +90,7 @@ class AppContainer(context: Context) {
     val manualEntries: com.zyke.message.domain.ledger.ManualEntryRepository by lazy { com.zyke.message.data.repository.ManualEntryRepositoryImpl(context) }
     val setAsides: com.zyke.message.domain.ledger.SetAsideRepository by lazy { com.zyke.message.data.repository.SetAsideRepositoryImpl(context) }
     val cardBills: com.zyke.message.domain.ledger.CardBillRepository by lazy { com.zyke.message.data.repository.CardBillRepositoryImpl(context) }
+    val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository by lazy { com.zyke.message.data.repository.SamePaymentRepositoryImpl(context) }
     val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository by lazy { com.zyke.message.data.repository.CustomCategoryRepositoryImpl(context) }
     /** The one way a payment or payee is given a name and / or a category, so every screen does it alike. */
     val namingEdits by lazy { com.zyke.message.domain.nickname.NamingEdits(nicknames, categoryOverrides, customCategories) }
@@ -121,7 +122,7 @@ class AppContainer(context: Context) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills
+        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills, samePayments = samePayments
     ) }
 
     /**
@@ -133,7 +134,7 @@ class AppContainer(context: Context) {
         val parts = listOf<() -> Any?>(
             { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
             { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts }, { accountOverrides },
-            { providentFundAccounts }, { setAsides }, { cardBills }, { manualEntries }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
+            { providentFundAccounts }, { setAsides }, { cardBills }, { samePayments }, { manualEntries }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
             { classificationCache }, { observeMessages }
         )
         for (part in parts) appScope.launch { runCatching { part() } }

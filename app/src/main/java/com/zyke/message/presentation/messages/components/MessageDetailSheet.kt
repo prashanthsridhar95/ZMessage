@@ -271,8 +271,16 @@ internal fun MessageDetailSheet(
                             DetailRow("Yes, this paid my credit card bill", null) { ledger.answerCardBill(listOf(item), true, true) }
                         }
                     }
+                    if (!manual && item.setAside == null) SamePaymentRows(item, ledger)
                     if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) GoalLinkRow(item)
                     if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
+                }
+            } else if (item.samePayment != null) {
+                // A gateway's confirmation the app linked to a bank debit: it says so, and the person can undo it.
+                val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+                SettingsGroup("In your totals") {
+                    Caption(com.zyke.message.domain.ledger.CountedReason.explain(item), maxLines = 3)
+                    SamePaymentRows(item, ledger)
                 }
             }
 
@@ -294,6 +302,20 @@ internal fun MessageDetailSheet(
     val namingScope = rememberCoroutineScope()
     categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger) { categoryScope = null } }
     nameScope?.let { forTransaction -> NicknameSheet(item, title, forTransaction, namingLedger, namingScope) { nameScope = null } }
+}
+
+/**
+ * What the person can say about a text the app linked to another message as the same payment (a gateway's or a merchant's
+ * confirmation of a bank debit): that it is, when the app was only unsure, or that it is a payment of its own.
+ */
+@Composable
+private fun SamePaymentRows(item: ClassifiedMessage, ledger: com.zyke.message.presentation.common.LedgerActions) {
+    val same = item.samePayment ?: return
+    if (same.kind == com.zyke.message.domain.ledger.SamePaymentKind.SUSPECTED) {
+        Caption(same.reason, maxLines = 2)
+        DetailRow("Yes, same payment", null) { ledger.answerSamePayment(listOf(item), true, false) }
+    }
+    DetailRow("This is a separate payment", null) { ledger.answerSamePayment(listOf(item), false, false) }
 }
 
 /** A titled card of rows, for settings that belong together. */

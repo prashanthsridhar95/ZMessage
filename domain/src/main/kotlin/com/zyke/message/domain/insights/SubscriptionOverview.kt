@@ -252,7 +252,7 @@ data class SubscriptionOverview(val lines: List<SubscriptionLine>) {
             var oldest = Long.MAX_VALUE
             for (m in messages) {
                 if (m.message.date < oldest) oldest = m.message.date
-                if (m.setAside != null) continue
+                if (m.setAside != null || com.zyke.message.domain.ledger.SamePayment.isRepeat(m)) continue
                 val payee = when (val c = m.content) {
                     is MessageContent.Transaction -> if (c.isReceived || c.isCardPayment) continue else c.payee
                     is MessageContent.ScheduledPayment -> c.payee

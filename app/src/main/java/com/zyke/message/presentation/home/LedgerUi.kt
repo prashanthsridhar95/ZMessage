@@ -195,13 +195,18 @@ internal fun ReviewPage(
     val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
     val cardBillIds = androidx.compose.runtime.remember(review) { review.cardBills.mapTo(HashSet()) { it.id } }
     // Payments to edit in bulk are the unusual and uncategorised ones; the card-bill question has its own two answers.
-    val pickedMessages = androidx.compose.runtime.remember(picked, selectable, cardBillIds) { selectable.filter { it.id in picked && it.id !in cardBillIds } }
+    val samePaymentIds = androidx.compose.runtime.remember(review) { review.samePayments.mapTo(HashSet()) { it.id } }
+    val pickedMessages = androidx.compose.runtime.remember(picked, selectable, cardBillIds, samePaymentIds) { selectable.filter { it.id in picked && it.id !in cardBillIds && it.id !in samePaymentIds } }
     val pickedCardBills = androidx.compose.runtime.remember(picked, review) { review.cardBills.filter { it.id in picked } }
+    val pickedSamePayments = androidx.compose.runtime.remember(picked, review) { review.samePayments.filter { it.id in picked } }
+    // "Remember my answer for this sender" is on unless the person turns it off.
+    var rememberSender by rememberSaveable { mutableStateOf(true) }
     // "Always treat payments to the same payee like this" is on unless the person turns it off.
     var alwaysSame by rememberSaveable { mutableStateOf(true) }
     val sectionIds = when (lastSection) {
         SECTION_UNUSUAL -> review.unusual.map { it.id }
         SECTION_CARDBILL -> review.cardBills.map { it.id }
+        SECTION_SAME -> review.samePayments.map { it.id }
         else -> review.uncategorised.map { it.id }
     }
     fun endPicking() { picking = false; pickedIds = emptyList() }
@@ -229,11 +234,15 @@ internal fun ReviewPage(
                     sectionTitle = when (lastSection) {
                         SECTION_UNUSUAL -> "unusually large payments"
                         SECTION_CARDBILL -> "possible credit card bill payments"
+                        SECTION_SAME -> "texts that may repeat a payment"
                         else -> "payments with no category"
                     },
                     cardBillMode = lastSection == SECTION_CARDBILL,
                     onCardBillAnswer = { isBill -> ledger.answerCardBill(pickedCardBills, isBill, alwaysSame); endPicking() },
                     cardBillCount = pickedCardBills.size,
+                    samePaymentMode = lastSection == SECTION_SAME,
+                    onSamePaymentAnswer = { same -> ledger.answerSamePayment(pickedSamePayments, same, rememberSender); endPicking() },
+                    samePaymentCount = pickedSamePayments.size,
                     sectionFull = ReviewSelection.allPicked(picked, sectionIds),
                     onSelectSection = { pickedIds = ReviewSelection.selectAll(picked, sectionIds) },
                     onClear = { pickedIds = emptyList() },
@@ -270,6 +279,32 @@ internal fun ReviewPage(
                         com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth().padding(top = 10.dp), spacing = 8.dp) {
                             AppButton("Yes, card bill", { ledger.answerCardBill(listOf(message), true, alwaysSame) }, Modifier.cell(), size = ButtonSize.COMPACT)
                             AppButton("No, spending", { ledger.answerCardBill(listOf(message), false, alwaysSame) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
+            }
+            if (review.samePayments.isNotEmpty()) {
+                SectionHeader("Same payment?", review.samePayments.size)
+                Caption("One payment often sends several texts. Both are counted until you say, so one payment is not counted twice.", maxLines = 3)
+                if (!picking) SelectHint { lastSection = SECTION_SAME; picking = true }
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Switch whether to remember this for the sender", onClick = { rememberSender = !rememberSender }),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = rememberSender, onCheckedChange = null) }
+                    Text("Remember my answer for this sender", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                }
+                review.samePayments.forEach { message ->
+                    val tx = message.content as MessageContent.Transaction
+                    val link = message.samePayment
+                    PickableCard(
+                        message, picking, message.id in picked, { toggle(message.id, SECTION_SAME) }, { onOpen(message.id) },
+                        caption = stampOf(message) + " \u00B7 " + (link?.reason ?: "May repeat another payment"),
+                        amount = DisplayFormatters.rupees(tx.amount)
+                    ) {
+                        com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth().padding(top = 10.dp), spacing = 8.dp) {
+                            AppButton("Yes, same payment", { ledger.answerSamePayment(listOf(message), true, rememberSender) }, Modifier.cell(), size = ButtonSize.COMPACT)
+                            AppButton("No, separate", { ledger.answerSamePayment(listOf(message), false, rememberSender) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                         }
                     }
                 }
@@ -446,6 +481,7 @@ private fun TransferLeg(label: String, message: com.zyke.message.domain.model.Cl
 private const val SECTION_UNUSUAL = "unusual"
 private const val SECTION_UNCATEGORISED = "uncategorised"
 private const val SECTION_CARDBILL = "cardbill"
+private const val SECTION_SAME = "samepayment"
 
 /** The way in to selection mode for people who do not long-press. */
 @Composable
@@ -520,7 +556,10 @@ private fun SelectionBar(
     onDone: () -> Unit,
     cardBillMode: Boolean = false,
     cardBillCount: Int = 0,
-    onCardBillAnswer: (Boolean) -> Unit = {}
+    onCardBillAnswer: (Boolean) -> Unit = {},
+    samePaymentMode: Boolean = false,
+    samePaymentCount: Int = 0,
+    onSamePaymentAnswer: (Boolean) -> Unit = {}
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -534,8 +573,15 @@ private fun SelectionBar(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (cardBillMode) {
-                AppButton("Yes, card bill payments", { onCardBillAnswer(true) }, size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
-                AppButton("No, spending", { onCardBillAnswer(false) }, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
+                com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
+                    AppButton("Yes, card bill payments", { onCardBillAnswer(true) }, Modifier.cell(), size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
+                    AppButton("No, spending", { onCardBillAnswer(false) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = cardBillCount > 0)
+                }
+            } else if (samePaymentMode) {
+                com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
+                    AppButton("Yes, same payment", { onSamePaymentAnswer(true) }, Modifier.cell(), size = ButtonSize.COMPACT, enabled = samePaymentCount > 0)
+                    AppButton("No, separate", { onSamePaymentAnswer(false) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT, enabled = samePaymentCount > 0)
+                }
             } else BulkMode.entries.forEach { mode ->
                 AppButton(mode.title, { onAction(mode) }, size = ButtonSize.COMPACT, enabled = count > 0)
             }

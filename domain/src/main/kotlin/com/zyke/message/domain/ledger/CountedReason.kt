@@ -13,6 +13,9 @@ object CountedReason {
      * rather than as income
      */
     fun explain(message: ClassifiedMessage, isRefundCredit: Boolean = false): String {
+        val same = message.samePayment
+        if (same != null && same.kind == SamePaymentKind.CERTAIN) return "Not counted: same payment as the ${same.primaryLabel}, which is counted"
+        val maybe = if (same != null) ", though it may be the same payment as the ${same.primaryLabel}" else ""
         val tx = message.content as? MessageContent.Transaction
             ?: return when (val content = message.content) {
                 is MessageContent.Notice -> when (content.kind) {
@@ -33,9 +36,9 @@ object CountedReason {
                 "Not counted: credit card bill payment (the swipes were already counted)"
             tx.isCardPayment -> "Not counted: card bill payment, which is money moving between your own accounts"
             tx.isReceived && isRefundCredit -> "Not counted as income: a refund is tracked separately"
-            tx.isReceived -> "Counted as income: money received" + payerSuffix(tx)
+            tx.isReceived -> "Counted as income: money received" + payerSuffix(tx) + maybe
             message.cardBill?.kind == CardBillKind.SUSPECTED -> "Counted as spending: a debit" + payeeSuffix(tx) + ", though it may be a credit card bill payment"
-            else -> "Counted as spending: a debit" + payeeSuffix(tx)
+            else -> "Counted as spending: a debit" + payeeSuffix(tx) + maybe
         }
     }
 

@@ -29,9 +29,13 @@ sealed interface Counted {
  * Spending is counted when the money is spent (a card swipe on the day of the swipe). Paying a card's bill afterwards is
  * money moving between the person's own accounts: [Counted.NotCounted], though the bank balance still falls by it.
  * A credit on a card that is not a bill payment is a [Counted.Refund], never income.
+ * One payment often makes several texts (the bank's debit, a gateway's confirmation, the merchant's receipt): the bank's
+ * debit counts and the others are [Counted.NotCounted] once linked to it (see [SamePayment]).
  */
 object Counting {
     fun of(message: ClassifiedMessage): Counted {
+        // A gateway's, merchant's or app's text for a payment the bank's debit already shows: the debit is the payment.
+        if (SamePayment.isRepeat(message)) return Counted.NotCounted(CountedReason.explain(message))
         val tx = message.content as? MessageContent.Transaction ?: return Counted.NotCounted(CountedReason.explain(message))
         if (message.setAside != null || tx.isCardPayment) return Counted.NotCounted(CountedReason.explain(message))
         val amount = tx.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: return Counted.NotCounted("Not counted: no amount")

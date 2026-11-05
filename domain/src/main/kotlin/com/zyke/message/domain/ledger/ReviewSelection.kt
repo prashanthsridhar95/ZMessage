@@ -11,7 +11,7 @@ import com.zyke.message.domain.model.MessageContent
 object ReviewSelection {
     /** The payments of [review] that can be picked, in the order the page lists them, each once. */
     fun selectable(review: ReviewQueue): List<ClassifiedMessage> =
-        (review.unusual + review.uncategorised + review.cardBills).filter { it.content is MessageContent.Transaction }.distinctBy { it.id }
+        (review.unusual + review.uncategorised + review.cardBills + review.samePayments).filter { it.content is MessageContent.Transaction }.distinctBy { it.id }
 
     /** Adds [id] if it is not picked, takes it away if it is. */
     fun toggle(picked: Collection<Long>, id: Long): List<Long> = if (id in picked) picked.filter { it != id } else picked.filter { it != id } + id

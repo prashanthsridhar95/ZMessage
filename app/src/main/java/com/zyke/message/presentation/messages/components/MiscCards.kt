@@ -54,6 +54,9 @@ internal fun GenericCard(
                 Spacer(Modifier.width(8.dp))
                 Caption(time)
             }
+            item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let {
+                Caption("Same payment as ${it.primaryLabel}", Modifier.padding(top = 2.dp), color = MaterialTheme.colorScheme.primary)
+            }
             Caption(
                 text = item.message.body,
                 modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),

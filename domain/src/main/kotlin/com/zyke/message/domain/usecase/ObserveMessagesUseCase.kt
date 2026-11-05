@@ -76,7 +76,9 @@ class ObserveMessagesUseCase(
     /** The categories the person made, and what is filed under them. */
     private val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository = com.zyke.message.domain.repository.NoCustomCategories,
     /** What the person said about which debits paid a credit card's bill. */
-    private val cardBills: com.zyke.message.domain.ledger.CardBillRepository = com.zyke.message.domain.ledger.NoCardBills
+    private val cardBills: com.zyke.message.domain.ledger.CardBillRepository = com.zyke.message.domain.ledger.NoCardBills,
+    /** What the person said about which texts are the same payment as a bank debit. */
+    private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments
 ) {
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -183,6 +185,10 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
+            .combine(samePayments.state) { classified, decisions ->
+                // One payment, several texts: the bank's debit counts, a gateway's or merchant's confirmation of it does not.
+                com.zyke.message.domain.ledger.SamePayment.apply(classified, decisions, ZoneId.systemDefault())
+            }
             .combine(paymentNotes.notes) { classified, notes ->
                 if (notes.isEmpty()) classified else classified.map { com.zyke.message.domain.notes.PaymentNotes.apply(it, notes) }
             }
