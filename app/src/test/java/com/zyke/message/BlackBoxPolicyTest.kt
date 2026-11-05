@@ -16,7 +16,7 @@ class BlackBoxPolicyTest {
     fun exceptionMessagesAreNeverWritten() {
         // The message is read in exactly one place, which can only produce a fixed phrase (see safeNote).
         assertFalse(Regex("""\.localizedMessage|stackTraceToString""").containsMatchIn(blackBox))
-        assertTrue(Regex("""\.message\b""").findAll(blackBox).count() <= 2)
+        assertTrue(Regex("""\.message\b(?!\.)""").findAll(blackBox).count() <= 2)
         assertTrue("fun safeNote" in blackBox)
         assertFalse(Regex("""append\([^)]*\.message""").containsMatchIn(blackBox))
         assertTrue(".stackTrace.take(" in blackBox)

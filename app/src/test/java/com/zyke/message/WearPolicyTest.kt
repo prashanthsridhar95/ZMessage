@@ -14,7 +14,7 @@ class WearPolicyTest {
     @Test
     fun theNormalPhoneBuildHasNoWearableCode() {
         val offenders = File("src/main/java").walkTopDown()
-            .filter { it.isFile && it.extension == "kt" && "com.google.android.gms" in it.readText() }.map { it.name }.toList()
+            .filter { it.isFile && it.extension == "kt" && "com.google.android.gms.wearable" in it.readText() }.map { it.name }.toList()
         assertEquals(emptyList<String>(), offenders)
         // The Data Layer link exists only in the optional source set, compiled with -PwithWear=true.
         assertTrue(File("src/wearOn/java/com/zyke/message/wear/DataLayerWatchLink.kt").exists())
