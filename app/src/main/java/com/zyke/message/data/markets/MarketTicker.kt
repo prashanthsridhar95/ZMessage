@@ -1,7 +1,10 @@
 package com.zyke.message.data.markets
 
 import com.zyke.message.data.diag.DevLog
+import com.zyke.message.domain.markets.ChartRange
 import com.zyke.message.domain.markets.MarketRow
+import com.zyke.message.domain.markets.PriceHistory
+import com.zyke.message.domain.markets.PriceHistoryParser
 import com.zyke.message.domain.markets.MarketSymbols
 import com.zyke.message.domain.markets.Quote
 import com.zyke.message.domain.markets.QuoteParser
@@ -36,6 +39,18 @@ data class MarketState(
 sealed interface SearchOutcome {
     data class Found(val suggestions: List<StockSuggestion>) : SearchOutcome
     data object Unreachable : SearchOutcome
+}
+
+/** What the stock sheet gets for one ticker and period. */
+sealed interface HistoryOutcome {
+    /** [stale]: the service could not be reached, so this is the last chart fetched, kept in memory. */
+    data class Ready(val history: PriceHistory, val stale: Boolean = false) : HistoryOutcome
+    /** The service answered but has no chart for it. */
+    data object NoData : HistoryOutcome
+    /** The service could not be reached, and nothing was kept. */
+    data object Unreachable : HistoryOutcome
+    /** The market watch is switched off, so nothing is asked. */
+    data object Off : HistoryOutcome
 }
 
 /**
@@ -107,6 +122,35 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
         }
     }
 
+    private class Kept(val history: PriceHistory, val at: Long)
+
+    private val charts = HashMap<String, Kept>()
+
+    /**
+     * The chart for [symbol] over [range], for the stock sheet. A chart fetched less than a minute ago (five for longer
+     * periods) is reused; when the service cannot be reached the last one kept is returned as stale. Only in memory, and
+     * only for a ticker the person tapped. Does nothing while the market watch is off.
+     */
+    suspend fun history(symbol: String, range: ChartRange, force: Boolean = false): HistoryOutcome {
+        if (!watchlist.watch.value.enabled) return HistoryOutcome.Off
+        val key = symbol + "|" + range.label
+        val kept = synchronized(charts) { charts[key] }
+        val now = System.currentTimeMillis()
+        if (!force && kept != null && now - kept.at < range.freshSeconds * 1000L) return HistoryOutcome.Ready(kept.history)
+        val reply = withContext(Dispatchers.IO) { runCatching { fetcher.chart(symbol, range) }.getOrNull() }
+        if (reply == null) {
+            DevLog.d("market") { "history: unreachable" }
+            return if (kept != null) HistoryOutcome.Ready(kept.history, stale = true) else HistoryOutcome.Unreachable
+        }
+        val parsed = PriceHistoryParser.parse(symbol, range, reply)
+            ?: return if (kept != null) HistoryOutcome.Ready(kept.history, stale = true) else HistoryOutcome.NoData
+        synchronized(charts) {
+            if (charts.size >= MAX_CHARTS) charts.clear()
+            charts[key] = Kept(parsed, now)
+        }
+        return HistoryOutcome.Ready(parsed)
+    }
+
     private fun fetch(symbol: String): Quote? = runCatching { fetcher.fetch(symbol)?.let { QuoteParser.parse(symbol, it) } }.getOrNull()
 
     /** Forget prices of tickers no longer wanted, and show the rows for what is. */
@@ -118,5 +162,6 @@ class MarketTicker(private val watchlist: WatchlistRepository, private val scope
 
     private companion object {
         const val MAX_AT_ONCE = 4
+        const val MAX_CHARTS = 40
     }
 }

@@ -1,6 +1,7 @@
 package com.zyke.message.data.markets
 
 import com.zyke.message.data.diag.DevLog
+import com.zyke.message.domain.markets.ChartRange
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -19,6 +20,17 @@ internal class QuoteFetcher {
     /** The chart reply for one ticker, or null if it could not be reached. A 404 for an unknown ticker is read like any reply. */
     fun fetch(symbol: String): String? =
         get("https://query1.finance.yahoo.com/v8/finance/chart/${URLEncoder.encode(symbol, "UTF-8")}?interval=1d&range=1d", "chart", acceptErrorBody = true)
+
+    /**
+     * The chart reply for one ticker over one period (the stock sheet), or null if it could not be reached. Sends only the
+     * ticker and the period's name and step, such as "1mo" and "1d".
+     */
+    fun chart(symbol: String, range: ChartRange): String? =
+        get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/${URLEncoder.encode(symbol, "UTF-8")}" +
+                "?interval=${range.interval}&range=${range.range}&includePrePost=false",
+            "history", acceptErrorBody = true
+        )
 
     /** The search reply for what was typed, or null if it could not be reached or Yahoo refused (rate limit, block). */
     fun search(query: String): String? =

@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -209,6 +211,8 @@ fun MarketPage(onBack: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     var editing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    // The ticker whose chart is open. Cards are only tappable on this page, which is only reachable with the market watch on.
+    var chartSymbol by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
     AppPage(
         "Market watch", onBack,
@@ -247,13 +251,16 @@ fun MarketPage(onBack: () -> Unit) {
             )
             groups.filter { it.second.isNotEmpty() }.forEach { (title, rows) ->
                 SectionHeader(title, rows.size)
-                rows.forEach { MarketCard(it) }
+                rows.forEach { row -> MarketCard(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null) }
             }
             Caption("Choose what to watch in Settings › Market watch. Only the tickers you watch (and what you type into the add box) are sent to Yahoo Finance, nothing from your messages.", Modifier.padding(top = 4.dp), maxLines = 4)
             // Room for the button to sit below the last card.
             Spacer(Modifier.height(72.dp))
         }
     }
+
+    val chartRow = chartSymbol?.let { symbol -> state.rows.firstOrNull { it.symbol == symbol } }
+    if (chartRow != null) StockSheet(chartRow, onDismiss = { chartSymbol = null })
 
     if (editing) {
         com.zyke.message.presentation.common.FormSheet(
@@ -268,8 +275,17 @@ fun MarketPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun MarketCard(row: MarketRow) {
-    FintechCard(Modifier.clearAndSetSemantics { contentDescription = spoken(row) }) {
+private fun MarketCard(row: MarketRow, onOpen: (() -> Unit)?) {
+    FintechCard(
+        Modifier.clearAndSetSemantics {
+            contentDescription = spoken(row)
+            if (onOpen != null) {
+                role = Role.Button
+                onClick(label = "Open chart") { onOpen(); true }
+            }
+        },
+        onClick = onOpen
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 RowTitle(row.label)

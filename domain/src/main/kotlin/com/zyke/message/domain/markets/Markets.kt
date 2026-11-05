@@ -41,7 +41,9 @@ data class MarketRow(
     /** The currency code the quote is in ("INR", "USD", "GBp"...), blank for an index or an exchange rate. */
     val currency: String,
     /** Short exchange name (NSE, NASDAQ...) when known. */
-    val exchange: String = ""
+    val exchange: String = "",
+    /** The ticker this line is the price of, or blank for a line worked out from others (gold per ten grams), which has no chart. */
+    val symbol: String = ""
 ) {
     val isUp: Boolean get() = (change?.signum() ?: 0) > 0
     val isDown: Boolean get() = (change?.signum() ?: 0) < 0
@@ -123,7 +125,7 @@ object MarketSymbols {
     fun rows(settings: WatchSettings, quotes: Map<String, Quote>): List<MarketRow> = buildList {
         val dollar = quotes[USD_INR]
         if (settings.showDollar && dollar != null) {
-            add(row("USD / INR", "US dollar in rupees", MarketKind.CURRENCY, dollar.price, dollar.previousClose, "INR"))
+            add(row("USD / INR", "US dollar in rupees", MarketKind.CURRENCY, dollar.price, dollar.previousClose, "INR", symbol = USD_INR))
         }
         val gold = quotes[GOLD_USD_PER_OUNCE]
         if (settings.showGold && gold != null && dollar != null) {
@@ -142,18 +144,18 @@ object MarketSymbols {
             val exchange = watched.exchange.ifBlank { MarketNames.exchange(quote.exchange, null) }
             val detail = listOf(watched.symbol, exchange).filter { it.isNotBlank() }.joinToString(" \u00B7 ")
             val currency = if (kind == MarketKind.INDEX || (kind == MarketKind.CURRENCY && watched.symbol != USD_INR)) "" else quote.currency
-            add(row(watched.label, detail, kind, quote.price, quote.previousClose, currency, exchange))
+            add(row(watched.label, detail, kind, quote.price, quote.previousClose, currency, exchange, watched.symbol))
         }
     }
 
-    private fun row(label: String, detail: String, kind: MarketKind, price: BigDecimal, before: BigDecimal?, currency: String, exchange: String = ""): MarketRow {
+    private fun row(label: String, detail: String, kind: MarketKind, price: BigDecimal, before: BigDecimal?, currency: String, exchange: String = "", symbol: String = ""): MarketRow {
         val change = before?.let { price - it }
         val percent = if (before != null && before.signum() != 0) {
             change!!.multiply(BigDecimal(100)).divide(before, 2, RoundingMode.HALF_UP)
         } else {
             null
         }
-        return MarketRow(label, detail, kind, price, change, percent, currency, exchange)
+        return MarketRow(label, detail, kind, price, change, percent, currency, exchange, symbol)
     }
 }
 

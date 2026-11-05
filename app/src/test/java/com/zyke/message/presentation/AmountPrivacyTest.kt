@@ -104,7 +104,7 @@ class AmountPrivacyTest {
     }
 
     /** Public market quotes are not the person's money, so their screens keep Material's plain Text. */
-    private val plainTextAllowed = setOf("presentation/common/MoneyAwareText.kt", "presentation/markets/MarketUi.kt", "presentation/markets/MarketSettings.kt")
+    private val plainTextAllowed = setOf("presentation/common/MoneyAwareText.kt", "presentation/markets/MarketUi.kt", "presentation/markets/MarketSettings.kt", "presentation/markets/StockSheet.kt")
 
     @Test fun screensUseTheMoneyAwareText() {
         val offenders = kotlinFiles("presentation").filter { (rel, f) ->
