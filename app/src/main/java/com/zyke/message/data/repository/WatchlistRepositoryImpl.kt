@@ -23,6 +23,7 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
             .putBoolean(ENABLED, settings.enabled)
             .putBoolean(DOLLAR, settings.showDollar)
             .putBoolean(GOLD, settings.showGold)
+            .putBoolean(CLOSE_SUMMARY, settings.marketCloseSummary)
             .putString(SYMBOLS, JSONArray().apply {
                 settings.symbols.forEach {
                     put(JSONObject().put("s", it.symbol).put("l", it.label).apply { if (it.exchange.isNotBlank()) put("x", it.exchange) })
@@ -44,7 +45,8 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
                 }.getOrNull()
             }.distinctBy { it.symbol },
             showDollar = prefs.getBoolean(DOLLAR, true),
-            showGold = prefs.getBoolean(GOLD, true)
+            showGold = prefs.getBoolean(GOLD, true),
+            marketCloseSummary = prefs.getBoolean(CLOSE_SUMMARY, false)
         )
     }.getOrDefault(WatchSettings())
 
@@ -53,5 +55,6 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
         const val DOLLAR = "dollar"
         const val GOLD = "gold"
         const val SYMBOLS = "symbols"
+        const val CLOSE_SUMMARY = "close_summary"
     }
 }

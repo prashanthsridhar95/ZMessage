@@ -14,6 +14,7 @@ class BootReceiver : BroadcastReceiver() {
         val container = (context.applicationContext as ZykeMessagesApplication).container
         if (container.settings.settings.value.morningDigest) DigestScheduler(context).apply(true)
         if (container.settings.settings.value.weeklySummary) WeeklyScheduler(context).apply(true)
+        if (container.watchlist.watch.value.closeSummaryActive) MarketCloseScheduler(context).apply(true)
         ReminderAlarms.schedule(context)
         runCatching { container.backup.scheduler.ensureScheduled() }
     }

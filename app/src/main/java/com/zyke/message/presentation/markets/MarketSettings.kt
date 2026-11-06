@@ -1,5 +1,11 @@
 package com.zyke.message.presentation.markets
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,6 +58,8 @@ fun MarketSettingsSection() {
         if (watch.enabled) {
             SwitchLine("US dollar in rupees", "Shows USD / INR", watch.showDollar, { container.watchlist.save(watch.copy(showDollar = it)) })
             SwitchLine("Gold", "Rupees for 10 grams, worked out from the international price", watch.showGold, { container.watchlist.save(watch.copy(showGold = it)) })
+
+            MarketCloseToggle(watch.marketCloseSummary) { container.watchlist.save(container.watchlist.watch.value.copy(marketCloseSummary = it)) }
 
             WatchlistEditor()
         }
@@ -138,4 +146,25 @@ private fun SwitchLine(title: String, description: String, checked: Boolean, onC
         }
         Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
     }
+}
+
+/** "Market close summary": needs permission to show notifications on newer Android, asked for only when it is switched on. */
+@Composable
+private fun MarketCloseToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
+    SwitchLine(
+        title = "Market close summary",
+        description = "A quiet notification at about 3:45 PM IST on weekdays with the Nifty 50 and Sensex closing levels. Skipped on market holidays. Off until you turn it on.",
+        checked = checked,
+        onChange = { wanted ->
+            val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            when {
+                !wanted -> onChange(false)
+                allowed -> onChange(true)
+                else -> launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    )
 }

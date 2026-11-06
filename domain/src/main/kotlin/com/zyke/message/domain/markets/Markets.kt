@@ -13,8 +13,13 @@ data class WatchSettings(
     val enabled: Boolean = false,
     val symbols: List<WatchSymbol> = emptyList(),
     val showDollar: Boolean = true,
-    val showGold: Boolean = true
-)
+    val showGold: Boolean = true,
+    /** A notification with the index closes after the Indian market shuts. Off until chosen, and only works while [enabled]. */
+    val marketCloseSummary: Boolean = false
+) {
+    /** Whether the close-of-market notification should be scheduled: needs the market watch itself to be on. */
+    val closeSummaryActive: Boolean get() = enabled && marketCloseSummary
+}
 
 enum class MarketKind { INDEX, STOCK, CURRENCY, COMMODITY }
 

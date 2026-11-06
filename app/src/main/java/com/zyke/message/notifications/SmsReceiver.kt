@@ -29,8 +29,9 @@ class SmsReceiver : BroadcastReceiver() {
 
         com.zyke.message.data.diag.DevLog.d("receiver") { "SMS received from ${com.zyke.message.domain.diag.DiagLog.key(sender)} (${body.length} characters)" }
         val classified = container.messageClassifier.classify(received)
-        LiveAlerts.post(context, classified)
-        DaysAheadWidget.refresh(context)
+        // One failure to post (or to refresh the widget) must never stop the rest.
+        runCatching { LiveAlerts.post(context, classified) }.onFailure { com.zyke.message.data.diag.DevLog.d("receiver") { "alert not posted: ${it.javaClass.simpleName}" } }
+        runCatching { DaysAheadWidget.refresh(context) }
 
         // The heads-up reads the inbox for what is usual, which takes a moment; keep the receiver alive for it.
         if (!container.settings.settings.value.headsUp) return

@@ -55,6 +55,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.zyke.message.R
+import com.zyke.message.notifications.LiveAlerts
 import com.zyke.message.domain.model.UserCard
 import com.zyke.message.presentation.common.faceCard
 import com.zyke.message.domain.model.ThemeMode
@@ -405,6 +406,10 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             }
         }
         SettingsGroup.ALERTS -> SectionCard("Reminders and alerts") {
+            CodeAlertStatus(
+                switchedOn = state.settings.liveAlerts, readingPaused = state.settings.readingPaused,
+                onTurnOn = { onIntent(Intent.SetLiveAlerts(true)) }, onResume = { onIntent(Intent.SetReadingPaused(false)) }
+            )
             MorningDigestToggle(enabled = state.settings.morningDigest, onChange = { onIntent(Intent.SetMorningDigest(it)) })
             LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = 12.dp))
             Box(Modifier.padding(top = 12.dp)) {
@@ -733,6 +738,113 @@ private fun MorningDigestToggle(
             }
         }
     )
+}
+
+/**
+ * Says whether a one-time code that arrives now would be announced, and if not, why and the one tap that fixes it
+ * (or opens the system page that does). A test button posts a made-up code so the person can see for themselves.
+ */
+@Composable
+private fun CodeAlertStatus(switchedOn: Boolean, readingPaused: Boolean, onTurnOn: () -> Unit, onResume: () -> Unit) {
+    val context = LocalContext.current
+    var recheck by remember { mutableStateOf(0) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // Coming back from the system's settings page looks again.
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val watcher = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) recheck += 1 }
+        lifecycle.addObserver(watcher)
+        onDispose { lifecycle.removeObserver(watcher) }
+    }
+    val facts = remember(switchedOn, readingPaused, recheck) { LiveAlerts.facts(context, switchedOn, readingPaused) }
+    val problem = com.zyke.message.domain.device.CodeAlertHealth.problem(facts)
+
+    fun openSystem(intent: android.content.Intent) {
+        val launch = intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(launch) }.onFailure {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+    }
+    fun appNotifications() = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+    val allPermissions = buildList {
+        add(Manifest.permission.RECEIVE_SMS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }.toTypedArray()
+    val asker = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        recheck += 1
+        val missing = allPermissions.filter { results[it] != true }
+        when {
+            missing.isEmpty() -> onTurnOn()
+            // Android stops showing its prompt after a refusal or two; the settings page is the way left.
+            else -> openSystem(
+                if (Manifest.permission.POST_NOTIFICATIONS in missing) appNotifications()
+                else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+            )
+        }
+    }
+    val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val title: String
+    val detail: String
+    val action: String?
+    val run: () -> Unit
+    when (problem) {
+        null -> { title = "Code alerts are on"; detail = "A one-time code is announced with a Copy code button the moment it arrives."; action = null; run = {} }
+        com.zyke.message.domain.device.CodeAlertProblem.SWITCHED_OFF -> {
+            title = "Code alerts are off"; detail = "Turn on the Copy-code and Pay buttons below to be told when a one-time code arrives."
+            action = "Turn on"; run = {
+                val allowed = allPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+                if (allowed) onTurnOn() else asker.launch(allPermissions)
+            }
+        }
+        com.zyke.message.domain.device.CodeAlertProblem.READING_PAUSED -> {
+            title = "Code alerts are paused"; detail = "Reading is paused, so new codes are not announced."; action = "Resume reading"; run = onResume
+        }
+        com.zyke.message.domain.device.CodeAlertProblem.CANNOT_HEAR_TEXTS -> {
+            title = "Code alerts cannot hear new texts"; detail = "Allow SMS access so a code can be announced when it arrives."; action = "Allow SMS access"
+            run = { asker.launch(allPermissions) }
+        }
+        com.zyke.message.domain.device.CodeAlertProblem.NOTIFICATIONS_BLOCKED -> {
+            title = "Code alerts are off: notifications are blocked"; detail = "Android is not letting this app show notifications, so a code will not appear."
+            action = "Open notification settings"; run = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) asker.launch(allPermissions) else openSystem(appNotifications())
+            }
+        }
+        com.zyke.message.domain.device.CodeAlertProblem.CHANNEL_OFF -> {
+            title = "Code alerts are off: the code channel is muted"; detail = "The One-time codes notification category is turned off in Android's settings."
+            action = "Open notification settings"; run = {
+                LiveAlerts.ensureChannels(context)
+                openSystem(
+                    android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, LiveAlerts.CODE_CHANNEL_ID)
+                )
+            }
+        }
+    }
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RowTitle(title, color = if (problem == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
+        Caption(detail, maxLines = 3)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (action != null) AppButton(action, run, Modifier.weight(1f))
+            // A test only means something when it can arrive.
+            if (problem == null || problem == com.zyke.message.domain.device.CodeAlertProblem.SWITCHED_OFF) {
+                AppButton(
+                    "Send a test code", {
+                        val posted = LiveAlerts.postTest(context, container.messageClassifier)
+                        Toast.makeText(context, if (posted) "Test code sent: look in your notifications" else "Could not send: notifications are blocked", Toast.LENGTH_SHORT).show()
+                    },
+                    Modifier.weight(1f), style = if (action != null) ButtonStyle.OUTLINE else ButtonStyle.PRIMARY
+                )
+            }
+        }
+    }
 }
 
 /**

@@ -2,6 +2,7 @@ package com.zyke.message.data.markets
 
 import com.zyke.message.data.diag.DevLog
 import com.zyke.message.domain.markets.ChartRange
+import com.zyke.message.domain.markets.MarketCloseSummary
 import com.zyke.message.domain.markets.MarketRow
 import com.zyke.message.domain.markets.PriceHistory
 import com.zyke.message.domain.markets.PriceHistoryParser
@@ -106,6 +107,21 @@ class MarketTicker(
     }
 
     /**
+     * The index quotes for the market-close notification (Nifty 50 and Sensex, asked at once), or null if the summary is not
+     * switched on, this is the demo (never the network), or none could be reached. Each call fails soft within a few seconds.
+     */
+    suspend fun closingQuotes(): List<Quote>? {
+        if (fixedQuotes != null || !watchlist.watch.value.closeSummaryActive) return null
+        return withContext(Dispatchers.IO) {
+            kotlinx.coroutines.withTimeoutOrNull(CLOSE_FETCH_MS) {
+                kotlinx.coroutines.coroutineScope {
+                    MarketCloseSummary.symbols().map { symbol -> async { fetch(symbol) } }.awaitAll().filterNotNull()
+                }
+            }
+        }?.takeIf { it.isNotEmpty() }
+    }
+
+    /**
      * Whether the service knows this ticker, so a typo is caught when it is added instead of leaving a line that never fills.
      * Returns the quote, or null.
      */
@@ -182,5 +198,6 @@ class MarketTicker(
     private companion object {
         const val MAX_AT_ONCE = 4
         const val MAX_CHARTS = 40
+        const val CLOSE_FETCH_MS = 12_000L
     }
 }

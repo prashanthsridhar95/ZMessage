@@ -61,6 +61,7 @@ class DemoPolicyTest {
         for (f in listOf(
             "notifications/SmsReceiver.kt", "notifications/DigestReceiver.kt", "notifications/WeeklyReceiver.kt", "notifications/BootReceiver.kt",
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
+            "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
             "presentation/settings/AppIconSwitcher.kt"
         )) assertTrue("$f must check DemoMode.active", text(f).contains("DemoMode.active"))

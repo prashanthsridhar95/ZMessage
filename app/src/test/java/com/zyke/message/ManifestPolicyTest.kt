@@ -170,7 +170,7 @@ class ManifestPolicyTest {
             setOf(
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
-                ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget"
+                ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver"
             ),
             receivers.names("name").toSet()
         )

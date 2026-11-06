@@ -225,6 +225,9 @@ class MainActivity : ComponentActivity() {
         val appContext = applicationContext
         Thread({ com.zyke.message.presentation.settings.AppIconSwitcher.reconcile(appContext, savedIcon) }, "app-icon-reconcile").start()
         observeScreenProtection()
+        // The receiver that hears new texts follows the saved switch, even after a restore or an update.
+        val alertsOn = container.settings.settings.value.liveAlerts
+        Thread({ runCatching { LiveAlerts.reconcile(appContext, alertsOn); LiveAlerts.ensureChannels(appContext) } }, "live-alerts-reconcile").start()
         // The alarm for the next timed reminder follows whatever reminders there are.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -234,6 +237,14 @@ class MainActivity : ComponentActivity() {
                         com.zyke.message.notifications.ReminderAlarms.schedule(this@MainActivity)
                         DaysAheadWidget.refresh(this@MainActivity)
                     }
+                }
+            }
+        }
+        // The market-close alarm follows the market watch and its "Market close summary" switch (cancelled when either is off).
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.watchlist.watch.map { it.closeSummaryActive }.distinctUntilChanged().collect { on ->
+                    com.zyke.message.notifications.MarketCloseScheduler(this@MainActivity).apply(on)
                 }
             }
         }

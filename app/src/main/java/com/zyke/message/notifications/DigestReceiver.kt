@@ -53,8 +53,8 @@ object DigestNotifier {
 
     /** Never in Demo mode: no notification is posted while demonstrating, so nothing real or made-up lands in the shade. */
     fun canNotify(context: Context): Boolean =
-        !com.zyke.message.data.demo.DemoMode.active && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        !com.zyke.message.data.demo.DemoMode.active && (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
 
     /** A quiet day still gets its line, so a missing notification means something is wrong, not that nothing is due. */
     suspend fun show(context: Context): Boolean {

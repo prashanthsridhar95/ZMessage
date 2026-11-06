@@ -29,6 +29,7 @@ internal object LiveAlerts {
     const val EXTRA_NOTIFICATION_ID = "notification_id"
 
     private const val CHANNEL = "live_alerts"
+    private const val CODE_CHANNEL = "otp_codes"
 
     /** Turns the receiver on or off. It starts disabled, so a phone that never opted in never runs this code. */
     fun setEnabled(context: Context, enabled: Boolean) {
@@ -42,8 +43,45 @@ internal object LiveAlerts {
     }
 
     fun canNotify(context: Context): Boolean =
-        !com.zyke.message.data.demo.DemoMode.active && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        !com.zyke.message.data.demo.DemoMode.active && (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+
+    /** Puts the receiver's enabled state in step with the saved switch (a restored backup or an update can leave them apart). */
+    fun reconcile(context: Context, liveAlerts: Boolean) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
+        val component = ComponentName(context, SmsReceiver::class.java)
+        val on = context.packageManager.getComponentEnabledSetting(component) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+        if (on != liveAlerts) setEnabled(context, liveAlerts)
+    }
+
+    /** The channel code alerts are posted on, for opening its system settings page. */
+    const val CODE_CHANNEL_ID = CODE_CHANNEL
+
+    /** What the phone allows right now, for [com.zyke.message.domain.device.CodeAlertHealth]. */
+    fun facts(context: Context, switchedOn: Boolean, readingPaused: Boolean): com.zyke.message.domain.device.CodeAlertFacts {
+        val manager = androidx.core.app.NotificationManagerCompat.from(context)
+        val postPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val channel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) manager.getNotificationChannel(CODE_CHANNEL) else null
+        return com.zyke.message.domain.device.CodeAlertFacts(
+            switchedOn = switchedOn,
+            readingPaused = readingPaused,
+            canHearTexts = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED,
+            notificationsAllowed = postPermission && manager.areNotificationsEnabled(),
+            channelOff = channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE
+        )
+    }
+
+    /**
+     * A made-up code through the same path a real one takes, so the person can see what an alert looks like and
+     * whether it arrives. Returns false when nothing could be posted (notifications blocked, or Demo mode).
+     */
+    fun postTest(context: Context, classifier: com.zyke.message.domain.classification.MessageClassifier): Boolean {
+        if (!canNotify(context) || !androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        val code = (100000..999999).random()
+        val sample = com.zyke.message.domain.model.SmsMessage(0L, "ZYKE", "$code is your OTP for the Zyke Message test. Do not share it with anyone.", System.currentTimeMillis(), isRead = false)
+        return runCatching { post(context, classifier.classify(sample)) }.isSuccess
+    }
 
     fun post(context: Context, message: ClassifiedMessage) {
         if (!canNotify(context)) return
@@ -66,7 +104,7 @@ internal object LiveAlerts {
         val spaced = if (content.code.length == 6) "${content.code.take(3)} ${content.code.drop(3)}" else content.code
         val forPayment = content.paymentAmount?.let { " for ${if (NotificationPrivacy.hidden(context)) "an amount" else DisplayFormatters.rupees(it)}" }.orEmpty()
         notify(
-            context, id,
+            context, id, CODE_CHANNEL,
             title = spaced,
             text = "From ${content.senderName}$forPayment · tap to copy",
             bigText = "From ${content.senderName}$forPayment.\nTap to copy the code, then paste it where it is asked for.\nNever share it with anyone.",
@@ -99,7 +137,7 @@ internal object LiveAlerts {
         }
         val minimum = content.minimumDue?.let { "Minimum due ${DisplayFormatters.rupees(it)}" }
         notify(
-            context, id,
+            context, id, CHANNEL,
             title = DisplayFormatters.rupees(content.amount) + (due?.let { " · $it" } ?: ""),
             text = "${content.bankName.displayString} card bill",
             bigText = listOfNotNull("${content.bankName.displayString} card bill", minimum, due?.replaceFirstChar { it.uppercase() }).joinToString("\n"),
@@ -114,6 +152,7 @@ internal object LiveAlerts {
     private fun notify(
         context: Context,
         id: Int,
+        channel: String,
         title: String,
         text: String,
         bigText: String,
@@ -125,13 +164,9 @@ internal object LiveAlerts {
         customView: android.widget.RemoteViews? = null
     ) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Code and bill buttons", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "One-tap Copy code and Pay buttons for new codes and card bills"
-            }
-        )
+        ensureChannels(context)
         val accent = androidx.core.content.ContextCompat.getColor(context, R.color.zyke_accent)
-        val builder = NotificationCompat.Builder(context, CHANNEL)
+        val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.baseline_message_24)
             .setColor(accent)
             .setContentTitle(NotificationPrivacy.text(context, title))
@@ -141,10 +176,11 @@ internal object LiveAlerts {
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(if (channel == CODE_CHANNEL) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             // What the lock screen shows: the code or amount itself stays hidden.
             .setPublicVersion(
-                NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
+                NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
                     .setContentTitle(publicTitle).setContentText(publicText).build()
             )
             .setTimeoutAfter(TIMEOUT_MS)
@@ -152,6 +188,25 @@ internal object LiveAlerts {
         action?.let { (label, intent) -> builder.addAction(0, label, intent) }
         secondary?.let { (label, intent) -> builder.addAction(0, label, intent) }
         manager.notify(id, builder.build())
+    }
+
+    /** Creates the channels (harmless to repeat; the person's own choices for them are kept). */
+    fun ensureChannels(context: Context) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // A code is time-critical: it peeks onto the screen. The bill button is calmer.
+            manager.createNotificationChannel(
+                NotificationChannel(CODE_CHANNEL, "One-time codes", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "A Copy code button the moment a one-time code arrives"
+                }
+            )
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL, "Code and bill buttons", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "One-tap Pay button for new card bills"
+                }
+            )
+        }
     }
 
     private fun idFor(message: ClassifiedMessage): Int = (message.message.date xor message.message.body.hashCode().toLong()).toInt() and Int.MAX_VALUE
