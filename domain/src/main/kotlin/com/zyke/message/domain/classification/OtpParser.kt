@@ -14,6 +14,7 @@ class OtpParser {
         val codeRegex = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
         // "The OTP is 48213679 for Rs.15,000.00 TXN ... Txn Ref: 523412345678": the code is the one the OTP is said to be.
         val code = (if (codeRegex === NUMERIC_CODE) STATED_CODE.find(body)?.groupValues?.get(1) else null)
+            ?: (if (codeRegex === NUMERIC_CODE) likelyCode(body) else null)
             ?: codeRegex.find(body)?.groupValues?.get(1).orEmpty()
 
         val senderName = if (body.contains("Bank")) {
@@ -51,6 +52,27 @@ class OtpParser {
             val code = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
             return code.containsMatchIn(body)
         }
+
+        /**
+         * "Your OTP for txn of Rs 1500 at Amazon is 482913": the first run of digits is the amount, not the code.
+         * Numbers that read as money, a card/account tail or a reference are set aside; of the rest, one that follows
+         * "is", ":" or "-" is the code, else the first.
+         */
+        private fun likelyCode(body: String): String? {
+            val candidates = DIGITS.findAll(body).filter { m ->
+                val before = body.substring(maxOf(0, m.range.first - 14), m.range.first)
+                val after = body.substring(m.range.last + 1, minOf(body.length, m.range.last + 4))
+                !NOT_A_CODE_BEFORE.containsMatchIn(before) && !after.startsWith(".0") && !after.startsWith(".1") && !after.startsWith(".5")
+            }.toList()
+            val stated = candidates.firstOrNull { m ->
+                STATES_CODE.containsMatchIn(body.substring(maxOf(0, m.range.first - 4), m.range.first))
+            }
+            return (stated ?: candidates.firstOrNull())?.groupValues?.get(1)
+        }
+
+        private val DIGITS = "(?<!\\d)(\\d{4,8})(?!\\d)".toRegex()
+        private val NOT_A_CODE_BEFORE = "(?i)(?:rs\\.?|inr\\.?|₹|amount|amt|ending|ref(?:erence)?\\.?|a/c|acct?|card|no\\.?|id)\\s*[:.#-]?\\s*$".toRegex()
+        private val STATES_CODE = "(?:\\bis|[:-])\\s*$".toRegex()
 
         private fun plainAmount(raw: String): String? {
             val clean = raw.replace(",", "").trimEnd('.')
