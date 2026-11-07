@@ -116,7 +116,7 @@ internal object LiveAlerts {
             // The code itself is drawn large, with the rest in small type beneath.
             customView = android.widget.RemoteViews(context.packageName, R.layout.notification_code).apply {
                 setTextViewText(R.id.code_value, spaced)
-                setTextViewText(R.id.code_detail, "From ${content.senderName}$forPayment\nTap to copy. Never share it.")
+                setTextViewText(R.id.code_detail, "From ${content.senderName}$forPayment · tap to copy")
             }
         )
     }

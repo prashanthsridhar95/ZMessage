@@ -200,11 +200,15 @@ private val DIGIT_HEIGHT = 58.dp
 @Composable
 private fun CountdownRing(fraction: Float, seconds: Int, accent: androidx.compose.ui.graphics.Color, expired: Boolean) {
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-    Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-            drawArc(track, 0f, 360f, false, style = stroke)
-            if (!expired) drawArc(accent, -90f, 360f * fraction, false, style = stroke)
+            // A stroke is centred on the arc's edge, so the arc is inset by half of it or the outer half is clipped.
+            val inset = stroke.width / 2f
+            val corner = androidx.compose.ui.geometry.Offset(inset, inset)
+            val box = androidx.compose.ui.geometry.Size(size.width - stroke.width, size.height - stroke.width)
+            drawArc(track, 0f, 360f, false, topLeft = corner, size = box, style = stroke)
+            if (!expired) drawArc(accent, -90f, 360f * fraction, false, topLeft = corner, size = box, style = stroke)
         }
         Text(
             if (expired) "–" else "%d:%02d".format(seconds / SECONDS_IN_MINUTE, seconds % SECONDS_IN_MINUTE),
