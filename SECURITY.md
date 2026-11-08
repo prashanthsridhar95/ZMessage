@@ -7,7 +7,7 @@ phone.
 
 - **Almost no network.** The `INTERNET` permission exists for two settings: "Fetch brand logos" (on by default, can be turned off) and the market strip (off until you turn it on). Only two files can use it. `LogoFetcher.kt` sends a well-known brand's website name to a public icon service; `QuoteFetcher.kt` sends the tickers in your watch list (such as `RELIANCE.NS`) to Yahoo Finance's public price service, and, while you type in the add-stock box (market strip switched on only), the few letters typed so it can suggest names; that text is not stored. Neither ever sends message text, numbers or amounts, and a unit test keeps network code out of every other file.
   `ManifestPolicyTest` fails the build if that changes.
-- **Least privilege.** The only permission is `READ_SMS`. It never writes to, sends or deletes messages.
+- **Least privilege.** `READ_SMS` reads your messages; it never writes to or deletes them. `RECEIVE_SMS` (code alerts) and `SEND_SMS` ("Share codes with trusted people") are asked for only when you switch those features on; sharing sends only a login code and the service name, by SMS, to the people you chose, and never a bank, UPI, card, payment, government, insurer or phone-company message. Google Play restricts `SEND_SMS`, so that feature is for builds installed directly.
 - **Nothing leaves unless you send it.** The one exception is the masked parsing report you choose to share.
   It goes through a private, non-exported `FileProvider` limited to one cache folder, with read access granted
   to the app you pick for that one file only.

@@ -405,7 +405,8 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 }
             }
         }
-        SettingsGroup.ALERTS -> SectionCard("Reminders and alerts") {
+        SettingsGroup.ALERTS -> {
+        SectionCard("Reminders and alerts") {
             CodeAlertStatus(
                 switchedOn = state.settings.liveAlerts, readingPaused = state.settings.readingPaused,
                 onTurnOn = { onIntent(Intent.SetLiveAlerts(true)) }, onResume = { onIntent(Intent.SetReadingPaused(false)) }
@@ -431,6 +432,8 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
             )
             Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = 12.dp), maxLines = 2)
+        }
+        CodeSharingEntry()
         }
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {

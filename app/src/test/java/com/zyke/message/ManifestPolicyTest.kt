@@ -36,6 +36,7 @@ class ManifestPolicyTest {
                 "android.permission.POST_NOTIFICATIONS", // morning digest
                 "android.permission.RECEIVE_BOOT_COMPLETED", // putting the digest alarm back after a restart
                 "android.permission.RECEIVE_SMS", // live code and bill buttons, off until switched on
+                "android.permission.SEND_SMS", // passing a login code on to chosen people, off until switched on; asked for only then
                 "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, with a visible notification
                 "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
             ),
@@ -164,13 +165,14 @@ class ManifestPolicyTest {
         assertFalse("AppContainer" in demo || "ViewModel" in demo || "androidx.compose" in demo || "container" in demo.substringAfter("class DemoActivity"))
         assertTrue(demo.contains(": Activity()"))
 
-        // Receivers exist for the widget, the morning alarm, the restart, the copy button and live alerts.
+        // Receivers exist for the widget, the morning alarm, the restart, the copy button, live alerts and the sent report of a shared code.
         val receivers = manifest.getElementsByTagName("receiver")
         assertEquals(
             setOf(
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
-                ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver"
+                ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver",
+                ".notifications.CodeShareStatusReceiver"
             ),
             receivers.names("name").toSet()
         )

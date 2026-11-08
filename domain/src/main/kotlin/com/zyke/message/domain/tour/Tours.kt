@@ -38,7 +38,7 @@ object Tours {
         ),
         TourStep(
             "sms", G.WELCOME, "Why it reads your messages",
-            "Zyke reads your SMS only to find spends, bills and codes. It never sends, changes or deletes a message. Allow SMS access when Android asks.",
+            "Zyke reads your SMS only to find spends, bills and codes. It never changes or deletes a message, and sends one only if you switch on Share codes with trusted people. Allow SMS access when Android asks.",
             tab = T.HOME,
             tip = "Pause reading or delete everything any time from Settings.",
             covers = setOf("sms.reading", "sms.permission", "privacy.messages_stay")

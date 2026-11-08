@@ -228,6 +228,57 @@ app then runs on a made-up person ("Asha Menon"), and nothing real is read, show
   notification or notification-access prompts; the tour is not offered on the way in (it is under Settings, Help); photos and web
   picture search, app-icon colours, backup and "Delete all my data" are not offered in the demo.
 
+## Share codes with trusted people
+
+For a login code the user shares with family: when a code for an allowed streaming service arrives on the phone, the app sends it
+on by SMS to the people the user chose, so they can sign in while the user is asleep or busy. Off by default in every part (master
+switch, people, hours, pause); Settings, Reminders and alerts, Share codes with trusted people.
+
+* **Rules (`:domain/sharing`, pure, tested in `CodeSharingTest`).** `CodeSharing.decide(message, rules, now, history, zone)`
+  returns the texts to send (`Share`: person, service, text) or the reasons it did not (`ShareSkip`). Hard blocks come first and
+  no setting overrides them: anything financial (a `Transaction`, `CardBill`, `ScheduledPayment`, anything `Counting.of` counts,
+  an OTP with a payment amount or card, any bank / UPI / card / wallet / payment / amount / "Rs", "INR", rupee-sign / transaction
+  wording, or a bank or payment-app sender header), government, insurer and phone-company account security (Aadhaar, tax,
+  insurance, SIM, porting ...), and any sender header that is not one of the allowed services' own. A code needs both an OTP
+  classification (digits, 4 to 8) and a service match. `ShareServices` lists exactly six services (Netflix, Hotstar incl. Disney+
+  and JioHotstar, Prime Video, Sun NXT, Sony LIV, ZEE5); to add one, add a `ShareService` and a test. The SENDER header must match
+  (operator route letters stripped, so `VM-NFLXIN-S` is `NFLXIN`); the body only confirms. A body naming another service is
+  ambiguous and not sent. Amazon's header also sends shopping and Amazon Pay codes, so it needs "Prime" in the body. Wording
+  alone from an unknown header is never enough. "Do not share" is in every OTP, so it is not a block by itself; it blocks only
+  together with payment or transaction wording (which blocks on its own).
+* **What is sent.** Only the code and the service name: `Netflix code 482913 (use it soon). Sent by Aman via Zyke`, plain ASCII,
+  one SMS segment (the name is reduced to letters, digits and a few marks, 20 characters; blank is just `Sent by Zyke`). Never
+  the original message. Limits: at most 5 an hour to one person (`maxPerHour`), the same code + service + person is never sent
+  twice, a message older than 5 minutes (or dated in the future) is never sent, an optional daily window (overnight such as
+  22:00 to 08:00 handled), a quick pause ("Off for 1, 8, 24 hours"), a per-person switch and a per-person set of services.
+* **Live path only.** `SmsReceiver` calls `CodeSharer.onLiveMessage` after classification, for the message that has just arrived;
+  nothing else calls it (`CodeSharingPolicyTest` pins that), so reading the inbox never forwards anything. Freshness in the rules
+  is a second line of defence. The receiver now runs when either the code alerts or sharing is on (`LiveAlerts.refreshReceiver`
+  keeps the component setting in step, also at start and after a restore); the two features are independent, and reading paused
+  stops both. Work is on a background coroutine under `goAsync`, with no network.
+* **Sending (`CodeSharer`, `:app`).** `SmsManager` (the default SMS subscription on a dual-SIM phone), divided into parts only if
+  a text were ever longer than one segment, every call caught. Sent and delivered `PendingIntent`s go to the non-exported
+  `CodeShareStatusReceiver`, which moves the log entry Sending, Sent, Delivered or Failed (`ShareLog.advance`: never backwards)
+  and posts a low-importance note, "Sent Netflix code to Sister" or "Couldn't send to Sister" (no code; private on the lock
+  screen). "Test message" sends `Test from Zyke: code sharing is set up` after a confirm dialog naming the person and the text,
+  not twice within a minute.
+* **Permissions.** `SEND_SMS` is in the manifest but asked for only when the master switch is turned on (together with
+  `RECEIVE_SMS`, and `POST_NOTIFICATIONS` on Android 13+); `CodeSharingHealth` (next to `CodeAlertHealth`) says what is in the
+  way and the page offers the one tap that fixes it. Google Play restricts SMS permissions to default SMS apps, so this feature
+  is for builds installed directly (sideloaded); a Play build would have to leave `SEND_SMS` and `CodeSharer` out. The
+  "nothing leaves your phone" promise is kept in the sense that the only thing sent is what the user chose to send, by SMS and
+  not over the network; `ManifestPolicyTest` lists the permission and the status receiver and still forbids new network code.
+* **People.** Name and normalised number only (`PhoneNumbers.normalise`: Indian 10-digit with 0 / 91 / +91, or international `+`
+  and 8 to 15 digits). The contact picker is the system's (`ACTION_PICK` on phone numbers), which hands over only the row
+  picked, so `READ_CONTACTS` is never requested; a number can also be typed.
+* **Privacy and logging.** A code, a number or a message body is never written to the developer log, `BlackBox`, the saved log or
+  a notification. The saved log (`code_sharing_log`, left out of backups) has service, person's name, time and status. The
+  duplicate check's code keys live in memory only. The people and settings are in the `code_sharing` preferences file and are
+  carried by `PrefsBackup` (PIN-encrypted) like every other setup file.
+* **Demo mode.** `AppContainer` uses `NoCodeSharing` in a demo process; the receiver, `CodeSharer` and the status receiver stop on
+  `DemoMode.active` (`DemoPolicyTest`), the page shows only "Not available in Demo mode", and the contact picker and permission
+  prompts are not reachable.
+
 ## Budget phones and lite mode
 
 `presentation/common/Responsive.kt` (`LocalResponsive`, `ChromeScale`, `FitText`, `ResponsiveRow`) holds the layout rules for

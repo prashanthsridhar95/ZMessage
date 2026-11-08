@@ -1,0 +1,220 @@
+package com.zyke.message.domain.sharing
+
+import com.zyke.message.domain.ledger.Counted
+import com.zyke.message.domain.ledger.Counting
+import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.MessageContent
+import java.time.Instant
+import java.time.ZoneId
+
+/** A daily span in which codes may be passed on; [startMinute] after [endMinute] means it runs past midnight (22:00 to 08:00). */
+data class ShareWindow(val startMinute: Int, val endMinute: Int) {
+    /** Start equal to end is the whole day, so a half-set window never blocks everything by accident. */
+    val isAlways: Boolean get() = startMinute == endMinute
+
+    fun contains(minuteOfDay: Int): Boolean = when {
+        isAlways -> true
+        startMinute < endMinute -> minuteOfDay in startMinute until endMinute
+        else -> minuteOfDay >= startMinute || minuteOfDay < endMinute
+    }
+
+    companion object {
+        /** "10:00 PM" for minute 1320. */
+        fun clock(minute: Int): String {
+            val m = ((minute % 1440) + 1440) % 1440
+            val hour = m / 60
+            val h12 = if (hour % 12 == 0) 12 else hour % 12
+            return "$h12:${(m % 60).toString().padStart(2, '0')} ${if (hour < 12) "AM" else "PM"}"
+        }
+    }
+
+    fun label(): String = "${clock(startMinute)} to ${clock(endMinute)}"
+}
+
+/** Everything the person set. All of it starts off: no master switch, no people, no hours, no pause. */
+data class CodeSharingRules(
+    /** The master switch. */
+    val enabled: Boolean = false,
+    val contacts: List<TrustedContact> = emptyList(),
+    /** Nothing is sent before this moment (epoch ms); 0 is not paused. */
+    val pausedUntil: Long = 0L,
+    /** Null is any time of day. */
+    val window: ShareWindow? = null,
+    /** The most codes sent to one person in an hour. */
+    val maxPerHour: Int = CodeSharing.DEFAULT_MAX_PER_HOUR,
+    /** Shown to the other person as "Sent by …"; blank is "Zyke". */
+    val senderName: String = "",
+    /** A code older than this when it is read is never passed on. */
+    val freshForMs: Long = CodeSharing.FRESH_MS
+) {
+    val activePeople: Int get() = contacts.count { it.enabled }
+}
+
+/** One thing sent (or tried) to one person, for the rate limit and the duplicate check. */
+data class SentRecord(
+    val contactId: String,
+    val serviceId: String,
+    val at: Long,
+    /** Held in memory only, never saved: see [CodeSharing.codeKey]. Null for what was read back from the saved log. */
+    val codeKey: String? = null
+)
+
+data class ShareHistory(val records: List<SentRecord> = emptyList())
+
+/** What the message turned out to be, when it is not passed on. */
+enum class ShareSkip {
+    OFF, PAUSED, OUTSIDE_HOURS, NOT_A_CODE, FINANCIAL, ACCOUNT_SECURITY, STALE,
+    NOT_AN_ALLOWED_SERVICE, NO_ONE_FOR_SERVICE, PERSON_OFF, BAD_NUMBER, RATE_LIMITED, ALREADY_SENT
+}
+
+data class Share(val contact: TrustedContact, val service: ShareService, val text: String, val codeKey: String)
+
+data class Skipped(val contactId: String?, val reason: ShareSkip)
+
+/** Who gets what, or why not. [shares] is empty when nothing is to be sent. */
+data class ShareDecision(val shares: List<Share>, val skipped: List<Skipped>) {
+    val reasons: Set<ShareSkip> get() = skipped.map { it.reason }.toSet()
+}
+
+/**
+ * Passing a login code on to people the user trusts. Pure rules, no Android: [decide] is given a message that has just
+ * arrived, the person's settings and what was sent lately, and answers with the texts to send.
+ *
+ * What it will NEVER do, whatever the settings say (checked before anything else is looked at):
+ *  - pass on anything about money: a payment or bank, UPI, card or wallet message, any amount ("Rs", "INR", the rupee sign),
+ *    a "transaction" code, or a code that is counted in the person's spending;
+ *  - pass on account security from a government body, an insurer or a phone company;
+ *  - pass on a message whose sender header is not one of the allowed services' own.
+ * It sends only the code and the service name, never the original message. It does not know where the message came from:
+ * the caller must call it only for a message that has just arrived, and [freshForMs] is a second line of defence for old ones.
+ */
+object CodeSharing {
+    const val DEFAULT_MAX_PER_HOUR = 5
+    const val FRESH_MS = 5 * 60_000L
+    private const val CLOCK_SKEW_MS = 60_000L
+    private const val HOUR_MS = 60L * 60_000L
+    const val TEST_TEXT = "Test from Zyke: code sharing is set up"
+    private const val MIN_CODE = 4
+    private const val MAX_CODE = 8
+    private const val MAX_NAME = 20
+
+    fun decide(
+        message: ClassifiedMessage,
+        rules: CodeSharingRules,
+        now: Long,
+        history: ShareHistory = ShareHistory(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): ShareDecision {
+        fun none(reason: ShareSkip) = ShareDecision(emptyList(), listOf(Skipped(null, reason)))
+        if (!rules.enabled) return none(ShareSkip.OFF)
+        if (now < rules.pausedUntil) return none(ShareSkip.PAUSED)
+        rules.window?.let { window ->
+            val time = Instant.ofEpochMilli(now).atZone(zone)
+            if (!window.contains(time.hour * 60 + time.minute)) return none(ShareSkip.OUTSIDE_HOURS)
+        }
+
+        // The hard blocks come first and read the whole message, not only what was classified.
+        val content = message.content
+        val counted = Counting.of(message)
+        if (content is MessageContent.Transaction || content is MessageContent.CardBill || content is MessageContent.ScheduledPayment ||
+            counted !is Counted.NotCounted
+        ) return none(ShareSkip.FINANCIAL)
+        val sms = message.message
+        if (SharingBlocks.financial(sms.sender, sms.body)) return none(ShareSkip.FINANCIAL)
+        if (SharingBlocks.accountSecurity(sms.sender, sms.body)) return none(ShareSkip.ACCOUNT_SECURITY)
+        if (content !is MessageContent.Otp) return none(ShareSkip.NOT_A_CODE)
+        if (content.paymentAmount != null || content.cardNumber != null) return none(ShareSkip.FINANCIAL)
+        val code = content.code
+        if (code.length !in MIN_CODE..MAX_CODE || code.any { it !in '0'..'9' }) return none(ShareSkip.NOT_A_CODE)
+
+        val age = now - sms.date
+        if (age > rules.freshForMs || age < -CLOCK_SKEW_MS) return none(ShareSkip.STALE)
+
+        val service = ShareServices.match(sms.sender, sms.body) ?: return none(ShareSkip.NOT_AN_ALLOWED_SERVICE)
+        val candidates = rules.contacts.filter { service.id in it.services }
+        if (candidates.isEmpty()) return none(ShareSkip.NO_ONE_FOR_SERVICE)
+
+        val shares = ArrayList<Share>()
+        val skipped = ArrayList<Skipped>()
+        val text = text(service, code, rules.senderName)
+        for (contact in candidates) {
+            val key = codeKey(service.id, contact.id, code)
+            when {
+                !contact.enabled -> skipped += Skipped(contact.id, ShareSkip.PERSON_OFF)
+                PhoneNumbers.normalise(contact.number) == null -> skipped += Skipped(contact.id, ShareSkip.BAD_NUMBER)
+                history.records.any { it.codeKey == key } -> skipped += Skipped(contact.id, ShareSkip.ALREADY_SENT)
+                history.records.count { it.contactId == contact.id && it.at > now - HOUR_MS && it.at <= now + CLOCK_SKEW_MS } >= rules.maxPerHour ->
+                    skipped += Skipped(contact.id, ShareSkip.RATE_LIMITED)
+                else -> shares += Share(contact, service, text, key)
+            }
+        }
+        return ShareDecision(shares, skipped)
+    }
+
+    /**
+     * What the duplicate check compares. It contains the code, so it lives in memory only and is never written to the
+     * saved log, a file or the developer log.
+     */
+    fun codeKey(serviceId: String, contactId: String, code: String): String = "$serviceId|$contactId|$code"
+
+    /** "Netflix code 482913 (use it soon). Sent by Aman via Zyke": the code and the service, nothing of the original text. */
+    fun text(service: ShareService, code: String, senderName: String): String {
+        val who = cleanName(senderName)
+        val by = if (who.isEmpty()) "Zyke" else "$who via Zyke"
+        return "${service.label} code $code (use it soon). Sent by $by"
+    }
+
+    /** The name as the other person sees it: plain letters, digits and a few marks, so the text stays one 160-character SMS. */
+    fun cleanName(raw: String): String =
+        raw.filter { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == ' ' || it == '.' || it == '\'' || it == '-' }
+            .trim().replace(Regex("\\s+"), " ").take(MAX_NAME).trim()
+
+    /** True when every character is in the basic GSM alphabet's plain ASCII part, so one SMS holds 160 of them. */
+    fun isOneSegment(text: String): Boolean = text.length <= 160 && text.all { it.code in 32..126 && it != '`' && it != '~' && it != '^' && it != '\\' && it != '|' && it != '{' && it != '}' && it != '[' && it != ']' }
+
+    /** The pause presets: hours of quiet from now. */
+    val pauseHours: List<Int> = listOf(1, 8, 24)
+
+    fun pausedUntil(now: Long, hours: Int): Long = now + hours * HOUR_MS
+
+    fun isPaused(rules: CodeSharingRules, now: Long): Boolean = now < rules.pausedUntil
+
+    /** Whether a test text to this person may go now: not twice within a minute. */
+    fun canSendTest(log: List<ShareLogEntry>, contactId: String, now: Long): Boolean =
+        log.none { it.test && it.contactId == contactId && now - it.at in 0 until 60_000L }
+
+    /** One line for the Settings row: "Off", "On for 2 people", "Paused for 3 more hours". */
+    fun summary(rules: CodeSharingRules, now: Long): String = when {
+        !rules.enabled -> "Off"
+        rules.activePeople == 0 -> "On, nobody added yet"
+        isPaused(rules, now) -> "Paused"
+        else -> "On for ${rules.activePeople} ${if (rules.activePeople == 1) "person" else "people"}"
+    }
+}
+
+/** The words and senders that always stop a message from being passed on. */
+internal object SharingBlocks {
+    private val FINANCIAL_BODY = Regex(
+        "(?i)(?:\\b(?:rs|inr)\\b\\.?\\s*[0-9]|[₹]|\\bamount\\b|\\bupi\\b|\\bbank\\b|\\ba/c\\b|\\bacct?\\b|bank account|account\\s+(?:no|number|ending)|\\bending\\s+(?:with\\s+)?[0-9x*]" +
+            "|\\bdebit(?:ed)?\\b|\\bcredit(?:ed)?\\b|\\bcards?\\b|\\bcvv\\b|\\bwallet\\b|\\bpay(?:ment|ments|ing)?\\b|\\bpaid\\b|\\btransactions?\\b|\\btxn\\b|\\btransfer\\b" +
+            "|\\bemi\\b|\\bloan\\b|\\bbill(?:s|ing)?\\b|\\brecharge\\b|\\bpurchase\\b|\\b(?:your|my)\\s+order\\b|\\border\\s+(?:no|id|number|#)|\\brefund\\b|\\binvoice\\b|\\bmandate\\b|\\bauto-?pay\\b|\\bcharged?\\b" +
+            "|\\bbhim\\b|\\bneft\\b|\\bimps\\b|\\brtgs\\b|\\bifsc\\b|\\bbalance\\b|\\bcashback\\b|\\bmpin\\b|\\bnet\\s?banking\\b)"
+    )
+
+    private val ACCOUNT_BODY = Regex(
+        "(?i)\\b(?:aadhaar|aadhar|uidai|digilocker|pan\\s+card|income\\s?tax|itr|gst|epfo|uan|umang|passport|voter\\s+id|driving\\s+licen[cs]e|insurance|insurer|irdai" +
+            "|policy\\s+(?:no|number)|sim\\s+(?:card|swap|change)|e-?sim|porting|\\bmnp\\b|\\bupc\\b|prepaid|postpaid|airtel|vodafone|bsnl|mtnl|my\\s?jio|jio\\s?(?:sim|number|fiber|care))\\b"
+    )
+
+    /** Headers that belong to a bank, a payment app or an authority; matched against [ShareServices.senderToken]. */
+    private val FINANCIAL_SENDER = Regex(
+        "(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|CANARA|IDFC|YESB|INDUS|RBL|BOB|UNION|PAYTM|PHONEPE|PHNPE|GPAY|GOOGLEPAY|BHIM|AMAZONPAY|AMZNPAY|AMZPAY|CRED|SLICE|SIMPL|LAZYPAY|NPCI|UPI|BANK|BNK|CARD|WALLET|PAY$|FINSERV|LOAN|INSUR|LIC|IRCTC|UIDAI|AADHA|EPFO|INCOMETAX|DIGILOC|AIRTEL|VODAFONE|BSNL|MTNL)"
+    )
+
+    fun financial(sender: String, body: String): Boolean {
+        val token = ShareServices.senderToken(sender)
+        return FINANCIAL_BODY.containsMatchIn(body) || (token.isNotEmpty() && FINANCIAL_SENDER.containsMatchIn(token))
+    }
+
+    fun accountSecurity(sender: String, body: String): Boolean = ACCOUNT_BODY.containsMatchIn(body)
+}

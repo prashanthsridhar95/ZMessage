@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
             container.observeMessages, container.settings, container.userMessageState, container.budgets, container.cards,
             onLogosTurnedOff = container.imageStore::clearLogos,
             onDigestChanged = { DigestScheduler(this).apply(it) },
-            onLiveAlertsChanged = { LiveAlerts.setEnabled(this, it) },
+            onLiveAlertsChanged = { LiveAlerts.refreshReceiver(this) },
             onWeeklySummaryChanged = { WeeklyScheduler(this).apply(it) },
             planRepository = container.moneyPlan,
             hiddenAccounts = container.hiddenAccounts,
@@ -226,7 +226,8 @@ class MainActivity : ComponentActivity() {
         Thread({ com.zyke.message.presentation.settings.AppIconSwitcher.reconcile(appContext, savedIcon) }, "app-icon-reconcile").start()
         observeScreenProtection()
         // The receiver that hears new texts follows the saved switch, even after a restore or an update.
-        val alertsOn = container.settings.settings.value.liveAlerts
+        // It is also wanted while "Share codes with trusted people" is on.
+        val alertsOn = container.settings.settings.value.liveAlerts || container.codeSharing.rules.value.enabled
         Thread({ runCatching { LiveAlerts.reconcile(appContext, alertsOn); LiveAlerts.ensureChannels(appContext) } }, "live-alerts-reconcile").start()
         // The alarm for the next timed reminder follows whatever reminders there are.
         lifecycleScope.launch {
@@ -668,7 +669,7 @@ private fun SmsExplainer(onContinue: () -> Unit, onLater: () -> Unit) {
             androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
                 com.zyke.message.presentation.common.Text("To turn bank and payment texts into a picture of your money: what you spent, what is due, and where you stand.")
                 com.zyke.message.presentation.common.Text("\u2022 Everything is read and kept on this phone. Nothing is uploaded.")
-                com.zyke.message.presentation.common.Text("\u2022 It never sends, changes or deletes a message.")
+                com.zyke.message.presentation.common.Text("\u2022 It never changes or deletes a message, and sends one only if you switch on sharing codes with people you trust.")
                 com.zyke.message.presentation.common.Text("\u2022 You can pause reading, export your data, or delete it all from Settings at any time.")
                 com.zyke.message.presentation.common.Text("Without this permission the app has nothing to show, but you can still add entries by hand.")
             }

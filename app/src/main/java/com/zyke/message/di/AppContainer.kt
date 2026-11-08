@@ -93,6 +93,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val imageStore by lazy { ImageStore(context, offline = demo) { settings.settings.value.fetchLogos } }
     val messageClassifier by lazy { MessageClassifier() }
     val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
+    /** Who login codes are passed on to. Nothing in Demo mode: nothing is stored, nothing can be sent. */
+    val codeSharing: com.zyke.message.domain.sharing.CodeSharingRepository by lazy { if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context) }
     val nicknames: NicknameRepository by lazy { NicknameRepositoryImpl(context) }
     val paymentNotes: PaymentNotesRepository by lazy { PaymentNotesRepositoryImpl(context) }
     val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository by lazy { com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context) }

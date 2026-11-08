@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Only for the optional live alerts (off by default): hearing about a new code or bill the moment it arrives. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Only for the optional "Share codes with trusted people" (off by default, asked for only when it is switched on): sending
+         a login code on by SMS to people the user chose. Google Play restricts SMS permissions, so this is for builds that are
+         installed directly; see docs/ARCHITECTURE.md. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- Only while a very large inbox is still being read month by month: keeps that work going if the app is left. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -292,7 +296,7 @@
             android:name=".notifications.CopyCodeReceiver"
             android:exported="false" />
         <!-- Exported only because the phone's telephony service must reach it; the BROADCAST_SMS permission lets
-             nothing else send to it. Disabled until the person turns on live alerts. -->
+             nothing else send to it. Disabled until the person turns on live alerts or code sharing. -->
         <receiver
             android:name=".notifications.SmsReceiver"
             android:enabled="false"
@@ -302,6 +306,10 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+        <!-- The phone's sent / delivered report on a code passed on to a trusted person. Only this app can reach it. -->
+        <receiver
+            android:name=".notifications.CodeShareStatusReceiver"
+            android:exported="false" />
         <receiver
             android:name=".notifications.BootReceiver"
             android:exported="false">

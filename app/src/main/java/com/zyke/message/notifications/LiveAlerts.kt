@@ -42,6 +42,16 @@ internal object LiveAlerts {
         )
     }
 
+    /**
+     * The receiver is wanted for the code and bill buttons AND for passing codes on to trusted people; it is on if either is.
+     * Use this, not [setEnabled], when one of the two switches changes.
+     */
+    fun refreshReceiver(context: Context) {
+        if (com.zyke.message.data.demo.DemoMode.active) return
+        val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+        reconcile(context, container.settings.settings.value.liveAlerts || container.codeSharing.rules.value.enabled)
+    }
+
     fun canNotify(context: Context): Boolean =
         !com.zyke.message.data.demo.DemoMode.active && (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)

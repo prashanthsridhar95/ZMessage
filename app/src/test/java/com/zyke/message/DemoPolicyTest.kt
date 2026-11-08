@@ -62,11 +62,25 @@ class DemoPolicyTest {
             "notifications/SmsReceiver.kt", "notifications/DigestReceiver.kt", "notifications/WeeklyReceiver.kt", "notifications/BootReceiver.kt",
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
             "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
+            "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
             "presentation/settings/AppIconSwitcher.kt"
         )) assertTrue("$f must check DemoMode.active", text(f).contains("DemoMode.active"))
         val digest = text("notifications/DigestReceiver.kt")
         assertTrue("canNotify is false in the demo", Regex("""fun canNotify\(context: Context\): Boolean =\s*!com\.zyke\.message\.data\.demo\.DemoMode\.active""").containsMatchIn(digest))
+    }
+
+    @Test fun theDemoNeverSendsATextOrReadsContacts() {
+        val container = text("di/AppContainer.kt")
+        assertTrue("no code sharing in the demo", container.contains("if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context)"))
+        val sharer = text("notifications/CodeSharer.kt")
+        for (door in listOf("fun onLiveMessage(", "fun sendTest(")) {
+            assertTrue("$door must stop in the demo", sharer.substringAfter(door).take(300).contains("DemoMode.active"))
+        }
+        assertTrue("canSend is false in the demo", sharer.contains("fun canSend(context: Context): Boolean =\n        !DemoMode.active"))
+        val page = text("presentation/settings/CodeSharingUi.kt")
+        // The page is shown as a notice only; the picker and the permission prompts are in CodeSharingContent.
+        assertTrue(page.substringAfter("internal fun CodeSharingPage(").substringBefore("CodeSharingContent()").contains("DemoMode.active"))
     }
 
     @Test fun theDemoNeverAsksForPermissionsOrReadsTheInbox() {
