@@ -108,6 +108,24 @@ internal object CodeSharer {
         return if (send(context, container, smsManager(context), contact, CodeSharing.TEST_TEXT, entry)) TestResult.QUEUED else TestResult.FAILED
     }
 
+    /**
+     * Hands one short, plain text to the phone for [BalanceRequester] ("check balance by SMS"); the only other way a text leaves this app.
+     * The person tapped Send on a screen that showed this number and this text. [report] gets the phone's "sent" report, which goes to
+     * [CodeShareStatusReceiver]. False when it could not be queued. Nothing here is logged: not the number, not the words.
+     */
+    fun sendPlain(context: Context, number: String, text: String, report: PendingIntent): Boolean {
+        if (DemoMode.active || !canSend(context)) return false
+        val manager = smsManager(context) ?: return false
+        return try {
+            manager.sendTextMessage(number, null, text, report, null)
+            true
+        } catch (e: Exception) {
+            // The class only: an exception's message could quote the number.
+            DevLog.d("balance") { "request refused: ${e.javaClass.simpleName}" }
+            false
+        }
+    }
+
     /** Hands the text to the phone. The sent and delivered reports come back to [CodeShareStatusReceiver]. */
     private fun send(context: Context, container: AppContainer, manager: SmsManager?, contact: TrustedContact, text: String, entry: ShareLogEntry): Boolean {
         if (manager == null) {

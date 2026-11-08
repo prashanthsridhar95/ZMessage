@@ -63,6 +63,7 @@ class DemoPolicyTest {
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
             "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
             "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
+            "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
             "presentation/settings/AppIconSwitcher.kt"
         )) assertTrue("$f must check DemoMode.active", text(f).contains("DemoMode.active"))
@@ -73,8 +74,14 @@ class DemoPolicyTest {
     @Test fun theDemoNeverSendsATextOrReadsContacts() {
         val container = text("di/AppContainer.kt")
         assertTrue("no code sharing in the demo", container.contains("if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context)"))
+        assertTrue("balance requests are in memory only in the demo", container.contains("if (demo) com.zyke.message.domain.balance.InMemoryBalanceCheck() else com.zyke.message.data.repository.BalanceCheckRepositoryImpl(context)"))
+        val requester = text("notifications/BalanceRequester.kt")
+        assertTrue("a balance request stops in the demo", requester.substringAfter("fun send(").take(200).contains("DemoMode.active"))
+        // The sheet answers a Send in the demo with a labelled stand-in, before anything is handed to the requester.
+        val checkUi = text("presentation/home/BalanceCheckUi.kt")
+        assertTrue(checkUi.indexOf("Demo: balance updated") in 0 until checkUi.indexOf("BalanceRequester.send("))
         val sharer = text("notifications/CodeSharer.kt")
-        for (door in listOf("fun onLiveMessage(", "fun sendTest(")) {
+        for (door in listOf("fun onLiveMessage(", "fun sendTest(", "fun sendPlain(")) {
             assertTrue("$door must stop in the demo", sharer.substringAfter(door).take(300).contains("DemoMode.active"))
         }
         assertTrue("canSend is false in the demo", sharer.contains("fun canSend(context: Context): Boolean =\n        !DemoMode.active"))

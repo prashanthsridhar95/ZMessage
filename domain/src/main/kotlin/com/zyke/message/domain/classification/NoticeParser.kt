@@ -25,8 +25,32 @@ object NoticeParser {
 
     private const val MAX_HEAD = 400
 
+    /**
+     * A bank's reply to a balance enquiry ("Bal in A/C XX1234 is Rs 5,000.00", "Available balance in A/c XX1234 is Rs. 12,345.67 as on ...",
+     * "Avl Bal Rs.99 in A/c XX1234"): it states a balance for an account and moves no money. Any word of a payment, a card, a limit or a
+     * due amount makes it something else, so a debit alert that ends in "Avl Bal" is never read as one.
+     */
+    private val REPLY_BALANCE = Regex("(?i)\\b(?:avl\\.?|avbl\\.?|available|current|ledger)?\\s*bal(?:ance)?\\b.{0,80}?(?:INR\\.?|Rs\\.?|\u20b9)\\s*-?\\s*\\d")
+    private val REPLY_ACCOUNT = Regex("(?i)\\b(?:a/?c|acct?|account)\\b")
+    private val REPLY_NOT = Regex(
+        "(?i)\\b(?:debited|credited|debit|credit|spent|withdrawn|withdrawal|paid|payment|pay|received|transferred|transfer|sent|purchase|txn|transaction|upi|neft|imps|rtgs|" +
+            "ref|emi|due|bill|limit|outstanding|reversed|refund|cheque|chq|cashback|otp|card|wallet|mandate|autopay|offer|loan|charged|charges|charge|alert|maintain|minimum|fee|fees|gst|penalty|low|fall|below)\\b"
+    )
+
+    /** Whether [body] is a bank's reply to a balance enquiry; see [REPLY_BALANCE]. */
+    fun isBalanceReply(body: String): Boolean {
+        val flat = body.replace(SPACES_NBSP, " ")
+        return flat.length <= MAX_REPLY && REPLY_BALANCE.containsMatchIn(flat) && REPLY_ACCOUNT.containsMatchIn(flat) && !REPLY_NOT.containsMatchIn(flat)
+    }
+
+    private const val MAX_REPLY = 320
+
+    /** EPFO's answer to "EPFOHO UAN ENG": "Dear member, your PF balance ... is Rs ...". Needs the member or EPFO wording beside it. */
+    private val PF_REPLY = Regex("(?i)(?=.*\\b(?:dear member|EPFO?|UAN)\\b)(?=.*\\b(?:EPF|PF|provident fund)\\s+(?:a/?c\\s+)?balance\\b)")
+
     private val RULES: List<Pair<Regex, NoticeKind>> = listOf(
         Regex("(?i)\\b(?:EPFO?|PF|provident fund)\\b.*\\bpassbook\\b|\\bpassbook\\b.*\\b(?:EPFO?|PF|provident fund|UAN|member id|contribution|due month|wage month)\\b") to NoticeKind.PF_UPDATE,
+        PF_REPLY to NoticeKind.PF_UPDATE,
         Regex("(?i)\\bavailable balance for a/?c\\b") to NoticeKind.BALANCE_UPDATE,
         // KVB: "INR 99,999.99 is the Balance in a/c ****1234 as of 14-AUG-2026 10:32:15"
         STATED_BALANCE to NoticeKind.BALANCE_UPDATE,
@@ -63,12 +87,16 @@ object NoticeParser {
     /** An EPF / PF passbook message, which says what went in and often the balance. */
     private val SPACES_NBSP = Regex("[\\s\\u00a0]+")
 
-    fun isProvidentFund(body: String) = RULES.first().first.containsMatchIn(body.replace(SPACES_NBSP, " "))
+    fun isProvidentFund(body: String): Boolean {
+        val flat = body.replace(SPACES_NBSP, " ")
+        return RULES.first().first.containsMatchIn(flat) || PF_REPLY.containsMatchIn(flat)
+    }
 
     fun detect(body: String): Pair<NoticeKind, String?>? {
         val flat = body.replace(SPACES_NBSP, " ")
         if (AMOUNTLESS_ADVISORY.containsMatchIn(flat)) return NoticeKind.ADVISORY to null
-        val kind = RULES.firstOrNull { (rule, _) -> rule.containsMatchIn(flat) }?.second ?: return null
+        val kind = RULES.firstOrNull { (rule, _) -> rule.containsMatchIn(flat) }?.second
+            ?: if (isBalanceReply(flat)) NoticeKind.BALANCE_UPDATE else return null
         val amount = AMOUNT.find(flat)?.groupValues?.get(1)?.replace(",", "")?.trimEnd('.')
         return kind to amount
     }

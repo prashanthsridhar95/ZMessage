@@ -68,10 +68,13 @@ internal fun BankAccountTile(
     today: LocalDate,
     onOpen: () -> Unit,
     onRename: () -> Unit,
-    onLeaveOut: () -> Unit
+    onLeaveOut: () -> Unit,
+    /** Opens "Check balance by SMS"; null hides the action. */
+    onCheckBalance: (() -> Unit)? = null
 ) {
     // Local copies: these come from another module, so they cannot be smart-cast after a null check.
     val balance = account.balance
+    val requestStatus = if (onCheckBalance != null) rememberRequestStatus(account.key, account.balanceAt) else null
     val asOf = account.balanceAsOf
     val hidden = LocalPrivacyMode.current.hidden
     val low = AccountInsights.isLowBalance(balance)
@@ -89,7 +92,8 @@ internal fun BankAccountTile(
         if (!hidden) append("This cycle in ${DisplayFormatters.rupees(account.received)}, out ${DisplayFormatters.rupees(account.spent)}. ")
         if (!hidden) balanceWhy(account)?.let { append(it).append(". ") }
         if (low) append("Low balance. ")
-        if (stale) append("Balance may be out of date.")
+        if (stale) append("Balance may be out of date. ")
+        if (requestStatus != null) append(requestStatus)
     }
     FintechCard(Modifier.semantics { contentDescription = description }, onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -99,7 +103,7 @@ internal fun BankAccountTile(
                 RowTitle(account.title)
                 Caption("${account.kind.label} •••• ${account.last4}")
             }
-            AccountActions(account.title, isCard = false, onOpen, onRename, onLeaveOut)
+            AccountActions(account.title, isCard = false, onOpen, onRename, onLeaveOut, onCheckBalance)
         }
         Row(Modifier.padding(top = 14.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
@@ -118,6 +122,7 @@ internal fun BankAccountTile(
             }
         }
         FlowAndChips(account, low, stale)
+        if (onCheckBalance != null) CheckBalanceRow("Check balance", requestStatus, onCheckBalance, Modifier.padding(top = 6.dp))
     }
 }
 
@@ -305,7 +310,8 @@ private fun AccountActions(
     isCard: Boolean,
     onOpen: () -> Unit,
     onRename: () -> Unit,
-    onLeaveOut: () -> Unit
+    onLeaveOut: () -> Unit,
+    onCheckBalance: (() -> Unit)? = null
 ) {
     var open by remember { mutableStateOf(false) }
     val openSettings = LocalOpenSettings.current
@@ -315,6 +321,7 @@ private fun AccountActions(
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             ActionItem("Details", null, R.drawable.ic_info_24) { open = false; onOpen() }
+            if (onCheckBalance != null) ActionItem("Check balance by SMS", "Text your bank for the latest balance", R.drawable.baseline_message_24) { open = false; onCheckBalance() }
             ActionItem("Edit", "Name, bank and type", R.drawable.ic_edit_24) { open = false; onRename() }
             if (isCard) ActionItem("Edit card", "Limit, bill dates and look", R.drawable.ic_card_24) { open = false; openSettings() }
             ActionItem("Leave out of totals", "Hidden from totals and lists", R.drawable.ic_visibility_off_24) { open = false; onLeaveOut() }

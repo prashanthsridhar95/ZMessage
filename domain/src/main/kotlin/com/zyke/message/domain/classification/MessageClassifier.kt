@@ -69,6 +69,8 @@ class MessageClassifier(
             NoticeParser.isProvidentFund(body) -> notice(message) ?: generic(message)
             LifeParser.isOrderConfirmation(body) -> life(message) ?: bank(message)
             TelecomNotices.detect(body, receivedDay(message)) != null -> telecom(message) ?: generic(message)
+            // A bank's answer to "check balance by SMS" states a balance and moves nothing: never read it as a payment.
+            NoticeParser.isBalanceReply(body) -> notice(message) ?: generic(message)
             GenericTransactionParser.mentionsMoney(body) -> bank(message)
             DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
@@ -361,7 +363,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 23
+        const val RULES_VERSION = 24
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(

@@ -99,7 +99,8 @@ class MessageClassifierTest {
     @Test
     fun moneyMentionWithoutMovement_staysGeneric() {
         assertEquals(MessageContent.Generic, classifier.classify(sms("Your order total is Rs 200")).content)
-        assertEquals(MessageContent.Generic, classifier.classify(sms("Your A/c XX1234 balance is Rs 5,000.00")).content)
+        // A statement of what an account holds is a balance notice (see BalanceReplyTest), never a payment.
+        assertEquals(com.zyke.message.domain.model.NoticeKind.BALANCE_UPDATE, (classifier.classify(sms("Your A/c XX1234 balance is Rs 5,000.00")).content as MessageContent.Notice).kind)
     }
 
     @Test

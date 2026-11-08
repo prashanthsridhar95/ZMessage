@@ -279,6 +279,52 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
   `DemoMode.active` (`DemoPolicyTest`), the page shows only "Not available in Demo mode", and the contact picker and permission
   prompts are not reachable.
 
+## Check balance by SMS
+
+On a bank account tile (Accounts tab) and on the provident fund tile (Investments), "Check balance" opens a sheet that texts the bank's
+balance-enquiry number the keyword the person confirms; the bank's reply is an ordinary incoming message that the existing pipeline
+reads, so the balance and its "As of" line update by themselves. Nothing is sent without a tap on Send in that sheet; there is no
+schedule, no receiver that starts a request, and no send from reading the inbox.
+
+* **Presets (`:domain/balance/BalanceEnquiry`, pure, tested in `BalanceEnquiryTest`).** HDFC Bank 7308080808 `Balance` (`BAL` is
+  listed as another wording), Federal Bank 9895088888 `BAL SB{last4}` (5676762 listed as another number), Indian Bank (blocked: its
+  text needs the person's MPIN, which Zyke never stores or sends), EPFO 7738299899 `EPFOHO {uan} ENG`. **UNVERIFIED:** they come
+  from an AI-generated list and were not checked against any bank; the sheet says so each time and the person must confirm them.
+  Per bank the person can change the number and the words ("Change") or set up a bank with no preset; `templateProblem` refuses any
+  PIN / MPIN / password / OTP word and any run of three or more digits (use `{last4}`), so a secret cannot be saved by accident.
+  The key of a bank's setup is the `BankName` id, or `other:<name as shown>` for a bank that is not a known one.
+* **Rate limit and status (`BalanceRequests`).** One request per account every 2 minutes (a failed one does not count). The tile
+  shows "Request sent · waiting for the reply" for 5 minutes, then "No reply yet" until 30 minutes, then nothing; any balance
+  reading newer than the request (`AccountSummary.balanceAt`, `ProvidentFund.balanceAt`) clears it, whatever number or sender the
+  bank replied from: replies are matched by the account's last four digits and the bank's sender header (`SenderBank`), never by
+  the number that was texted.
+* **Replies.** `NoticeParser.isBalanceReply` classifies a short message that states a balance for an account and has no payment,
+  card, limit, due or fee wording as `Notice(BALANCE_UPDATE)` before the generic transaction parser sees it (so "Bal in A/C XX1234
+  is Rs 5,000.00" is no longer a payment of Rs 5); `BalanceReader.noticeBalances` reads it (`replyBalance` for the "Avl Bal Rs 99
+  in A/c XX1234" and "A/c ending 1234" shapes). EPFO's "Dear member, your PF balance ... is Rs ..." is `PF_UPDATE` and is read by
+  `ProvidentFunds.find`. `RULES_VERSION` is 24. The tests (`BalanceReplyTest`) use SAMPLE bodies written from how the banks word
+  these replies, not captured ones. A reply with no account digits at all is not applied to an account.
+* **Sending (`BalanceRequester`, `CodeSharer.sendPlain`, `:app`).** The sheet's Send button calls `BalanceRequester.send` (the only
+  caller), which checks demo mode, permission and the rate limit, records the request (account key, time, status), and hands the
+  text to `CodeSharer.sendPlain`, the only code that touches `SmsManager` (the phone's default SMS SIM; a "sent" `PendingIntent`
+  goes to the existing non-exported `CodeShareStatusReceiver`, which only moves the request on). `SEND_SMS` is asked for on the
+  first Send tap only. `READ_PHONE_STATE` is not requested, so the SIM cannot be chosen in the app: on a phone that reports two
+  slots the sheet says the text goes from the default SMS SIM and offers "Send from my messages app instead" (an `ACTION_SENDTO`
+  intent prefilled with the number and words; the person presses send there and picks the SIM).
+* **The confirm.** The sheet always shows the exact number and exact words from the same `EnquiryPlan.Ready` that Send uses, a
+  note that standard SMS rates may apply and that the number comes from a published list to check, and equal-width Cancel and Send
+  (`ResponsiveRow`). States: no preset (explain, set up by hand), blocked (MPIN), needs UAN, ready, permission refused (open
+  settings), rate-limited (countdown), sending, sent / waiting, no reply, failed (try again).
+* **UAN.** EPFO needs the 12-digit UAN. It is saved only in `balance_check_device` (local, left out of backups by `PrefsBackup`,
+  re-entered after a restore) and shown masked; the confirm shows the exact text, which contains it, because the person must see what
+  is sent. The presets the person changed are in `balance_check` (copied by the PIN-encrypted backup: number and words, no account).
+* **Privacy and logging.** No number, words, UAN or reply is logged, shown in a notification or saved; the saved request has the
+  account key, the time and the status. `BalanceCheckPolicyTest` pins: only `CodeSharer` touches `SmsManager`, one caller and one
+  Send button, permission asked once from the Send tap, no scheduling, no `READ_PHONE_STATE`, no logging of these values, the UAN
+  file excluded. `CodeSharingPolicyTest` and `DemoPolicyTest` were widened for the new files.
+* **Demo mode.** `AppContainer` uses `InMemoryBalanceCheck`; Send in the sheet shows "Demo: balance updated. Nothing was sent." and
+  never reaches the requester.
+
 ## Budget phones and lite mode
 
 `presentation/common/Responsive.kt` (`LocalResponsive`, `ChromeScale`, `FitText`, `ResponsiveRow`) holds the layout rules for

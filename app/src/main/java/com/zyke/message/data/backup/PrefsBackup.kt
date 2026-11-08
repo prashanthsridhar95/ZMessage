@@ -22,7 +22,8 @@ object PrefsBackup {
     // setting is off until the person picks a folder again.
     // demo_mode: the Demo mode switch is never saved or restored (it would turn a restored phone into a demonstration).
     // code_sharing_log: what was forwarded from this phone (the trusted people and their services travel, in code_sharing).
-    private val EXCLUDED = setOf("code_sharing_log", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
+    // balance_check_device: the saved UAN and the last balance request per account (the presets the person changed travel, in balance_check).
+    private val EXCLUDED = setOf("code_sharing_log", "balance_check_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */

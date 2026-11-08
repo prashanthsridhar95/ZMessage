@@ -205,6 +205,9 @@ internal fun rememberNowState(): androidx.compose.runtime.State<Long> {
 
 // ---- accounts
 
+private const val PF_CHECK = "pf"
+private val PF_CHECK_REQUEST = com.zyke.message.domain.balance.BalanceEnquiry.PF_REQUEST_KEY
+
 @Composable
 internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Intent) -> Unit) {
     val overview = state.accounts
@@ -232,6 +235,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     var showNetWorth by rememberSaveable { mutableStateOf(false) }
     var renamingKey by rememberSaveable { mutableStateOf<String?>(null) }
     var leavingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // "Check balance by SMS": an account's key, or PF_CHECK for the provident fund.
+    var checkingKey by rememberSaveable { mutableStateOf<String?>(null) }
     val zone = remember { ZoneId.systemDefault() }
     val today = deckToday
     // Recent balance readings per account, for the trend line: worked out once per change of messages, not per frame.
@@ -309,9 +314,10 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         if (tab == 2) {
             investmentItems(invest) {
-                if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
-                funds.forEach { fund ->
-                    item(key = fund.key) { FundTile(fund, pf) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
+                if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf, { checkingKey = PF_CHECK }) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
+                funds.forEachIndexed { index, fund ->
+                    // One "Check PF balance" for the fund, on the first tile.
+                    item(key = fund.key) { FundTile(fund, pf, if (index == 0) ({ checkingKey = PF_CHECK }) else null) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
                 }
             }
         } else if (shown.isEmpty()) {
@@ -368,7 +374,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                         account, series[account.last4].orEmpty(), today,
                         onOpen = { onIntent(HomeContract.Intent.OpenAccount(account.key)) },
                         onRename = { renamingKey = account.key },
-                        onLeaveOut = { leavingKey = account.key }
+                        onLeaveOut = { leavingKey = account.key },
+                        onCheckBalance = { checkingKey = account.key }
                     )
                 }
             }
@@ -380,6 +387,22 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
     com.zyke.message.presentation.investments.InvestmentsDialogs(invest)
 
+    checkingKey?.let { key ->
+        val account = overview.accounts.firstOrNull { it.key == key }
+        if (key == PF_CHECK) {
+            CheckBalanceSheet(
+                BalanceTarget(com.zyke.message.domain.balance.BalanceEnquiry.PF_REQUEST_KEY, com.zyke.message.domain.model.BankName.OTHERS, "EPFO", "", isProvidentFund = true),
+                maxOf(pf?.balanceAt ?: 0L, funds.maxOfOrNull { it.balanceAt } ?: 0L),
+                onDismiss = { checkingKey = null }
+            )
+        } else if (account == null) checkingKey = null else {
+            CheckBalanceSheet(
+                BalanceTarget(account.key, account.bankName, account.bankLabel, account.last4, isProvidentFund = false),
+                account.balanceAt,
+                onDismiss = { checkingKey = null }
+            )
+        }
+    }
     renamingKey?.let { key ->
         val target = overview.accounts.firstOrNull { it.key == key }
         if (target == null) renamingKey = null else {
@@ -418,7 +441,7 @@ internal fun cardFooter(account: AccountSummary, today: java.time.LocalDate): St
 
 /** An account marked as a provident fund: a calmer tile that leads with what has been put in, not spending. */
 @Composable
-private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onOpen: () -> Unit) {
+private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onCheck: (() -> Unit)?, onOpen: () -> Unit) {
     val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val asOf = fund.balanceAsOf
     FintechCard(onClick = onOpen) {
@@ -443,12 +466,13 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
                 Stat("Entries", fund.activityCount.toString())
             }
         }
+        if (onCheck != null) CheckBalanceRow("Check PF balance", rememberRequestStatus(PF_CHECK_REQUEST, maxOf(pf?.balanceAt ?: 0L, fund.balanceAt)), onCheck, Modifier.padding(top = 8.dp))
     }
 }
 
 /** The provident fund: its balance when a passbook message states one, else what the latest update added. */
 @Composable
-private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onOpen: () -> Unit) {
+private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onCheck: () -> Unit, onOpen: () -> Unit) {
     val dayFormat = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
     val latest = pf.latest
     val asOf = pf.balanceAsOf
@@ -472,6 +496,7 @@ private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onOpen: () -> U
             Stat("Updated", dayFormat.format(latest.date))
             Stat("Updates", pf.updates.size.toString())
         }
+        CheckBalanceRow("Check PF balance", rememberRequestStatus(PF_CHECK_REQUEST, pf.balanceAt), onCheck, Modifier.padding(top = 8.dp))
     }
 }
 

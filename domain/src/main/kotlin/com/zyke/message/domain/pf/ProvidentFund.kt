@@ -10,7 +10,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** One passbook message: what went in this time, and the balance when it says so. */
-data class PfUpdate(val date: LocalDate, val added: BigDecimal?, val balance: BigDecimal?, val messageId: Long)
+data class PfUpdate(val date: LocalDate, val added: BigDecimal?, val balance: BigDecimal?, val messageId: Long, val at: Long = 0L)
 
 /** The provident fund as the passbook messages describe it, newest first. */
 data class ProvidentFund(
@@ -20,12 +20,15 @@ data class ProvidentFund(
     val updates: List<PfUpdate>
 ) {
     val latest: PfUpdate get() = updates.first()
+
+    /** When the message that stated [balance] arrived (epoch millis); 0 when none did. */
+    val balanceAt: Long get() = updates.firstOrNull { it.balance != null }?.at ?: 0L
 }
 
 object ProvidentFunds {
     private const val AMOUNT = "(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)"
     private val BALANCE = Regex("(?i)(?:balance|corpus)\\b[^\u20b9]{0,60}?\\bis\\s*$AMOUNT|(?:total\\s+)?(?:balance|corpus)\\b[^\\d\u20b9]{0,40}?$AMOUNT")
-    private val ADDED = Regex("(?i)(?:updated with|contribution of|credited|deposit(?:ed)? of|amount of)\\b[^\\d\u20b9]{0,25}?$AMOUNT")
+    private val ADDED = Regex("(?i)(?:updated with|contribution(?:\\s+of)?|credited|deposit(?:ed)? of|amount of)\\b[^\\d\u20b9]{0,25}?$AMOUNT")
     private val ANY = Regex("(?i)$AMOUNT")
     private val SPACES = Regex("\\s+")
 
@@ -39,7 +42,7 @@ object ProvidentFunds {
                 // A message with one amount and no balance word is the amount the passbook was updated with.
                 ?: if (balance == null) number(ANY, body) else null
             if (balance == null && added == null) return@mapNotNull null
-            PfUpdate(Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), added, balance, message.id)
+            PfUpdate(Instant.ofEpochMilli(message.message.date).atZone(zone).toLocalDate(), added, balance, message.id, message.message.date)
         }.sortedWith(compareByDescending<PfUpdate> { it.date }.thenByDescending { it.messageId })
 
         if (updates.isEmpty()) return null

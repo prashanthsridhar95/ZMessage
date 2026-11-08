@@ -10,12 +10,18 @@ import com.zyke.message.domain.sharing.ShareStatus
 
 /**
  * The phone's report on a forwarded text: first "sent" (or why not), later, where the carrier supports it, "delivered".
- * Only this app can reach it (not exported). It updates the Recent log and posts the quiet "Sent ..." or "Couldn't send ..."
+ * Also carries the "sent" report of a balance request (see [BalanceRequester]). Only this app can reach it (not exported). It updates the Recent log and posts the quiet "Sent ..." or "Couldn't send ..."
  * note; it never sees the code or the number.
  */
 class CodeShareStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != CodeSharer.ACTION_STATUS || DemoMode.active) return
+        if (DemoMode.active) return
+        // The same report for a "check balance by SMS" request: it only moves that request from sending to sent or failed.
+        if (intent.action == BalanceRequester.ACTION_STATUS) {
+            BalanceRequester.onReport(context, intent, resultCode == Activity.RESULT_OK)
+            return
+        }
+        if (intent.action != CodeSharer.ACTION_STATUS) return
         val id = intent.getStringExtra(CodeSharer.EXTRA_LOG_ID) ?: return
         val kind = intent.getStringExtra(CodeSharer.EXTRA_KIND) ?: return
         val container = (context.applicationContext as ZykeMessagesApplication).container

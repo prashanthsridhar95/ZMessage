@@ -39,6 +39,9 @@ object BalanceReader {
     private val PF_BALANCE = Regex("(?i)\\bagainst\\s+[A-Z0-9*\u2022]*?(\\d{4})\\s+is\\s+(?:INR\\.?|Rs\\.?|\u20b9)\\s*([\\d,]+(?:\\.\\d+)?)")
     private val STATED_BALANCE = Regex("(?i)\\bbal(?:ance)?\\b.{0,60}?\\b(?:is|of|:|=|-(?=\\s))\\s*([-\\u2212])?\\s*(?:INR\\.?|Rs\\.?|\u20b9)\\s*([-\\u2212])?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*(Cr|Dr)\\b)?")
     private val NOT_A_BALANCE = Regex("(?i)\\b(?:credit limit|avl\\.? limit|available limit|available credit|avl\\.? credit|outstanding|total due|min(?:imum)? due)\\b")
+    /** A reply to a balance enquiry in the forms NOTICE_BALANCE cannot read: "Avl Bal Rs.99 in A/c XX1234", "Bal in A/c ending 1234 is Rs 99 Cr". Groups: 1 sign, 2 amount, 3 Cr or Dr. */
+    private val REPLY_AMOUNT = Regex("(?i)\\bbal(?:ance)?\\b.{0,80}?(?:INR\\.?|Rs\\.?|\u20b9)\\s*([-\\u2212])?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*(Cr|Dr)\\b)?")
+    private val REPLY_ACCOUNT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?|number|ending(?:\\s+(?:with|in))?)?\\s*[:\\-]?\\s*(?:[A-Z]{1,3})?[xX*\u2022]*\\s*(\\d{4})\\b|\\bending\\s+(?:with\\s+)?[xX*\u2022]*(\\d{4})\\b")
     private val ACCOUNT_IN_TEXT = Regex("(?i)(?:a/?c|acct?|account)\\s*(?:no\\.?)?\\s*[:\\-]?\\s*[xX*•]*\\s*(\\d{4})\\b")
 
     /** The amount a [BALANCE] or [STATED_BALANCE] match states: a minus sign before or after the currency, or a Dr suffix, makes it negative. */
@@ -227,7 +230,19 @@ object BalanceReader {
             val at = if (day == null) message.message.date else day.atTime(time ?: java.time.LocalTime.MIDNIGHT).atZone(zone).toInstant().toEpochMilli()
             AccountBalance(g[1], bank, amount, day ?: date, message.id, at)
         }
-        return withStamp + found.lines.map { (account, amount) -> AccountBalance(account, bank, amount, date, message.id, message.message.date) }
+        val plain = found.lines.map { (account, amount) -> AccountBalance(account, bank, amount, date, message.id, message.message.date) }
+        if (withStamp.isNotEmpty() || plain.isNotEmpty() || notice.kind != NoticeKind.BALANCE_UPDATE) return withStamp + plain
+        return listOfNotNull(replyBalance(message, bank, date))
+    }
+
+    /** A bank's one-account answer to a balance enquiry, read by the words around the amount and the account's last four digits. */
+    private fun replyBalance(message: ClassifiedMessage, bank: String, date: LocalDate): AccountBalance? {
+        val body = com.zyke.message.domain.util.BodyMemo.bounded(message.message.body).replace('\u00a0', ' ')
+        val found = REPLY_AMOUNT.find(body) ?: return null
+        val amount = found.groupValues[2].replace(",", "").trimEnd('.').toBigDecimalOrNull() ?: return null
+        val account = REPLY_ACCOUNT.find(body)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() } ?: return null
+        val negative = found.groupValues[1].isNotEmpty() || found.groupValues[3].equals("Dr", ignoreCase = true)
+        return AccountBalance(account, bank, if (negative) amount.negate() else amount, date, message.id, message.message.date)
     }
 }
 

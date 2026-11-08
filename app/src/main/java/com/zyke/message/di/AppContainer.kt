@@ -95,6 +95,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
     /** Who login codes are passed on to. Nothing in Demo mode: nothing is stored, nothing can be sent. */
     val codeSharing: com.zyke.message.domain.sharing.CodeSharingRepository by lazy { if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context) }
+    /** "Check balance by SMS": the person's changes to the bank presets, the saved UAN and the last request per account. In memory only in Demo mode. */
+    val balanceCheck: com.zyke.message.domain.balance.BalanceCheckRepository by lazy { if (demo) com.zyke.message.domain.balance.InMemoryBalanceCheck() else com.zyke.message.data.repository.BalanceCheckRepositoryImpl(context) }
     val nicknames: NicknameRepository by lazy { NicknameRepositoryImpl(context) }
     val paymentNotes: PaymentNotesRepository by lazy { PaymentNotesRepositoryImpl(context) }
     val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository by lazy { com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context) }
