@@ -14,6 +14,12 @@ Only these hosts, and only for the feature named. A unit test (`LegalPolicyTest`
 | `query2.finance.yahoo.com` | Stock-name suggestions (opt-in) | The letters you type in the add-stock box |
 | `api.flightradar24.com` | Live flight status (opt-in) | An airline code and flight number |
 | `api.confirmtkt.com` | Live train status (opt-in, unofficial) | A train number and how many days ago the run started |
+| `www.confirmtkt.com` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
+| `www.railyatri.in` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
+| `www.ixigo.com` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
+| `enquiry.indianrail.gov.in` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
+| `www.trainman.in` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
+| `runningstatus.in` | Developer probe only, nothing is sent unless the developer taps Probe (developer options, never in Demo mode) | Only the sample train number (12676) |
 | `www.googleapis.com` | Backup to your own Google Drive (opt-in, scope `drive.appdata`) | One encrypted file |
 
 A brand's own website is also asked for its icon (`https://<brand>/apple-touch-icon.png`), from a fixed list of well-known brands in the app. Texts the app sends (code sharing, balance check) are SMS from the SIM, not internet requests. The app sets no cookies of its own, so it shows no cookie banner (see LEGAL_NOTES.md).

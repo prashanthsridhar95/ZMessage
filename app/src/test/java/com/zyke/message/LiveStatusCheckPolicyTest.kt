@@ -74,4 +74,38 @@ class LiveStatusCheckPolicyTest {
         }
         assertTrue("service blocked the request" in File("../domain/src/main/kotlin/com/zyke/message/domain/diag/LiveCheck.kt").readText())
     }
+
+    @Test fun theTrainProbeIsDeveloperOnly_sequential_boundedAndKeptInMemory() {
+        // Inside the developer card, which is itself developer-only and returns early in the demo.
+        assertTrue(tools.indexOf("if (container.demo) return") < tools.indexOf("Probe train sources"))
+        assertTrue("TrainProbe()" in tools && "probe.probe(" in tools && "TrainProbeMemo.put(" in tools)
+        assertTrue("TrainProbeMemo.shareText()" in tools && "LogShare.shareText(" in tools)
+        // One after another: the loop awaits each request (no async, launch or parallel work inside it).
+        val loop = tools.substringAfter("list.forEachIndexed").substringBefore("probeShareable =")
+        assertFalse(Regex("async|launch|awaitAll").containsMatchIn(loop))
+        assertTrue("withContext(Dispatchers.IO)" in loop)
+        // Equal-width buttons.
+        assertTrue("ResponsiveRow(" in tools.substringAfter("Probe train sources:"))
+        assertEquals(2, Regex("Modifier\\.cell\\(\\)").findAll(tools).count())
+        val probe = text("data/markets/TrainProbe.kt")
+        assertTrue("TIMEOUT_MS = 6_000" in probe)
+        assertTrue("HARD_LIMIT_MS = 7_000L" in probe)
+        assertFalse("retry" in probe.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n").lowercase())
+        assertEquals(8, Regex("""ProbeCandidate\("[^"]+", "https://""").findAll(probe).count())
+        // Only the sample train number goes out, never anything of the person's.
+        assertTrue("candidates(SAMPLE_TRAIN)" in tools)
+        // Memory only, never stored or logged.
+        val memoText = text("data/diag/TrainProbeMemo.kt")
+        assertFalse(Regex("DevLog|BlackBox|Log\\.|println|File\\(|SharedPreferences|getSharedPreferences|writeText|openFileOutput|Context").containsMatchIn(memoText))
+        assertFalse(Regex("DevLog|BlackBox|Log\\.|println|SharedPreferences|writeText").containsMatchIn(probe))
+        assertEquals(1, Regex("private var held").findAll(memoText).count())
+        assertTrue("@Volatile" in memoText)
+        // The live feature never sees the probe.
+        for (f in listOf("data/trains/TrainService.kt", "data/markets/TrainFetcher.kt", "notifications/TrainTrackingService.kt", "notifications/TrainTrackingControl.kt", "presentation/trains/TrainUi.kt", "di/AppContainer.kt")) {
+            assertFalse("$f must not use the probe", "TrainProbe" in text(f))
+        }
+        // The result is words and numbers only, built by the pure formatter, bodies cut at 16 KB.
+        val domain = File("../domain/src/main/kotlin/com/zyke/message/domain/diag/TrainProbe.kt").readText()
+        assertTrue("const val BODY_READ_MAX = 16 * 1024" in domain && "const val PREVIEW_CHARS = 160" in domain)
+    }
 }

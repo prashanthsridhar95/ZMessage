@@ -109,6 +109,36 @@ ConfirmTkt
   Licence: Its own terms of service
   https://www.confirmtkt.com/
 
+ConfirmTkt (www)
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://www.confirmtkt.com/
+
+RailYatri
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://www.railyatri.in/
+
+ixigo
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://www.ixigo.com/
+
+Indian Railways NTES
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://enquiry.indianrail.gov.in/mntes/
+
+Trainman
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://www.trainman.in/
+
+runningstatus.in
+  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
+  Licence: Its own terms of service
+  https://runningstatus.in/
+
 Google Drive API
   Optional backup to your own Drive
   Licence: Google API terms of service

@@ -198,6 +198,11 @@ lock-screen switch, `LiveUpdates.promote` (with a train icon) and `FlightTrackin
 - **Network (`data/markets/TrainFetcher`).** The fourth pinned network class: one host (`api.confirmtkt.com`), 5 s timeouts, 512 KB
   cap, no redirects, no cookies, a generic User-Agent, status codes only in the log. It sends the train number and how many days ago
   the run started, nothing else. `ManifestPolicyTest`, `LegalPolicyTest` and `LegalText` pin the host.
+- **Train source probe (developer only, temporary).** `data/markets/TrainProbe` is the only other network class for trains, kept to find a
+  working source after `api.confirmtkt.com` did not resolve on a real phone. "Probe train sources" in the Live status check card tries
+  its short candidate list for the sample train one after another (6 s timeouts, a 7 s hard stop each, no retries, no redirects, no
+  cookies) and `TrainProbeFormat` (domain) words each result on single lines; `TrainProbeMemo` keeps the replies in memory only for
+  "Share raw replies" (each body cut at 16 KB). `TrainService` never calls it. The list is cut down to the winner, then the class goes.
 - **Live status check (developer tools).** With developer options on (never in Demo mode), Settings, Flights and trains has "Test
   train status" and "Test flight status". Each makes one real request for a sample number (12633, 6E 2345) through the same
   fetchers, via `TrainService.diagnose` and `FlightService.diagnose` (so the network stays in `TrainFetcher`/`FlightFetcher`, whose

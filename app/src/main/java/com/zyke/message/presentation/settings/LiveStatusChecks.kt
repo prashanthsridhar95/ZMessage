@@ -17,15 +17,22 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.data.diag.LiveReplyMemo
 import com.zyke.message.data.diag.LogShare
+import com.zyke.message.data.diag.TrainProbeMemo
+import com.zyke.message.data.markets.TrainProbe
 import com.zyke.message.domain.diag.LiveCheckReport
+import com.zyke.message.domain.diag.ProbeResult
+import com.zyke.message.domain.diag.TrainProbeFormat
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.ResponsiveRow
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.messages.components.Caption
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Developer tools on the Flights and trains page: one real request to the live train or flight service for a sample number, with a card
@@ -43,6 +50,10 @@ internal fun LiveStatusChecks() {
     var report by remember { mutableStateOf<LiveCheckReport?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     var shareable by remember { mutableStateOf(LiveReplyMemo.shareText() != null) }
+    var probing by remember { mutableStateOf(false) }
+    var probeResults by remember { mutableStateOf<List<ProbeResult>>(emptyList()) }
+    var probeTotal by remember { mutableStateOf(0) }
+    var probeShareable by remember { mutableStateOf(TrainProbeMemo.shareText() != null) }
 
     SectionCard("Live status check") {
         Caption(
@@ -60,7 +71,7 @@ internal fun LiveStatusChecks() {
                     running = false
                 }
             },
-            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running
+            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && !probing
         )
         AppButton(
             if (running) "Checking…" else "Test flight status",
@@ -73,7 +84,7 @@ internal fun LiveStatusChecks() {
                     running = false
                 }
             },
-            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running
+            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && !probing
         )
         val shown = report
         if (shown != null) {
@@ -99,9 +110,66 @@ internal fun LiveStatusChecks() {
                     }
                 }
             },
-            Modifier.fillMaxWidth().padding(top = 12.dp), enabled = shareable && !running
+            Modifier.fillMaxWidth().padding(top = 12.dp), enabled = shareable && !running && !probing
         )
         Caption("The reply is public status data for the sample number, kept in memory only until the app closes, cut at 64 KB.", Modifier.padding(top = 8.dp), maxLines = 3)
+
+        Caption(
+            "Probe train sources: tries a short list of public train status addresses for the sample train, one after another (6 s each, no retries), to find one that works. Only the sample number is sent. Redirects are not followed.",
+            Modifier.padding(top = 16.dp), maxLines = 5
+        )
+        ResponsiveRow(Modifier.fillMaxWidth().padding(top = 8.dp), spacing = 8.dp) {
+            AppButton(
+                if (probing) "Probing ${probeResults.size + 1} of $probeTotal…" else "Probe train sources",
+                {
+                    probing = true; probeResults = emptyList()
+                    scope.launch {
+                        val probe = TrainProbe()
+                        val list = probe.candidates(SAMPLE_TRAIN).orEmpty()
+                        probeTotal = list.size
+                        val collected = mutableListOf<ProbeResult>()
+                        list.forEachIndexed { i, candidate ->
+                            val result = withContext(Dispatchers.IO) { probe.probe(i + 1, candidate) }
+                            collected += result
+                            probeResults = collected.toList()
+                            TrainProbeMemo.put(collected, SAMPLE_TRAIN)
+                        }
+                        probeShareable = TrainProbeMemo.shareText() != null
+                        probing = false
+                    }
+                },
+                Modifier.cell(), style = ButtonStyle.OUTLINE, enabled = !probing && !running
+            )
+            AppButton(
+                "Share raw replies",
+                {
+                    val text = TrainProbeMemo.shareText()
+                    if (text == null) {
+                        Toast.makeText(context, "Run a probe first", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val name = "zyke-train-probe-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))}.txt"
+                        if (LogShare.shareText(context, name, "Zyke Message train source probe", text) == LogShare.Result.FAILED) {
+                            Toast.makeText(context, "Could not share the replies", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                Modifier.cell(), style = ButtonStyle.OUTLINE, enabled = probeShareable && !probing
+            )
+        }
+        probeResults.forEach { r ->
+            val lines = TrainProbeFormat.resultLines(r)
+            val good = r.statusCode in 200..299
+            Text(
+                lines[0], Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall,
+                color = if (good) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+            Text(lines[1], Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+            Text(
+                lines[2], Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary, maxLines = 3
+            )
+        }
+        Caption("Probe replies are public data for the sample number, kept in memory only until the app closes, each cut at 16 KB.", Modifier.padding(top = 8.dp), maxLines = 3)
     }
 }
 

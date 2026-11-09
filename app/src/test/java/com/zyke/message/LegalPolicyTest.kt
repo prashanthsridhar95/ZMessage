@@ -34,7 +34,7 @@ class LegalPolicyTest {
     fun theHostsOnThePageAreTheHostsInTheCode() {
         val hostPattern = Regex("""https://([a-z0-9.]+)/""")
         val files = listOf(
-            "data/logo/LogoFetcher.kt", "data/markets/QuoteFetcher.kt", "data/markets/FlightFetcher.kt", "data/markets/TrainFetcher.kt",
+            "data/logo/LogoFetcher.kt", "data/markets/QuoteFetcher.kt", "data/markets/FlightFetcher.kt", "data/markets/TrainFetcher.kt", "data/markets/TrainProbe.kt",
             "data/backup/DriveBackupClient.kt", "presentation/common/ImageSearchSheet.kt"
         )
         val inCode = files.flatMap { f -> hostPattern.findAll(main(f)).map { it.groupValues[1] }.toList() }.toSet()
@@ -45,6 +45,24 @@ class LegalPolicyTest {
             assertTrue("$it missing from the page text", it in text)
             assertTrue("$it missing from docs/PRIVACY.md", it in doc)
         }
+    }
+
+    @Test
+    fun theProbeHostsAreLabelledDeveloperOnly_onThePageAndInEveryDoc() {
+        val text = LegalText.fullText()
+        assertTrue("developer probe only, nothing is sent unless the developer taps probe, only the sample train number" in text.lowercase())
+        val notice = File(repoRoot(), "NOTICE").readText()
+        val privacy = File(repoRoot(), "docs/PRIVACY.md").readText()
+        val notes = File(repoRoot(), "docs/LEGAL_NOTES.md").readText()
+        LegalText.probeHosts.forEach { host ->
+            assertTrue("$host missing from the page", host in text)
+            assertTrue("$host missing from docs/PRIVACY.md", host in privacy)
+            assertTrue("$host missing from docs/LEGAL_NOTES.md", host in notes)
+            assertTrue("$host is not labelled developer-only in PRIVACY.md", privacy.lines().any { host in it && "Developer probe only, nothing is sent unless the developer taps Probe" in it })
+        }
+        // NOTICE carries the label for every probe site (it names the sites by project address).
+        assertTrue(Regex("Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number").findAll(notice).count() >= LegalText.probeHosts.size)
+        listOf("railyatri.in", "ixigo.com", "indianrail.gov.in", "trainman.in", "runningstatus.in", "confirmtkt.com").forEach { assertTrue("$it missing from NOTICE", it in notice) }
     }
 
     @Test

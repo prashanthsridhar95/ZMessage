@@ -31,12 +31,21 @@ object LegalText {
     const val HOST_GOOGLE_APIS = "www.googleapis.com"
 
     /**
+     * Developer probe only (Settings > Live status check, developer options on, never in Demo mode): candidate train-status sites the
+     * developer's "Probe train sources" tries for one sample train, to find a working source. Nothing is sent unless the developer taps
+     * Probe, and only the sample train number. This list is cut down to the winner and then removed.
+     */
+    val probeHosts: List<String> = listOf(
+        "www.confirmtkt.com", "www.railyatri.in", "www.ixigo.com", "enquiry.indianrail.gov.in", "www.trainman.in", "runningstatus.in"
+    )
+
+    /**
      * Every fixed internet address the app can ask. A test compares this with the hosts written in the code, so the page cannot
      * drift from it. (A brand's own website is also asked for its icon, from a fixed list of well-known brands in the app.)
      */
     val networkHosts: Set<String> = setOf(
         HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS
-    )
+    ) + probeHosts
 
     private val onPhone = LegalSection(
         id = "on-phone",
@@ -76,6 +85,10 @@ object LegalText {
             LegalItem(
                 "Live train status (off until you switch it on)",
                 "A five-digit train number, such as 12633, and how many days ago that run started go to an unofficial running-status service ($HOST_TRAINS). Your stations, the booking reference (PNR), your name and message text are never sent. While a train is about to leave your station or under way, the app asks again every 30 seconds."
+            ),
+            LegalItem(
+                "Developer train source probe (developer options only)",
+                "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number: a short list of train-status websites (${probeHosts.joinToString(", ")}) is asked once each. It is never used by the live train status feature and is not shown in Demo mode."
             ),
             LegalItem(
                 "Backup to your own Google Drive (off until you switch it on and sign in)",

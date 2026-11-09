@@ -59,7 +59,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt", "TrainProbe.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
@@ -102,6 +102,23 @@ class ManifestPolicyTest {
         val trainTracking = File("src/main/java/com/zyke/message/notifications/TrainTrackingService.kt").readText()
         assertTrue("trains.refresh(" in trainTracking)
         assertFalse("TrainFetcher" in trainTracking || "TrainFetcher" in File("src/main/java/com/zyke/message/notifications/TrainTrackingControl.kt").readText())
+
+        // The developer's train source probe (temporary, to find a working source) is the one other train network class: its own pinned list of
+        // candidate hosts, the same rules, and nothing in the live feature, the services or the tracking code can reach it.
+        val probe = File("src/main/java/com/zyke/message/data/markets/TrainProbe.kt").readText()
+        val probeHosts = Regex("https://([a-z0-9.]+)/").findAll(probe).map { it.groupValues[1] }.toSet()
+        assertEquals(
+            setOf("api.confirmtkt.com", "www.confirmtkt.com", "www.railyatri.in", "www.ixigo.com", "enquiry.indianrail.gov.in", "www.trainman.in", "runningstatus.in"),
+            probeHosts
+        )
+        assertEquals(probeHosts - "api.confirmtkt.com", com.zyke.message.domain.legal.LegalText.probeHosts.toSet())
+        assertTrue("instanceFollowRedirects = false" in probe)
+        assertFalse("readNBytes(" in probe.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n"))
+        assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(probe))
+        val users = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" && "TrainProbe" in it.readText() }.map { it.name }.toList().sorted()
+        assertEquals(listOf("LiveStatusChecks.kt", "TrainProbe.kt", "TrainProbeMemo.kt"), users)
+        assertFalse("TrainProbe" in File("src/main/java/com/zyke/message/data/trains/TrainService.kt").readText())
+        assertFalse("TrainProbe" in trainsFetcher)
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()
