@@ -73,7 +73,8 @@ class FlightTrackingPolicyTest {
         val channel = notifier.substringAfter("TRACKING_CHANNEL, \"Flight tracking\"").substringBefore("PROMPT_CHANNEL, \"Flight reminders\"")
         assertTrue("IMPORTANCE_DEFAULT" in channel && "IMPORTANCE_HIGH" !in channel)
         assertTrue("setSound(null, null)" in channel && "enableVibration(false)" in channel && "enableLights(false)" in channel)
-        assertTrue("VISIBILITY_NO_OVERRIDE" in channel)
+        // The channel does not set a lock-screen visibility, so each notification decides it.
+        assertFalse("lockscreenVisibility =" in channel)
         // The old channel (low importance, private) is removed because a channel's settings cannot be changed afterwards.
         assertTrue("deleteNotificationChannel(LEGACY_TRACKING_CHANNEL)" in notifier && "TRACKING_CHANNEL = \"flight_live\"" in notifier)
     }

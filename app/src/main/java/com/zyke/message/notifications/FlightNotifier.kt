@@ -62,8 +62,7 @@ object FlightNotifier {
                 enableVibration(false)
                 enableLights(false)
                 setShowBadge(false)
-                // Leave it to each notification (the Settings switch), not to the channel.
-                lockscreenVisibility = NotificationManager.VISIBILITY_NO_OVERRIDE
+                // lockscreenVisibility is left unset (VISIBILITY_NO_OVERRIDE): each notification decides, by the Settings switch.
             }
         )
         manager.createNotificationChannel(
