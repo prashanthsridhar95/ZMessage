@@ -56,7 +56,7 @@ class FlightTrackingPolicyTest {
         assertTrue("detailsOnLock(context)" in ongoing && "detailsOnLock(context)" in finished)
         // The switch is a stored flag, on by default, and a Settings row turns it off.
         assertTrue("prefs.getBoolean(LOCK_DETAILS, true)" in text("data/flights/FlightService.kt"))
-        assertTrue("Show flight details on the lock screen" in text("presentation/flights/FlightSettings.kt"))
+        assertTrue("Show flight and train details on the lock screen" in text("presentation/flights/FlightSettings.kt"))
         // A prompt keeps the short lock-screen version (it is a heads-up).
         assertTrue("VISIBILITY_PRIVATE" in notifier.substringAfter("fun prompt(").substringBefore("fun paused("))
     }

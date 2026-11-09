@@ -35,6 +35,8 @@ class AccessibilityPolicyTest {
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label
         "messages/components/OtpCard.kt" to 1,             // copy glyph on a card that is described and clickable as a whole
         "messages/components/MessageCommon.kt" to 2,       // airline logo (its box clears semantics; the card speaks) and the small icon in IconCaption beside its text
+        "trains/TrainParts.kt" to 1,                       // the train glyph on its tile (the card speaks as a whole)
+        "trains/ManualTrainUi.kt" to 1,                    // the flight or train icon in a trip-choice row, whose title and caption are read
         "messages/components/SpendSummaryRow.kt" to 1,     // chevron on a row that says what it opens
         "dashboard/components/DashboardSections.kt" to 2,  // chevrons on rows that say what they open
         "dashboard/components/ReportCardSection.kt" to 1   // chevron on the report card row
@@ -93,6 +95,12 @@ class AccessibilityPolicyTest {
         assertTrue("compact buttons keep a 48 dp target", "heightIn(min = 48.dp)" in forms && "40.dp else" !in forms)
         val flights = File(presentation, "flights/FlightUi.kt").readText()
         assertTrue("the flight card's Hide X is 48 dp", ".size(48.dp).clip(CircleShape)" in flights && "onClickLabel = \"Hide for today\"" in flights)
+        val trains = File(presentation, "trains/TrainUi.kt").readText()
+        assertTrue("the train card's Hide X is 48 dp", ".size(48.dp).clip(CircleShape)" in trains && "onClickLabel = \"Hide for today\"" in trains)
+        assertTrue("a stop row keeps a 44 dp target at least", "heightIn(min = 44.dp)" in trains)
+        // The card is one button with one spoken sentence; its pieces are not read out again.
+        assertTrue("contentDescription = m.spoken" in trains && "clearAndSetSemantics" in trains)
+        assertTrue("the trip choice rows are buttons of at least 48 dp", Regex("heightIn\\(min = 64\\.dp\\)[\\s\\S]{0,200}Role\\.Button").containsMatchIn(File(presentation, "trains/ManualTrainUi.kt").readText()))
     }
 
     @Test

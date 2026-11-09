@@ -63,6 +63,7 @@ object OpenSourceNotices {
         Notice("Google Favicon service, DuckDuckGo icons", "Where logos are fetched from", "Their own terms of service", "https://duckduckgo.com/duckduckgo-help-pages/privacy/", NoticeKind.SERVICE),
         Notice("Yahoo Finance", "Market prices and stock-name suggestions (opt-in)", "Yahoo's own terms of service", "https://legal.yahoo.com/", NoticeKind.SERVICE),
         Notice("Flightradar24", "Live flight status (opt-in)", "Flightradar24's own terms of service", "https://www.flightradar24.com/terms-and-conditions", NoticeKind.SERVICE),
+        Notice("ConfirmTkt", "Live train running status (opt-in, unofficial; no agreement with them)", "Its own terms of service", "https://www.confirmtkt.com/", NoticeKind.SERVICE),
         Notice("Google Drive API", "Optional backup to your own Drive", "Google API terms of service", "https://developers.google.com/terms", NoticeKind.SERVICE)
     )
 

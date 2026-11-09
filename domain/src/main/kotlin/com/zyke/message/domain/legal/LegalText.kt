@@ -27,6 +27,7 @@ object LegalText {
     const val HOST_YAHOO_PRICES = "query1.finance.yahoo.com"
     const val HOST_YAHOO_SEARCH = "query2.finance.yahoo.com"
     const val HOST_FLIGHTRADAR = "api.flightradar24.com"
+    const val HOST_TRAINS = "api.confirmtkt.com"
     const val HOST_GOOGLE_APIS = "www.googleapis.com"
 
     /**
@@ -34,7 +35,7 @@ object LegalText {
      * drift from it. (A brand's own website is also asked for its icon, from a fixed list of well-known brands in the app.)
      */
     val networkHosts: Set<String> = setOf(
-        HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_GOOGLE_APIS
+        HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS
     )
 
     private val onPhone = LegalSection(
@@ -71,6 +72,10 @@ object LegalText {
             LegalItem(
                 "Live flight status (off until you switch it on)",
                 "An airline code and flight number, such as 6E2345, go to Flightradar24 ($HOST_FLIGHTRADAR). The day, the booking reference, your name and message text are never sent. While a flight is about to leave or in the air, the app asks again every 30 seconds."
+            ),
+            LegalItem(
+                "Live train status (off until you switch it on)",
+                "A five-digit train number, such as 12633, and how many days ago that run started go to an unofficial running-status service ($HOST_TRAINS). Your stations, the booking reference (PNR), your name and message text are never sent. While a train is about to leave your station or under way, the app asks again every 30 seconds."
             ),
             LegalItem(
                 "Backup to your own Google Drive (off until you switch it on and sign in)",

@@ -63,6 +63,7 @@ class DemoPolicyTest {
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
             "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
             "notifications/FlightTrackingControl.kt", "notifications/FlightTrackingService.kt", "notifications/FlightNotifier.kt",
+            "notifications/TrainTrackingControl.kt", "notifications/TrainTrackingService.kt", "notifications/TrainNotifier.kt",
             "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
             "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
@@ -143,6 +144,33 @@ class DemoPolicyTest {
         assertTrue(text("presentation/flights/ManualFlightUi.kt").contains("val canLookUp = liveOn && !container.demo"))
         // The tracking code itself has no way to the network except through the service.
         assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + service + text("notifications/FlightNotifier.kt")))
+    }
+
+    @Test fun liveTrainStatusIsMadeUpInTheDemo_andNeverAsksTheNetwork() {
+        assertTrue("the service is told it is the demo", text("di/AppContainer.kt").contains("TrainService(com.zyke.message.data.trains.TrainSettings(context), demo)"))
+        val service = text("data/trains/TrainService.kt")
+        val refresh = service.substringAfter("suspend fun refresh(")
+        assertTrue("the demo is answered before the fetcher is reached", refresh.indexOf("if (demo)") in 0 until refresh.indexOf("ask(train)"))
+        assertTrue(refresh.substringAfter("if (demo)").substringBefore("return@forEach").contains("DemoTrains.live("))
+        val lookup = service.substringAfter("suspend fun lookup(")
+        assertTrue(lookup.indexOf("if (demo ||") in 0 until lookup.indexOf("ask(train)"))
+        assertTrue("the train is in the demo's own messages", File("../domain/src/main/kotlin/com/zyke/message/domain/demo/DemoData.kt").readText().contains("trainToday()"))
+    }
+
+    @Test fun trainTrackingNeverStartsAnAlarmOrAServiceInTheDemo_andAHandMadeTrainIsInMemoryOnly() {
+        val container = text("di/AppContainer.kt")
+        assertTrue(container.contains("ManualTrainRepositoryImpl(context)"))
+        assertTrue(container.contains("TrainPlanStore(context)"))
+        val control = text("notifications/TrainTrackingControl.kt")
+        for (door in listOf("fun onForeground(", "fun rearm(", "fun onAlarm(")) {
+            assertTrue("$door must stop in the demo", control.substringAfter(door).take(500).contains("DemoMode.active"))
+        }
+        assertTrue("the alarm receiver stops in the demo", control.substringAfter("class TrainAlarmReceiver").contains("DemoMode.active"))
+        val service = text("notifications/TrainTrackingService.kt")
+        assertTrue("the service answers the demo with nothing to watch", service.contains("if (DemoMode.active) null else"))
+        assertTrue(service.substringAfter("if (first == null || DemoMode.active)").take(120).contains("finishService"))
+        assertTrue(text("presentation/trains/ManualTrainUi.kt").contains("val canLookUp = liveOn && !container.demo"))
+        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + service + text("notifications/TrainNotifier.kt")))
     }
 
     @Test fun theBannerIsOnEveryTab_andSettingsCanStartAndLeave() {

@@ -47,10 +47,10 @@ class ManifestPolicyTest {
     }
 
     /**
-     * INTERNET exists for four features: the brand-logo fetch (on by default, can be turned off), the market strip's
-     * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only) and the optional backup to the person's own Google Drive (off until switched on).
+     * INTERNET exists for five features: the brand-logo fetch (on by default, can be turned off), the market strip's
+     * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only), live train status (off until switched on; the train number and the run's start day only) and the optional backup to the person's own Google Drive (off until switched on).
      * The promise "your messages never leave the phone" is kept by making sure the network is reachable from exactly
-     * four files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
+     * five files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a train number and start day (live train status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
      * and one only the single PIN-encrypted backup file, to the private app folder of the person's own Drive.
      */
     @Test
@@ -59,7 +59,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
@@ -89,6 +89,19 @@ class ManifestPolicyTest {
         val tracking = File("src/main/java/com/zyke/message/notifications/FlightTrackingService.kt").readText()
         assertTrue("flights.refresh(" in tracking)
         assertFalse("FlightFetcher" in tracking || "FlightFetcher" in File("src/main/java/com/zyke/message/notifications/FlightTrackingControl.kt").readText())
+
+        // Live train status (off until switched on) asks one host, for one train: the number and the run's start day, nothing else.
+        val trainsFetcher = File("src/main/java/com/zyke/message/data/markets/TrainFetcher.kt").readText()
+        val trainHosts = Regex("https://([a-z0-9.]+)/").findAll(trainsFetcher).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("api.confirmtkt.com"), trainHosts)
+        assertTrue("https://api.confirmtkt.com/api/trains/runningstatus?trainno=" in trainsFetcher)
+        assertTrue("instanceFollowRedirects = false" in trainsFetcher)
+        assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(trainsFetcher))
+        assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "TrainFetcher()" in it.readText() })
+        assertTrue("TrainFetcher()" in File("src/main/java/com/zyke/message/data/trains/TrainService.kt").readText())
+        val trainTracking = File("src/main/java/com/zyke/message/notifications/TrainTrackingService.kt").readText()
+        assertTrue("trains.refresh(" in trainTracking)
+        assertFalse("TrainFetcher" in trainTracking || "TrainFetcher" in File("src/main/java/com/zyke/message/notifications/TrainTrackingControl.kt").readText())
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()
@@ -189,7 +202,7 @@ class ManifestPolicyTest {
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
                 ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver",
-                ".notifications.CodeShareStatusReceiver", ".notifications.FlightAlarmReceiver"
+                ".notifications.CodeShareStatusReceiver", ".notifications.FlightAlarmReceiver", ".notifications.TrainAlarmReceiver"
             ),
             receivers.names("name").toSet()
         )
@@ -202,7 +215,7 @@ class ManifestPolicyTest {
         assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
-        assertEquals(5, services.length)
+        assertEquals(6, services.length)
         // The scheduled backup job: only the system's job scheduler can start it.
         val backupJob = (0 until services.length).map { services.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".data.backup.BackupJobService" }
@@ -227,6 +240,16 @@ class ManifestPolicyTest {
         assertEquals("dataSync", flightService.getAttributeNS(android, "foregroundServiceType"))
         assertEquals(0, flightService.getElementsByTagName("intent-filter").length)
         assertEquals("", flightService.getAttributeNS(android, "permission"))
+        val trainService = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.TrainTrackingService" }
+        assertEquals("false", trainService.getAttributeNS(android, "exported"))
+        assertEquals("dataSync", trainService.getAttributeNS(android, "foregroundServiceType"))
+        assertEquals(0, trainService.getElementsByTagName("intent-filter").length)
+        assertEquals("", trainService.getAttributeNS(android, "permission"))
+        val trainReceiver = (0 until receivers.length).map { receivers.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.TrainAlarmReceiver" }
+        assertEquals("false", trainReceiver.getAttributeNS(android, "exported"))
+        assertEquals(0, trainReceiver.getElementsByTagName("intent-filter").length)
         val flightReceiver = (0 until receivers.length).map { receivers.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".notifications.FlightAlarmReceiver" }
         assertEquals("false", flightReceiver.getAttributeNS(android, "exported"))

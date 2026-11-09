@@ -166,6 +166,64 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
   (25 minutes late, then in the air, then landed). `FlightService` answers the demo before the fetcher is reachable
   (`DemoPolicyTest`): no alarm, no service, no notification and no look-up reaches the network there.
 
+## Trains on the day you travel
+
+Indian Railways journeys booked by SMS (IRCTC, Railways, RailYatri, ixigo and the like) get the same treatment as flights, as a
+parallel set of classes rather than a shared "trip" type, so nothing about flights changed: `domain/train` beside `domain/flight`,
+`presentation/trains` beside `presentation/flights`, the same shape in `data` and `notifications`. What is shared is shared on
+purpose: `Place`, `FlightEndpoint`/`TimeShift` (the route strip), `FlightNotice` (the words of a notification), `Countdown`, the
+`FlightText` clock phrases, `StopReason`, the flight timings (`TrainTracking` takes its constants from `FlightTracking`), the
+lock-screen switch, `LiveUpdates.promote` (with a train icon) and `FlightTrackingControl.canNotify`.
+
+- **Domain (`domain/train`, pure, tested).** `TrainParser` reads one railway text into `TrainFacts`: the five-digit train number
+  and name, day of journey (never the booking day), boarding and destination stations (codes like `MS`/`NDLS`, or names, from the
+  short `Stations` table; unknown codes still show), scheduled departure and arrival, class (SL, 3A, 2A, 1A, CC, 2S...), coach and
+  berth (`S4 32 SU`), RAC/WL/CNF, the 10-digit PNR (shown and copyable, never sent) and what the text is (booking, chart prepared,
+  platform, delay, reschedule, train cancelled, partly cancelled, the person's own ticket cancelled). `TrainTracker.bookings` merges
+  every text about one journey (train number + day), oldest first; a text with no date joins the nearest journey. `today` shows a
+  journey from the start of its day (six hours before one that leaves in the small hours) until three hours after arrival; a cancelled
+  ticket never shows. `snapshot` merges the booking with live data **from the person's boarding station**: the delay at *their*
+  station until the train has left it ("Reaches your station in 1h 5m"), then where the train is, the next stations with expected
+  times, and the journey from boarding to destination, with "+1"/"+2" for arrival days later. All times are on the Indian clock.
+  `TrainText`, `TrainCardModel` and `TrainNotificationText` hold every phrase (early, on time, late, "1 h 5 min", overnight,
+  multi-day, boarding mid-route).
+- **Live data, honestly.** `TrainStatusParser` reads a running-status reply (a `route` array of stops with scheduled, expected and
+  actual times and platforms, the last station, the delay and a status text). **It was written from memory of the shape of the
+  unofficial services, and neither the host nor the reply was verified against any live service**: every candidate host was refused
+  (403) by the build environment's proxy, and Indian Railways has no official key-less API. The fixtures (`TrainFixtures`) are
+  hand-built and say so. Anything unexpected is `Unreadable` and the card says "Status unavailable" and keeps the booking and
+  schedule. The person's boarding station can be on a later day of the run than the day they travel; the first reply tells which
+  run day the station is on and `TrainService` asks again once with the right start day.
+- **Network (`data/markets/TrainFetcher`).** The fourth pinned network class: one host (`api.confirmtkt.com`), 5 s timeouts, 512 KB
+  cap, no redirects, no cookies, a generic User-Agent, status codes only in the log. It sends the train number and how many days ago
+  the run started, nothing else. `ManifestPolicyTest`, `LegalPolicyTest` and `LegalText` pin the host.
+- **Service (`data/trains/TrainService`).** Like `FlightService`: in-memory statuses by journey key, answers under 25 s old reused,
+  at most three journeys, off until `train_status.live_enabled` is true, and the demo answered before the fetcher is reachable. It
+  owns the only `TrainFetcher`; `lookup` (the form's "Look up train") goes through it too.
+- **Added by hand (`ManualTrains`, `ManualTrainRepositoryImpl`, `ManualTrainUi`).** Train number, day, optional boarding station
+  (a code or a name) and a PNR note, stored in `manual_trains` (backed up, expiry a day after arrival) exactly like manual flights;
+  the look-up fills the name, the stations and the schedule. Entry points: Settings > Flights and trains, and one **"Add a trip"**
+  button on the Home cards and the entry sheet that asks Flight or Train (`TripChoiceSheet`), so the screen shows one entry, not two.
+- **Notification (`notifications/TrainTrackingService`, `TrainTrackingControl`, `TrainNotifier`; domain `TrainTracking`).** A sibling
+  of the flight service with the same mechanism: a `dataSync` foreground service, every 30 s, one ongoing notification per journey
+  while it is DEPARTING (within 30 min of leaving the person's station, "Reaches MS in 25 min") or IN_TRANSIT ("Arrives
+  Tiruchirappalli 04:47 (12 min late)", "Running 12 min late · next: Villupuram 03:10", a bar, a countdown to arrival, the Android 16
+  Live Update through the same reflective `LiveUpdates`), then a dismissible notice ("Arrived at TPJ at 04:41", "6 min late
+  (scheduled 04:35) · Platform 2"; cancelled, partly cancelled, diverted, "Tracking ended"). Start rules, the alarm (its own
+  `TrainAlarmReceiver`, 10 min before, inexact, never from boot), Android 15 `onTimeout`, "Stop tracking" (kept in `train_plan`,
+  not backed up) and the failure/slow-poll rules are the flight ones. **At most two trips are tracked in all**: flights are counted
+  first and trains take the places left (`TrainTracking.slotsLeft`). The notifications have their own channels (`train_live`,
+  default importance, silent; `train_prompts`) so they can be muted apart from flights, and the lock-screen content follows the
+  one "Show flight and train details on the lock screen" switch. Not verified on a device.
+- **UI (`presentation/trains`).** `TrainCard` (same family as the flight card: a themed train tile instead of an airline logo, the
+  number never cut, a short status pill, the route with scheduled-versus-expected times and a progress line, one supporting line and
+  one quieter "Next station" line, chips only for what is known, station names allowed two lines) and `TrainSheet` (route, last seen,
+  platform/class/coach/berth/ticket tiles, PNR with Copy, upcoming stops with a "Show all" toggle, refreshing every 30 s only while
+  visible and the app is started, the same failed / not-found / off / demo states). No coach-position hint: no source gives it.
+- **Demo.** `DemoData.trainToday` books a made-up train about 75 minutes ahead; `DemoTrains.live` makes up its run from the clock
+  (12 minutes late through seven stops, then arrived). No alarm, service, notification or look-up reaches the network there
+  (`DemoPolicyTest`). `TrainTrackingPolicyTest` pins the service, the log and the notification shape.
+
 ## Guided tour
 
 First launch and Settings, Help open a guided tour (`presentation/tour/`) that navigates the real app and spotlights real

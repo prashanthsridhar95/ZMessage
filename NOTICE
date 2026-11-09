@@ -104,6 +104,11 @@ Flightradar24
   Licence: Flightradar24's own terms of service
   https://www.flightradar24.com/terms-and-conditions
 
+ConfirmTkt
+  Live train running status (opt-in, unofficial; no agreement with them)
+  Licence: Its own terms of service
+  https://www.confirmtkt.com/
+
 Google Drive API
   Optional backup to your own Drive
   Licence: Google API terms of service
