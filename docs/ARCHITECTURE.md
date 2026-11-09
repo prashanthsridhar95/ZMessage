@@ -495,6 +495,36 @@ schedule, no receiver that starts a request, and no send from reading the inbox.
 * **Demo mode.** `AppContainer` uses `InMemoryBalanceCheck`; Send in the sheet shows "Demo: balance updated. Nothing was sent." and
   never reaches the requester.
 
+## Picture messages (MMS) and rich chat (RCS) messages
+
+What Zyke can and cannot see of a message depends on where the phone keeps it.
+
+* **SMS** is in `content://sms` (`SmsDataSource`). **Picture messages (MMS)** are in a different provider, `content://mms` (inbox rows, with
+  `content://mms/part` for the parts and `content://mms/<id>/addr` for the sender, type 137 = from). `MmsDataSource` reads them with the
+  same `READ_SMS` permission (no new permission; this follows the provider's declared read permission and is not verified on a device).
+  The domain rules are pure and tested (`MmsMessages`: text parts joined in order, at most 4 picture parts, sender, seconds to
+  milliseconds, picture sampling). An MMS has the message id `-(2^40) - rowId`, far below SMS ids (positive) and chat ids (between -1 and
+  about -2^31), so one `Long` never means two messages in the read/pin/archive lists, the classification cache or learned templates.
+  Only text is read for the list (the scan reads id, date and read flag, like SMS); the pictures are read by `MmsImages` only when the
+  detail sheet of that message is open, off the main thread, at `inSampleSize` so no side falls below 1024 px (512 in lite mode), with no
+  network. `SmsMessage.isMms` marks them ("MMS" tag in the list, picture(s) and the full text in the detail). The demo repository
+  never uses these classes. The text part is classified like an SMS body, so a balance reply, OTP or bill in an MMS works as usual.
+* **Chat (RCS) messages in Google Messages are not stored in the SMS or MMS provider at all.** Zyke can see one only through
+  `RcsNotificationListener` (needs Notification access, a system setting) and only what the notification carries. `RichNotificationText`
+  (pure, tested) takes the notification's title, conversation title, short text, `EXTRA_BIG_TEXT`, `EXTRA_TEXT_LINES` and the
+  messaging-style entries (`EXTRA_MESSAGES`, each with its own time), keeps the fullest text (the short text may be only the first line),
+  puts a card's own title in front when the notification gives it apart from the sender's name, and the result is stored by
+  `RcsMessageStore` (sender = conversation title or title, date = the entry's time or the post time, same text within ten minutes
+  counts as an update of the same notification). A rich message's banner image and suggestion buttons are not in a notification, so they
+  are not available: the detail sheet says "Image and buttons from the original message are not available here. Open it in Messages."
+  with an "Open in Messages" button (the launcher intent for the messaging app category; the notification's own content intent is not kept).
+* **Bank replies.** A reply such as HDFC's rich "Your account balance for account ending with 5765 is Rs 8,509.06" is read as a balance
+  notice (`RichReplyTest`); the advert after the figure ("Explore our WhatsApp Banking ...") is ignored. While a balance request is
+  waiting and Notification access is off, the tile says "Reply may arrive as a rich message - turn on notification access so Zyke can
+  read it" with a button to the phone's settings page.
+* **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
+  expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
+
 ## Budget phones and lite mode
 
 `presentation/common/Responsive.kt` (`LocalResponsive`, `ChromeScale`, `FitText`, `ResponsiveRow`) holds the layout rules for

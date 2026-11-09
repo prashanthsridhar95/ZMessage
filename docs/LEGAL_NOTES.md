@@ -43,7 +43,7 @@ When the text changes in meaning, bump `LegalInfo.TEXT_VERSION` and `LAST_UPDATE
 
 ## Play Store specifics
 
-`READ_SMS`, `RECEIVE_SMS` and `SEND_SMS` are *restricted permissions* on Google Play. An app may use them only if it is the phone's default SMS handler or meets a narrow listed exception, and must pass a permissions declaration review. A finance app that reads the inbox and sends texts (code sharing, balance check) is unlikely to qualify as it stands. Treat this app as **sideload only** (direct install, GitHub releases). A Play build would need a different feature set (no `SEND_SMS`, and a review of `READ_SMS`), a privacy policy URL hosted on the web, and a Data safety form. None of that is done here.
+`READ_SMS`, `RECEIVE_SMS` and `SEND_SMS` are *restricted permissions* on Google Play. An app may use them only if it is the phone's default SMS handler or meets a narrow listed exception, and must pass a permissions declaration review. A finance app that reads the inbox (SMS and MMS) and sends texts (code sharing, balance check) is unlikely to qualify as it stands. Treat this app as **sideload only** (direct install, GitHub releases). A Play build would need a different feature set (no `SEND_SMS`, and a review of `READ_SMS`), a privacy policy URL hosted on the web, and a Data safety form. None of that is done here.
 
 ## Not done
 

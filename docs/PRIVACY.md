@@ -28,7 +28,7 @@ A brand's own website is also asked for its icon (`https://<brand>/apple-touch-i
 
 | Permission | Why |
 |---|---|
-| `READ_SMS` | Read the inbox to organise payments, bills and codes; never writes or deletes |
+| `READ_SMS` | Read the inbox, and the text and pictures of picture messages (MMS) in the phone's MMS store, to organise payments, bills and codes; never writes or deletes. No other permission is needed for MMS |
 | `RECEIVE_SMS` | Live alerts and code sharing; the text is read in memory and dropped |
 | `SEND_SMS` | Only "Share codes with trusted people" and "Check balance by SMS"; Google Play restricts it, so the app is for direct installs |
 | `INTERNET` | Only the hosts above |
@@ -37,13 +37,13 @@ A brand's own website is also asked for its icon (`https://<brand>/apple-touch-i
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` | Reading a very large inbox; following a train under way or a flight in the air (opt-in) |
 | `POST_PROMOTED_NOTIFICATIONS` | Android 16 Live Update for the flight notification; gives no access to anything |
 
-Notification access (RCS chat messages) is a system setting, not a manifest permission, and is off until the person allows it.
+Notification access (RCS chat messages) is a system setting, not a manifest permission, and is off until the person allows it. Chat (RCS) conversations in Google Messages are not in the phone's SMS or MMS store; the app sees only the sender and the text a notification shows (its expanded text and messaging-style entries when present), never a rich message's banner image or buttons.
 
 ## Data the app touches
 
 | Data | Where it comes from | Stored? | Leaves the device? |
 |---|---|---|---|
-| SMS text, sender, time | Android SMS provider (`READ_SMS`) | Read into memory and re-read on change. Also remembered, with how it was read, in a local database where every entry is encrypted with a key held in the Android Keystore; the database is excluded from backups and is rebuilt on every app update | No |
+| SMS text, sender, time; for a picture message (MMS) its text parts, sender and time | Android SMS provider and MMS provider (`content://mms`, `READ_SMS`); a picture is decoded only while that message is open, never stored by the app | Read into memory and re-read on change. Also remembered, with how it was read, in a local database where every entry is encrypted with a key held in the Android Keystore; the database is excluded from backups and is rebuilt on every app update | No |
 | Read / pinned / archived marks, dismissed tips | User actions | Message *ids* only, in private SharedPreferences | No |
 | Pictures chosen for senders | The person's own photos via the system picker (no permission) | Cropped to 256px in private storage | No |
 | Brand logos (on by default, can be turned off) | A public icon service, asked for a well-known brand's website name only | Cached in private storage | The website name is sent, never message content. Airline logos on flight cards use the same service and switch: only the airline's website name is sent (the list is in the app), and no logo is asked for in the demo or with logos off |
@@ -60,7 +60,7 @@ Notification access (RCS chat messages) is a system setting, not a manifest perm
 | Cards and bank accounts (last four digits, bank, name, statement date) | User input in Settings; never the full number | Private SharedPreferences | No |
 | Sender / receiver categories | User input | Name and category, private SharedPreferences | No |
 | Budgets | User input | Category and amount, private SharedPreferences | No |
-| Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage | No |
+| Chat (RCS) messages | Incoming chat notifications from Google / Samsung Messages, only after the user allows notification access in system settings | Sender, text and time of up to 2000 messages, in a file in the app's private storage (only the notification's text: a rich message's image and buttons are not available) | No |
 | New texts as they arrive (live alerts, off until chosen) | The phone's `SMS_RECEIVED` broadcast, `RECEIVE_SMS` | No: read in memory to spot a code or card bill, then dropped | No |
 | Trusted people for shared codes (off until chosen): a name and a normalised phone number, the services each may get, hours, pause | User input, or one row from the system contact picker (no contacts permission) | Private SharedPreferences `code_sharing` (copied by the PIN-encrypted backup like every other setup file); a small log `code_sharing_log` of service, person's name, time and status, never the code or the number, left out of backups | When a login code from an allowed service arrives, an SMS holding only that code and the service name is sent to those people from the phone's SIM (`SEND_SMS`); never bank, UPI, card, payment, government, insurer or phone-company messages; not a network request |
 | Check balance by SMS (only when you tap Send): the bank's enquiry number and words you confirmed, any change you made to them, your EPFO UAN if you enter it | User input and the list of banks in the app; the bank's reply is read like any other message | Changes to the numbers and words in private SharedPreferences `balance_check` (copied by the PIN-encrypted backup, no account digits); the UAN and the last request per account (key, time, status) in `balance_check_device`, which is left out of backups; no reply text is stored beyond the inbox | One text from your SIM (`SEND_SMS`, asked on the first Send) to the bank's number, after a confirm that shows the exact number and words; your bank may charge standard SMS rates; not a network request |

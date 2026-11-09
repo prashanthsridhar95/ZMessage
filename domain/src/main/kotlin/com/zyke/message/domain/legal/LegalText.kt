@@ -114,7 +114,7 @@ object LegalText {
         title = "Permissions and why",
         intro = "Android asks you for the sensitive ones when they are needed. You can take any of them back in the phone's settings.",
         items = listOf(
-            LegalItem("READ_SMS", "Reads the texts on the phone so they can be organised into payments, bills and codes. The app never writes to or deletes your messages."),
+            LegalItem("READ_SMS", "Reads the texts on the phone, and the text of picture messages (MMS) kept in the phone's message store, so they can be organised into payments, bills and codes. A picture is read only when you open that message, and is shrunk while it is read. The app never writes to or deletes your messages."),
             LegalItem("RECEIVE_SMS", "Hears about a new text the moment it arrives, for live alerts and code sharing. Off until you choose those features. The text is read in memory and dropped."),
             LegalItem("SEND_SMS", "Sends a text from your SIM, only for \"Share codes\" and \"Check balance by SMS\", asked for when you first use one. Because this permission can cost money and be misused, Google Play restricts it, so this app is installed directly rather than from Google Play."),
             LegalItem("INTERNET", "Used only by the features listed under \"What leaves the phone\", to the hosts named there."),
@@ -122,7 +122,7 @@ object LegalText {
             LegalItem("RECEIVE_BOOT_COMPLETED", "Puts your reminder and morning-summary alarms back after the phone restarts."),
             LegalItem("FOREGROUND_SERVICE and FOREGROUND_SERVICE_DATA_SYNC", "Keep two jobs going with a visible notification: reading a very large inbox month by month, and (only with live flight status on) following a flight that is about to leave or in the air."),
             LegalItem("POST_PROMOTED_NOTIFICATIONS", "Lets the flight notification appear as a Live Update on Android 16 and later. It gives no access to anything."),
-            LegalItem("Notification access (a system setting, not a normal permission)", "If you allow it, the app reads incoming chat (RCS) notifications from your messaging app so those messages can be organised too. It is off until you allow it in the phone's settings and keeps up to 2000 messages on the phone.")
+            LegalItem("Notification access (a system setting, not a normal permission)", "If you allow it, the app reads incoming chat (RCS) notifications from your messaging app so those messages can be organised too: the sender and the text the notification shows, never a banner image or a button. Chat messages are not in the phone's message store, so this is the only way the app can see them. It is off until you allow it in the phone's settings and keeps up to 2000 messages on the phone.")
         )
     )
 
