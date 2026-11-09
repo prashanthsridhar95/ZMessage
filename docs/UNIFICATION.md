@@ -57,6 +57,14 @@ only; Insights links there. The unused `BudgetDialog` was deleted.
 | Alerts toggles | Not audited toggle by toggle; Settings > Reminders and alerts is the one entry point and none was merged |
 | GlobalSearch vs feed search | Keep. Feed search filters the inbox list; GlobalSearch is the app-wide page |
 
+### Flight card and the trip entries
+
+Trip messages already show in the agenda and the Journey scene (`LifeAgenda`, `JourneyUi`), read by `LifeParser`. The flight card
+reads the same texts with `FlightParser` because it needs far more (flight number, route, times, terminal, gate) than
+`LifeParser` keeps, and it shows only on the day of travel. `LifeParser` is unchanged, so classification and the agenda behave
+as before; the two readers do not disagree on what a trip is (the flight card needs a known airline code, a flight number and a
+flight word).
+
 ## Follow-ups not done
 
 - Calendar events and Reminders could become one "Reminder with an optional alert" with a migration of the `calendar_events`

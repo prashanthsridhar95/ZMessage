@@ -46,10 +46,10 @@ class ManifestPolicyTest {
     }
 
     /**
-     * INTERNET exists for three features: the brand-logo fetch (on by default, can be turned off), the market strip's
-     * prices (off until switched on) and the optional backup to the person's own Google Drive (off until switched on).
+     * INTERNET exists for four features: the brand-logo fetch (on by default, can be turned off), the market strip's
+     * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only) and the optional backup to the person's own Google Drive (off until switched on).
      * The promise "your messages never leave the phone" is kept by making sure the network is reachable from exactly
-     * three files: one sending only a brand's website name, one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
+     * four files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
      * and one only the single PIN-encrypted backup file, to the private app folder of the person's own Drive.
      */
     @Test
@@ -58,7 +58,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "LogoFetcher.kt", "QuoteFetcher.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
@@ -72,6 +72,17 @@ class ManifestPolicyTest {
         assertEquals(setOf("query1.finance.yahoo.com", "query2.finance.yahoo.com"), quoteHosts)
         assertTrue("https://query1.finance.yahoo.com/v8/finance/chart/" in quotes)
         assertTrue("https://query2.finance.yahoo.com/v1/finance/search?q=" in quotes)
+
+        // Live flight status (off until switched on) asks one host, for one flight number: the airline code and number, nothing else.
+        val flights = File("src/main/java/com/zyke/message/data/markets/FlightFetcher.kt").readText()
+        val flightHosts = Regex("https://([a-z0-9.]+)/").findAll(flights).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("api.flightradar24.com"), flightHosts)
+        assertTrue("https://api.flightradar24.com/common/v1/flight/list.json?query=" in flights)
+        // No redirects to another host, no cookies, no identifiers of the person or the phone.
+        assertTrue("instanceFollowRedirects = false" in flights)
+        assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(flights))
+        // Only the flight fetcher and the service that calls it know about flights; the fetcher is built in one place.
+        assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "FlightFetcher()" in it.readText() })
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()

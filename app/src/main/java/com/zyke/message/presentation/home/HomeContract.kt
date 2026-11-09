@@ -60,6 +60,8 @@ object HomeContract {
 
         // Derived
         val attention: List<AttentionItem> = emptyList(),
+        /** Flights booked around today (yesterday to tomorrow) read from airline texts; which are "today" is decided on screen, by the clock. */
+        val flights: List<com.zyke.message.domain.flight.BookedFlight> = emptyList(),
         /** This month's spending, against last month. */
         val thisMonth: Dashboard? = null,
         val upcoming: List<UpcomingItem> = emptyList(),

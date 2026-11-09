@@ -120,6 +120,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
             fixedQuotes = if (demo) demoData.quotes else null
         )
     }
+    /** Live flight status: off until switched on in Settings; in the demo it is made up from the clock and never asks the network. */
+    val flights by lazy { com.zyke.message.data.flights.FlightService(com.zyke.message.data.flights.FlightSettings(context), demo) }
     val dailyBudgetOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository by lazy { com.zyke.message.data.repository.DailyBudgetOverrideRepositoryImpl(context) }
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
     val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository by lazy { com.zyke.message.data.repository.AccountOverrideRepositoryImpl(context) }

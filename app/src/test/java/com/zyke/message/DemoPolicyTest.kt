@@ -113,6 +113,15 @@ class DemoPolicyTest {
         assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(demoCode))
     }
 
+    @Test fun liveFlightStatusIsMadeUpInTheDemo_andNeverAsksTheNetwork() {
+        assertTrue("the service is told it is the demo", text("di/AppContainer.kt").contains("FlightService(com.zyke.message.data.flights.FlightSettings(context), demo)"))
+        val service = text("data/flights/FlightService.kt")
+        val refresh = service.substringAfter("suspend fun refresh(")
+        assertTrue("the demo is answered before the fetcher is reached", refresh.indexOf("if (demo)") in 0 until refresh.indexOf("fetcher.fetch("))
+        assertTrue(refresh.substringAfter("if (demo)").substringBefore("return@forEach").contains("DemoFlights.live("))
+        assertTrue("the flight is in the demo's own messages", File("../domain/src/main/kotlin/com/zyke/message/domain/demo/DemoData.kt").readText().contains("flightToday()"))
+    }
+
     @Test fun theBannerIsOnEveryTab_andSettingsCanStartAndLeave() {
         assertTrue(text("presentation/AppRoot.kt").contains("DemoBanner()"))
         val settings = text("presentation/settings/SettingsScreen.kt")

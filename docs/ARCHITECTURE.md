@@ -70,6 +70,37 @@ remembered inside the content lambda restarts. `FormSheet` is built on it (`asPa
 that scrolls by itself (a lazy list or web view) uses `AppPage(scrollable = false)`. `SheetPolicyTest` keeps bare
 `AppBottomSheet` to the compact allow-list and forbids fixed sheet heights.
 
+## Flights on the day you fly
+
+A flight booked by SMS gets a card at the top of Home on the day of travel, and a bottom sheet with its full status.
+
+- **Domain (`domain/flight`, pure, tested).** `FlightParser` reads one airline text (IndiGo `6E`, Air India `AI`, Vistara `UK`,
+  SpiceJet `SG`, Akasa `QP`, Air India Express `IX`, and others in `Airlines`) into `FlightFacts`: airline, number, the day of
+  travel (never the day it was booked), route (codes or city names), scheduled times, PNR, terminal, gate and what the text is
+  (booking, reminder, check-in, boarding, delay, gate change, cancellation). `FlightTracker.bookings` merges every text about
+  one flight (airline + number + day), oldest first, so a later delay or cancellation wins; a text with no date joins the flight
+  nearest the day it arrived. `FlightTracker.today` decides which flights show: from the start of the departure day on the
+  *departure airport's* clock until three hours after landing (overnight flights stay until they land; a flight with no times
+  stays all day; a cancelled one too). `snapshot` merges the booking with live data into one `FlightSnapshot`, and `FlightText`
+  holds every phrase ("Departs 14:35 · in 2h 10m", "Delayed 25 min · new 15:00"), so the wording is tested.
+- **Live data.** `FlightStatusParser` reads Flightradar24's flight-history reply (`result.response.data[]`) and picks the leg
+  whose scheduled departure falls on the booked day. **It was written from the known shape of that unofficial endpoint and has not
+  been run against the live service** (the build environment's proxy blocks the host); a captured reply should replace the
+  fixture in `FlightFixtures`. Anything unexpected is `Unreadable` and the app keeps the last known status.
+- **Network (`data/markets/FlightFetcher`).** The third pinned network class: one host, 5 s timeouts, 512 KB cap, no redirects,
+  no cookies, a generic User-Agent, status codes only in the log. `ManifestPolicyTest` pins the host and the file list.
+- **Service (`data/flights/FlightService`).** In-memory statuses by flight key; an answer under 25 s old is reused, so the
+  Home refresh (once each time Home is STARTED) and the sheet's 30 s timer never double up; at most three flights. Off until
+  `flight_status.live_enabled` is true. No alarms, no background work, no foreground service.
+- **UI (`presentation/flights`).** `FlightCard` (at most two rows, then "n more flights"; dismissible for the day through the
+  dismissed-keys list) and `FlightSheet` (`AdaptiveSheet`, `autoPage = false`; route header with a Canvas progress line, times,
+  terminal/gate/belt, PNR with Copy; refreshes every 30 s only while it is on screen and the app is STARTED; failed, not-found,
+  off and demo states each have their own line). Nothing animates in a loop; the text clock ticks per minute (card) or second
+  (open sheet) only while the screen shows.
+- **Demo.** `DemoData` adds a booking for a flight about two hours ahead; `DemoFlights.live` makes up its status from the clock
+  (25 minutes late, then in the air, then landed). `FlightService` answers the demo before the fetcher is reachable
+  (`DemoPolicyTest`).
+
 ## Guided tour
 
 First launch and Settings, Help open a guided tour (`presentation/tour/`) that navigates the real app and spotlights real

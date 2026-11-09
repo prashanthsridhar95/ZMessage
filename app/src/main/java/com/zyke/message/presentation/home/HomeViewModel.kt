@@ -18,6 +18,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.zyke.message.domain.dashboard.DashboardBuilder
 import com.zyke.message.domain.dashboard.DashboardQuery
 import com.zyke.message.domain.feed.AttentionBuilder
+import com.zyke.message.domain.flight.FlightTracker
 import com.zyke.message.domain.home.UpcomingBuilder
 import com.zyke.message.domain.dashboard.SpendingLimits
 import com.zyke.message.domain.budget.DailyBudgets
@@ -452,6 +453,13 @@ class HomeViewModel(
                         AttentionBuilder.build(AttentionBuilder.eligible(live), us.dismissedAttention, now, zone, us.dismissedAt)
                     }
                 }
+                val flights = part {
+                    // Airline texts of the last year, merged into flights; only those within a day of today are kept.
+                    memo("flights", live, today) {
+                        FlightTracker.bookings(live.map { com.zyke.message.domain.flight.FlightSms(it.message.body, it.message.date) }, now, zone)
+                            .filter { kotlin.math.abs(it.date.toEpochDay() - today.toEpochDay()) <= 1 }
+                    }
+                }
                 val upcoming = part {
                     memo("upcoming", msgs, now, us.dismissedAttention) {
                         UpcomingBuilder.build(msgs, today, includePaidToday = true, zone = zone, markedPaid = us.dismissedAttention)
@@ -472,7 +480,7 @@ class HomeViewModel(
                 val unread = part { memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } } }
                 Parts(
                     dashboard.await(), limits.await(), balances.await(), insights.await(), accounts.await(), quickAdds.await(),
-                    attention.await(), upcoming.await(), review.await(), providentFund.await(), refunds.await(), owed.await(),
+                    attention.await(), flights.await(), upcoming.await(), review.await(), providentFund.await(), refunds.await(), owed.await(),
                     subscriptions.await(), recent.await(), alerts.await(), agenda.await(), unread.await()
                 )
             }
@@ -483,6 +491,7 @@ class HomeViewModel(
             val accounts = parts.accounts
             val quickAdds = parts.quickAdds
             val attention = parts.attention
+            val flights = parts.flights
             val upcoming = parts.upcoming
             val review = parts.review
             val providentFund = parts.providentFund
@@ -570,7 +579,7 @@ class HomeViewModel(
                 copy(
                     cycle = cycle, daily = daily, dailySuggestion = dailySuggestion, goals = goals, reminders = reminders, providentFund = providentFund,
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
-                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, review = review, thisMonth = dashboard,
+                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, flights = flights, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
                     agenda = agenda, unreadCount = unread,
                     planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders
@@ -588,6 +597,7 @@ class HomeViewModel(
         val accounts: com.zyke.message.domain.accounts.AccountsOverview,
         val quickAdds: List<QuickAdd>,
         val attention: List<com.zyke.message.domain.feed.AttentionItem>,
+        val flights: List<com.zyke.message.domain.flight.BookedFlight>,
         val upcoming: List<com.zyke.message.domain.home.UpcomingItem>,
         val review: com.zyke.message.domain.ledger.ReviewQueue,
         val providentFund: com.zyke.message.domain.pf.ProvidentFund?,

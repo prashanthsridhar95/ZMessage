@@ -315,7 +315,11 @@ private fun SummaryPage(
 
     val attention = remember(state.attention) { state.attention.filterNot { it is AttentionItem.FreshOtp } }
     val tourBanner = com.zyke.message.presentation.tour.rememberTourBannerVisible()
+    // Flights on their day of travel: worked out here, asked about once each time Home comes to the front.
+    val flightsToday = com.zyke.message.presentation.flights.rememberFlightsToday(state.flights, state.userState.dismissedAttention)
+    var flightOpen by rememberSaveable { mutableStateOf<String?>(null) }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
+    flightOpen?.let { key -> com.zyke.message.presentation.flights.FlightSheet(key, flightsToday) { flightOpen = null } }
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
@@ -329,6 +333,14 @@ private fun SummaryPage(
         }
         if (showMarkets) {
             item(key = "market") { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) }
+        }
+        if (flightsToday.flights.isNotEmpty()) {
+            item(key = "flights") {
+                com.zyke.message.presentation.flights.FlightCard(
+                    flightsToday, onOpen = { flightOpen = it },
+                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) }
+                )
+            }
         }
 
         if (state.isBlank) {

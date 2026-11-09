@@ -401,7 +401,29 @@ object DemoData {
             hdfcSent(today, 8, 40, "Third Wave Coffee", 280, "today-coffee", 0)
             hdfcSent(today, 13, 5, "Swiggy", 395, "today-lunch", 0, unread = true)
 
+            flightToday()
+
             return finish(loan)
+        }
+
+        /**
+         * A booking for a flight that leaves a little over two hours from now, so Home has a flight today. The text is written
+         * in India time, whichever zone the phone is in, because the airports are Indian and the tracker reads their clocks.
+         */
+        private fun flightToday() {
+            val india = ZoneId.of("Asia/Kolkata")
+            val soon = nowInstant.plusSeconds(2 * 3600L + 10 * 60L).atZone(india).let { it.withMinute(it.minute / 5 * 5).withSecond(0).withNano(0) }
+            // Late in the evening it still leaves "today" (India time), at the end of the day, so the card is there at any hour.
+            val latest = nowInstant.atZone(india).withHour(23).withMinute(55).withSecond(0).withNano(0)
+            val leaves = if (soon.isAfter(latest)) latest else soon
+            val lands = leaves.plusMinutes(165)
+            val clock = DateTimeFormatter.ofPattern("HH:mm")
+            val day = DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)
+            add(
+                ago(4), 10, 15, "VM-INDIGO",
+                "Booking confirmed. Your IndiGo flight 6E 2345 from Chennai (MAA) to Delhi (DEL) on ${leaves.format(day)} departs ${leaves.format(clock)}, " +
+                    "arrives ${lands.format(clock)}. PNR: DEMO42. Web check-in opens 48 hrs before departure."
+            )
         }
 
         private val everyday: List<Pair<String, Pair<Int, Int>>> = listOf(
