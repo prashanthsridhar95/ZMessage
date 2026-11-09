@@ -32,7 +32,7 @@ class LiveStatusCheckPolicyTest {
         assertTrue("container.trains.diagnose(" in tools && "container.flights.diagnose(" in tools)
         assertTrue("fetcher.diagnose(" in text("data/trains/TrainService.kt") && "fetcher.diagnose(" in text("data/flights/FlightService.kt"))
         // The samples are public numbers, not the person's trips.
-        assertTrue("SAMPLE_TRAIN = \"12633\"" in tools && "SAMPLE_FLIGHT = \"6E 2345\"" in tools)
+        assertTrue("SAMPLE_TRAIN = \"12676\"" in tools && "SAMPLE_FLIGHT = \"6E 2345\"" in tools)
     }
 
     @Test fun onlyTheLatestRawReplyIsKept_inMemory_neverStoredOrLogged() {
