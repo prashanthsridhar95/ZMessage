@@ -30,6 +30,10 @@ object KnownEntityDomains {
         "groww" to "groww.in", "kfintech" to "kfintech.com", "nse" to "nseindia.com", "bse" to "bseindia.com"
     )
 
+    /** True for a website this list (or an airline's logo site, see [com.zyke.message.domain.flight.Airlines.logoDomain]) names. */
+    fun isListed(domain: String): Boolean =
+        DOMAINS.any { it.second == domain } || domain in com.zyke.message.domain.flight.Airlines.logoDomains
+
     /** The website for [name], or null when it is not a name we know. */
     fun domainFor(name: String): String? {
         val text = " ${name.lowercase().replace(Regex("[^a-z0-9' ]+"), " ").replace(Regex("\\s+"), " ").trim()} "

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,7 +48,7 @@ fun FlightSettingsSection() {
                 RowTitle("Track flights on the day you fly")
                 Caption(
                     "Asks Flightradar24 for delays, gate and landing. Only the airline code and flight number (like 6E 2345) are sent, never your messages, PNR or name.",
-                    maxLines = 6
+                    maxLines = 5
                 )
             }
             Switch(checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
@@ -58,8 +60,8 @@ fun FlightSettingsSection() {
             Column(Modifier.weight(1f)) {
                 RowTitle("Notification while I fly")
                 Caption(
-                    "With live status on, a notification you can’t swipe away shows your flight while it is in the air and updates every 30 seconds (the app asks the internet that often only then). It ends when you land, leaving a notification you can dismiss. “Stop tracking” on it ends it sooner. With live status off you get one ordinary reminder before you fly.",
-                    maxLines = 9
+                    "With live status on, an ongoing notification follows your flight in the air and updates every 30 seconds (the internet is asked that often only then). When you land it becomes one you can dismiss. With live status off you get one ordinary reminder before you fly.",
+                    maxLines = 6
                 )
             }
             Switch(checked = tracking, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
@@ -71,20 +73,21 @@ fun FlightSettingsSection() {
             Column(Modifier.weight(1f)) {
                 RowTitle("Show flight details on the lock screen")
                 Caption(
-                    "On: the route, landing time and countdown show on the lock screen, and on the always-on display if your phone shows notifications there. Off: only “Flight in progress” until you unlock. It changes with the next update, within 30 seconds.",
-                    maxLines = 7
+                    "On: the route, landing time and countdown show on the lock screen. Off: only “Flight in progress” until you unlock. Applies from the next update, within 30 seconds.",
+                    maxLines = 5
                 )
             }
             Switch(checked = lockDetails, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
         }
         LockScreenHealth(lockDetails)
+        HorizontalDivider(Modifier.padding(top = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Caption(
             "Off: the Home card still shows the times from your booking message, with no internet. The service is unofficial and may be slow or unavailable.",
-            Modifier.padding(top = 12.dp), maxLines = 5
+            Modifier.padding(top = 12.dp), maxLines = 4
         )
         Caption(
-            "Starting: open the app up to half an hour before you fly, or tap the notification the app leaves ten minutes before departure. On Android 12 and later a phone does not let an app start this from the background by itself.",
-            Modifier.padding(top = 8.dp), maxLines = 6
+            "To start: open the app up to half an hour before you fly, or tap the reminder the app leaves ten minutes before departure. Android does not let an app start this from the background by itself.",
+            Modifier.padding(top = 8.dp), maxLines = 5
         )
         ManualFlightsSection()
     }

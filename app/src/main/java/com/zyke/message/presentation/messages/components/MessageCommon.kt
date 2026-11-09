@@ -191,6 +191,48 @@ internal fun MerchantChip(
     }
 }
 
+/**
+ * An airline's logo: its picture from the same cached, opt-in logo pipeline as a brand's (see [com.zyke.message.domain.flight.Airlines.logoDomain]),
+ * on a white tile so a transparent icon reads in both themes; or, until it arrives, when logos are off, offline, in the demo or the
+ * airline has none, a tonal tile with the two-character airline code. Purely decorative: the airline is always named in text beside it.
+ */
+@Composable
+internal fun AirlineLogo(code: String, modifier: Modifier = Modifier, size: Dp = 44.dp) {
+    val shape = RoundedCornerShape(size / 4)
+    val domain = remember(code) { com.zyke.message.domain.flight.Airlines.logoDomain(code) }
+    val picture = rememberDomainLogo(domain)
+    // A steady tone per airline, drawn from the theme's own meaning colours (never a literal), so the fallback is not a grey blob.
+    val tones = listOf(
+        MaterialTheme.colorScheme.primary, com.zyke.message.presentation.theme.AppColors.info,
+        com.zyke.message.presentation.theme.AppColors.success, com.zyke.message.presentation.theme.AppColors.warning
+    )
+    val tone = tones[(code.hashCode() and Int.MAX_VALUE) % tones.size]
+    Box(
+        modifier.size(size).clearAndSetSemantics { }
+            .border(0.5.dp, MaterialTheme.colorScheme.tertiary, shape)
+            .background(if (picture != null) Color.White else tone.copy(alpha = 0.16f), shape)
+            .clip(shape),
+        contentAlignment = Alignment.Center
+    ) {
+        if (picture != null) {
+            Image(bitmap = picture, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.padding(size / 6))
+        } else {
+            Text(code.uppercase(), color = tone, fontSize = (size.value * 0.34f).sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun rememberDomainLogo(domain: String?): ImageBitmap? {
+    val store = LocalImageStore.current
+    if (store == null || domain == null) return null
+    val version by store.version.collectAsState()
+    val cached = remember(domain, version) { store.peekLogoDomain(domain)?.asImageBitmap() }
+    if (cached != null) return cached
+    val loaded by produceState<ImageBitmap?>(initialValue = null, domain, version) { value = store.loadLogoDomain(domain)?.asImageBitmap() }
+    return loaded
+}
+
 /** Primary line of a row: who or what. */
 @Composable
 internal fun RowTitle(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {

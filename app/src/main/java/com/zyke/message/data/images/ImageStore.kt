@@ -118,6 +118,9 @@ class ImageStore(
         return cache.get(LOGO + domain)
     }
 
+    /** The logo for a listed website (an airline's, see [com.zyke.message.domain.flight.Airlines.logoDomain]) if it is already in memory. */
+    fun peekLogoDomain(domain: String): Bitmap? = if (KnownEntityDomains.isListed(domain)) cache.get(LOGO + domain) else null
+
     /** [KnownEntityDomains.domainFor] builds regexes on every call; a list of rows asks the same few names again and again. */
     private val domains = ConcurrentHashMap<String, String>()
 
@@ -132,12 +135,25 @@ class ImageStore(
     suspend fun loadLogo(name: String): Bitmap? = withContext(Dispatchers.IO) {
         if (isHidden(name)) return@withContext null
         val domain = domainOf(name) ?: return@withContext null
-        cache.get(LOGO + domain)?.let { return@withContext it }
-        val file = File(logoDir, fileName(domain))
-        decodeFile(file)?.let { return@withContext it.also { bitmap -> cache.put(LOGO + domain, bitmap) } }
+        fetchLogo(domain)
+    }
 
-        if (offline || !logosEnabled() || recentlyFailed(domain) || !inFlight.add(domain)) return@withContext null
-        try {
+    /**
+     * The same cache and the same rules (switched on by the person, never in the demo, not retried for a week after a miss)
+     * for a website the app lists itself; anything not on the list is refused, so no other name can ever be sent.
+     */
+    suspend fun loadLogoDomain(domain: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (!KnownEntityDomains.isListed(domain)) return@withContext null
+        fetchLogo(domain)
+    }
+
+    private fun fetchLogo(domain: String): Bitmap? {
+        cache.get(LOGO + domain)?.let { return it }
+        val file = File(logoDir, fileName(domain))
+        decodeFile(file)?.let { return it.also { bitmap -> cache.put(LOGO + domain, bitmap) } }
+
+        if (offline || !logosEnabled() || recentlyFailed(domain) || !inFlight.add(domain)) return null
+        return try {
             val bitmap = logoFetcher.fetch(domain)
             if (bitmap == null) {
                 index.edit().putLong(FAILED + domain, System.currentTimeMillis()).apply()

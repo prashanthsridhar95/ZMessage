@@ -6,6 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextOverflow
+import com.zyke.message.presentation.messages.components.AirlineLogo
+import com.zyke.message.presentation.common.ButtonSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -245,11 +250,17 @@ private fun AirlineField(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (selected != null) {
+                AirlineLogo(selected.code, size = 32.dp)
+                Spacer(Modifier.width(12.dp))
+            }
             Text(
                 selected?.let { "${it.name} (${it.code})" } ?: "Choose the airline",
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge,
-                color = if (selected != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f), maxLines = 1
+                color = if (selected != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            Spacer(Modifier.width(8.dp))
             Text(if (open) "▴" else "▾", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
         }
         if (open) {
@@ -264,8 +275,11 @@ private fun AirlineField(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "Choose ${airline.name}") { onPick(airline) }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(airline.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        Text(airline.code, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        AirlineLogo(airline.code, size = 32.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(airline.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.width(8.dp))
+                        Text(airline.code, style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -330,12 +344,18 @@ internal fun ManualFlightsSection() {
         }
         manual.forEachIndexed { index, flight ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                RowTitle("${flight.airline.name} ${flight.code}")
-                Caption(manualCaption(flight), maxLines = 3)
-                ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
-                    AppButton("Edit", { editing = flight.id }, Modifier.cell(), style = ButtonStyle.OUTLINE)
-                    AppButton("Remove", { actions.remove(flight) }, Modifier.cell(), style = ButtonStyle.OUTLINE)
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AirlineLogo(flight.airline.code, size = 40.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        RowTitle("${flight.airline.name} ${flight.code}")
+                        Caption(manualCaption(flight), maxLines = 2)
+                    }
+                }
+                ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
+                    AppButton("Edit", { editing = flight.id }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                    AppButton("Remove", { actions.remove(flight) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                 }
             }
         }

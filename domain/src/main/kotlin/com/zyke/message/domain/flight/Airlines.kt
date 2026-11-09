@@ -23,6 +23,32 @@ object Airlines {
     /** Every known airline, in the order of the table (the Indian ones first). */
     fun list(): List<Airline> = all.values.toList()
 
+    /**
+     * The website each airline's logo is looked up by (the same public icon services the brand logos use, only when the person
+     * has logos switched on; never in the demo). Only these names are ever sent. A null is deliberate: the airline no longer
+     * flies or has no site worth asking, so it gets the initials tile.
+     */
+    private val domains: Map<String, String?> = mapOf(
+        "6E" to "goindigo.in", "AI" to "airindia.com", "UK" to "airvistara.com", "SG" to "spicejet.com", "QP" to "akasaair.com",
+        "IX" to "airindiaexpress.com", "I5" to "airindiaexpress.com", "S5" to "starair.in", "9I" to "allianceair.in",
+        "G8" to null, "2T" to "trujet.com", "OP" to "fly91.in",
+        "EK" to "emirates.com", "QR" to "qatarairways.com", "EY" to "etihad.com", "SQ" to "singaporeair.com",
+        "TR" to "flyscoot.com", "TG" to "thaiairways.com", "BA" to "britishairways.com", "LH" to "lufthansa.com",
+        "AF" to "airfrance.com", "KL" to "klm.com", "SV" to "saudia.com", "WY" to "omanair.com",
+        "G9" to "airarabia.com", "FZ" to "flydubai.com", "UL" to "srilankan.com", "MH" to "malaysiaairlines.com",
+        "AK" to "airasia.com", "CX" to "cathaypacific.com", "QF" to "qantas.com", "UA" to "united.com",
+        "AA" to "aa.com", "DL" to "delta.com", "TK" to "turkishairlines.com"
+    )
+
+    /** The website to ask for [code]'s logo, or null when there is none (the airline is not listed or has no logo source). */
+    fun logoDomain(code: String): String? = domains[code.uppercase()]
+
+    /** Airline codes with no logo source on purpose. */
+    val withoutLogo: Set<String> get() = domains.filterValues { it == null }.keys
+
+    /** Every site a logo may be asked of. */
+    val logoDomains: Set<String> get() = domains.values.filterNotNull().toSet()
+
     /** The airline codes the message parser accepts in front of a flight number. */
     val codes: Set<String> get() = all.keys
 

@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.zyke.message.domain.flight.FlightCardModel
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,6 +76,7 @@ import com.zyke.message.presentation.common.ResponsiveRow
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.messages.components.AirlineLogo
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.theme.AppColors
@@ -160,114 +166,137 @@ internal fun rememberFlightsToday(fromTexts: List<BookedFlight>, dismissed: Set<
 
 // ---- the card on Home
 
-/** "Your flight today": up to two flights, then "n more". Styled like the "Needs your attention" card, and as quiet. */
+/** At most this many other flights show as one-line rows under the featured one; the rest are behind "n more flights". */
+private const val MAX_ROWS = 2
+
+/**
+ * "Your flight today": the next flight as a calm boarding-pass strip (airline, status, DEL ——✈—— MAA with times, one supporting
+ * line, terminal and gate only when known), any other flights as one-line rows, and one tidy row of actions. Styled like the
+ * "Needs your attention" card, and as quiet.
+ */
 @Composable
 internal fun FlightCard(today: FlightsToday, onOpen: (String) -> Unit, onDismiss: (String) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    val flights = today.flights
-    if (flights.isEmpty()) return
+    if (today.flights.isEmpty()) return
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val shown = if (expanded) flights else flights.take(MAX_CARDS)
+    val models = remember(today) { FlightCardModel.featuredFirst(today.flights.map { FlightCardModel.of(today.snapshot(it), today.now, today.liveOn) }) }
+    val featured = models.first()
+    val others = models.drop(1)
+    val shown = if (expanded) others else others.take(MAX_ROWS)
+    val stack = rememberStackRoute()
     com.zyke.message.presentation.common.FintechCard(modifier) {
-        Text(
-            if (flights.size == 1) "Your flight today" else "Your flights today",
-            Modifier.heading().padding(vertical = 2.dp),
-            style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
-        )
-        shown.forEachIndexed { index, flight ->
-            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-            FlightRow(today.snapshot(flight), today, onOpen = { onOpen(flight.key) }, onDismiss = { onDismiss(flight.dismissKey) })
+        FeaturedFlight(featured, stack, onOpen = { onOpen(featured.key) }, onDismiss = { onDismiss(featured.dismissKey) })
+        shown.forEach { other ->
+            HorizontalDivider(Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            FlightSummaryRow(other, stack) { onOpen(other.key) }
         }
-        if (flights.size > MAX_CARDS) {
-            val more = flights.size - MAX_CARDS
+        if (others.size > MAX_ROWS) {
+            val more = others.size - MAX_ROWS
             AppButton(
                 if (expanded) "Show fewer" else if (more == 1) "1 more flight" else "$more more flights",
                 { expanded = !expanded }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
             )
         }
-        AppButton("Add a flight", onAdd, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+        if (today.liveOn) {
+            AppButton("Add a flight", onAdd, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        } else {
+            // One row of two equal buttons (stacked, still equal, on a narrow phone or at large text).
+            ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
+                AppButton("Get live status", { onOpen(featured.key) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                AppButton("Add a flight", onAdd, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+            }
+        }
     }
 }
 
+/** The flight to look at: tap anywhere on it for the sheet; the dismiss icon sits in the corner, outside that tap. */
 @Composable
-private fun FlightRow(s: FlightSnapshot, today: FlightsToday, onOpen: () -> Unit, onDismiss: () -> Unit) {
+private fun FeaturedFlight(m: FlightCardModel, stack: Boolean, onOpen: () -> Unit, onDismiss: () -> Unit) {
     val onSurface = MaterialTheme.colorScheme.onSurface
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClickLabel = "Open flight status", onClick = onOpen).padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AirlineChip(s.flight.airline.code)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        FlightText.title(s), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                        color = onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                    StatusPill(s.kind, Modifier.padding(top = 4.dp))
-                    Text(
-                        FlightText.headline(s, today.now), Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium,
-                        color = onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                    cardDetail(s, today)?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = onSurface.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+    val sideBySide = !stack && LocalDensity.current.fontScale < SIDE_BY_SIDE_MAX_FONT
+    Box(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button, onClickLabel = "Open flight status", onClick = onOpen)
+                .semantics(mergeDescendants = true) { contentDescription = m.spoken }
+        ) {
+            Column(Modifier.fillMaxWidth().clearAndSetSemantics { }) {
+                AirlineLine(m, logoSize = 44.dp, showPill = !stack, big = false, endPadding = DISMISS_SPACE)
+                if (stack) StatusPill(m.kind, Modifier.padding(top = 8.dp))
+                RouteBlock(m, big = false, modifier = Modifier.padding(top = 14.dp))
+                Text(
+                    m.supporting, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+                    color = onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis
+                )
+                if (m.chips.isNotEmpty() || m.caption != null) {
+                    if (sideBySide) {
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Chips(m.chips)
+                            Spacer(Modifier.weight(1f))
+                            m.caption?.let { Caption(it, maxLines = 1) }
+                        }
+                    } else {
+                        Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (m.chips.isNotEmpty()) Chips(m.chips)
+                            m.caption?.let { Caption(it, maxLines = 1) }
+                        }
                     }
                 }
-            }
-            Box(Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Hide for today", onClick = onDismiss), contentAlignment = Alignment.Center) {
-                androidx.compose.foundation.Image(
-                    modifier = Modifier.size(18.dp),
-                    painter = androidx.compose.ui.res.painterResource(com.zyke.message.R.drawable.baseline_close_24),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(onSurface.copy(alpha = 0.8f)),
-                    contentDescription = "Hide for today"
-                )
+                Spacer(Modifier.height(2.dp))
             }
         }
-        if (!today.liveOn) {
-            AppButton("Turn on live status", onOpen, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        Box(
+            Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = 2.dp).size(40.dp).clip(CircleShape)
+                .clickable(role = Role.Button, onClickLabel = "Hide for today", onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.Image(
+                modifier = Modifier.size(16.dp),
+                painter = androidx.compose.ui.res.painterResource(com.zyke.message.R.drawable.baseline_close_24),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(onSurface.copy(alpha = 0.8f)),
+                contentDescription = "Hide for today"
+            )
         }
     }
 }
 
-/** Terminal and gate when known, then how fresh the live data is; or where the times come from when there is none. */
-private fun cardDetail(s: FlightSnapshot, today: FlightsToday): String? {
-    val parts = listOfNotNull(
-        FlightText.place(s),
-        when {
-            s.updatedAt != null -> FlightText.updated(today.now.toEpochMilli(), s.updatedAt!!)
-            !today.liveOn -> "From your message"
-            else -> null
+private val DISMISS_SPACE = 32.dp
+private const val SIDE_BY_SIDE_MAX_FONT = 1.15f
+
+/** Terminal, gate and the like: small rounded labels, one per known fact; never drawn empty. */
+@Composable
+private fun Chips(chips: List<String>) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        chips.forEach { chip ->
+            Text(
+                chip, Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, softWrap = false
+            )
         }
-    )
-    return parts.joinToString(" · ").ifEmpty { null }
-}
-
-@Composable
-private fun AirlineChip(code: String) {
-    Box(
-        Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(code, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
     }
 }
 
-/** The status in words, on a tint of its colour with a dot, so it never relies on colour alone. */
+/** A flight that is not the featured one, folded to one line: logo, "6E 2345 · DEL → MAA · 18:40", its status. */
 @Composable
-internal fun StatusPill(kind: FlightStatusKind, modifier: Modifier = Modifier) {
-    val color = when (kind) {
-        FlightStatusKind.SCHEDULED, FlightStatusKind.CHECK_IN -> AppColors.info
-        FlightStatusKind.BOARDING, FlightStatusKind.DEPARTED, FlightStatusKind.IN_AIR, FlightStatusKind.LANDED -> AppColors.success
-        FlightStatusKind.DELAYED -> AppColors.warning
-        FlightStatusKind.CANCELLED, FlightStatusKind.DIVERTED -> AppColors.danger
-    }
+private fun FlightSummaryRow(m: FlightCardModel, stack: Boolean, onOpen: () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.18f)).padding(horizontal = 10.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = "Open flight status", onClick = onOpen)
+            .semantics(mergeDescendants = true) { contentDescription = m.spoken },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text(kind.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+        Row(Modifier.fillMaxWidth().clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
+            AirlineLogo(m.airlineCode, size = 28.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                m.summary, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            if (!stack) {
+                Spacer(Modifier.width(8.dp))
+                Caption(m.statusLabel, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -307,33 +336,33 @@ internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -
     val failed = flightKey in today.live.failed
     val notFound = flightKey in today.live.notFound
     val refreshing = today.live.loading
+    val model = FlightCardModel.of(snapshot, now, today.liveOn)
+    val stack = rememberStackRoute()
 
     AdaptiveSheet(
-        title = "${flight.airline.name} ${flight.code}",
+        title = "Flight status",
         onDismiss = onDismiss,
         autoPage = false,
         footer = {
-            when {
-                !today.liveOn -> AppButton("Turn on live status", { service.setLiveEnabled(true) }, Modifier.fillMaxWidth())
-                else -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
-                    AppButton(
-                        if (failed) "Retry" else if (refreshing) "Refreshing…" else "Refresh",
-                        { scope.launch { service.refresh(listOf(flight), today.zone, manual = true) } },
-                        Modifier.cell(), style = if (failed) ButtonStyle.PRIMARY else ButtonStyle.OUTLINE, enabled = !refreshing
-                    )
-                    if (flight.pnr != null) AppButton("Copy PNR", { copyPnr(context, flight.pnr!!) }, Modifier.cell(), style = ButtonStyle.OUTLINE)
-                }
+            if (!today.liveOn) {
+                AppButton("Turn on live status", { service.setLiveEnabled(true) }, Modifier.fillMaxWidth())
+            } else {
+                AppButton(
+                    if (failed) "Retry" else if (refreshing) "Refreshing…" else "Refresh",
+                    { scope.launch { service.refresh(listOf(flight), today.zone, manual = true) } },
+                    Modifier.fillMaxWidth(), style = if (failed) ButtonStyle.PRIMARY else ButtonStyle.OUTLINE, enabled = !refreshing
+                )
             }
         }
     ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            RouteHeader(snapshot, now)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                StatusPill(snapshot.kind)
-                Text(FlightText.headline(snapshot, now), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AirlineLine(model, logoSize = 52.dp, showPill = !stack, big = true)
+                if (stack) StatusPill(model.kind)
             }
-            Times(snapshot)
-            Facts(snapshot, flight)
+            RouteBlock(model, big = true, showDuration = true)
+            Text(model.supporting, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Facts(snapshot, flight, stack, onCopyPnr = { copyPnr(context, it) })
             Freshness(snapshot, today, now, failed, notFound)
             val mine = today.manual.firstOrNull { it.key == flightKey }
             if (mine != null) ManualFlightButtons(mine, onEdit, onDismiss)
@@ -341,99 +370,47 @@ internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -
     }
 }
 
+/** What the sheet knows beyond the route, as tiles in two aligned columns (one column on a narrow phone or at large text). */
 @Composable
-private fun RouteHeader(s: FlightSnapshot, now: Instant) {
-    val muted = mutedColor()
-    val done = MaterialTheme.colorScheme.primary
-    val fraction = FlightText.progress(s, now)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        PlaceColumn(s.origin?.label ?: "—", s.origin?.city, Alignment.Start)
-        Canvas(
-            Modifier.weight(1f).padding(horizontal = 12.dp).height(28.dp)
-                .semantics { contentDescription = "Flight progress ${(fraction * 100).toInt()} percent" }
-        ) {
-            val y = size.height / 2
-            val r = 5.dp.toPx()
-            val startX = r
-            val endX = size.width - r
-            val stroke = 3.dp.toPx()
-            drawLine(muted.copy(alpha = 0.5f), Offset(startX, y), Offset(endX, y), strokeWidth = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx())))
-            val x = startX + (endX - startX) * fraction
-            if (fraction > 0f) drawLine(done, Offset(startX, y), Offset(x, y), strokeWidth = stroke, cap = StrokeCap.Round)
-            drawCircle(done, r, Offset(startX, y))
-            drawCircle(if (fraction >= 1f) done else muted, r, Offset(endX, y))
-            if (fraction in 0.001f..0.999f) {
-                // A small arrow where the flight is.
-                val arrow = Path().apply {
-                    moveTo(x + 9.dp.toPx(), y)
-                    lineTo(x - 6.dp.toPx(), y - 7.dp.toPx())
-                    lineTo(x - 3.dp.toPx(), y)
-                    lineTo(x - 6.dp.toPx(), y + 7.dp.toPx())
-                    close()
-                }
-                drawPath(arrow, done)
-            }
-        }
-        PlaceColumn(s.destination?.label ?: "—", s.destination?.city, Alignment.End)
-    }
-}
-
-@Composable
-private fun PlaceColumn(code: String, city: String?, align: Alignment.Horizontal) {
-    Column(Modifier.widthIn(min = 64.dp, max = 112.dp), horizontalAlignment = align) {
-        Text(code, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-        if (city != null && city != code) Caption(city, maxLines = 2)
-    }
-}
-
-@Composable
-private fun Times(s: FlightSnapshot) {
-    val departed = s.kind in setOf(FlightStatusKind.DEPARTED, FlightStatusKind.IN_AIR, FlightStatusKind.LANDED)
-    val landed = s.kind == FlightStatusKind.LANDED
-    ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
-        TimeCell(
-            if (departed) "Departed" else "Departs", s.bestDeparture?.let { FlightText.clock(it, s.departureZone) },
-            scheduled = s.scheduledDeparture?.takeIf { it != s.bestDeparture }?.let { FlightText.clock(it, s.departureZone) },
-            onTime = s.isLive && s.kind != FlightStatusKind.DELAYED && s.kind != FlightStatusKind.CANCELLED, modifier = Modifier.cell()
-        )
-        TimeCell(
-            if (landed) "Landed" else "Arrives", FlightText.arrivalClock(s),
-            scheduled = s.scheduledArrival?.takeIf { it != s.bestArrival }?.let { FlightText.clock(it, s.arrivalZone) },
-            onTime = s.isLive && s.kind != FlightStatusKind.DELAYED && s.kind != FlightStatusKind.CANCELLED, modifier = Modifier.cell()
-        )
-    }
-}
-
-@Composable
-private fun TimeCell(label: String, time: String?, scheduled: String?, onTime: Boolean, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(14.dp)) {
-        Caption(label)
-        Text(time ?: "Not known", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-        if (scheduled != null) Caption("Scheduled $scheduled", maxLines = 2) else if (onTime && time != null) Caption("On time")
-    }
-}
-
-@Composable
-private fun Facts(s: FlightSnapshot, flight: BookedFlight) {
-    val rows = listOfNotNull(
+private fun Facts(s: FlightSnapshot, flight: BookedFlight, stack: Boolean, onCopyPnr: (String) -> Unit) {
+    val facts = listOfNotNull(
         s.terminal?.let { "Terminal" to it },
         s.gate?.let { "Gate" to it },
         s.baggage?.let { "Baggage belt" to it },
-        s.arrivalTerminal?.let { "Arrival terminal" to it },
-        flight.pnr?.let { "PNR" to it }
+        s.arrivalTerminal?.let { "Arrival terminal" to it }
     )
-    if (rows.isEmpty()) {
+    if (facts.isEmpty() && flight.pnr == null) {
         Caption("Terminal and gate appear here when your airline or the live status gives them.", maxLines = 3)
         return
     }
-    Column {
-        rows.forEachIndexed { index, (label, value) ->
-            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = mutedColor())
-                Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        facts.chunked(if (stack) 1 else 2).forEach { rowFacts ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                rowFacts.forEach { (label, value) -> FactTile(label, value, Modifier.weight(1f)) }
+                if (rowFacts.size == 1 && !stack) Spacer(Modifier.weight(1f))
             }
         }
+        flight.pnr?.let { pnr ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(start = 14.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Caption("PNR")
+                    Text(pnr, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(8.dp))
+                AppButton("Copy", { onCopyPnr(pnr) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FactTile(label: String, value: String, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Caption(label)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
