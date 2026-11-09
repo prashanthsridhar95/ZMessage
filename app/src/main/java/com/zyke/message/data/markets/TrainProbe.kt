@@ -36,6 +36,14 @@ internal class TrainProbe {
         val date = today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         return listOf(
             ProbeCandidate("ConfirmTkt API (current)", "https://api.confirmtkt.com/api/trains/runningstatus?trainno=$train&startday=0"),
+            // api.confirmtkt.com is a real host that answered 404 "No HTTP resource was found" for the first path on a real phone, so
+            // the host is right and the path is not: these are other paths its API is believed to use (same host, nothing new pinned).
+            ProbeCandidate("ConfirmTkt API path 2", "https://api.confirmtkt.com/api/platform/trainsrunningstatus?trainno=$train&startday=0"),
+            ProbeCandidate("ConfirmTkt API path 3", "https://api.confirmtkt.com/api/platform/runningstatus?trainno=$train&startday=0"),
+            ProbeCandidate("ConfirmTkt API path 4", "https://api.confirmtkt.com/api/trains/livestatus?trainno=$train&startday=0"),
+            ProbeCandidate("ConfirmTkt API path 5", "https://api.confirmtkt.com/api/v1/trains/runningstatus?trainno=$train&startday=0"),
+            ProbeCandidate("ConfirmTkt API path 6", "https://api.confirmtkt.com/api/trainsrunningstatus?trainno=$train&startday=0"),
+            ProbeCandidate("ConfirmTkt API root", "https://api.confirmtkt.com/"),
             ProbeCandidate("ConfirmTkt www", "https://www.confirmtkt.com/api/trains/runningstatus?trainno=$train&startday=0"),
             ProbeCandidate("RailYatri page", "https://www.railyatri.in/live-train-status/$train?start_date=$date"),
             ProbeCandidate("RailYatri API (guess)", "https://www.railyatri.in/api/trains/live-train-status/$train"),
