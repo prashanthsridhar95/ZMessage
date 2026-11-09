@@ -187,35 +187,60 @@ lock-screen switch, `LiveUpdates.promote` (with a train icon) and `FlightTrackin
   times, and the journey from boarding to destination, with "+1"/"+2" for arrival days later. All times are on the Indian clock.
   `TrainText`, `TrainCardModel` and `TrainNotificationText` hold every phrase (early, on time, late, "1 h 5 min", overnight,
   multi-day, boarding mid-route).
-- **Live data, honestly.** `TrainStatusParser` reads a running-status reply (a `route` array of stops with scheduled, expected and
-  actual times and platforms, the last station, the delay and a status text). **It was written from memory of the shape of the
-  unofficial services, and neither the host nor the reply was verified against any live service**: every candidate host was refused
-  (403) by the build environment's proxy, and Indian Railways has no official key-less API. The fixtures (`TrainFixtures`) are
-  hand-built and say so. Anything unexpected is `Unreadable` and the card says in one line what happened (`LiveCheck.cardLine`:
-  "service blocked the request" for 401/403/429/451, "Couldn't read the live reply" for a 2xx it could not use, else "Couldn't
-  refresh") and keeps the booking and schedule. The person's boarding station can be on a later day of the run than the day they travel; the first reply tells which
-  run day the station is on and `TrainService` asks again once with the right start day.
-- **Network (`data/markets/TrainFetcher`).** The fourth pinned network class: one host (`api.confirmtkt.com`), 5 s timeouts, 512 KB
-  cap, no redirects, no cookies, a generic User-Agent, status codes only in the log. It sends the train number and how many days ago
-  the run started, nothing else. `ManifestPolicyTest`, `LegalPolicyTest` and `LegalText` pin the host.
-- **Train source probe (developer only, temporary).** `data/markets/TrainProbe` is the only other network class for trains, kept to find a
-  working source after `api.confirmtkt.com` did not resolve on a real phone. "Probe train sources" in the Live status check card tries
-  its short candidate list for the sample train one after another (6 s timeouts, a 7 s hard stop each, no retries, no redirects, no
-  cookies) and `TrainProbeFormat` (domain) words each result on single lines; `TrainProbeMemo` keeps the replies in memory only for
-  "Share raw replies" (each body cut at 16 KB). `TrainService` never calls it. The list is cut down to the winner, then the class goes.
+- **Live data, honestly.** The source is **Live Train Status, Indian Rail API** (`indianrailapi.com`), a documented service that takes a
+  personal key. `IndianRailApiParser` reads its reply as the provider's documentation page shows it (`ResponseCode` "200",
+  `StartDate` dd-MM-yyyy, `CurrentStation`, `TrainRoute` with 12-hour "04:27PM" times, "Source"/"Destination" at the ends, delays like
+  "14 M"); `TrainFixtures.documentationSample` is that page's example, verbatim (dated 2018), and the other fixtures are hand-built in
+  the same shape. **The address, HTTPS support, the reply format today, the response codes other than "200" and the free-tier limits are
+  unverified**: the build environment cannot reach the host. The first source tried (an unofficial one) never worked on a real phone
+  (404 on every path) and was removed together with the developer probe that looked for alternatives. Because the times carry no date,
+  the day of each stop comes from the order of the schedule (a time earlier than the one before it is after midnight; a departure
+  earlier than its arrival too; the `Day` field only moves a stop later, as the sample says "0" for every stop); reported times take the
+  day nearest their scheduled time. The current station may be missing from the route list (the sample's is): it is placed by its
+  schedule. Stops up to the current one carry **actual** times, the stops ahead the provider's times as **expected** ones. The delay is
+  the current station's (departure delay once it has left, else arrival), else worked out from the times, else left at 0. The reply
+  has no cancelled, diverted or platform information, so those are never set. A response code other than "200" is not a status: the
+  provider's `Message` is matched by keywords to "limit reached", "key rejected" or "no data" (guesses, tested), anything else is
+  "unavailable" (`TrainLookup.Refused`/`NotFound`). Anything unreadable is `Unreadable`. The card then says in one line what happened
+  (`LiveCheck.cardLine`: "Train data key was rejected" for HTTP 401/403, "Daily limit reached" for 429, "Live status unavailable right
+  now" for other codes, "Couldn't make a secure connection", "No running status for this train on this day", else "Couldn't refresh")
+  and keeps the booking and schedule. The person's boarding station can be on a later day of the run than the day they travel; the first
+  reply tells which run day it is on and `TrainService` asks again once with the right start date.
+- **The key (`TrainKeyStore`, `TrainSettings`, `TrainKeySection`).** Settings > Flights and trains > Live train status has the "Train data
+  key" field (one masked line with Show/Hide, Done, validated by `TrainApi.keyProblem`: not empty, no spaces, at most 100 characters,
+  nothing that would change the address), Save and Clear. It is stored the way the UAN is: in the device-only preference file
+  `train_key_device` (nothing else in it), and the day's request count in `train_usage_device` (a day and a number, never the key); both
+  are in `PrefsBackup`'s exclusion list, `backup_rules.xml` and `data_extraction_rules.xml` leave every preference file out, and
+  "Delete all my data" removes them. The typed text lives in `remember` (not saved instance state). Nothing logs the key or puts it in an
+  exception or notification; `TrainApi.redact` removes it (and anything after `apikey/`) from the text the developer tools share. Live
+  status cannot be switched on without a key (`TrainSettings.liveEnabled` is the switch AND a saved key, and everything that asks reads
+  it), and clearing the key switches it off. The Demo has no key and no network.
+- **Network (`data/markets/TrainFetcher`).** The fourth pinned network class: one host (`indianrailapi.com`), HTTPS only (the
+  documentation shows plain http; the key is not sent in clear text and there is no fallback), 5 s timeouts, 512 KB cap, no redirects, no
+  cookies, a generic User-Agent, status codes only in the log. It sends the train number, the run's start date (yyyymmdd; the run's
+  start day, so for a station reached on a later day the journey day less the boarding day) and the key, in the address, nothing else.
+  `ManifestPolicyTest`, `LegalPolicyTest` and `LegalText` pin the host.
+- **Quota care.** Every request that goes out (a timed-out one is tried once more, and counts twice) increments the day's count, shown in
+  the page as "Live train requests today: N" with "Your plan may limit requests"; no limit of the provider is claimed because none is
+  known. Asking happens only while the app shows the trip (Home coming to the front, the open train sheet every 30 seconds) or while the
+  notification is active (`TrainTrackingService`); answers under 25 s old are reused, so the three never double up; after three answers
+  in a row that say "key rejected" or "limit reached" a journey is not asked about again until the key is saved again or the next day
+  (the card says so).
 - **Live status check (developer tools).** With developer options on (never in Demo mode), Settings, Flights and trains has "Test
-  train status" and "Test flight status". Each makes one real request for a sample number (12633, 6E 2345) through the same
-  fetchers, via `TrainService.diagnose` and `FlightService.diagnose` (so the network stays in `TrainFetcher`/`FlightFetcher`, whose
-  `diagnose` returns a `LiveReply`: status, content type, size, failure kind, body; no new host, still no redirects). A result card
-  shows the status, content type, size, what the parser made of it and the failure kind, decided by the pure
-  `LiveCheck.classify` (no network, DNS, TLS, timeout, blocked, other HTTP status, empty, too large, not JSON, shape mismatch naming the
-  first missing field). "Share raw reply" offers the latest reply as a .txt (cut at 64 KB) through `LogShare.shareText`. Only that one
-  latest reply is kept (`LiveReplyMemo`, in memory, never stored or logged); it is public status data, the request carrying only the
-  sample number. The fetchers also send `Accept` and `Accept-Language`, retry once on a timeout, and read the body by hand
-  (`InputStream.readNBytes(int)` is Android 13 and later, and the app supports Android 8). `LiveStatusCheckPolicyTest` pins this.
+  train status" and "Test flight status". Each makes one real request for a sample (train 12676 for today's date with the saved key,
+  6E 2345) through the same fetchers, via `TrainService.diagnose` and `FlightService.diagnose` (so the network stays in
+  `TrainFetcher`/`FlightFetcher`, whose `diagnose` returns a `LiveReply`: status, content type, size, failure kind, body; no new host,
+  still no redirects). A result card shows the status, content type, size, what the parser made of it, the provider's own response code
+  and message, and the failure kind, decided by the pure `LiveCheck.classify` (no network, DNS, TLS, timeout, key rejected, limit reached,
+  other HTTP status, empty, too large, not JSON, shape mismatch naming the first missing field). "Share raw reply" offers the latest reply
+  as a .txt (cut at 64 KB) through `LogShare.shareText`, with the key taken out of the body and of the request line. Only that one latest
+  reply is kept (`LiveReplyMemo`, in memory, never stored or logged). The fetchers also send `Accept` and `Accept-Language`, retry once on
+  a timeout, and read the body by hand (`InputStream.readNBytes(int)` is Android 13 and later, and the app supports Android 8).
+  `LiveStatusCheckPolicyTest` pins this.
 - **Service (`data/trains/TrainService`).** Like `FlightService`: in-memory statuses by journey key, answers under 25 s old reused,
-  at most three journeys, off until `train_status.live_enabled` is true, and the demo answered before the fetcher is reachable. It
-  owns the only `TrainFetcher`; `lookup` (the form's "Look up train") goes through it too.
+  at most three journeys, off until `train_status.live_enabled` is true and a key is saved, and the demo answered before the fetcher is
+  reachable. It owns the only `TrainFetcher`; `lookup` (the form's "Look up train") goes through it too; the provider sends no train
+  name, so a look-up fills the stations and the schedule only.
 - **Added by hand (`ManualTrains`, `ManualTrainRepositoryImpl`, `ManualTrainUi`).** Train number, day, optional boarding station
   (a code or a name) and a PNR note, stored in `manual_trains` (backed up, expiry a day after arrival) exactly like manual flights;
   the look-up fills the name, the stations and the schedule. Entry points: Settings > Flights and trains, and one **"Add a trip"**

@@ -104,40 +104,10 @@ Flightradar24
   Licence: Flightradar24's own terms of service
   https://www.flightradar24.com/terms-and-conditions
 
-ConfirmTkt
-  Live train running status (opt-in, unofficial; no agreement with them)
-  Licence: Its own terms of service
-  https://www.confirmtkt.com/
-
-ConfirmTkt (www)
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://www.confirmtkt.com/
-
-RailYatri
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://www.railyatri.in/
-
-ixigo
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://www.ixigo.com/
-
-Indian Railways NTES
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://enquiry.indianrail.gov.in/mntes/
-
-Trainman
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://www.trainman.in/
-
-runningstatus.in
-  Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number
-  Licence: Its own terms of service
-  https://runningstatus.in/
+Live Train Status, Indian Rail API
+  Live train running status (opt-in, needs your own key; no agreement between this project and them)
+  Licence: Its own terms of service and pricing
+  https://indianrailapi.com/
 
 Google Drive API
   Optional backup to your own Drive
