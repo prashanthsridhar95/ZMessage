@@ -11,7 +11,13 @@ data class FlightNotice(
     /** The smaller line, such as "Updated 14:32:10"; null when there is none. */
     val subText: String? = null,
     /** Percent of the flight flown, for the progress bar; null for a notice with no bar. */
-    val progress: Int? = null
+    val progress: Int? = null,
+    /** The very short text for a status-bar chip (Android 16 Live Updates), at most [FlightNotificationText.CHIP_MAX] characters; null when none. */
+    val chip: String? = null,
+    /** The moment the system counts down to (landing, or departure before it leaves); null when no countdown makes sense. */
+    val countdownTo: Instant? = null,
+    /** Positions (0..100) of the marks on the bar: take-off and landing. Empty for a notice with no bar. */
+    val points: List<Int> = emptyList()
 )
 
 /**
@@ -58,42 +64,90 @@ object FlightNotificationText {
     private fun hoursMinutes(millis: Long, zone: ZoneId): String =
         java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(millis).atZone(zone))
 
+    /** The longest chip text the status bar shows. */
+    const val CHIP_MAX = 7
+
+    /** Take-off and landing on the bar, as positions out of 100. */
+    val PROGRESS_POINTS: List<Int> = listOf(0, 100)
+
     /**
-     * The ongoing notice while a flight is in the air: "DEL → MAA", "In the air · lands 16:40 (12 min late)", a progress bar
-     * from the time flown, and "Updated 14:32:10". [lastUpdate] is the epoch millisecond of the last answer from the live
-     * source; when null the notice says the times are from the booking. [refreshFailed] is the "Can't refresh" state: the line
-     * under the title then says so and when the last update was.
+     * The short text for the status-bar chip and the lock screen, at most [CHIP_MAX] characters: "1h 05m", "45m", "5m", "now",
+     * "1d 2h". Null when [target] is not known. Minutes are rounded down, so it never promises more time than there is.
+     */
+    fun chip(now: Instant, target: Instant?): String? {
+        if (target == null) return null
+        val minutes = Duration.between(now, target).toMinutes()
+        return when {
+            minutes < 1 -> "now"
+            minutes < 60 -> "${minutes}m"
+            minutes < 24 * 60 -> "${minutes / 60}h ${(minutes % 60).toString().padStart(2, '0')}m"
+            else -> {
+                val days = minutes / (24 * 60)
+                if (days > 9) "9d+" else "${days}d ${minutes % (24 * 60) / 60}h"
+            }
+        }
+    }
+
+    /** The target for the system's own countdown: only when it is still ahead, so the clock never counts up past it. */
+    fun countdownTarget(now: Instant, target: Instant?): Instant? = target?.takeIf { it.isAfter(now) }
+
+    /** "Lands 16:40 · on time", "Lands 16:52 · 12 min late"; "Lands 16:40" when no schedule is known; null with no time at all. */
+    fun landsLine(s: FlightSnapshot): String? {
+        val clock = arrivalClock(s) ?: return null
+        val versus = againstSchedule(s.scheduledArrival, s.bestArrival)?.let { " · $it" }.orEmpty()
+        return "Lands $clock$versus"
+    }
+
+    /**
+     * The ongoing notice while a flight is in the air, glanceable: "In the air · DEL → MAA", "Lands 16:40 · on time", a bar
+     * from the time flown, the chip "1h 05m" (time to landing) and the landing as the moment to count down to, and
+     * "Updated 14:32:10". [lastUpdate] is the epoch millisecond of the last answer from the live source; when null the notice says
+     * the times are from the booking. [refreshFailed] is the "Can't refresh" state: the line under the title then says so and when
+     * the last update was.
      */
     fun inAir(s: FlightSnapshot, now: Instant, phoneZone: ZoneId, lastUpdate: Long?, refreshFailed: Boolean = false): FlightNotice {
         val stage = if (s.kind == FlightStatusKind.DEPARTED) "Departed" else "In the air"
-        val lands = arrivalClock(s)?.let { clock ->
-            val versus = againstSchedule(s.scheduledArrival, s.bestArrival)?.let { " ($it)" }.orEmpty()
-            " · lands $clock$versus"
-        }.orEmpty()
-        val line = if (refreshFailed) cantRefresh(lastUpdate, phoneZone) else stage + lands
+        val lands = landsLine(s)
+        val line = if (refreshFailed) cantRefresh(lastUpdate, phoneZone) else lands ?: "Landing time not known"
         val sub = when {
-            refreshFailed -> if (lands.isNotEmpty()) (stage + lands) else null
+            refreshFailed -> lands
             lastUpdate != null -> "Updated " + updatedClock(lastUpdate, phoneZone)
             else -> "From your booking"
         }
         val percent = (FlightText.progress(s, now) * 100).toInt().coerceIn(1, 99)
-        return FlightNotice(route(s), line, sub, percent)
+        return FlightNotice(
+            "$stage · ${route(s)}", line, sub, percent,
+            chip = chip(now, s.bestArrival), countdownTo = countdownTarget(now, s.bestArrival), points = PROGRESS_POINTS
+        )
     }
 
-    /** Before it leaves: "DEL → MAA", "Departs 14:35 (on time) · in 25m". The service watches from half an hour before. */
+    /**
+     * Before it leaves, the headline is what matters most: "Departs in 25 min", "Boarding", "Delayed 12 min" (or "Departing now");
+     * the line under it is the route and the time, "DEL → MAA · 14:35". The service watches from half an hour before.
+     */
     fun departing(s: FlightSnapshot, now: Instant, phoneZone: ZoneId, lastUpdate: Long?, refreshFailed: Boolean = false): FlightNotice {
         val dep = s.bestDeparture
-        val head = if (dep == null) "Departure time not known" else {
-            val versus = againstSchedule(s.scheduledDeparture, dep)?.let { " ($it)" }.orEmpty()
-            "Departs ${FlightText.clock(dep, s.departureZone)}$versus · ${Countdown.until(now, dep)}"
+        val late = againstSchedule(s.scheduledDeparture, dep)?.takeIf { it.endsWith(" late") }?.removeSuffix(" late")
+        val minutesLeft = dep?.let { Duration.between(now, it).toMinutes() }
+        val title = when {
+            s.kind == FlightStatusKind.BOARDING -> "Boarding"
+            late != null -> "Delayed $late"
+            s.kind == FlightStatusKind.DELAYED && s.delayMinutes >= ON_TIME_MINUTES -> "Delayed " + FlightText.delayWords(s.delayMinutes)
+            dep == null -> "Departure time not known"
+            minutesLeft != null && minutesLeft >= 1 -> "Departs in " + FlightText.delayWords(minutesLeft.toInt())
+            else -> "Departing now"
         }
+        val head = listOfNotNull(route(s), dep?.let { FlightText.clock(it, s.departureZone) }).joinToString(" · ")
         val line = if (refreshFailed) cantRefresh(lastUpdate, phoneZone) else head
         val sub = when {
             refreshFailed -> head
             lastUpdate != null -> "Updated " + updatedClock(lastUpdate, phoneZone)
             else -> "From your booking"
         }
-        return FlightNotice(route(s), line, sub, 0)
+        return FlightNotice(
+            title, line, sub, 0,
+            chip = chip(now, dep), countdownTo = countdownTarget(now, dep), points = PROGRESS_POINTS
+        )
     }
 
     /** "Can't refresh · last update 14:32"; without an update yet, "Can't refresh". */

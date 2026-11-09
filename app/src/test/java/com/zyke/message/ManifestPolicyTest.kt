@@ -38,7 +38,8 @@ class ManifestPolicyTest {
                 "android.permission.RECEIVE_SMS", // live code and bill buttons, off until switched on
                 "android.permission.SEND_SMS", // passing a login code on to chosen people, off until switched on; asked for only then
                 "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, and the in-flight notification, each with a visible notification
-                "android.permission.FOREGROUND_SERVICE_DATA_SYNC" // the same two services (type dataSync); no exact-alarm permission is asked for
+                "android.permission.FOREGROUND_SERVICE_DATA_SYNC", // the same two services (type dataSync); no exact-alarm permission is asked for
+                "android.permission.POST_PROMOTED_NOTIFICATIONS" // Android 16 Live Updates for the in-flight notification; a normal permission, ignored before 16
             ),
             permissions
         )

@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -15,6 +19,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.notifications.FlightTrackingControl
+import com.zyke.message.notifications.LiveUpdates
+import com.zyke.message.presentation.common.AppButton
+import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
@@ -29,6 +36,7 @@ fun FlightSettingsSection() {
     val context = LocalContext.current
     val on by service.liveEnabled.collectAsStateWithLifecycle()
     val tracking by service.trackingEnabled.collectAsStateWithLifecycle()
+    val lockDetails by service.lockScreenDetails.collectAsStateWithLifecycle()
     SectionCard("Live flight status") {
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp).toggleable(value = on, onValueChange = { service.setLiveEnabled(it); FlightTrackingControl.rearm(context) }, role = Role.Switch),
@@ -56,6 +64,20 @@ fun FlightSettingsSection() {
             }
             Switch(checked = tracking, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
         }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp).toggleable(value = lockDetails, onValueChange = { service.setLockScreenDetails(it) }, role = Role.Switch),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                RowTitle("Show flight details on the lock screen")
+                Caption(
+                    "On: the route, landing time and countdown show on the lock screen, and on the always-on display if your phone shows notifications there. Off: only “Flight in progress” until you unlock. It changes with the next update, within 30 seconds.",
+                    maxLines = 7
+                )
+            }
+            Switch(checked = lockDetails, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
+        }
+        LockScreenHealth(lockDetails)
         Caption(
             "Off: the Home card still shows the times from your booking message, with no internet. The service is unofficial and may be slow or unavailable.",
             Modifier.padding(top = 12.dp), maxLines = 5
@@ -65,5 +87,32 @@ fun FlightSettingsSection() {
             Modifier.padding(top = 8.dp), maxLines = 6
         )
         ManualFlightsSection()
+    }
+}
+
+/**
+ * Two read-only hints under the lock-screen switch, each with the button that fixes it: Live Updates switched off for the app in
+ * the system settings (Android 16 only), and the phone's own "hide sensitive content on the lock screen" which wins over the app.
+ * They look again each time the person comes back from the system settings.
+ */
+@Composable
+private fun LockScreenHealth(wantsDetails: Boolean) {
+    val context = LocalContext.current
+    var recheck by remember { mutableStateOf(0) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val watcher = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) recheck += 1 }
+        lifecycle.addObserver(watcher)
+        onDispose { lifecycle.removeObserver(watcher) }
+    }
+    val liveUpdatesOff = remember(recheck) { LiveUpdates.canPost(context) == false }
+    val systemHides = remember(recheck) { LiveUpdates.lockScreenHidesContent(context) }
+    if (wantsDetails && liveUpdatesOff) {
+        Caption("Live updates are off for Zyke in system settings, so the flight shows as an ordinary notification.", Modifier.padding(top = 8.dp), maxLines = 3)
+        AppButton("Open live update settings", { LiveUpdates.openSettings(context) }, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
+    }
+    if (wantsDetails && systemHides) {
+        Caption("Your phone hides notification content on the lock screen, so the flight may show there as “Sensitive content hidden”.", Modifier.padding(top = 8.dp), maxLines = 3)
+        AppButton("Open lock screen settings", { LiveUpdates.openLockScreenSettings(context) }, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
     }
 }

@@ -18,8 +18,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Two switches: live flight status is off until the person turns it on; the notification while they fly ("in the air" with
- * live status on, a plain reminder with it off) is on unless they turn it off. Only these flags are stored (and so backed up).
+ * Three switches: live flight status is off until the person turns it on; the notification while they fly ("in the air" with
+ * live status on, a plain reminder with it off) is on unless they turn it off; and whether the route and times show on the lock screen (on unless turned off). Only these flags are stored (and so backed up).
  */
 class FlightSettings(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("flight_status", Context.MODE_PRIVATE)
@@ -27,6 +27,15 @@ class FlightSettings(context: Context) {
     private val tracking = MutableStateFlow(prefs.getBoolean(TRACK, true))
     val liveEnabled: StateFlow<Boolean> = state
     val trackingEnabled: StateFlow<Boolean> = tracking
+    private val lockDetails = MutableStateFlow(prefs.getBoolean(LOCK_DETAILS, true))
+
+    /** Whether the ongoing and landed notifications show the route and times on the lock screen (on unless turned off). */
+    val lockScreenDetails: StateFlow<Boolean> = lockDetails
+
+    fun setLockScreenDetails(on: Boolean) {
+        lockDetails.value = on
+        prefs.edit().putBoolean(LOCK_DETAILS, on).apply()
+    }
 
     fun setLiveEnabled(on: Boolean) {
         state.value = on
@@ -41,6 +50,7 @@ class FlightSettings(context: Context) {
     private companion object {
         const val LIVE = "live_enabled"
         const val TRACK = "track_in_air"
+        const val LOCK_DETAILS = "lock_screen_details"
     }
 }
 
@@ -72,6 +82,10 @@ class FlightService(private val settings: FlightSettings, private val demo: Bool
     val trackingEnabled: StateFlow<Boolean> get() = settings.trackingEnabled
 
     fun setTrackingEnabled(on: Boolean) = settings.setTrackingEnabled(on)
+
+    val lockScreenDetails: StateFlow<Boolean> get() = settings.lockScreenDetails
+
+    fun setLockScreenDetails(on: Boolean) = settings.setLockScreenDetails(on)
 
     /** When the last try for [key] was made (epoch milliseconds), or 0. The tracking service counts a failure once per try with this. */
     fun lastAttemptAt(key: String): Long = attempts[key] ?: 0L

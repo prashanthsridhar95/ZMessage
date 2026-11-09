@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.zyke.message.R
+import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.flight.FlightNotice
 import com.zyke.message.domain.flight.FlightNotificationText
 import com.zyke.message.domain.flight.TrackDecision
@@ -17,17 +18,26 @@ import com.zyke.message.presentation.flights.FlightRequests
 /**
  * Builds and posts the flight notifications. The words come from the tested [FlightNotificationText]; this only dresses them.
  *
- * - The ongoing one (departing soon, in the air): not dismissible, no sound or vibration (the quiet "Flight tracking" channel),
- *   a progress bar, one action "Stop tracking", a tap that opens the flight sheet. It is the service's foreground notification.
+ * - The ongoing one (departing soon, in the air): not dismissible, no sound or vibration and no heads-up (the "Flight tracking"
+ *   channel is DEFAULT importance without sound, so it counts as an alerting notification on the lock screen yet never makes a
+ *   noise; it is posted with only-alert-once), a determinate bar, a countdown to landing, one action "Stop tracking", a tap that
+ *   opens the flight sheet. It is the service's foreground notification. On Android 16 it is also asked to be a Live Update
+ *   (see [LiveUpdates]); before that it is simply an ongoing, public notification.
  * - The finished ones (landed, cancelled, diverted, tracking ended): dismissible, one per flight, in place of the ongoing one
- *   (same id).
+ *   (same id), an ordinary notification (so a Live Update ends).
  * - Prompts (tap to start tracking, the reminder when live status is off, tracking paused): on the "Flight reminders" channel.
  *
- * The lock screen shows only "Flight in progress" (or "Flight update"); the route and times appear once the phone is unlocked.
- * Nothing here is logged.
+ * On the lock screen the ongoing and finished notices show the route and times by default (flights are not amounts); with
+ * "Show flight details on the lock screen" off they show only "Flight in progress" (or "Flight update") until unlock. Prompts
+ * always keep the short version. Nothing here is logged.
  */
 object FlightNotifier {
-    const val TRACKING_CHANNEL = "flight_tracking"
+    /**
+     * A new id: a channel's importance and lock-screen visibility cannot be changed by the app once created, and the first
+     * version of the channel was LOW importance with private lock-screen content.
+     */
+    const val TRACKING_CHANNEL = "flight_live"
+    private const val LEGACY_TRACKING_CHANNEL = "flight_tracking"
     const val PROMPT_CHANNEL = "flight_prompts"
     private const val BASE_ID = 4300
     private const val SPAN = 900
@@ -44,13 +54,16 @@ object FlightNotifier {
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(LEGACY_TRACKING_CHANNEL) != null) manager.deleteNotificationChannel(LEGACY_TRACKING_CHANNEL)
         manager.createNotificationChannel(
-            NotificationChannel(TRACKING_CHANNEL, "Flight tracking", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Your flight while it is in the air, and when it lands. No sound or vibration."
+            NotificationChannel(TRACKING_CHANNEL, "Flight tracking", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Your flight while it is in the air, and when it lands. Shown on the lock screen; no sound, vibration or pop-up."
                 setSound(null, null)
                 enableVibration(false)
+                enableLights(false)
                 setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                // Leave it to each notification (the Settings switch), not to the channel.
+                lockscreenVisibility = NotificationManager.VISIBILITY_NO_OVERRIDE
             }
         )
         manager.createNotificationChannel(
@@ -80,8 +93,22 @@ object FlightNotifier {
             .setContentText(text)
             .build()
 
+    /** Whether the route and times may show on the lock screen (Settings > Live flight status; on unless turned off). */
+    fun detailsOnLock(context: Context): Boolean =
+        (context.applicationContext as ZykeMessagesApplication).container.flights.lockScreenDetails.value
+
+    /** Public with the real text, or private with the redacted one-liner ("Flight in progress") for the lock screen. */
+    private fun NotificationCompat.Builder.lockScreen(context: Context, details: Boolean, title: String, text: String): NotificationCompat.Builder =
+        if (details) {
+            setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        } else {
+            setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            setPublicVersion(publicVersion(context, TRACKING_CHANNEL, title, text))
+        }
+
     /** The ongoing notification for a flight being watched (id from [idFor]). */
     fun ongoing(context: Context, d: TrackDecision, id: Int, notice: FlightNotice): Notification {
+        val details = detailsOnLock(context)
         val builder = NotificationCompat.Builder(context, TRACKING_CHANNEL)
             .setSmallIcon(R.drawable.baseline_flight_24)
             .setColor(androidx.core.content.ContextCompat.getColor(context, R.color.zyke_accent))
@@ -89,18 +116,25 @@ object FlightNotifier {
             .setContentText(NotificationPrivacy.text(context, notice.text))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setPublicVersion(publicVersion(context, TRACKING_CHANNEL, FlightNotificationText.PUBLIC_TITLE, FlightNotificationText.PUBLIC_TEXT))
+            .lockScreen(context, details, FlightNotificationText.PUBLIC_TITLE, FlightNotificationText.PUBLIC_TEXT)
             .setContentIntent(open(context, d.key, id))
             // The one way to take it down before the flight ends.
             .addAction(0, "Stop tracking", stop(context, d.key, id))
+        // The system counts down to landing (or departure) by itself between our 30-second updates.
+        val countdown = notice.countdownTo
+        if (countdown != null) {
+            builder.setWhen(countdown.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+        } else {
+            builder.setShowWhen(false)
+        }
         notice.subText?.let { builder.setSubText(NotificationPrivacy.text(context, it)) }
         notice.progress?.let { builder.setProgress(100, it, false) }
-        return builder.build()
+        val built = builder.build()
+        // Android 16 Live Update (progress with a plane, a chip with the time left); anything else, or any failure, keeps the notification above.
+        return if (details) LiveUpdates.promote(context, built, notice) else built
     }
 
     /** The notification that takes the place of the ongoing one when the flight is over: swipe it away, or tap to open the flight. */
@@ -115,8 +149,7 @@ object FlightNotifier {
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setPublicVersion(publicVersion(context, TRACKING_CHANNEL, "Flight update", FlightNotificationText.PUBLIC_TEXT))
+            .lockScreen(context, detailsOnLock(context), "Flight update", FlightNotificationText.PUBLIC_TEXT)
             .setContentIntent(open(context, d.key, id))
             .build()
 

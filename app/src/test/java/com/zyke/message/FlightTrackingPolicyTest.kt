@@ -33,21 +33,69 @@ class FlightTrackingPolicyTest {
         assertTrue("setOngoing(true)" in ongoing)
         assertTrue("\"Stop tracking\"" in ongoing)
         assertTrue("setProgress(100" in ongoing)
-        assertTrue("setPublicVersion(" in ongoing && "FlightNotificationText.PUBLIC_TITLE" in ongoing)
-        assertTrue("setVisibility(NotificationCompat.VISIBILITY_PRIVATE)" in ongoing)
         assertEquals("one action only", 1, Regex("addAction\\(").findAll(ongoing).count())
         val finished = notifier.substringAfter("fun finished(").substringBefore("fun prompt(")
         assertTrue("setOngoing(false)" in finished && "setAutoCancel(true)" in finished)
         assertFalse("addAction(" in finished)
-        assertTrue("setPublicVersion(" in finished)
         // The text goes through the same privacy filter as every other notification.
         assertTrue("NotificationPrivacy.text(" in ongoing && "NotificationPrivacy.text(" in finished)
     }
 
-    @Test fun theTrackingChannelIsQuiet() {
-        val channel = notifier.substringAfter("TRACKING_CHANNEL, \"Flight tracking\"").take(400)
-        assertTrue("IMPORTANCE_LOW" in channel)
-        assertTrue("setSound(null, null)" in channel && "enableVibration(false)" in channel)
+    @Test fun theLockScreenShowsTheFlightUnlessTheSwitchIsOff() {
+        val lock = notifier.substringAfter("private fun NotificationCompat.Builder.lockScreen(").substringBefore("/** The ongoing notification")
+        // On: public, and no redacted version attached. Off: private, with the short public version.
+        assertTrue("setVisibility(NotificationCompat.VISIBILITY_PUBLIC)" in lock)
+        assertTrue("setVisibility(NotificationCompat.VISIBILITY_PRIVATE)" in lock && "setPublicVersion(" in lock)
+        assertTrue("FlightNotificationText.PUBLIC_TITLE" in notifier)
+        val ongoing = notifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
+        val finished = notifier.substringAfter("fun finished(").substringBefore("fun prompt(")
+        for (n in listOf(ongoing, finished)) {
+            assertTrue(".lockScreen(context," in n)
+            assertFalse("setPublicVersion(" in n || "VISIBILITY_PRIVATE" in n)
+        }
+        assertTrue("detailsOnLock(context)" in ongoing && "detailsOnLock(context)" in finished)
+        // The switch is a stored flag, on by default, and a Settings row turns it off.
+        assertTrue("prefs.getBoolean(LOCK_DETAILS, true)" in text("data/flights/FlightService.kt"))
+        assertTrue("Show flight details on the lock screen" in text("presentation/flights/FlightSettings.kt"))
+        // A prompt keeps the short lock-screen version (it is a heads-up).
+        assertTrue("VISIBILITY_PRIVATE" in notifier.substringAfter("fun prompt(").substringBefore("fun paused("))
+    }
+
+    @Test fun theOngoingNotificationIsGlanceableAndQuiet() {
+        val ongoing = notifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
+        assertTrue("setOnlyAlertOnce(true)" in ongoing)
+        assertTrue("CATEGORY_PROGRESS" in ongoing)
+        // The system counts down to landing between the 30-second updates.
+        assertTrue("setUsesChronometer(true)" in ongoing && "setChronometerCountDown(true)" in ongoing)
+        // A colourised notification cannot be a Live Update, and a custom view is never used.
+        assertFalse(Regex("setColorized|RemoteViews|setCustom\\w*View|setVibrate|setDefaults|setFullScreenIntent|setTimeoutAfter").containsMatchIn(notifier))
+        // The channel: default importance (so it is not in the silent group on the lock screen) with no sound, vibration or lights.
+        val channel = notifier.substringAfter("TRACKING_CHANNEL, \"Flight tracking\"").substringBefore("PROMPT_CHANNEL, \"Flight reminders\"")
+        assertTrue("IMPORTANCE_DEFAULT" in channel && "IMPORTANCE_HIGH" !in channel)
+        assertTrue("setSound(null, null)" in channel && "enableVibration(false)" in channel && "enableLights(false)" in channel)
+        assertTrue("VISIBILITY_NO_OVERRIDE" in channel)
+        // The old channel (low importance, private) is removed because a channel's settings cannot be changed afterwards.
+        assertTrue("deleteNotificationChannel(LEGACY_TRACKING_CHANNEL)" in notifier && "TRACKING_CHANNEL = \"flight_live\"" in notifier)
+    }
+
+    @Test fun liveUpdatesAreReachedOnlyByGuardedReflectionAndNeverBreakTheNotification() {
+        val live = text("notifications/LiveUpdates.kt")
+        val gradle = File("build.gradle.kts").readText()
+        // Compiled against 35 (the Android Gradle Plugin and CI image stop there), so 36's classes are looked up by name.
+        assertTrue("compileSdk = 35" in gradle)
+        assertTrue("Class.forName(STYLE)" in live && "Build.VERSION.SDK_INT >= API_LIVE_UPDATES" in live)
+        val promote = live.substringAfter("fun promote(").substringBefore("private fun tryStart")
+        assertTrue("catch (t: Throwable)" in promote && promote.trimEnd().contains("built"))
+        assertTrue("if (!available()) return built" in promote)
+        assertTrue("setRequestPromotedOngoing" in promote && "setShortCriticalText" in promote)
+        assertTrue("canPostPromotedNotifications" in live)
+        // Only the notifier asks for it, only while the lock-screen switch is on, and only for the ongoing notice.
+        assertTrue("LiveUpdates.promote(" in notifier && "if (details) LiveUpdates.promote(" in notifier)
+        assertFalse("LiveUpdates.promote(" in notifier.substringAfter("fun finished(").substringBefore("fun prompt("))
+        // The lock-screen check is a read of two system settings; no permission, nothing stored or sent.
+        assertTrue("lock_screen_allow_private_notifications" in live)
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        assertTrue("android.permission.POST_PROMOTED_NOTIFICATIONS" in manifest)
     }
 
     @Test fun theAlarmIsInexactAndTheAppAsksForNoExactAlarmPermission() {

@@ -50,8 +50,12 @@ class FlightNotificationTextTest {
         val updated = at("15:30").toEpochMilli() + 10_000
         val s = snap(live(FlightStatusKind.IN_AIR, estArrival = "16:52", updated = updated))
         val n = FlightNotificationText.inAir(s, at("15:30"), ist, updated)
-        assertEquals("DEL → MAA", n.title)
-        assertEquals("In the air · lands 16:52 (12 min late)", n.text)
+        assertEquals("In the air · DEL → MAA", n.title)
+        assertEquals("Lands 16:52 · 12 min late", n.text)
+        // 15:30 -> 16:52 is 82 minutes; the chip and the countdown are for the landing.
+        assertEquals("1h 22m", n.chip)
+        assertEquals(at("16:52"), n.countdownTo)
+        assertEquals(listOf(0, 100), n.points)
         assertEquals("Updated 15:30:10", n.subText)
         // 14:40 -> 16:52 is 132 minutes; 50 minutes flown.
         assertEquals(37, n.progress)
@@ -59,13 +63,14 @@ class FlightNotificationTextTest {
 
     @Test fun inAirOnTimeEarlyAndWithoutALiveUpdate() {
         val onTime = FlightNotificationText.inAir(snap(live(FlightStatusKind.IN_AIR, estArrival = "16:41")), at("15:00"), ist, 1L)
-        assertEquals("In the air · lands 16:41 (on time)", onTime.text)
+        assertEquals("Lands 16:41 · on time", onTime.text)
         val early = FlightNotificationText.inAir(snap(live(FlightStatusKind.IN_AIR, estArrival = "16:30")), at("15:00"), ist, 1L)
-        assertEquals("In the air · lands 16:30 (10 min early)", early.text)
+        assertEquals("Lands 16:30 · 10 min early", early.text)
         val booking = FlightNotificationText.inAir(snap(null), at("15:00"), ist, null)
         assertEquals("From your booking", booking.subText)
         val departed = FlightNotificationText.inAir(snap(live(FlightStatusKind.DEPARTED, estArrival = "16:40")), at("14:45"), ist, 1L)
-        assertTrue(departed.text.startsWith("Departed · lands 16:40"))
+        assertEquals("Departed · DEL → MAA", departed.title)
+        assertTrue(departed.text.startsWith("Lands 16:40"))
     }
 
     @Test fun progressIsAlwaysAVisibleBarBetweenThreeAndNinetySeven() {
@@ -79,7 +84,7 @@ class FlightNotificationTextTest {
         val s = snap(live(FlightStatusKind.IN_AIR, estArrival = "16:40"))
         val n = FlightNotificationText.inAir(s, at("15:50"), ist, updated, refreshFailed = true)
         assertEquals("Can't refresh · last update 15:32", n.text)
-        assertEquals("In the air · lands 16:40 (on time)", n.subText)
+        assertEquals("Lands 16:40 · on time", n.subText)
         assertEquals("Can't refresh", FlightNotificationText.cantRefresh(null, ist))
     }
 
@@ -121,7 +126,9 @@ class FlightNotificationTextTest {
         val s = snap(null, noTimes)
         assertEquals("Delhi", FlightNotificationText.route(s))
         val n = FlightNotificationText.inAir(s, at("15:00"), ist, null)
-        assertEquals("In the air", n.text)
+        assertEquals("Landing time not known", n.text)
+        assertNull(n.chip)
+        assertNull(n.countdownTo)
         val bare = BookedFlight(Airlines.byCode("6E")!!, "2345", date, null, null, null, null, null, null, null)
         assertEquals("Your flight 6E 2345", FlightNotificationText.route(snap(null, bare)))
         assertTrue(FlightNotificationText.reminder(snap(null, bare), at("09:00")).text.startsWith("Your flight is today"))
@@ -153,7 +160,7 @@ class FlightNotificationTextTest {
         )
         val s = snap(l, b)
         val n = FlightNotificationText.inAir(s, at("00:30", date.plusDays(1)), ist, 1L)
-        assertEquals("In the air · lands 02:15 +1 (on time)", n.text)
+        assertEquals("Lands 02:15 +1 · on time", n.text)
         val landed = LiveStatus(
             FlightStatusKind.LANDED, scheduledDeparture = at("23:30"), actualDeparture = at("23:30"),
             scheduledArrival = at("02:15", date.plusDays(1)), actualArrival = at("02:05", date.plusDays(1)), updatedAt = 1L
@@ -164,7 +171,10 @@ class FlightNotificationTextTest {
     @Test fun departingNoticeAndReminders() {
         val s = snap(null)
         val n = FlightNotificationText.departing(s, at("14:10"), ist, null)
-        assertEquals("Departs 14:35 (on time) · in 25m", n.text)
+        assertEquals("Departs in 25 min", n.title)
+        assertEquals("DEL → MAA · 14:35", n.text)
+        assertEquals("25m", n.chip)
+        assertEquals(at("14:35"), n.countdownTo)
         assertEquals(0, n.progress)
         assertEquals("Departs 14:35 · in 25m · lands 16:40 (from your booking)", FlightNotificationText.reminder(s, at("14:10")).text)
         assertTrue(FlightNotificationText.tapToStart(s, at("14:25")).text.endsWith("tap to start live tracking"))
@@ -177,5 +187,47 @@ class FlightNotificationTextTest {
         val n = FlightNotificationText.unconfirmed(snap(null))
         assertEquals("Tracking ended · DEL → MAA", n.title)
         assertEquals("Landing not confirmed; was due 16:40", n.text)
+    }
+
+    @Test fun chipIsShortAndNeverPromisesMoreTimeThanThereIs() {
+        val now = at("12:00")
+        assertEquals("1h 05m", FlightNotificationText.chip(now, at("13:05")))
+        assertEquals("2h 00m", FlightNotificationText.chip(now, at("14:00")))
+        assertEquals("45m", FlightNotificationText.chip(now, at("12:45")))
+        assertEquals("1m", FlightNotificationText.chip(now, now.plusSeconds(119)))
+        assertEquals("now", FlightNotificationText.chip(now, now.plusSeconds(59)))
+        assertEquals("now", FlightNotificationText.chip(now, at("11:50")))
+        assertEquals("1d 2h", FlightNotificationText.chip(now, now.plusSeconds((26 * 3600 + 30 * 60).toLong())))
+        assertEquals("9d+", FlightNotificationText.chip(now, now.plusSeconds(20L * 86400)))
+        assertEquals("10h 05m", FlightNotificationText.chip(now, at("22:05")))
+        assertNull(FlightNotificationText.chip(now, null))
+        // Every possible chip fits the status bar.
+        for (m in 0..(12 * 24 * 60) step 7) assertTrue(FlightNotificationText.chip(now, now.plusSeconds(m * 60L))!!.length <= FlightNotificationText.CHIP_MAX)
+    }
+
+    @Test fun countdownOnlyWhileTheMomentIsStillAhead() {
+        val now = at("12:00")
+        assertEquals(at("12:01"), FlightNotificationText.countdownTarget(now, at("12:01")))
+        assertNull(FlightNotificationText.countdownTarget(now, at("12:00")))
+        assertNull(FlightNotificationText.countdownTarget(now, at("11:00")))
+        assertNull(FlightNotificationText.countdownTarget(now, null))
+    }
+
+    @Test fun departingHeadlineIsBoardingDelayedOrTheCountdown() {
+        val boarding = snap(LiveStatus(FlightStatusKind.BOARDING, scheduledDeparture = at("14:35"), scheduledArrival = at("16:40")))
+        assertEquals("Boarding", FlightNotificationText.departing(boarding, at("14:20"), ist, null).title)
+        val delayed = snap(LiveStatus(FlightStatusKind.DELAYED, scheduledDeparture = at("14:35"), estimatedDeparture = at("14:47"), scheduledArrival = at("16:40"), delayMinutes = 12))
+        val n = FlightNotificationText.departing(delayed, at("14:20"), ist, null)
+        assertEquals("Delayed 12 min", n.title)
+        assertEquals("DEL → MAA · 14:47", n.text)
+        assertEquals("27m", n.chip)
+        assertEquals("Departing now", FlightNotificationText.departing(snap(null), at("14:35"), ist, null).title)
+        assertEquals("Departs in 1 h 5 min", FlightNotificationText.departing(snap(null), at("13:30"), ist, null).title)
+    }
+
+    @Test fun inAirLinesFitAGlance() {
+        val n = FlightNotificationText.inAir(snap(live(FlightStatusKind.IN_AIR, estArrival = "16:52")), at("15:30"), ist, 1L)
+        assertTrue(n.title.length <= 30)
+        assertTrue(n.text.length <= 30)
     }
 }

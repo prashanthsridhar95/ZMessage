@@ -22,6 +22,8 @@
          data-sync services with a visible notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Android 16 and later: lets the in-flight notification be a "Live Update" (progress on the lock screen and status bar). A normal permission, granted at install; ignored on older Android. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
 
     <application

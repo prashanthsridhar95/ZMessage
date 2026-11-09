@@ -103,8 +103,9 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
   Remove (Undo in a snackbar). In the demo the preferences are the demo's in-memory ones.
 - **The in-flight notification (`notifications/FlightTrackingService`, `FlightTrackingControl`, `FlightNotifier`; domain `FlightTracking`,
   `FlightNotificationText`).** While a tracked flight is in the air, or about to leave, a foreground service of type `dataSync`
-  keeps one ongoing notification up to date every 30 s (route "DEL → MAA", "In the air · lands 16:40 (12 min late)", a progress bar,
-  "Updated 14:32:10", one action "Stop tracking"; lock screen: "Flight in progress"). It asks only through `FlightService.refresh`,
+  keeps one ongoing notification up to date every 30 s (title "In the air · DEL → MAA", or "Departs in 25 min", "Boarding",
+  "Delayed 12 min" before it leaves; line "Lands 16:40 · 12 min late"; a progress bar; a system countdown to landing; "Updated 14:32:10";
+  one action "Stop tracking"). It asks only through `FlightService.refresh`,
   so the pinned host, timeouts and caps are the same as everywhere. `FlightTracking` (pure, tested) decides everything: a flight is
   WAITING, DEPARTING (within 30 min of its best departure), IN_AIR (live says departed or in the air; with no live data at all, the
   booked times say so), or over (LANDED, also worked out when the arrival time has passed and a later answer no longer says it is
@@ -126,6 +127,36 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
   status off the alarm leaves one ordinary dismissible reminder and nothing ongoing. The service is never started from the boot
   broadcast (Android 15 forbids that for data-sync). So with the app closed on Android 12+, tracking begins when the person taps
   that notification or opens the app, not on its own. Not verified on a device.
+  **Lock screen, always-on display and Android 16 Live Updates.** The ongoing and the finished notification are `VISIBILITY_PUBLIC`
+  with the real text by default (a flight is not an amount; "Hide amounts" still masks any money in the words); Settings > Live
+  flight status > "Show flight details on the lock screen" (stored in `flight_status`, default on) switches back to `VISIBILITY_PRIVATE`
+  with the redacted "Flight in progress" public version. The channel is a new id (`flight_live`; the first `flight_tracking`, LOW
+  importance with private lock-screen content, is deleted, because an app cannot change a channel's settings afterwards):
+  `IMPORTANCE_DEFAULT` with no sound, vibration or lights, and no override of the lock-screen visibility. DEFAULT rather than LOW so
+  it sits with the alerting notifications on the lock screen (Android 12+ lets people show only those there); with no sound and
+  `setOnlyAlertOnce` it never makes a noise, and only HIGH importance pops up, which it is not. The notice is `CATEGORY_PROGRESS`,
+  ongoing, with a `setWhen` + chronometer count-down to landing (before departure: to departure) so the system moves the clock between
+  the 30 s updates, and the domain gives a chip text ("1h 05m", at most 7 characters) and the bar's take-off and landing points
+  (`FlightNotificationText.chip`, `countdownTarget`, `PROGRESS_POINTS`, tested). There is no custom `RemoteViews`: the standard
+  layout keeps the system's own theming, dark mode and AOD dimming, and a custom view would stop it from being a Live Update. It is not
+  colourised (a colourised notification cannot be promoted).
+  On Android 16 (API 36) `LiveUpdates.promote` rebuilds the notification with `Notification.ProgressStyle` (a bar with a plane, the
+  take-off and landing points), `setShortCriticalText` (the chip) and `setRequestPromotedOngoing(true)`, with the new normal
+  permission `POST_PROMOTED_NOTIFICATIONS`. **compileSdk stays 35**: the repo's Android Gradle Plugin is 8.8.0 (API 36 needs 8.9.1+),
+  CI installs only `platforms;android-35`, and androidx.core 1.15 has no wrapper, so those few calls are made by reflection in that one
+  file, inside a `try`/`catch (Throwable)` that returns the ordinary notification on any failure (and does nothing before Android 16).
+  Moving to compileSdk 36 means AGP 8.9.1+ and `platforms;android-36` in `build.yml`, then the reflection can become plain calls.
+  When the flight ends the service posts the finished notice as an ordinary notification under the same id, which is how a Live
+  Update ends. Settings reads `NotificationManager.canPostPromotedNotifications()` and, if the person has turned Live updates off for
+  the app, says so with a button to that system page; it also reads the phone's `lock_screen_allow_private_notifications` /
+  `lock_screen_show_notifications` (read-only, no permission) and, if they hide content, says the flight may show as "Sensitive content
+  hidden" with a button to the system security settings. With the switch off the notice is never asked to be promoted.
+  **What is and is not known.** Before Android 16 this is an ongoing, public notification on a default-importance silent channel: it is
+  on the lock screen when the phone shows notifications there. Whether it appears on the always-on display is the phone maker's and the
+  person's choice (Pixel's "Always show time and info", Samsung's AOD notification icons, Xiaomi's and others' own rules differ, and many
+  show only an icon or nothing for a third-party app); the app does nothing special for it and cannot force it. On Android 16 the
+  system decides which promoted notifications get the chip, the lock-screen card and the AOD treatment; the app only asks. None of
+  this has been run on a device.
 - **UI (`presentation/flights`).** `FlightCard` (at most two rows, then "n more flights"; dismissible for the day through the
   dismissed-keys list) and `FlightSheet` (`AdaptiveSheet`, `autoPage = false`; route header with a Canvas progress line, times,
   terminal/gate/belt, PNR with Copy; refreshes every 30 s only while it is on screen and the app is STARTED; failed, not-found,
