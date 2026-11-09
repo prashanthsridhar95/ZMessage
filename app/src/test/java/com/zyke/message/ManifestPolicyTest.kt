@@ -37,8 +37,8 @@ class ManifestPolicyTest {
                 "android.permission.RECEIVE_BOOT_COMPLETED", // putting the digest alarm back after a restart
                 "android.permission.RECEIVE_SMS", // live code and bill buttons, off until switched on
                 "android.permission.SEND_SMS", // passing a login code on to chosen people, off until switched on; asked for only then
-                "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, with a visible notification
-                "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+                "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, and the in-flight notification, each with a visible notification
+                "android.permission.FOREGROUND_SERVICE_DATA_SYNC" // the same two services (type dataSync); no exact-alarm permission is asked for
             ),
             permissions
         )
@@ -83,6 +83,11 @@ class ManifestPolicyTest {
         assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(flights))
         // Only the flight fetcher and the service that calls it know about flights; the fetcher is built in one place.
         assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "FlightFetcher()" in it.readText() })
+        assertTrue("FlightFetcher()" in File("src/main/java/com/zyke/message/data/flights/FlightService.kt").readText())
+        // The in-flight tracking service reuses that one fetcher through FlightService.refresh; it has no network code or fetcher of its own.
+        val tracking = File("src/main/java/com/zyke/message/notifications/FlightTrackingService.kt").readText()
+        assertTrue("flights.refresh(" in tracking)
+        assertFalse("FlightFetcher" in tracking || "FlightFetcher" in File("src/main/java/com/zyke/message/notifications/FlightTrackingControl.kt").readText())
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()
@@ -183,7 +188,7 @@ class ManifestPolicyTest {
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
                 ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver",
-                ".notifications.CodeShareStatusReceiver"
+                ".notifications.CodeShareStatusReceiver", ".notifications.FlightAlarmReceiver"
             ),
             receivers.names("name").toSet()
         )
@@ -196,7 +201,7 @@ class ManifestPolicyTest {
         assertEquals("false", exported.single().getAttributeNS(android, "enabled"))
 
         val services = manifest.getElementsByTagName("service")
-        assertEquals(4, services.length)
+        assertEquals(5, services.length)
         // The scheduled backup job: only the system's job scheduler can start it.
         val backupJob = (0 until services.length).map { services.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".data.backup.BackupJobService" }
@@ -213,6 +218,18 @@ class ManifestPolicyTest {
             .single { it.getAttributeNS(android, "name") == ".notifications.BackfillService" }
         assertEquals("false", backfill.getAttributeNS(android, "exported"))
         assertEquals("dataSync", backfill.getAttributeNS(android, "foregroundServiceType"))
+        // The flight tracking service: not exported, a data-sync foreground service (declared type + FOREGROUND_SERVICE_DATA_SYNC above),
+        // started by the app or by the app's own alarm; it asks the network only through FlightService's one fetcher.
+        val flightService = (0 until services.length).map { services.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.FlightTrackingService" }
+        assertEquals("false", flightService.getAttributeNS(android, "exported"))
+        assertEquals("dataSync", flightService.getAttributeNS(android, "foregroundServiceType"))
+        assertEquals(0, flightService.getElementsByTagName("intent-filter").length)
+        assertEquals("", flightService.getAttributeNS(android, "permission"))
+        val flightReceiver = (0 until receivers.length).map { receivers.item(it) as Element }
+            .single { it.getAttributeNS(android, "name") == ".notifications.FlightAlarmReceiver" }
+        assertEquals("false", flightReceiver.getAttributeNS(android, "exported"))
+        assertEquals(0, flightReceiver.getElementsByTagName("intent-filter").length)
         val service = (0 until services.length).map { services.item(it) as Element }
             .single { it.getAttributeNS(android, "name") == ".data.sms.RcsNotificationListener" }
         assertEquals("false", service.getAttributeNS(android, "exported"))

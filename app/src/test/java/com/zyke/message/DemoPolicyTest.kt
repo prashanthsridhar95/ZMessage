@@ -62,6 +62,7 @@ class DemoPolicyTest {
             "notifications/SmsReceiver.kt", "notifications/DigestReceiver.kt", "notifications/WeeklyReceiver.kt", "notifications/BootReceiver.kt",
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
             "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
+            "notifications/FlightTrackingControl.kt", "notifications/FlightTrackingService.kt", "notifications/FlightNotifier.kt",
             "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
             "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
@@ -120,6 +121,28 @@ class DemoPolicyTest {
         assertTrue("the demo is answered before the fetcher is reached", refresh.indexOf("if (demo)") in 0 until refresh.indexOf("fetcher.fetch("))
         assertTrue(refresh.substringAfter("if (demo)").substringBefore("return@forEach").contains("DemoFlights.live("))
         assertTrue("the flight is in the demo's own messages", File("../domain/src/main/kotlin/com/zyke/message/domain/demo/DemoData.kt").readText().contains("flightToday()"))
+    }
+
+    @Test fun flightTrackingNeverStartsAnAlarmOrAServiceInTheDemo_andAHandMadeFlightIsInMemoryOnly() {
+        val container = text("di/AppContainer.kt")
+        // Built like every other store: from `context`, which is a DemoContext in the demo (in-memory preferences, nothing kept).
+        assertTrue(container.contains("ManualFlightRepositoryImpl(context)"))
+        assertTrue(container.contains("FlightPlanStore(context)"))
+        val control = text("notifications/FlightTrackingControl.kt")
+        for (door in listOf("fun onForeground(", "fun rearm(", "fun onAlarm(")) {
+            assertTrue("$door must stop in the demo", control.substringAfter(door).take(500).contains("DemoMode.active"))
+        }
+        assertTrue("the alarm receiver stops in the demo", control.substringAfter("class FlightAlarmReceiver").contains("DemoMode.active"))
+        val service = text("notifications/FlightTrackingService.kt")
+        assertTrue("the service answers the demo with nothing to watch", service.contains("if (DemoMode.active) null else"))
+        assertTrue(service.substringAfter("if (first == null || DemoMode.active)").take(120).contains("finishService"))
+        // The form's look-up is answered before the network is reached, and the demo never reaches it.
+        val flights = text("data/flights/FlightService.kt")
+        val lookup = flights.substringAfter("suspend fun lookup(")
+        assertTrue(lookup.indexOf("if (demo ||") in 0 until lookup.indexOf("fetcher.fetch("))
+        assertTrue(text("presentation/flights/ManualFlightUi.kt").contains("val canLookUp = liveOn && !container.demo"))
+        // The tracking code itself has no way to the network except through the service.
+        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + service + text("notifications/FlightNotifier.kt")))
     }
 
     @Test fun theBannerIsOnEveryTab_andSettingsCanStartAndLeave() {

@@ -90,8 +90,42 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
 - **Network (`data/markets/FlightFetcher`).** The third pinned network class: one host, 5 s timeouts, 512 KB cap, no redirects,
   no cookies, a generic User-Agent, status codes only in the log. `ManifestPolicyTest` pins the host and the file list.
 - **Service (`data/flights/FlightService`).** In-memory statuses by flight key; an answer under 25 s old is reused, so the
-  Home refresh (once each time Home is STARTED) and the sheet's 30 s timer never double up; at most three flights. Off until
-  `flight_status.live_enabled` is true. No alarms, no background work, no foreground service.
+  Home refresh (once each time Home is STARTED), the sheet's 30 s timer and the in-flight service never double up; at most three
+  flights. Off until `flight_status.live_enabled` is true. It owns the only `FlightFetcher`; `lookup` (the "Look up flight" step of
+  the add-a-flight form) goes through it too and is answered with nothing in the demo.
+- **Flights added by hand (`domain/flight/ManualFlights`, `data/repository/ManualFlightRepositoryImpl`).** `ManualFlight` (airline,
+  number, day, optional PNR note, and the route and times when a look-up confirmed them) lives in `ManualFlightStore` (atomic,
+  tested; `NoManualFlights` for tests) behind `ManualFlightRepository`, persisted in the private `manual_flights` preferences,
+  which go into the setup backup. `ManualFlights.merge` joins them to the flights found in texts by airline + number + day (the
+  text version wins, the hand-made one fills what it lacks, so the same flight is never twice); `isExpired` drops one a day after it
+  should have landed. `ManualFlightRules` validates the form. The form (`ManualFlightUi`, a `FormSheet`) is reached from the Home
+  flight card, the entry sheet ("Adding a flight instead?") and Settings > Live flight status, which also lists them with Edit and
+  Remove (Undo in a snackbar). In the demo the preferences are the demo's in-memory ones.
+- **The in-flight notification (`notifications/FlightTrackingService`, `FlightTrackingControl`, `FlightNotifier`; domain `FlightTracking`,
+  `FlightNotificationText`).** While a tracked flight is in the air, or about to leave, a foreground service of type `dataSync`
+  keeps one ongoing notification up to date every 30 s (route "DEL → MAA", "In the air · lands 16:40 (12 min late)", a progress bar,
+  "Updated 14:32:10", one action "Stop tracking"; lock screen: "Flight in progress"). It asks only through `FlightService.refresh`,
+  so the pinned host, timeouts and caps are the same as everywhere. `FlightTracking` (pure, tested) decides everything: a flight is
+  WAITING, DEPARTING (within 30 min of its best departure), IN_AIR (live says departed or in the air; with no live data at all, the
+  booked times say so), or over (LANDED, also worked out when the arrival time has passed and a later answer no longer says it is
+  flying; CANCELLED; DIVERTED; GAVE_UP 30 min after the planned landing); at most two flights at once, each with its own stable
+  notification id. When one ends the ongoing notification is replaced, under the same id, by a dismissible one ("Landed · DEL → MAA
+  at 16:34", "6 min early · Terminal 1 · Belt 4"; or cancelled, diverted, "Tracking ended"). The service ends by itself on those, on
+  live status or the tracking switch being turned off, on notifications being revoked, on "Stop tracking" (remembered per flight in
+  the `flight_plan` preferences, which are not backed up), and on the system's time limit (Android 15 allows a data-sync service
+  about six hours a day: `onTimeout`, or a self-imposed 5 h 50 min, leaves a dismissible "Tracking paused · Open Zyke to resume").
+  After more than 10 failed answers in a row it says "Can't refresh · last update HH:MM" and asks only every five minutes until one
+  works; the notification stays until the 30-minute cut-off. It is not sticky.
+  **How it starts, honestly.** (1) When Home is showing and a flight is in the air or leaves within 30 min: an activity in front may
+  start a foreground service on every Android version. This is the reliable path. (2) One alarm for the next flight, 10 minutes
+  before departure (`FlightAlarmReceiver`; re-set after a restart by `BootReceiver`, and whenever flights or switches change;
+  never in the demo). The app asks for no exact-alarm permission (nothing in the app uses one; `USE_EXACT_ALARM` is for alarm and
+  calendar apps), so the alarm is inexact and Android may move it by minutes, or more while the phone dozes. Before Android 12 the alarm starts the
+  service itself. From Android 12 a foreground service cannot be started from the background, so the alarm leaves a high-priority
+  "Tap to start live tracking" notification and tapping it opens the app, which starts the service from the foreground. With live
+  status off the alarm leaves one ordinary dismissible reminder and nothing ongoing. The service is never started from the boot
+  broadcast (Android 15 forbids that for data-sync). So with the app closed on Android 12+, tracking begins when the person taps
+  that notification or opens the app, not on its own. Not verified on a device.
 - **UI (`presentation/flights`).** `FlightCard` (at most two rows, then "n more flights"; dismissible for the day through the
   dismissed-keys list) and `FlightSheet` (`AdaptiveSheet`, `autoPage = false`; route header with a Canvas progress line, times,
   terminal/gate/belt, PNR with Copy; refreshes every 30 s only while it is on screen and the app is STARTED; failed, not-found,
@@ -99,7 +133,7 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
   (open sheet) only while the screen shows.
 - **Demo.** `DemoData` adds a booking for a flight about two hours ahead; `DemoFlights.live` makes up its status from the clock
   (25 minutes late, then in the air, then landed). `FlightService` answers the demo before the fetcher is reachable
-  (`DemoPolicyTest`).
+  (`DemoPolicyTest`): no alarm, no service, no notification and no look-up reaches the network there.
 
 ## Guided tour
 

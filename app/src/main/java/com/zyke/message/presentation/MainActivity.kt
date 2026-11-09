@@ -211,6 +211,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
+        com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -219,6 +220,7 @@ class MainActivity : ComponentActivity() {
         // Opened by the quick-add widget, the quick-settings tile or "Share": the entry sheet follows on Home.
         if (savedInstanceState == null) com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         if (savedInstanceState == null) com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
+        if (savedInstanceState == null) com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
         applyScreenProtection(container.settings.settings.value.screenProtection)
         // After a restore the saved icon colour may differ from the enabled launcher alias: put them in step, off the main thread.
         val savedIcon = container.settings.settings.value.appIcon

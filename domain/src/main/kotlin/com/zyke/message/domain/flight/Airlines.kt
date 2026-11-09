@@ -20,6 +20,9 @@ object Airlines {
 
     fun byCode(code: String): Airline? = all[code.uppercase()]
 
+    /** Every known airline, in the order of the table (the Indian ones first). */
+    fun list(): List<Airline> = all.values.toList()
+
     /** The airline codes the message parser accepts in front of a flight number. */
     val codes: Set<String> get() = all.keys
 

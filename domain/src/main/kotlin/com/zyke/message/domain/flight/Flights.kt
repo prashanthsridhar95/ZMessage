@@ -15,10 +15,12 @@ enum class FlightStatusKind(val label: String) {
     DEPARTED("Departed"),
     IN_AIR("In the air"),
     LANDED("Landed"),
-    CANCELLED("Cancelled");
+    CANCELLED("Cancelled"),
+    /** The live source says it is going somewhere other than booked; only live data can say this. */
+    DIVERTED("Diverted");
 
     /** The flight is over for the day's purposes (no countdown, no refresh needed once the sheet shows it). */
-    val isFinal: Boolean get() = this == LANDED || this == CANCELLED
+    val isFinal: Boolean get() = this == LANDED || this == CANCELLED || this == DIVERTED
 }
 
 /** An airline text as the tracker receives it: the words and when it arrived (epoch milliseconds). */

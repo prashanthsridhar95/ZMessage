@@ -75,6 +75,7 @@ object FlightStatusParser {
         val delay = delayMinutes(scheduledDeparture, actualDeparture ?: estimatedDeparture)
         val kind = when {
             "cancel" in statusText -> FlightStatusKind.CANCELLED
+            "divert" in statusText -> FlightStatusKind.DIVERTED
             actualArrival != null || "landed" in statusText -> FlightStatusKind.LANDED
             live -> FlightStatusKind.IN_AIR
             actualDeparture != null || "departed" in statusText -> FlightStatusKind.DEPARTED
@@ -133,6 +134,7 @@ object FlightText {
         val dep = s.bestDeparture
         return when (s.kind) {
             FlightStatusKind.CANCELLED -> "Cancelled · check with the airline"
+            FlightStatusKind.DIVERTED -> "Diverted · check with the airline"
             FlightStatusKind.LANDED -> arrivalClock(s)?.let { "Landed · $it" } ?: "Landed"
             FlightStatusKind.IN_AIR, FlightStatusKind.DEPARTED -> {
                 val lands = s.bestArrival
@@ -184,7 +186,7 @@ object FlightText {
      */
     fun progress(s: FlightSnapshot, now: Instant): Float {
         if (s.kind == FlightStatusKind.LANDED) return 1f
-        if (s.kind == FlightStatusKind.CANCELLED) return 0f
+        if (s.kind == FlightStatusKind.CANCELLED || s.kind == FlightStatusKind.DIVERTED) return 0f
         val dep = s.bestDeparture ?: return 0f
         val arr = s.bestArrival ?: return if (s.kind == FlightStatusKind.IN_AIR || s.kind == FlightStatusKind.DEPARTED) 0.5f else 0f
         if (!now.isAfter(dep) && s.kind != FlightStatusKind.IN_AIR && s.kind != FlightStatusKind.DEPARTED) return 0f

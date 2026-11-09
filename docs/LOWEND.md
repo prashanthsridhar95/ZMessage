@@ -63,7 +63,7 @@ Lite does this:
   looping animation: the priority card's moving border (a faint static outline), the loading skeleton pulse, the journey
   scene, tab slides, count-up numbers, growing bars, press scale.
 - The market strip does not scroll by itself; it is swiped by hand.
-- The flight card has no animation. Its "in 2h 10m" refreshes once a minute (and the open sheet's "Updated 12 s ago" once a second) only while the screen shows; live status is asked once when Home comes to the front and every 30 s while the sheet is open, never in the background.
+- The flight card has no animation. Its "in 2h 10m" refreshes once a minute (and the open sheet's "Updated 12 s ago" once a second) only while the screen shows; live status is asked once when Home comes to the front and every 30 s while the sheet is open. Only while a flight is in the air (or leaves within half an hour) a foreground service asks every 30 s and updates one ongoing notification; it is allowed in lite mode (the person asked for it) and adds no animation (the progress bar is the system's, updated twice a minute).
 - The tour spotlight is four flat rectangles plus the ring instead of an off-screen layer with a cleared hole.
 - Pictures: cache 4 MB, decoded at 128 px at most, JPEGs at 16 bits per pixel.
 - Derive pipelines (Home, Dashboard, Messages): at most 2 parts at a time (`LiteRuntime.bounded`); screens rebuild at most

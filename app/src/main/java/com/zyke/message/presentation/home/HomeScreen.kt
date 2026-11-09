@@ -244,7 +244,8 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             today,
             onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false; entryRequest = null },
             onDismiss = { entryOpen = false; entryRequest = null },
-            initial = entryRequest
+            initial = entryRequest,
+            onAddFlight = { entryOpen = false; entryRequest = null; com.zyke.message.presentation.flights.FlightRequests.addRequested.value = true }
         )
     }
     if (reviewOpen) {
@@ -318,8 +319,31 @@ private fun SummaryPage(
     // Flights on their day of travel: worked out here, asked about once each time Home comes to the front.
     val flightsToday = com.zyke.message.presentation.flights.rememberFlightsToday(state.flights, state.userState.dismissedAttention)
     var flightOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    // The form for a flight added by hand: "new", or the id of the one being changed.
+    var flightEditor by rememberSaveable { mutableStateOf<String?>(null) }
+    // A flight notification opens that flight's sheet.
+    val requestedFlight = com.zyke.message.presentation.flights.FlightRequests.pending.value
+    androidx.compose.runtime.LaunchedEffect(requestedFlight) {
+        if (requestedFlight != null) {
+            flightOpen = requestedFlight
+            com.zyke.message.presentation.flights.FlightRequests.pending.value = null
+        }
+    }
+    val addFlight = com.zyke.message.presentation.flights.FlightRequests.addRequested.value
+    androidx.compose.runtime.LaunchedEffect(addFlight) {
+        if (addFlight) {
+            flightEditor = com.zyke.message.presentation.flights.NEW_FLIGHT
+            com.zyke.message.presentation.flights.FlightRequests.addRequested.value = false
+        }
+    }
     CompositionLocalProvider(LocalContentInset provides 16.dp) {
-    flightOpen?.let { key -> com.zyke.message.presentation.flights.FlightSheet(key, flightsToday) { flightOpen = null } }
+    flightOpen?.let { key ->
+        com.zyke.message.presentation.flights.FlightSheet(
+            key, flightsToday, onDismiss = { flightOpen = null },
+            onEdit = { id -> flightOpen = null; flightEditor = id }
+        )
+    }
+    flightEditor?.let { id -> com.zyke.message.presentation.flights.ManualFlightSheetHost(id) { flightEditor = null } }
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
@@ -338,7 +362,8 @@ private fun SummaryPage(
             item(key = "flights") {
                 com.zyke.message.presentation.flights.FlightCard(
                     flightsToday, onOpen = { flightOpen = it },
-                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) }
+                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
+                    onAdd = { flightEditor = com.zyke.message.presentation.flights.NEW_FLIGHT }
                 )
             }
         }

@@ -61,6 +61,8 @@ import com.zyke.message.domain.flight.FlightSnapshot
 import com.zyke.message.domain.flight.FlightStatusKind
 import com.zyke.message.domain.flight.FlightText
 import com.zyke.message.domain.flight.FlightTracker
+import com.zyke.message.domain.flight.ManualFlights
+import com.zyke.message.notifications.FlightTrackingControl
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
@@ -80,6 +82,8 @@ import kotlinx.coroutines.launch
 /** How often the open sheet asks again, while it is showing. Nothing runs when it is closed or the app is in the background. */
 private const val SHEET_REFRESH_MS = 30_000L
 private const val MAX_CARDS = 2
+/** Home looks again at whether a flight is due for tracking this often (it also looks whenever flights or switches change). */
+private const val FOREGROUND_CHECK_MS = 60_000L
 
 internal fun Context.flightService(): FlightService = (applicationContext as ZykeMessagesApplication).container.flights
 
@@ -92,8 +96,10 @@ internal class FlightsToday(
     val demo: Boolean,
     val zone: ZoneId,
     val now: Instant,
-    /** Every flight booked around today, whether or not it is showing, so an open sheet survives the card going away. */
-    val booked: List<BookedFlight>
+    /** Every flight booked around today (texts and added by hand), whether or not it is showing, so an open sheet survives the card going away. */
+    val booked: List<BookedFlight>,
+    /** The flights added by hand, so the sheet can offer Edit and Remove for those. */
+    val manual: List<com.zyke.message.domain.flight.ManualFlight> = emptyList()
 ) {
     fun snapshot(flight: BookedFlight): FlightSnapshot = FlightTracker.snapshot(flight, live.statuses[flight.key], zone)
 }
@@ -119,15 +125,19 @@ private fun rememberMinuteState(): State<Long> {
  * status if that is switched on. Nothing here runs while the app is in the background.
  */
 @Composable
-internal fun rememberFlightsToday(booked: List<BookedFlight>, dismissed: Set<String>): FlightsToday {
+internal fun rememberFlightsToday(fromTexts: List<BookedFlight>, dismissed: Set<String>): FlightsToday {
     val context = LocalContext.current
     val service = context.flightService()
     val container = (context.applicationContext as ZykeMessagesApplication).container
     val enabled by service.liveEnabled.collectAsStateWithLifecycle()
+    val trackingOn by service.trackingEnabled.collectAsStateWithLifecycle()
     val live by service.live.collectAsStateWithLifecycle()
+    val manual by container.manualFlights.flights.collectAsStateWithLifecycle()
     val minute by rememberMinuteState()
     val zone = remember { ZoneId.systemDefault() }
     val now = Instant.ofEpochMilli(minute)
+    // Flights found in texts and flights typed in by hand are one list; the same flight in both shows once.
+    val booked = remember(fromTexts, manual) { ManualFlights.merge(fromTexts, manual) }
     val today = remember(booked, minute, live.statuses, dismissed) {
         FlightTracker.today(booked, now, zone, live.statuses).filter { it.dismissKey !in dismissed }
     }
@@ -139,14 +149,20 @@ internal fun rememberFlightsToday(booked: List<BookedFlight>, dismissed: Set<Str
         if (!liveOn || latest.isEmpty()) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { service.refresh(latest, zone) }
     }
-    return remember(today, live, liveOn, minute, booked) { FlightsToday(today, live, liveOn, container.demo, zone, now, booked) }
+    // While Home is showing: write the flights down for the alarm, set the alarm, and start the in-flight notification if one is due
+    // (a flight in the air, or leaving within half an hour). An activity in front may start a foreground service; nothing here
+    // runs while the app is in the background. Never in the demo.
+    LaunchedEffect(fromTexts, manual, enabled, trackingOn, minute / FOREGROUND_CHECK_MS) {
+        if (!container.demo) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { FlightTrackingControl.onForeground(context, fromTexts) }
+    }
+    return remember(today, live, liveOn, minute, booked, manual) { FlightsToday(today, live, liveOn, container.demo, zone, now, booked, manual) }
 }
 
 // ---- the card on Home
 
 /** "Your flight today": up to two flights, then "n more". Styled like the "Needs your attention" card, and as quiet. */
 @Composable
-internal fun FlightCard(today: FlightsToday, onOpen: (String) -> Unit, onDismiss: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun FlightCard(today: FlightsToday, onOpen: (String) -> Unit, onDismiss: (String) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val flights = today.flights
     if (flights.isEmpty()) return
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -168,6 +184,7 @@ internal fun FlightCard(today: FlightsToday, onOpen: (String) -> Unit, onDismiss
                 { expanded = !expanded }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
             )
         }
+        AppButton("Add a flight", onAdd, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
 
@@ -242,7 +259,7 @@ internal fun StatusPill(kind: FlightStatusKind, modifier: Modifier = Modifier) {
         FlightStatusKind.SCHEDULED, FlightStatusKind.CHECK_IN -> AppColors.info
         FlightStatusKind.BOARDING, FlightStatusKind.DEPARTED, FlightStatusKind.IN_AIR, FlightStatusKind.LANDED -> AppColors.success
         FlightStatusKind.DELAYED -> AppColors.warning
-        FlightStatusKind.CANCELLED -> AppColors.danger
+        FlightStatusKind.CANCELLED, FlightStatusKind.DIVERTED -> AppColors.danger
     }
     Row(
         modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.18f)).padding(horizontal = 10.dp, vertical = 4.dp),
@@ -261,7 +278,7 @@ internal fun StatusPill(kind: FlightStatusKind, modifier: Modifier = Modifier) {
  * reuses an answer under 25 seconds old); closing it or leaving the app stops that. It stays a bottom sheet.
  */
 @Composable
-internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -> Unit) {
+internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -> Unit, onEdit: (String) -> Unit = {}) {
     val flight = today.booked.firstOrNull { it.key == flightKey }
     if (flight == null) {
         LaunchedEffect(flightKey) { onDismiss() }
@@ -318,6 +335,8 @@ internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -
             Times(snapshot)
             Facts(snapshot, flight)
             Freshness(snapshot, today, now, failed, notFound)
+            val mine = today.manual.firstOrNull { it.key == flightKey }
+            if (mine != null) ManualFlightButtons(mine, onEdit, onDismiss)
         }
     }
 }
@@ -438,6 +457,19 @@ private fun Freshness(s: FlightSnapshot, today: FlightsToday, now: Instant, fail
         notFound && s.updatedAt == null -> Caption("No live data for this flight yet. It usually appears a few hours before departure. Showing your booking.", maxLines = 4)
         s.updatedAt != null -> Caption(FlightText.updated(now.toEpochMilli(), s.updatedAt!!) + if (s.kind.isFinal) "" else " · refreshes every 30 s", maxLines = 2)
         else -> Caption("Getting live status…")
+    }
+}
+
+/** Edit and Remove for a flight added by hand: equal width side by side, stacked on a narrow phone. */
+@Composable
+private fun ManualFlightButtons(flight: com.zyke.message.domain.flight.ManualFlight, onEdit: (String) -> Unit, onClose: () -> Unit) {
+    val actions = rememberManualFlightActions()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Caption(if (flight.confirmed) "Added by you · route and times confirmed" else "Added by you · Schedule not confirmed", maxLines = 2)
+        ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
+            AppButton("Edit", { onEdit(flight.id) }, Modifier.cell(), style = ButtonStyle.OUTLINE)
+            AppButton("Remove", { actions.remove(flight); onClose() }, Modifier.cell(), style = ButtonStyle.OUTLINE)
+        }
     }
 }
 

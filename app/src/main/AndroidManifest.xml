@@ -17,7 +17,9 @@
          a login code on by SMS to people the user chose. Google Play restricts SMS permissions, so this is for builds that are
          installed directly; see docs/ARCHITECTURE.md. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
-    <!-- Only while a very large inbox is still being read month by month: keeps that work going if the app is left. -->
+    <!-- Only while a very large inbox is still being read month by month (BackfillService), and while a tracked flight is in the air or
+         about to leave with live flight status switched on (FlightTrackingService): keeps that work going if the app is left. Both are
+         data-sync services with a visible notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
@@ -256,6 +258,13 @@
             android:name=".notifications.BackfillService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Runs only while live flight status and the flight notification are on and a flight is about to leave or in the air (at most two);
+             refreshes its ongoing notification every 30 seconds and stops by itself on landing. Started by the app when it is in front, or
+             by the alarm for the next flight where the phone allows it. Not exported. -->
+        <service
+            android:name=".notifications.FlightTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Receivers: none is exported. The system delivers the widget, boot and alarm broadcasts to them. -->
         <receiver
@@ -294,6 +303,10 @@
             android:exported="false" />
         <receiver
             android:name=".notifications.CopyCodeReceiver"
+            android:exported="false" />
+        <!-- The alarm for the next tracked flight, ten minutes before it leaves. -->
+        <receiver
+            android:name=".notifications.FlightAlarmReceiver"
             android:exported="false" />
         <!-- Exported only because the phone's telephony service must reach it; the BROADCAST_SMS permission lets
              nothing else send to it. Disabled until the person turns on live alerts or code sharing. -->

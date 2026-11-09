@@ -17,19 +17,30 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** The one switch: live flight status is off until the person turns it on. Only this flag is stored (and so backed up). */
+/**
+ * Two switches: live flight status is off until the person turns it on; the notification while they fly ("in the air" with
+ * live status on, a plain reminder with it off) is on unless they turn it off. Only these flags are stored (and so backed up).
+ */
 class FlightSettings(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("flight_status", Context.MODE_PRIVATE)
     private val state = MutableStateFlow(prefs.getBoolean(LIVE, false))
+    private val tracking = MutableStateFlow(prefs.getBoolean(TRACK, true))
     val liveEnabled: StateFlow<Boolean> = state
+    val trackingEnabled: StateFlow<Boolean> = tracking
 
     fun setLiveEnabled(on: Boolean) {
         state.value = on
         prefs.edit().putBoolean(LIVE, on).apply()
     }
 
+    fun setTrackingEnabled(on: Boolean) {
+        tracking.value = on
+        prefs.edit().putBoolean(TRACK, on).apply()
+    }
+
     private companion object {
         const val LIVE = "live_enabled"
+        const val TRACK = "track_in_air"
     }
 }
 
@@ -44,19 +55,37 @@ data class FlightLive(
 )
 
 /**
- * Keeps today's live flight status in memory. It asks only when the app is told to (the app coming to the front, and the
- * open sheet's 30-second timer, both in the UI and both stopped when the screen is not showing): no background work, no
- * alarms, no service. A reply is reused for [FRESH_MS], so those two never double up; a manual refresh may ask again after
- * [MANUAL_MIN_MS]. In the demo nothing is asked of the network: [DemoFlights] makes up a status from the clock.
+ * Keeps today's live flight status in memory. It asks only when told to: the app coming to the front, the open sheet's
+ * 30-second timer (both in the UI, both stopped when the screen is not showing), and the in-flight tracking service
+ * (`FlightTrackingService`, which runs only while a tracked flight is in the air or about to leave, and asks every 30 s
+ * through this same class and its one fetcher). A reply is reused for [FRESH_MS], so those never double up; a manual refresh
+ * may ask again after [MANUAL_MIN_MS]. In the demo nothing is asked of the network: [DemoFlights] makes up a status from the clock.
  */
 class FlightService(private val settings: FlightSettings, private val demo: Boolean) {
     private val fetcher = FlightFetcher()
     private val lock = Mutex()
-    private val attempts = HashMap<String, Long>()
+    private val attempts = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val _live = MutableStateFlow(FlightLive())
     val live: StateFlow<FlightLive> = _live
 
     val liveEnabled: StateFlow<Boolean> get() = settings.liveEnabled
+    val trackingEnabled: StateFlow<Boolean> get() = settings.trackingEnabled
+
+    fun setTrackingEnabled(on: Boolean) = settings.setTrackingEnabled(on)
+
+    /** When the last try for [key] was made (epoch milliseconds), or 0. The tracking service counts a failure once per try with this. */
+    fun lastAttemptAt(key: String): Long = attempts[key] ?: 0L
+
+    /**
+     * Asks the live source once about a flight the person is adding by hand, to confirm its route and times. Null when live status
+     * is off, in the demo (nothing is asked of the network there), or the service could not be reached; otherwise what it said.
+     * It does not touch the statuses the card shows.
+     */
+    suspend fun lookup(flight: BookedFlight, zone: ZoneId): FlightLookup? {
+        if (demo || !settings.liveEnabled.value) return null
+        val body = withContext(Dispatchers.IO) { fetcher.fetch(flight.airline, flight.number) } ?: return null
+        return FlightStatusParser.parse(body, flight, System.currentTimeMillis(), zone)
+    }
 
     /** Whether status is being fetched (or made up, in the demo). */
     fun isOn(): Boolean = demo || settings.liveEnabled.value
