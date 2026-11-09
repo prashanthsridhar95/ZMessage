@@ -46,7 +46,7 @@ internal fun LiveStatusChecks() {
 
     SectionCard("Live status check") {
         Caption(
-            "Developer tool. Makes one real request for a sample train (12633) or flight (6E 2345) and shows what came back. Only the sample number is sent. Share the raw reply with the developer if status does not load.",
+            "Developer tool. Makes one real request for a sample train (12676) or flight (6E 2345) and shows what came back. Only the sample number is sent. Share the raw reply with the developer if status does not load.",
             maxLines = 5
         )
         AppButton(
@@ -105,5 +105,5 @@ internal fun LiveStatusChecks() {
     }
 }
 
-private const val SAMPLE_TRAIN = "12633"
+private const val SAMPLE_TRAIN = "12676"
 private const val SAMPLE_FLIGHT = "6E 2345"
