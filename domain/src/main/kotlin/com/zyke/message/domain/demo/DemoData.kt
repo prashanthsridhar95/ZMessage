@@ -402,6 +402,7 @@ object DemoData {
             hdfcSent(today, 13, 5, "Swiggy", 395, "today-lunch", 0, unread = true)
 
             flightToday()
+            trainToday()
 
             return finish(loan)
         }
@@ -423,6 +424,25 @@ object DemoData {
                 ago(4), 10, 15, "VM-INDIGO",
                 "Booking confirmed. Your IndiGo flight 6E 2345 from Chennai (MAA) to Delhi (DEL) on ${leaves.format(day)} departs ${leaves.format(clock)}, " +
                     "arrives ${lands.format(clock)}. PNR: DEMO42. Web check-in opens 48 hrs before departure."
+            )
+        }
+
+        /**
+         * A booking for a train that leaves a little over an hour from now (India time, today), so Home has a train today next to the
+         * flight. Made up, like everything here: the train, the PNR and the passenger are not real.
+         */
+        private fun trainToday() {
+            val india = ZoneId.of("Asia/Kolkata")
+            val soon = nowInstant.plusSeconds(75 * 60L).atZone(india).let { it.withMinute(it.minute / 5 * 5).withSecond(0).withNano(0) }
+            val latest = nowInstant.atZone(india).withHour(23).withMinute(50).withSecond(0).withNano(0)
+            val leaves = if (soon.isAfter(latest)) latest else soon
+            val arrives = leaves.plusMinutes(300)
+            val clock = DateTimeFormatter.ofPattern("HH:mm")
+            val day = DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)
+            add(
+                ago(2), 18, 5, "VM-IRCTCS",
+                "Booking confirmed. PNR: 4400000042. Train 12633 KANNIYAKUMARI EXP on ${leaves.format(day)}. Chennai Egmore (MS) to Tiruchirappalli (TPJ). " +
+                    "Dep ${leaves.format(clock)} Arr ${arrives.format(clock)}. SL, S4 32 SU. -IRCTC"
             )
         }
 
