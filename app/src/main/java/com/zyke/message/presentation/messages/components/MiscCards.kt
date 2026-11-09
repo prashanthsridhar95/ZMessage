@@ -52,6 +52,8 @@ internal fun GenericCard(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 RowTitle(item.message.sender, Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
+                SourceTag(item.message)
+                if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(6.dp))
                 Caption(time)
             }
             item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let {

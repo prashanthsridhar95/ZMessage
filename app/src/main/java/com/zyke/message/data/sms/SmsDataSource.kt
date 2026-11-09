@@ -24,12 +24,19 @@ import kotlinx.coroutines.flow.merge
 /** Reads the device SMS inbox through the telephony content provider. */
 class SmsDataSource(
     private val contentResolver: ContentResolver,
-    private val rcsStore: RcsMessageStore? = null
+    private val rcsStore: RcsMessageStore? = null,
+    private val mms: MmsDataSource? = null
 ) {
 
     fun readInbox(): List<SmsMessage> {
-        val sms = readSms()
+        val sms = withMms(readSms(), 0L, FAR_FUTURE)
         return rcsStore?.mergeWith(sms) ?: sms
+    }
+
+    /** Picture messages (their text) dated in the range are added to [sms], newest first; an inbox without any is returned as it is. */
+    private fun withMms(sms: List<SmsMessage>, fromMillis: Long, untilMillis: Long): List<SmsMessage> {
+        val pictures = mms?.readWindow(fromMillis, untilMillis).orEmpty()
+        return if (pictures.isEmpty()) sms else (sms + pictures).sortedByDescending { it.date }
     }
 
     /**
@@ -83,9 +90,16 @@ class SmsDataSource(
             }
         }
 
-        // RCS messages are described the same way, so they are part of every month and of the list of ids.
+        // Picture messages (id, date and read flag only, no text) and RCS messages are described the same way, so they are part of every month and of the list of ids.
+        val pictures = mms?.stubs(sinceMillis).orEmpty()
+        pictures.forEach { stub ->
+            val bucket = bucketFor(stub.date)
+            bucket.count++
+            bucket.idSum += stub.messageId
+            bucket.readSum += if (stub.isRead) 1 else 0
+        }
         val rcs = rcsStore?.all().orEmpty().filter { it.date >= sinceMillis }
-        val allIds = if (wantIds) growing.copyOf(idCount) + rcs.map { it.id }.toLongArray() else LongArray(0)
+        val allIds = if (wantIds) growing.copyOf(idCount) + pictures.map { it.messageId }.toLongArray() + rcs.map { it.id }.toLongArray() else LongArray(0)
         rcs.forEach { message ->
             val bucket = bucketFor(message.date)
             bucket.count++
@@ -101,7 +115,8 @@ class SmsDataSource(
     /** The messages of one month, newest first, with that month's RCS messages added. */
     fun readWindow(fromMillis: Long, untilMillis: Long): List<SmsMessage> {
         val sms = readSms("${Telephony.Sms.DATE} >= ? AND ${Telephony.Sms.DATE} < ?", arrayOf(fromMillis.toString(), untilMillis.toString()))
-        return rcsStore?.mergeWindow(sms, fromMillis, untilMillis) ?: sms
+        val withPictures = withMms(sms, fromMillis, untilMillis)
+        return rcsStore?.mergeWindow(withPictures, fromMillis, untilMillis) ?: withPictures
     }
 
     private fun readSms(selection: String? = null, args: Array<String>? = null): List<SmsMessage> {
@@ -176,12 +191,16 @@ class SmsDataSource(
             }
         }
         contentResolver.registerContentObserver(Telephony.Sms.CONTENT_URI, true, observer)
+        // A picture message is announced on its own address, not on the SMS one.
+        if (mms != null) runCatching { contentResolver.registerContentObserver(MmsDataSource.CHANGES, true, observer) }
         trySend(Unit)
         awaitClose { contentResolver.unregisterContentObserver(observer) }
     }
 
     private companion object {
         const val INITIAL_IDS = 4096
+        /** 1 Jan 2100: the end of "everything" for a window read, kept clear of overflow when converted to seconds. */
+        const val FAR_FUTURE = 4_102_444_800_000L
         const val STAMP_COUNT = 1_000_003L
         const val STAMP_IDS = 31L
         val PROJECTION = arrayOf(

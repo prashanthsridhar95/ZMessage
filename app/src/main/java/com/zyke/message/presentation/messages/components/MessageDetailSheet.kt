@@ -187,8 +187,10 @@ internal fun MessageDetailSheet(
                 AppButton("Split with friends", { split(item.id) }, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
             }
 
+            if (message.isMms) MmsPictures(item.id)
+
             FintechCard {
-                Caption("MESSAGE")
+                Caption(message.sourceHeading())
                 SelectionContainer {
                     Text(
                         text = message.body,
@@ -198,6 +200,7 @@ internal fun MessageDetailSheet(
                     )
                 }
                 if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = 8.dp))
+                if (message.isChat()) ChatNote()
             }
 
             MergedMessages(item, actions.onUnmerge)

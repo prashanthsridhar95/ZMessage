@@ -43,6 +43,12 @@ object BalanceRequests {
         }
     }
 
+    /** Shown beside a request that is waiting when Zyke cannot see chat (RCS) messages: the bank's answer may be one. */
+    const val RICH_REPLY_HINT = "Reply may arrive as a rich message \u2014 turn on notification access so Zyke can read it"
+
+    /** The same idea before a request is sent, in the Check balance sheet. */
+    const val RICH_NOTE = "Some banks answer with a rich (RCS) message rather than a text. Zyke can read those only with notification access."
+
     fun statusLine(phase: RequestPhase): String? = when (phase) {
         RequestPhase.IDLE -> null
         RequestPhase.SENDING -> "Sending the request…"

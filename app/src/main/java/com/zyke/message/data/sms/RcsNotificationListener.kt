@@ -5,6 +5,9 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.domain.classification.UpiLiteNotification
+import com.zyke.message.domain.mms.NotificationEntry
+import com.zyke.message.domain.mms.NotificationFields
+import com.zyke.message.domain.mms.RichNotificationText
 
 /** Captures incoming chat (RCS) messages from the default messaging apps' notifications. */
 class RcsNotificationListener : NotificationListenerService() {
@@ -27,13 +30,37 @@ class RcsNotificationListener : NotificationListenerService() {
         if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         if (notification.category != Notification.CATEGORY_MESSAGE) return
 
-        val extras = notification.extras
-        val sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-        val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-        if (sender.isNullOrBlank() || body.isNullOrBlank()) return
+        val captured = RichNotificationText.capture(fieldsOf(notification.extras), sbn.postTime)
+        if (captured.isEmpty()) return
 
-        com.zyke.message.data.diag.DevLog.d("rcs") { "chat notification kept from ${sbn.packageName}: title ${sender.length} chars, text ${body.length} chars" }
-        (application as ZykeMessagesApplication).container.rcsStore.add(sender, body, sbn.postTime)
+        val store = (application as ZykeMessagesApplication).container.rcsStore
+        captured.forEach { chat ->
+            com.zyke.message.data.diag.DevLog.d("rcs") { "chat notification kept from ${sbn.packageName}: title ${chat.sender.length} chars, text ${chat.body.length} chars" }
+            store.add(chat.sender, chat.body, chat.at)
+        }
+    }
+
+    /**
+     * What a chat notification holds besides its short text: the expanded text, the inbox-style lines and the messaging-style entries
+     * (Notification.EXTRA_MESSAGES, each a bundle with "text" and "time"). A rich message's text may be only in those.
+     */
+    private fun fieldsOf(extras: android.os.Bundle): NotificationFields {
+        @Suppress("DEPRECATION")
+        val entries = runCatching {
+            extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.mapNotNull { parcel ->
+                val bundle = parcel as? android.os.Bundle ?: return@mapNotNull null
+                val text = bundle.getCharSequence("text")?.toString() ?: return@mapNotNull null
+                NotificationEntry(text, bundle.getLong("time", 0L))
+            }
+        }.getOrNull().orEmpty()
+        return NotificationFields(
+            title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
+            conversationTitle = extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString(),
+            text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+            bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
+            textLines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.map { it.toString() }.orEmpty(),
+            entries = entries
+        )
     }
 
     /** A Google Pay "UPI Lite refilled" notification becomes a message, so the top-up is counted as spent. */

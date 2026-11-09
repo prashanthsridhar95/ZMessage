@@ -72,6 +72,19 @@ class MmsAndRichTextTest {
         assertEquals(ids.size, ids.toSet().size)
     }
 
+    @Test fun pictureSampleSizeIsAPowerOfTwoThatKeepsTheSize() {
+        assertEquals(1, MmsMessages.sampleSize(800, 600, 1024))
+        assertEquals(1, MmsMessages.sampleSize(0, 0, 1024))
+        assertEquals(2, MmsMessages.sampleSize(4000, 3000, 1024))
+        assertEquals(4, MmsMessages.sampleSize(4000, 3000, 512))
+        assertTrue(MmsMessages.maxSide(true) < MmsMessages.maxSide(false))
+    }
+
+    @Test fun theWaitingHintsSayWhatToTurnOn() {
+        assertTrue(com.zyke.message.domain.balance.BalanceRequests.RICH_REPLY_HINT.contains("notification access"))
+        assertTrue(com.zyke.message.domain.balance.BalanceRequests.RICH_NOTE.contains("notification access"))
+    }
+
     @Test fun usableNeedsASenderAndSomethingToShow() {
         assertTrue(MmsMessages.isUsable("A", "t", false))
         assertTrue(MmsMessages.isUsable("A", "", true))

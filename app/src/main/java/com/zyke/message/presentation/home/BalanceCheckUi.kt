@@ -106,10 +106,41 @@ internal fun CheckBalanceRow(label: String, status: String?, onClick: () -> Unit
                     status, maxLines = 2,
                     color = if (status.startsWith("Couldn't")) MaterialTheme.colorScheme.error else com.zyke.message.presentation.messages.components.mutedColor()
                 )
+                // A rich (RCS) reply reaches Zyke only through notification access: one line and one button, only while it is waiting.
+                if (status == BalanceRequests.statusLine(RequestPhase.WAITING)) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
             }
         }
         AppButton(label, onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
+}
+
+/** Whether the person has switched on Zyke's notification access in the phone's settings. */
+private fun notificationAccessOn(context: android.content.Context): Boolean =
+    androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+/**
+ * A one-line note with a button to the phone's notification access page, shown only while that access is off (checked again when the
+ * person comes back from the page). Nothing at all when it is on, and in the demo.
+ */
+@Composable
+internal fun RichReplyHint(text: String) {
+    if (DemoMode.active) return
+    val context = LocalContext.current
+    var recheck by remember { mutableStateOf(0) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val watcher = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) recheck += 1 }
+        lifecycle.addObserver(watcher)
+        onDispose { lifecycle.removeObserver(watcher) }
+    }
+    val on = remember(recheck) { notificationAccessOn(context) }
+    if (on) return
+    Caption(text, Modifier.padding(top = 2.dp), maxLines = 3)
+    AppButton(
+        "Turn on notification access",
+        { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
+        style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+    )
 }
 
 /**
@@ -342,6 +373,9 @@ private fun ReadyState(
         Caption("One request per account every 2 minutes. Try again in ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}.", maxLines = 2)
     } else if (phase == RequestPhase.WAITING || phase == RequestPhase.NO_REPLY) {
         BalanceRequests.statusLine(phase)?.let { Caption(it, maxLines = 1) }
+        if (phase == RequestPhase.WAITING) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
+    } else {
+        RichReplyHint(BalanceRequests.RICH_NOTE)
     }
 }
 
@@ -358,5 +392,6 @@ private fun SentState(phase: RequestPhase, denied: Boolean, onSettings: () -> Un
         RowTitle(title, color = if (phase == RequestPhase.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
         Caption(detail, Modifier.padding(top = 4.dp), maxLines = 5)
     }
+    if (phase == RequestPhase.WAITING || phase == RequestPhase.NO_REPLY) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
     if (denied) AppButton("Open settings", onSettings, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
 }

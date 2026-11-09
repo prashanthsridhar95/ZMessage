@@ -14,7 +14,9 @@ import kotlin.math.abs
 
 /**
  * Android exposes no public API to read RCS messages, so they are captured from the messaging
- * app's notifications (see [RcsNotificationListener]) and kept in a file in the app's private storage.
+ * app's notifications (see [RcsNotificationListener]) and kept in a file in the app's private storage. Only the notification's
+ * text is available: a rich message's banner image and buttons are not. The same text again within ten minutes is an update of
+ * the same notification, not a new message.
  */
 class RcsMessageStore(private val context: Context) {
 
@@ -26,7 +28,7 @@ class RcsMessageStore(private val context: Context) {
     @Synchronized
     fun add(sender: String, body: String, date: Long) {
         val all = load()
-        if (all.any { it.sender == sender && it.body == body && (it.date == date || (sender == UpiLiteNotification.SENDER && abs(it.date - date) <= NOTIFICATION_REPEAT_MS)) }) return
+        if (all.any { it.sender == sender && it.body == body && abs(it.date - date) <= NOTIFICATION_REPEAT_MS }) return
         val message = SmsMessage(idFor(sender, body, date), sender, body, date, isRead = false, isRcs = true)
         save((all + message).sortedByDescending { it.date }.take(MAX_MESSAGES))
         _changes.tryEmit(Unit)
@@ -94,7 +96,7 @@ class RcsMessageStore(private val context: Context) {
     private companion object {
         const val FILE_NAME = "rcs_messages.json"
         const val MAX_MESSAGES = 2000
-        const val SMS_DEDUPE_WINDOW_MS = 2 * 60 * 1000L
+        const val SMS_DEDUPE_WINDOW_MS = 10 * 60 * 1000L
         const val TOP_UP_DEDUPE_WINDOW_MS = 10 * 60 * 1000L
         const val NOTIFICATION_REPEAT_MS = 10 * 60 * 1000L
     }

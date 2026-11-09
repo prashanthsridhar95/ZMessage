@@ -68,6 +68,20 @@ object MmsMessages {
     /** A message worth listing: it has text or a picture and a sender. */
     fun isUsable(sender: String, text: String, hasImage: Boolean) = sender.isNotEmpty() && (text.isNotEmpty() || hasImage)
 
+    /** Pixels a side a picture is read at: small on a phone with little memory. */
+    fun maxSide(lite: Boolean): Int = if (lite) 512 else 1024
+
+    /**
+     * The power of two a picture of [width] x [height] is shrunk by when read, so that neither side falls below [maxSide] (the
+     * decoder then lands between [maxSide] and twice that). 1 for a picture already small or whose size is unknown.
+     */
+    fun sampleSize(width: Int, height: Int, maxSide: Int): Int {
+        if (width <= 0 || height <= 0 || maxSide <= 0) return 1
+        var sample = 1
+        while (width / (sample * 2) >= maxSide && height / (sample * 2) >= maxSide) sample *= 2
+        return sample
+    }
+
     /** What the list shows for a picture message without any text. */
     const val PICTURE_ONLY_TEXT = "Picture message"
 }
