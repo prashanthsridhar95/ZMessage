@@ -91,7 +91,7 @@ class LiveStatusCheckPolicyTest {
         assertTrue("TIMEOUT_MS = 6_000" in probe)
         assertTrue("HARD_LIMIT_MS = 7_000L" in probe)
         assertFalse("retry" in probe.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n").lowercase())
-        assertEquals(8, Regex("""ProbeCandidate\("[^"]+", "https://""").findAll(probe).count())
+        assertEquals(14, Regex("""ProbeCandidate\("[^"]+", "https://""").findAll(probe).count())
         // Only the sample train number goes out, never anything of the person's.
         assertTrue("candidates(SAMPLE_TRAIN)" in tools)
         // Memory only, never stored or logged.
