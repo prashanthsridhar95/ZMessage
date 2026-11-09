@@ -112,7 +112,7 @@ internal class FlightsToday(
 
 /** Wakes at each minute boundary while the screen is showing, so "in 2h 10m" stays right without a timer when it is not. */
 @Composable
-private fun rememberMinuteState(): State<Long> {
+internal fun rememberMinuteState(): State<Long> {
     val now = remember { mutableLongStateOf(System.currentTimeMillis()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) {
@@ -198,12 +198,12 @@ internal fun FlightCard(today: FlightsToday, onOpen: (String) -> Unit, onDismiss
         }
         HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
         if (today.liveOn) {
-            AppButton("Add a flight", onAdd, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            AppButton("Add a trip", onAdd, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         } else {
             // One row of two equal buttons (stacked, still equal, on a narrow phone or at large text).
             ResponsiveRow(Modifier.fillMaxWidth(), spacing = 8.dp) {
                 AppButton("Get live status", { onOpen(featured.key) }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
-                AppButton("Add a flight", onAdd, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                AppButton("Add a trip", onAdd, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
             }
         }
     }

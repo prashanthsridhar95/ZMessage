@@ -245,7 +245,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             onSave = { onIntent(Intent.SaveManualEntry(it)); entryOpen = false; entryRequest = null },
             onDismiss = { entryOpen = false; entryRequest = null },
             initial = entryRequest,
-            onAddFlight = { entryOpen = false; entryRequest = null; com.zyke.message.presentation.flights.FlightRequests.addRequested.value = true }
+            onAddTrip = { entryOpen = false; entryRequest = null; com.zyke.message.presentation.trains.TripRequests.chooseRequested.value = true }
         )
     }
     if (reviewOpen) {
@@ -329,6 +329,25 @@ private fun SummaryPage(
             com.zyke.message.presentation.flights.FlightRequests.pending.value = null
         }
     }
+    // Trains on their day of travel, the same way; and the one "Add a trip" entry that asks flight or train.
+    val trainsToday = com.zyke.message.presentation.trains.rememberTrainsToday(state.trains, state.userState.dismissedAttention)
+    var trainOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    var trainEditor by rememberSaveable { mutableStateOf<String?>(null) }
+    var tripChoice by rememberSaveable { mutableStateOf(false) }
+    val requestedTrain = com.zyke.message.presentation.trains.TrainRequests.pending.value
+    androidx.compose.runtime.LaunchedEffect(requestedTrain) {
+        if (requestedTrain != null) {
+            trainOpen = requestedTrain
+            com.zyke.message.presentation.trains.TrainRequests.pending.value = null
+        }
+    }
+    val chooseTrip = com.zyke.message.presentation.trains.TripRequests.chooseRequested.value
+    androidx.compose.runtime.LaunchedEffect(chooseTrip) {
+        if (chooseTrip) {
+            tripChoice = true
+            com.zyke.message.presentation.trains.TripRequests.chooseRequested.value = false
+        }
+    }
     val addFlight = com.zyke.message.presentation.flights.FlightRequests.addRequested.value
     androidx.compose.runtime.LaunchedEffect(addFlight) {
         if (addFlight) {
@@ -344,6 +363,20 @@ private fun SummaryPage(
         )
     }
     flightEditor?.let { id -> com.zyke.message.presentation.flights.ManualFlightSheetHost(id) { flightEditor = null } }
+    trainOpen?.let { key ->
+        com.zyke.message.presentation.trains.TrainSheet(
+            key, trainsToday, onDismiss = { trainOpen = null },
+            onEdit = { id -> trainOpen = null; trainEditor = id }
+        )
+    }
+    trainEditor?.let { id -> com.zyke.message.presentation.trains.ManualTrainSheetHost(id) { trainEditor = null } }
+    if (tripChoice) {
+        com.zyke.message.presentation.trains.TripChoiceSheet(
+            onFlight = { tripChoice = false; flightEditor = com.zyke.message.presentation.flights.NEW_FLIGHT },
+            onTrain = { tripChoice = false; trainEditor = com.zyke.message.presentation.trains.NEW_TRAIN },
+            onDismiss = { tripChoice = false }
+        )
+    }
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
@@ -363,7 +396,16 @@ private fun SummaryPage(
                 com.zyke.message.presentation.flights.FlightCard(
                     flightsToday, onOpen = { flightOpen = it },
                     onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
-                    onAdd = { flightEditor = com.zyke.message.presentation.flights.NEW_FLIGHT }
+                    onAdd = { tripChoice = true }
+                )
+            }
+        }
+        if (trainsToday.trains.isNotEmpty()) {
+            item(key = "trains") {
+                com.zyke.message.presentation.trains.TrainCard(
+                    trainsToday, onOpen = { trainOpen = it },
+                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
+                    onAdd = { tripChoice = true }
                 )
             }
         }

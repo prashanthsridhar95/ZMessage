@@ -69,7 +69,7 @@ private val TRANSFER_SUGGESTIONS = listOf("Cash withdrawal", "To savings", "To m
  * transfer between their own accounts. It is then read like any other payment: in lists, totals, limits and the calendar.
  */
 @Composable
-internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, onDismiss: () -> Unit, initial: EntryRequest? = null, onAddFlight: (() -> Unit)? = null) {
+internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, onDismiss: () -> Unit, initial: EntryRequest? = null, onAddTrip: (() -> Unit)? = null) {
     var kind by rememberSaveable { mutableStateOf(initial?.kind ?: ManualKind.EXPENSE) }
     var amount by rememberSaveable { mutableStateOf(initial?.amount?.toPlainString().orEmpty()) }
     var title by rememberSaveable { mutableStateOf(initial?.title.orEmpty()) }
@@ -134,8 +134,8 @@ internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, o
         if (kind == ManualKind.TRANSFER) {
             Caption("A transfer between your own accounts is not counted as income or spending.", maxLines = 3)
         }
-        // Not money: a flight to track. Quiet, at the end of the form, so the sheet stays what it was.
-        if (onAddFlight != null) AppButton("Adding a flight instead?", onAddFlight, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        // Not money: a flight or train to track. Quiet, at the end of the form, so the sheet stays what it was.
+        if (onAddTrip != null) AppButton("Adding a trip instead?", onAddTrip, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
 }
 

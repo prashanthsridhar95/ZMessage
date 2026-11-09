@@ -212,6 +212,7 @@ class MainActivity : ComponentActivity() {
         com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
         com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
+        com.zyke.message.presentation.trains.TrainRequests.fromIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -221,6 +222,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) com.zyke.message.presentation.home.EntryRequests.fromIntent(intent)?.let { com.zyke.message.presentation.home.EntryRequests.pending.value = it }
         if (savedInstanceState == null) com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
         if (savedInstanceState == null) com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
+        if (savedInstanceState == null) com.zyke.message.presentation.trains.TrainRequests.fromIntent(intent)
         applyScreenProtection(container.settings.settings.value.screenProtection)
         // After a restore the saved icon colour may differ from the enabled launcher alias: put them in step, off the main thread.
         val savedIcon = container.settings.settings.value.appIcon

@@ -106,7 +106,7 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     RULES("Your rules", R.drawable.baseline_list_24),
     ALERTS("Reminders and alerts", R.drawable.ic_reminder_24),
     MARKETS("Market watch", R.drawable.ic_trending_24),
-    FLIGHTS("Live flight status", R.drawable.baseline_flight_24),
+    FLIGHTS("Flights and trains", R.drawable.baseline_flight_24),
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
     APPEARANCE("Appearance", R.drawable.ic_sun_24),
     HELP("Help and tour", R.drawable.ic_info_24),
@@ -139,6 +139,7 @@ fun SettingsPage(
     val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
     val flightsOn by container.flights.liveEnabled.collectAsStateWithLifecycle()
+    val trainsOn by container.trains.liveEnabled.collectAsStateWithLifecycle()
     val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
     val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
 
@@ -178,7 +179,7 @@ fun SettingsPage(
                     SettingsGroup.RULES to "What you taught the app",
                     SettingsGroup.ALERTS to alertsSummary(state),
                     SettingsGroup.MARKETS to if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off",
-                    SettingsGroup.FLIGHTS to if (flightsOn) "On" else "Off"
+                    SettingsGroup.FLIGHTS to when { flightsOn && trainsOn -> "Flights and trains on"; flightsOn -> "Flights on"; trainsOn -> "Trains on"; else -> "Off" }
                 )
             ) { openName = it.name }
             SettingsList(
@@ -450,7 +451,10 @@ private fun GroupContent(
         CodeSharingEntry()
         }
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
-        SettingsGroup.FLIGHTS -> com.zyke.message.presentation.flights.FlightSettingsSection()
+        SettingsGroup.FLIGHTS -> {
+            com.zyke.message.presentation.flights.FlightSettingsSection()
+            com.zyke.message.presentation.trains.TrainSettingsSection()
+        }
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {
             Caption("Messages stay on this phone", maxLines = 5)
             val reveal = com.zyke.message.presentation.common.LocalAmountReveal.current

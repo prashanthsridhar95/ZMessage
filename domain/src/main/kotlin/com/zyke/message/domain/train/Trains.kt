@@ -431,6 +431,18 @@ object TrainText {
     /** "Villupuram" or "VM" when no name is known. */
     fun stopName(s: TrainStop): String = s.name.ifBlank { s.code }
 
+    /** "Last seen at Villupuram at 13:42, running 12 min late"; null when the train has not been seen anywhere yet. */
+    fun lastSeen(s: TrainSnapshot): String? {
+        val p = s.position ?: return null
+        val at = p.at?.let { " at ${clock(it)}" }.orEmpty()
+        val state = when {
+            p.delayMinutes >= ON_TIME_MINUTES -> ", running ${minutesWords(p.delayMinutes)} late"
+            p.delayMinutes <= -ON_TIME_MINUTES -> ", running ${minutesWords(-p.delayMinutes)} early"
+            else -> ", on time"
+        }
+        return "Last seen at ${p.name}$at$state"
+    }
+
     /** The time a stop is expected at (arrival, or departure for the first stop), "14:10"; null when not known. */
     fun expectedClock(s: TrainStop, delayMinutes: Int): String? {
         val at = s.actualArrival ?: s.expectedArrival ?: s.scheduledArrival?.plus(Duration.ofMinutes(delayMinutes.toLong()))

@@ -179,6 +179,15 @@ class TrainTrackerTest {
         assertNull(TrainText.againstSchedule(null, ist(12, 1, 0)))
     }
 
+    @Test fun lastSeenSaysWhereWhenAndHowLate() {
+        val now = ist(13, 0, 15)
+        val s = TrainTracker.snapshot(train, live(TrainFixtures.running, now), now)
+        assertEquals("Last seen at Villupuram Jn at 23:54, running 12 min late", TrainText.lastSeen(s))
+        assertEquals("Last seen at Villupuram Jn at 23:54, on time", TrainText.lastSeen(s.copy(position = s.position?.copy(delayMinutes = 2))))
+        assertEquals("Last seen at Villupuram Jn at 23:54, running 1 h 5 min early", TrainText.lastSeen(s.copy(position = s.position?.copy(delayMinutes = -65))))
+        assertNull(TrainText.lastSeen(s.copy(position = null)))
+    }
+
     @Test fun progressRunsFromDepartureToArrival() {
         val now = ist(13, 0, 15)
         val s = TrainTracker.snapshot(train, live(TrainFixtures.running, now), now)

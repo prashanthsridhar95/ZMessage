@@ -126,6 +126,12 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val manualFlights: com.zyke.message.domain.flight.ManualFlightRepository by lazy { com.zyke.message.data.repository.ManualFlightRepositoryImpl(context) }
     /** The flights found in texts, written down for the alarm and the tracking service; bookkeeping, not in backups. */
     val flightPlan by lazy { com.zyke.message.data.flights.FlightPlanStore(context) }
+    /** Live train status: off until switched on in Settings; in the demo it is made up from the clock and never asks the network. */
+    val trains by lazy { com.zyke.message.data.trains.TrainService(com.zyke.message.data.trains.TrainSettings(context), demo) }
+    /** Train journeys the person added by hand (in memory only in the demo, like every store here). */
+    val manualTrains: com.zyke.message.domain.train.ManualTrainRepository by lazy { com.zyke.message.data.repository.ManualTrainRepositoryImpl(context) }
+    /** The journeys found in texts, written down for the alarm and the tracking service; bookkeeping, not in backups. */
+    val trainPlan by lazy { com.zyke.message.data.trains.TrainPlanStore(context) }
     val dailyBudgetOverride: com.zyke.message.domain.budget.DailyBudgetOverrideRepository by lazy { com.zyke.message.data.repository.DailyBudgetOverrideRepositoryImpl(context) }
     val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository by lazy { com.zyke.message.data.repository.HiddenAccountRepositoryImpl(context) }
     val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository by lazy { com.zyke.message.data.repository.AccountOverrideRepositoryImpl(context) }

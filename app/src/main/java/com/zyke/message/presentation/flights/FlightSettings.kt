@@ -71,9 +71,9 @@ fun FlightSettingsSection() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                RowTitle("Show flight details on the lock screen")
+                RowTitle("Show flight and train details on the lock screen")
                 Caption(
-                    "On: the route, landing time and countdown show on the lock screen. Off: only “Flight in progress” until you unlock. Applies from the next update, within 30 seconds.",
+                    "On: the route, arrival time and countdown show on the lock screen. Off: only “Flight in progress” or “Train journey in progress” until you unlock. Applies from the next update, within 30 seconds.",
                     maxLines = 5
                 )
             }

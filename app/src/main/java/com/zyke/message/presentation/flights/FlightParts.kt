@@ -116,7 +116,7 @@ private fun timeColor(shift: TimeShift, hasTime: Boolean): Color = when {
 
 /** A column of the route: the code, the time under it, the struck-through schedule when it moved, and the city. */
 @Composable
-private fun EndpointColumn(e: FlightEndpoint, big: Boolean, reserveWas: Boolean, end: Boolean, modifier: Modifier) {
+internal fun EndpointColumn(e: FlightEndpoint, big: Boolean, reserveWas: Boolean, end: Boolean, modifier: Modifier, cityLines: Int = 1) {
     val align = if (end) Alignment.End else Alignment.Start
     val textAlign = if (end) TextAlign.End else TextAlign.Start
     Column(modifier, horizontalAlignment = align) {
@@ -135,13 +135,13 @@ private fun EndpointColumn(e: FlightEndpoint, big: Boolean, reserveWas: Boolean,
                 textDecoration = if (e.was != null) TextDecoration.LineThrough else null, maxLines = 1, softWrap = false, textAlign = textAlign
             )
         }
-        if (e.city != null) Caption(e.city!!, maxLines = 1, textAlign = textAlign)
+        if (e.city != null) Caption(e.city!!, maxLines = cityLines, textAlign = textAlign)
     }
 }
 
 /** One end of the route as a row, for the stacked form: code and time on one line, city (and the struck schedule) under. */
 @Composable
-private fun EndpointRow(e: FlightEndpoint, big: Boolean) {
+internal fun EndpointRow(e: FlightEndpoint, big: Boolean, cityLines: Int = 1) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
             Text(
@@ -155,7 +155,7 @@ private fun EndpointRow(e: FlightEndpoint, big: Boolean) {
         }
         if (e.city != null || e.was != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { if (e.city != null) Caption(e.city!!, maxLines = 1) }
+                Box(Modifier.weight(1f)) { if (e.city != null) Caption(e.city!!, maxLines = cityLines) }
                 if (e.was != null) {
                     Text(e.was!!, style = tabular(MaterialTheme.typography.bodySmall), color = mutedColor(), textDecoration = TextDecoration.LineThrough, maxLines = 1, softWrap = false)
                 }

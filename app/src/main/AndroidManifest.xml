@@ -267,6 +267,12 @@
             android:name=".notifications.FlightTrackingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- The train twin of the flight service above: runs only while live train status and the train notification are on and a journey is about to
+             leave the person's station or under way (flights and trains together: at most two). Same type, same start rules. Not exported. -->
+        <service
+            android:name=".notifications.TrainTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Receivers: none is exported. The system delivers the widget, boot and alarm broadcasts to them. -->
         <receiver
@@ -309,6 +315,10 @@
         <!-- The alarm for the next tracked flight, ten minutes before it leaves. -->
         <receiver
             android:name=".notifications.FlightAlarmReceiver"
+            android:exported="false" />
+        <!-- The alarm for the next tracked train, ten minutes before it leaves the person's station. -->
+        <receiver
+            android:name=".notifications.TrainAlarmReceiver"
             android:exported="false" />
         <!-- Exported only because the phone's telephony service must reach it; the BROADCAST_SMS permission lets
              nothing else send to it. Disabled until the person turns on live alerts or code sharing. -->

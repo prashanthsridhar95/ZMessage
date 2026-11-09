@@ -22,6 +22,7 @@ object DataWipe {
         runCatching { com.zyke.message.notifications.DigestScheduler(app).apply(false) }
         runCatching { com.zyke.message.notifications.LiveAlerts.setEnabled(app, false) }
         runCatching { com.zyke.message.notifications.FlightTrackingControl.cancelAll(app) }
+        runCatching { com.zyke.message.notifications.TrainTrackingControl.cancelAll(app) }
 
         // Every preference file, whatever its name.
         File(app.applicationInfo.dataDir, "shared_prefs").listFiles()?.forEach { app.deleteSharedPreferences(it.nameWithoutExtension) }

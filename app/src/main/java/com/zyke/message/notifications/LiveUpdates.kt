@@ -70,7 +70,7 @@ object LiveUpdates {
      * Returns [built] as a promoted ongoing notification when this Android can, with the progress drawn as a bar with a plane
      * from take-off to landing and the time left as the chip; otherwise [built] unchanged.
      */
-    fun promote(context: Context, built: Notification, notice: FlightNotice): Notification {
+    fun promote(context: Context, built: Notification, notice: FlightNotice, iconRes: Int = R.drawable.baseline_flight_24): Notification {
         if (!available()) return built
         return try {
             val styleClass = Class.forName(STYLE)
@@ -84,7 +84,7 @@ object LiveUpdates {
             if (points.isNotEmpty()) styleClass.getMethod("setProgressPoints", List::class.java).invoke(style, points)
             styleClass.getMethod("setProgress", Int::class.javaPrimitiveType).invoke(style, progress)
             styleClass.getMethod("setProgressTrackerIcon", Icon::class.java)
-                .invoke(style, Icon.createWithResource(context, R.drawable.baseline_flight_24))
+                .invoke(style, Icon.createWithResource(context, iconRes))
 
             val builder = Notification.Builder.recoverBuilder(context, built)
             builder.setStyle(style as Notification.Style)

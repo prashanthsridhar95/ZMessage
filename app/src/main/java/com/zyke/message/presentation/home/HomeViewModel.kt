@@ -460,6 +460,13 @@ class HomeViewModel(
                             .filter { kotlin.math.abs(it.date.toEpochDay() - today.toEpochDay()) <= 1 }
                     }
                 }
+                val trains = part {
+                    // Railway texts of the last year, merged into journeys; only those within a day of today are kept.
+                    memo("trains", live, today) {
+                        com.zyke.message.domain.train.TrainTracker.bookings(live.map { com.zyke.message.domain.train.TrainSms(it.message.body, it.message.date) }, now)
+                            .filter { kotlin.math.abs(it.date.toEpochDay() - today.toEpochDay()) <= 1 }
+                    }
+                }
                 val upcoming = part {
                     memo("upcoming", msgs, now, us.dismissedAttention) {
                         UpcomingBuilder.build(msgs, today, includePaidToday = true, zone = zone, markedPaid = us.dismissedAttention)
@@ -480,7 +487,7 @@ class HomeViewModel(
                 val unread = part { memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } } }
                 Parts(
                     dashboard.await(), limits.await(), balances.await(), insights.await(), accounts.await(), quickAdds.await(),
-                    attention.await(), flights.await(), upcoming.await(), review.await(), providentFund.await(), refunds.await(), owed.await(),
+                    attention.await(), flights.await(), trains.await(), upcoming.await(), review.await(), providentFund.await(), refunds.await(), owed.await(),
                     subscriptions.await(), recent.await(), alerts.await(), agenda.await(), unread.await()
                 )
             }
@@ -492,6 +499,7 @@ class HomeViewModel(
             val quickAdds = parts.quickAdds
             val attention = parts.attention
             val flights = parts.flights
+            val trains = parts.trains
             val upcoming = parts.upcoming
             val review = parts.review
             val providentFund = parts.providentFund
@@ -579,7 +587,7 @@ class HomeViewModel(
                 copy(
                     cycle = cycle, daily = daily, dailySuggestion = dailySuggestion, goals = goals, reminders = reminders, providentFund = providentFund,
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
-                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, flights = flights, review = review, thisMonth = dashboard,
+                    subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, flights = flights, trains = trains, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
                     agenda = agenda, unreadCount = unread,
                     planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders
@@ -598,6 +606,7 @@ class HomeViewModel(
         val quickAdds: List<QuickAdd>,
         val attention: List<com.zyke.message.domain.feed.AttentionItem>,
         val flights: List<com.zyke.message.domain.flight.BookedFlight>,
+        val trains: List<com.zyke.message.domain.train.BookedTrain>,
         val upcoming: List<com.zyke.message.domain.home.UpcomingItem>,
         val review: com.zyke.message.domain.ledger.ReviewQueue,
         val providentFund: com.zyke.message.domain.pf.ProvidentFund?,
