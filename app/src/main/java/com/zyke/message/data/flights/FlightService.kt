@@ -2,8 +2,14 @@ package com.zyke.message.data.flights
 
 import android.content.Context
 import com.zyke.message.data.diag.DevLog
+import com.zyke.message.data.diag.LiveReplyMemo
 import com.zyke.message.data.markets.FlightFetcher
 import com.zyke.message.domain.demo.DemoFlights
+import com.zyke.message.domain.diag.LiveCheck
+import com.zyke.message.domain.diag.LiveCheckReport
+import com.zyke.message.domain.diag.LiveDiagnosis
+import com.zyke.message.domain.diag.LiveFailure
+import com.zyke.message.domain.flight.Airlines
 import com.zyke.message.domain.flight.BookedFlight
 import com.zyke.message.domain.flight.FlightLookup
 import com.zyke.message.domain.flight.FlightStatusParser
@@ -61,6 +67,8 @@ data class FlightLive(
     val failed: Set<String> = emptySet(),
     /** The service answered but has no flight of that number on that day (yet). */
     val notFound: Set<String> = emptySet(),
+    /** Why the last try failed, for the keys in [failed] (blocked, unreadable, no network...): the card words it. */
+    val reasons: Map<String, LiveFailure> = emptyMap(),
     val loading: Boolean = false
 )
 
@@ -101,6 +109,41 @@ class FlightService(private val settings: FlightSettings, private val demo: Bool
         return FlightStatusParser.parse(body, flight, System.currentTimeMillis(), zone)
     }
 
+    /**
+     * Developer tools only (Settings, Flights and trains, with developer options on): one real request for [flightCode] such as "6E 2345"
+     * with everything about the answer, kept as the one latest raw reply in memory for sharing. Null in the demo and for a code that is
+     * not an airline code and a number. It does not touch the statuses the card shows. The request carries only the airline code and
+     * flight number, as ever.
+     */
+    suspend fun diagnose(flightCode: String, zone: ZoneId): LiveCheckReport? {
+        if (demo) return null
+        val compact = flightCode.filter { it.isLetterOrDigit() }.uppercase()
+        val airline = Airlines.byCode(compact.take(2)) ?: return null
+        val number = compact.drop(2).filter { it.isDigit() }.take(4)
+        if (number.isEmpty()) return null
+        return withContext(Dispatchers.IO) {
+            val reply = fetcher.diagnose(airline, number) ?: return@withContext null
+            val body = reply.body
+            val missing = if (body != null && reply.statusCode in 200..299) FlightStatusParser.firstMissingField(body) else null
+            var diagnosis = LiveCheck.classify(reply, missing)
+            var parsed: String? = null
+            if (diagnosis.ok && body != null) {
+                val sample = BookedFlight(airline, number, java.time.LocalDate.now(zone), null, null, null, null, null, null, null)
+                when (FlightStatusParser.parse(body, sample, System.currentTimeMillis(), zone)) {
+                    is FlightLookup.Found -> parsed = "found"
+                    is FlightLookup.NotFound -> parsed = "no flight of this number today"
+                    is FlightLookup.Unreadable -> {
+                        parsed = "unreadable"
+                        diagnosis = LiveDiagnosis(LiveFailure.SHAPE_MISMATCH, "a field the parser needs (see the raw reply)")
+                    }
+                }
+            }
+            val report = LiveCheckReport("Flight ${airline.code}$number", reply, diagnosis, parsed)
+            LiveReplyMemo.put(report, body.orEmpty())
+            report
+        }
+    }
+
     /** Whether status is being fetched (or made up, in the demo). */
     fun isOn(): Boolean = demo || settings.liveEnabled.value
 
@@ -125,14 +168,17 @@ class FlightService(private val settings: FlightSettings, private val demo: Bool
                     _live.update { it.copy(statuses = it.statuses + (flight.key to status), failed = it.failed - flight.key, notFound = it.notFound - flight.key) }
                     return@forEach
                 }
-                val body = withContext(Dispatchers.IO) { fetcher.fetch(flight.airline, flight.number) }
-                val result = body?.let { FlightStatusParser.parse(it, flight, System.currentTimeMillis(), zone) }
+                val reply = withContext(Dispatchers.IO) { fetcher.diagnose(flight.airline, flight.number) }
+                val body = reply?.body
+                val problem = if (reply == null) LiveFailure.OTHER else LiveCheck.classify(reply).reason
+                val result = if (problem == LiveFailure.NONE && body != null) FlightStatusParser.parse(body, flight, System.currentTimeMillis(), zone) else null
+                val why = if (result is FlightLookup.Unreadable) LiveFailure.SHAPE_MISMATCH else problem
                 DevLog.d("flight") { "refresh: ${result?.javaClass?.simpleName ?: "no reply"}" }
                 _live.update { current ->
                     when (result) {
-                        is FlightLookup.Found -> current.copy(statuses = current.statuses + (flight.key to result.status), failed = current.failed - flight.key, notFound = current.notFound - flight.key)
-                        is FlightLookup.NotFound -> current.copy(failed = current.failed - flight.key, notFound = current.notFound + flight.key)
-                        else -> current.copy(failed = current.failed + flight.key)
+                        is FlightLookup.Found -> current.copy(statuses = current.statuses + (flight.key to result.status), failed = current.failed - flight.key, notFound = current.notFound - flight.key, reasons = current.reasons - flight.key)
+                        is FlightLookup.NotFound -> current.copy(failed = current.failed - flight.key, notFound = current.notFound + flight.key, reasons = current.reasons - flight.key)
+                        else -> current.copy(failed = current.failed + flight.key, reasons = current.reasons + (flight.key to why))
                     }
                 }
             }

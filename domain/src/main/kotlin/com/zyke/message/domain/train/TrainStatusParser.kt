@@ -37,10 +37,10 @@ object TrainStatusParser {
      */
     fun parse(json: String, train: BookedTrain, startDate: LocalDate, fetchedAt: Long): TrainLookup {
         val parsed = runCatching { MiniJson.parse(json) }.getOrNull() as? Map<*, *> ?: return TrainLookup.Unreadable
-        val root = (parsed["data"] as? Map<*, *>) ?: parsed
+        val root = rootOf(parsed)
         val number = text(root, "train_number", "trainNo", "train_no", "number")?.filter { it.isDigit() }
         if (number != null && number.isNotEmpty() && number != train.number) return TrainLookup.Unreadable
-        val route = (list(root, "route", "stations", "stops", "train_route") ?: list(parsed, "route", "stations", "stops"))
+        val route = (list(root, *ROUTE_KEYS) ?: list(parsed, "route", "stations", "stops"))
         val statusText = (text(root, "status", "running_status", "message", "status_text")).orEmpty().lowercase()
         val failure = parsed["success"] == false || parsed["error"] != null && route.isNullOrEmpty()
         if (route.isNullOrEmpty() && statusText.isEmpty()) return if (failure || parsed.containsKey("route") || parsed.containsKey("success")) TrainLookup.NotFound else TrainLookup.Unreadable
@@ -51,6 +51,39 @@ object TrainStatusParser {
     }
 
     // ---- reading
+
+    private val ROUTE_KEYS = arrayOf("route", "stations", "stops", "train_route")
+    private val CODE_KEYS = arrayOf("station_code", "stnCode", "stn_code", "code")
+
+    /** The object that holds the run: the top level, inside `data` if there is one, and inside `running_status` if that is an object. */
+    private fun rootOf(parsed: Map<*, *>): Map<*, *> {
+        val outer = (parsed["data"] as? Map<*, *>) ?: parsed
+        return (outer["running_status"] as? Map<*, *>) ?: outer
+    }
+
+    /**
+     * For the developer's live-status check: the first field this parser needs and cannot find in [json], or null when nothing is
+     * missing, when [json] is not JSON at all, or when the reply is the source's readable "no such run" answer. Mirrors [parse].
+     */
+    fun firstMissingField(json: String): String? {
+        val parsedAny = runCatching { MiniJson.parse(json.trim()) }
+        if (parsedAny.isFailure) return null
+        val parsed = parsedAny.getOrNull() as? Map<*, *> ?: return "top-level object"
+        val root = rootOf(parsed)
+        val route = list(root, *ROUTE_KEYS) ?: list(parsed, "route", "stations", "stops")
+        val statusText = text(root, "status", "running_status", "message", "status_text")
+        if (route.isNullOrEmpty()) {
+            if (statusText != null) return null
+            return if (parsed.containsKey("route") || parsed.containsKey("success")) null else "route (or stations, stops)"
+        }
+        val first = route.firstOrNull { it is Map<*, *> } as? Map<*, *> ?: return "route entries as objects"
+        if (text(first, *CODE_KEYS) == null) return "station_code"
+        val anyTime = route.any { item ->
+            val o = item as? Map<*, *> ?: return@any false
+            listOf("sch_arr", "sch_dep", "act_arr", "act_dep", "scheduled_arrival", "scheduled_departure", "arrival", "departure", "sta", "std").any { clock(o[it]) != null }
+        }
+        return if (anyTime) null else "sch_arr (or sch_dep)"
+    }
 
     private fun get(map: Map<*, *>?, vararg keys: String): Any? {
         for (k in keys) map?.get(k)?.let { return it }
@@ -63,7 +96,8 @@ object TrainStatusParser {
 
     private fun int(map: Map<*, *>?, vararg keys: String): Int? = when (val v = get(map, *keys)) {
         is Number -> v.toInt()
-        is String -> v.trim().removePrefix("+").toIntOrNull()
+        // "12", "+12", "12 min", "12 mins late"; "On time" and the like are not a number.
+        is String -> Regex("^([+-]?\\d{1,4})(?!\\d|:)").find(v.trim())?.groupValues?.get(1)?.removePrefix("+")?.toIntOrNull()
         else -> null
     }
 
@@ -74,10 +108,24 @@ object TrainStatusParser {
         else -> null
     }
 
-    /** "21:30", "21:30:00" or "21:30 (+1)" as a time; "--", "Source", "Destination" and the like as null. */
+    /**
+     * "21:30", "21:30:00", "21:30 (+1)", "12 Nov 21:30" or "2026-11-12T21:30:00" as a time of day; epoch seconds (or milliseconds), as a
+     * number or a string of digits, as that moment on the Indian clock; "--", "Source", "Destination" and the like as null.
+     */
     private fun clock(value: Any?): LocalTime? {
+        val epoch = when (value) {
+            is Number -> value.toLong()
+            is String -> value.trim().takeIf { it.length in 9..13 && it.all { c -> c.isDigit() } }?.toLongOrNull()
+            else -> null
+        }
+        if (epoch != null) {
+            val seconds = if (epoch > 100_000_000_000L) epoch / 1000 else epoch
+            // Anything before 2001 is not a time of a train run.
+            if (seconds < 1_000_000_000L) return null
+            return Instant.ofEpochSecond(seconds).atZone(Stations.ZONE).toLocalTime().withSecond(0).withNano(0)
+        }
         val t = (value as? String)?.trim() ?: return null
-        val m = Regex("^(\\d{1,2}):(\\d{2})").find(t) ?: return null
+        val m = Regex("(?<!\\d)(\\d{1,2}):(\\d{2})").find(t) ?: return null
         return runCatching { LocalTime.of(m.groupValues[1].toInt(), m.groupValues[2].toInt()) }.getOrNull()
     }
 
@@ -89,7 +137,7 @@ object TrainStatusParser {
         var previous: LocalTime? = null
         for (item in route) {
             val o = item as? Map<*, *> ?: continue
-            val code = text(o, "station_code", "stnCode", "stn_code", "code")?.uppercase() ?: continue
+            val code = text(o, *CODE_KEYS)?.uppercase() ?: continue
             val name = text(o, "station_name", "stnName", "stn_name", "name") ?: Stations.name(code) ?: code
             val sa = clock(get(o, "sch_arr", "scheduled_arrival", "arrival", "sta"))
             val sd = clock(get(o, "sch_dep", "scheduled_departure", "departure", "std"))
@@ -120,7 +168,7 @@ object TrainStatusParser {
             )
             out += Raw(
                 stop, bool(o, "has_arrived", "arrived") ?: (aa != null), bool(o, "has_departed", "departed") ?: (ad != null),
-                int(o, "delay_dep", "delay_departure", "delay") ?: int(o, "delay_arr", "delay_arrival")
+                int(o, "delay_dep", "delay_departure", "delay", "late") ?: int(o, "delay_arr", "delay_arrival")
             )
         }
         return out
@@ -142,7 +190,7 @@ object TrainStatusParser {
         val cancelled = "cancel" in status && "partial" !in status
         val partial = "cancel" in status && "partial" in status
         val diverted = "divert" in status
-        val delay = int(root, "delay", "delay_minutes", "late_minutes") ?: position?.delay ?: 0
+        val delay = int(root, "delay", "delay_minutes", "delay_mins", "late_minutes", "late", "late_by") ?: position?.delay ?: 0
         val notStarted = "not started" in status || "yet to start" in status || "yet to depart" in status || "not yet" in status
         val started = !notStarted && (posIdx >= 0 && !(posIdx == 0 && atStation) || "running" in status || "departed" in status)
         val terminated = "terminated" in status || "reached destination" in status || "arrived at destination" in status ||

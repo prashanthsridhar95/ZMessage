@@ -50,23 +50,37 @@ object LogShare {
             )
             val text = LogBundle.build(header, sections)
 
-            val name = "zyke-log-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))}.txt"
-            val out = File(app.cacheDir, SHARED_DIR).apply { mkdirs() }
-            out.listFiles()?.forEach { it.delete() }
-            val file = File(out, name).apply { writeText(text) }
-            val uri = FileProvider.getUriForFile(app, app.packageName + AUTHORITY_SUFFIX, file)
-
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Zyke Message log")
-                clipData = ClipData.newRawUri(name, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(send, "Share logs").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            offer(context, app, "zyke-log-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))}.txt", text, "Zyke Message log", "Share logs")
             Result.SHARED
         } catch (_: Throwable) {
             Result.FAILED
         }
+    }
+
+    /**
+     * Offers a short piece of text, already built and free of anything personal, as one .txt file through the same share sheet. Used
+     * by the developer's live-status check for the raw public reply. Never throws.
+     */
+    fun shareText(context: Context, fileName: String, subject: String, text: String): Result = try {
+        offer(context, context.applicationContext, fileName, text, subject, "Share")
+        Result.SHARED
+    } catch (_: Throwable) {
+        Result.FAILED
+    }
+
+    private fun offer(context: Context, app: Context, name: String, text: String, subject: String, chooserTitle: String) {
+        val out = File(app.cacheDir, SHARED_DIR).apply { mkdirs() }
+        out.listFiles()?.forEach { it.delete() }
+        val file = File(out, name).apply { writeText(text) }
+        val uri = FileProvider.getUriForFile(app, app.packageName + AUTHORITY_SUFFIX, file)
+
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            clipData = ClipData.newRawUri(name, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(send, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

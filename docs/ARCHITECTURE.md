@@ -191,12 +191,23 @@ lock-screen switch, `LiveUpdates.promote` (with a train icon) and `FlightTrackin
   actual times and platforms, the last station, the delay and a status text). **It was written from memory of the shape of the
   unofficial services, and neither the host nor the reply was verified against any live service**: every candidate host was refused
   (403) by the build environment's proxy, and Indian Railways has no official key-less API. The fixtures (`TrainFixtures`) are
-  hand-built and say so. Anything unexpected is `Unreadable` and the card says "Status unavailable" and keeps the booking and
-  schedule. The person's boarding station can be on a later day of the run than the day they travel; the first reply tells which
+  hand-built and say so. Anything unexpected is `Unreadable` and the card says in one line what happened (`LiveCheck.cardLine`:
+  "service blocked the request" for 401/403/429/451, "Couldn't read the live reply" for a 2xx it could not use, else "Couldn't
+  refresh") and keeps the booking and schedule. The person's boarding station can be on a later day of the run than the day they travel; the first reply tells which
   run day the station is on and `TrainService` asks again once with the right start day.
 - **Network (`data/markets/TrainFetcher`).** The fourth pinned network class: one host (`api.confirmtkt.com`), 5 s timeouts, 512 KB
   cap, no redirects, no cookies, a generic User-Agent, status codes only in the log. It sends the train number and how many days ago
   the run started, nothing else. `ManifestPolicyTest`, `LegalPolicyTest` and `LegalText` pin the host.
+- **Live status check (developer tools).** With developer options on (never in Demo mode), Settings, Flights and trains has "Test
+  train status" and "Test flight status". Each makes one real request for a sample number (12633, 6E 2345) through the same
+  fetchers, via `TrainService.diagnose` and `FlightService.diagnose` (so the network stays in `TrainFetcher`/`FlightFetcher`, whose
+  `diagnose` returns a `LiveReply`: status, content type, size, failure kind, body; no new host, still no redirects). A result card
+  shows the status, content type, size, what the parser made of it and the failure kind, decided by the pure
+  `LiveCheck.classify` (no network, DNS, TLS, timeout, blocked, other HTTP status, empty, too large, not JSON, shape mismatch naming the
+  first missing field). "Share raw reply" offers the latest reply as a .txt (cut at 64 KB) through `LogShare.shareText`. Only that one
+  latest reply is kept (`LiveReplyMemo`, in memory, never stored or logged); it is public status data, the request carrying only the
+  sample number. The fetchers also send `Accept` and `Accept-Language`, retry once on a timeout, and read the body by hand
+  (`InputStream.readNBytes(int)` is Android 13 and later, and the app supports Android 8). `LiveStatusCheckPolicyTest` pins this.
 - **Service (`data/trains/TrainService`).** Like `FlightService`: in-memory statuses by journey key, answers under 25 s old reused,
   at most three journeys, off until `train_status.live_enabled` is true, and the demo answered before the fetcher is reachable. It
   owns the only `TrainFetcher`; `lookup` (the form's "Look up train") goes through it too.

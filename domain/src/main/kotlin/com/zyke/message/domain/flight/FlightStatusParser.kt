@@ -41,6 +41,22 @@ object FlightStatusParser {
         return leg(leg, fetchedAt)?.let { FlightLookup.Found(it) } ?: FlightLookup.Unreadable
     }
 
+    /**
+     * For the developer's live-status check: the first field this parser needs and cannot find in [json], as a path such as
+     * "result.response.data", or null when nothing is missing, when [json] is not JSON at all, or when the reply simply has no flights.
+     */
+    fun firstMissingField(json: String): String? {
+        val parsed = runCatching { MiniJson.parse(json.trim()) }
+        if (parsed.isFailure) return null
+        val root = parsed.getOrNull() as? Map<*, *> ?: return "top-level object"
+        val result = root["result"] as? Map<*, *> ?: return "result"
+        val response = result["response"] as? Map<*, *> ?: return "result.response"
+        val data = response["data"] as? List<*> ?: return if (response.containsKey("data")) null else "result.response.data"
+        val first = data.firstOrNull { it is Map<*, *> } as? Map<*, *> ?: return if (data.isEmpty()) null else "result.response.data[] objects"
+        // The other fields are optional for the parser; the scheduled departure is what picks the leg for the day.
+        return if (get(first, "time", "scheduled", "departure") == null) "time.scheduled.departure" else null
+    }
+
     private fun get(map: Map<*, *>?, vararg path: String): Any? {
         var current: Any? = map
         for (step in path) current = (current as? Map<*, *>)?.get(step) ?: return null

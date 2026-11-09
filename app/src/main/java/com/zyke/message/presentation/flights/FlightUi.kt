@@ -363,7 +363,7 @@ internal fun FlightSheet(flightKey: String, today: FlightsToday, onDismiss: () -
             RouteBlock(model, big = true, showDuration = true)
             Text(model.supporting, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 3, overflow = TextOverflow.Ellipsis)
             Facts(snapshot, flight, stack, onCopyPnr = { copyPnr(context, it) })
-            Freshness(snapshot, today, now, failed, notFound)
+            Freshness(snapshot, today, now, failed, notFound, today.live.reasons[flightKey])
             val mine = today.manual.firstOrNull { it.key == flightKey }
             if (mine != null) ManualFlightButtons(mine, onEdit, onDismiss)
         }
@@ -416,7 +416,7 @@ private fun FactTile(label: String, value: String, modifier: Modifier) {
 
 /** Where the status comes from and how fresh it is; what went wrong when it could not be refreshed; or that it is off. */
 @Composable
-private fun Freshness(s: FlightSnapshot, today: FlightsToday, now: Instant, failed: Boolean, notFound: Boolean) {
+private fun Freshness(s: FlightSnapshot, today: FlightsToday, now: Instant, failed: Boolean, notFound: Boolean, reason: com.zyke.message.domain.diag.LiveFailure? = null) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     when {
         today.demo -> Caption("Demo: a made-up flight whose status moves with the clock. Nothing is asked of the internet.", maxLines = 4)
@@ -426,7 +426,7 @@ private fun Freshness(s: FlightSnapshot, today: FlightsToday, now: Instant, fail
         }
         failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                if (s.updatedAt != null) "Couldn’t refresh · showing last known status" else "Couldn’t get live status · showing your booking",
+                com.zyke.message.domain.diag.LiveCheck.cardLine(reason, s.updatedAt != null, "flight status"),
                 style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface
             )
             s.updatedAt?.let { Caption(FlightText.updated(now.toEpochMilli(), it)) }

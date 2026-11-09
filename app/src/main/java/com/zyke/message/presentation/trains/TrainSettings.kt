@@ -62,7 +62,7 @@ fun TrainSettingsSection() {
         }
         HorizontalDivider(Modifier.padding(top = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Caption(
-            "Off: the Home card still shows the times from your booking message, with no internet. The service is unofficial and may be slow, wrong or unavailable; then the card says “Status unavailable” and keeps your booking.",
+            "Off: the Home card still shows the times from your booking message, with no internet. The service is unofficial and may be slow, wrong or unavailable; then the card says so in one line and keeps your booking.",
             Modifier.padding(top = 12.dp), maxLines = 6
         )
         Caption(

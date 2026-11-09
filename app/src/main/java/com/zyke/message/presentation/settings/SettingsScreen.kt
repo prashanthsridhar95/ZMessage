@@ -454,6 +454,8 @@ private fun GroupContent(
         SettingsGroup.FLIGHTS -> {
             com.zyke.message.presentation.flights.FlightSettingsSection()
             com.zyke.message.presentation.trains.TrainSettingsSection()
+            val developerOn by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+            if (developerOn) LiveStatusChecks()
         }
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {
             Caption("Messages stay on this phone", maxLines = 5)

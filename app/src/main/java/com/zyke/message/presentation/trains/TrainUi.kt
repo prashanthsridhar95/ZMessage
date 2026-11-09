@@ -337,7 +337,7 @@ internal fun TrainSheet(trainKey: String, today: TrainsToday, onDismiss: () -> U
             }
             Facts(snapshot, train, stack, onCopyPnr = { copyPnr(context, it) })
             UpcomingStops(snapshot)
-            Freshness(snapshot, today, now, failed, notFound)
+            Freshness(snapshot, today, now, failed, notFound, today.live.reasons[trainKey])
             val mine = today.manual.firstOrNull { it.key == trainKey }
             if (mine != null) ManualTrainButtons(mine, onEdit, onDismiss)
         }
@@ -436,7 +436,7 @@ private fun StopRow(stop: TrainStop, delay: Int, yours: Boolean) {
 
 /** Where the status comes from and how fresh it is; what went wrong when it could not be refreshed; or that it is off. */
 @Composable
-private fun Freshness(s: TrainSnapshot, today: TrainsToday, now: Instant, failed: Boolean, notFound: Boolean) {
+private fun Freshness(s: TrainSnapshot, today: TrainsToday, now: Instant, failed: Boolean, notFound: Boolean, reason: com.zyke.message.domain.diag.LiveFailure? = null) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     when {
         today.demo -> Caption("Demo: a made-up train whose status moves with the clock. Nothing is asked of the internet.", maxLines = 4)
@@ -446,7 +446,7 @@ private fun Freshness(s: TrainSnapshot, today: TrainsToday, now: Instant, failed
         }
         failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                if (s.updatedAt != null) "Couldn’t refresh · showing last known status" else "Status unavailable · showing your booking",
+                com.zyke.message.domain.diag.LiveCheck.cardLine(reason, s.updatedAt != null, "train status"),
                 style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface
             )
             s.updatedAt?.let { Caption(FlightText.updated(now.toEpochMilli(), it)) }

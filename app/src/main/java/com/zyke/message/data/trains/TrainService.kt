@@ -2,8 +2,13 @@ package com.zyke.message.data.trains
 
 import android.content.Context
 import com.zyke.message.data.diag.DevLog
+import com.zyke.message.data.diag.LiveReplyMemo
 import com.zyke.message.data.markets.TrainFetcher
 import com.zyke.message.domain.demo.DemoTrains
+import com.zyke.message.domain.diag.LiveCheck
+import com.zyke.message.domain.diag.LiveCheckReport
+import com.zyke.message.domain.diag.LiveDiagnosis
+import com.zyke.message.domain.diag.LiveFailure
 import com.zyke.message.domain.train.BookedTrain
 import com.zyke.message.domain.train.Stations
 import com.zyke.message.domain.train.TrainLive
@@ -54,6 +59,8 @@ data class TrainLiveState(
     val failed: Set<String> = emptySet(),
     /** The service answered but has no running of that train for that start day (yet). */
     val notFound: Set<String> = emptySet(),
+    /** Why the last try failed, for the keys in [failed] (blocked, unreadable, no network...): the card words it. */
+    val reasons: Map<String, LiveFailure> = emptyMap(),
     val loading: Boolean = false
 )
 
@@ -68,6 +75,7 @@ class TrainService(private val settings: TrainSettings, private val demo: Boolea
     private val lock = Mutex()
     private val attempts = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val boardingDays = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val failures = java.util.concurrent.ConcurrentHashMap<String, LiveFailure>()
     private val _live = MutableStateFlow(TrainLiveState())
     val live: StateFlow<TrainLiveState> = _live
 
@@ -93,6 +101,38 @@ class TrainService(private val settings: TrainSettings, private val demo: Boolea
         return withContext(Dispatchers.IO) { ask(train) }
     }
 
+    /**
+     * Developer tools only (Settings, Flights and trains, with developer options on): one real request for [number] (a run that started
+     * today) with everything about the answer, kept as the one latest raw reply in memory for sharing. Null in the demo and for a number
+     * that is not five digits. It does not touch the statuses the card shows. The request carries only the train number, as ever.
+     */
+    suspend fun diagnose(number: String): LiveCheckReport? {
+        if (demo) return null
+        return withContext(Dispatchers.IO) {
+            val reply = fetcher.diagnose(number, 0) ?: return@withContext null
+            val digits = number.filter { it.isDigit() }.take(5)
+            val body = reply.body
+            val missing = if (body != null && reply.statusCode in 200..299) TrainStatusParser.firstMissingField(body) else null
+            var diagnosis = LiveCheck.classify(reply, missing)
+            var parsed: String? = null
+            if (diagnosis.ok && body != null) {
+                val today = LocalDate.now(Stations.ZONE)
+                val sample = BookedTrain(digits, null, today, null, null, null, null)
+                when (TrainStatusParser.parse(body, sample, today, System.currentTimeMillis())) {
+                    is TrainLookup.Found -> parsed = "found"
+                    is TrainLookup.NotFound -> parsed = "no running of this train today"
+                    is TrainLookup.Unreadable -> {
+                        parsed = "unreadable"
+                        diagnosis = LiveDiagnosis(LiveFailure.SHAPE_MISMATCH, "a field the parser needs (see the raw reply)")
+                    }
+                }
+            }
+            val report = LiveCheckReport("Train $digits", reply, diagnosis, parsed)
+            LiveReplyMemo.put(report, body.orEmpty())
+            report
+        }
+    }
+
     /** One run's reply: the run starting on the journey day less what is known of the boarding day; asked again once if the reply says otherwise. */
     private fun ask(train: BookedTrain): TrainLookup? {
         var day = boardingDays[train.key] ?: train.boardingDay
@@ -101,8 +141,13 @@ class TrainService(private val settings: TrainSettings, private val demo: Boolea
             val today = LocalDate.now(Stations.ZONE)
             // A run that has not started yet has no running status to ask for.
             if (start.isAfter(today)) return TrainLookup.NotFound
-            val body = fetcher.fetch(train.number, ChronoUnit.DAYS.between(start, today).toInt()) ?: return null
+            val reply = fetcher.diagnose(train.number, ChronoUnit.DAYS.between(start, today).toInt())
+            if (reply == null) { failures[train.key] = LiveFailure.OTHER; return null }
+            val body = reply.body
+            val problem = LiveCheck.classify(reply).reason
+            if (problem != LiveFailure.NONE || body == null) { failures[train.key] = problem; return null }
             val result = TrainStatusParser.parse(body, train, start, System.currentTimeMillis())
+            if (result is TrainLookup.Unreadable) failures[train.key] = LiveFailure.SHAPE_MISMATCH else failures.remove(train.key)
             val learned = (result as? TrainLookup.Found)?.live?.boardingDay
             if (learned != null && learned != day && attempt == 0) {
                 boardingDays[train.key] = learned
@@ -135,11 +180,12 @@ class TrainService(private val settings: TrainSettings, private val demo: Boolea
                 }
                 val result = withContext(Dispatchers.IO) { ask(train) }
                 DevLog.d("train") { "refresh: ${result?.javaClass?.simpleName ?: "no reply"}" }
+                val why = failures[train.key]
                 _live.update { current ->
                     when (result) {
-                        is TrainLookup.Found -> current.copy(statuses = current.statuses + (train.key to result.live), failed = current.failed - train.key, notFound = current.notFound - train.key)
-                        is TrainLookup.NotFound -> current.copy(failed = current.failed - train.key, notFound = current.notFound + train.key)
-                        else -> current.copy(failed = current.failed + train.key)
+                        is TrainLookup.Found -> current.copy(statuses = current.statuses + (train.key to result.live), failed = current.failed - train.key, notFound = current.notFound - train.key, reasons = current.reasons - train.key)
+                        is TrainLookup.NotFound -> current.copy(failed = current.failed - train.key, notFound = current.notFound + train.key, reasons = current.reasons - train.key)
+                        else -> current.copy(failed = current.failed + train.key, reasons = if (why != null) current.reasons + (train.key to why) else current.reasons - train.key)
                     }
                 }
             }

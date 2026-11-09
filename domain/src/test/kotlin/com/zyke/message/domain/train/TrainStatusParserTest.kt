@@ -93,3 +93,35 @@ class TrainStatusParserTest {
         assertEquals("Villupuram", live.lastStationName)
     }
 }
+
+/** Alternate shapes the parser also accepts. Plausible, not observed: added tolerance, never a claim about what a live service sends. */
+class TrainStatusParserAlternatesTest {
+    private val train = BookedTrain("12633", "Kanniyakumari Express", DOJ, Place("MS", "Chennai Egmore"), Place("TPJ", "Tiruchirappalli"), LocalTime.of(21, 30), LocalTime.of(4, 35))
+    private val fetched = ist(12, 23, 55).toEpochMilli()
+    private fun found(json: String) = (TrainStatusParser.parse(json, train, DOJ, fetched) as TrainLookup.Found).live
+
+    @Test fun delayAsTextWithUnits() {
+        val json = """{"train_number":"12633","status":"Running","late":"12 min","stations":[{"stnCode":"MS","std":"21:30","has_departed":true},{"stnCode":"TPJ","sta":"04:35"}]}"""
+        assertEquals(12, found(json).delayMinutes)
+        val onTime = """{"train_number":"12633","status":"Running","delay":"On time","stations":[{"stnCode":"MS","std":"21:30","has_departed":true},{"stnCode":"TPJ","sta":"04:35"}]}"""
+        assertEquals(0, found(onTime).delayMinutes)
+    }
+
+    @Test fun timesWithADateOrAsEpochSeconds() {
+        val epoch = ist(12, 21, 30).epochSecond
+        val json = """{"train_number":"12633","status":"Running","route":[{"station_code":"MS","sch_dep":"12 Nov 21:30","act_dep":$epoch,"has_departed":true},{"station_code":"TPJ","sch_arr":"13 Nov 04:35"}]}"""
+        val live = found(json)
+        assertEquals(ist(12, 21, 30), live.stops[0].scheduledDeparture)
+        assertEquals(ist(12, 21, 30), live.stops[0].actualDeparture)
+        assertEquals(ist(13, 4, 35), live.stops[1].scheduledArrival)
+        val asText = json.replace("\"act_dep\":$epoch", "\"act_dep\":\"$epoch\"")
+        assertEquals(ist(12, 21, 30), found(asText).stops[0].actualDeparture)
+    }
+
+    @Test fun theRunIsInsideRunningStatusInsideData() {
+        val inner = """{"train_number":"12633","status":"Running","delay":5,"route":[{"station_code":"MS","sch_dep":"21:30","has_departed":true},{"station_code":"TPJ","sch_arr":"04:35"}]}"""
+        val live = found("""{"data":{"running_status":$inner}}""")
+        assertEquals(2, live.stops.size)
+        assertEquals(5, live.delayMinutes)
+    }
+}
