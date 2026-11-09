@@ -18,7 +18,7 @@ phone.
 - **Screenshot protection.** Settings has a switch that blocks screenshots and hides the app in the
   recent-apps view.
 
-See [docs/PRIVACY.md](docs/PRIVACY.md) for the data inventory.
+See [docs/PRIVACY.md](docs/PRIVACY.md) for the data inventory. The person-facing text is in the app (Settings, Privacy and terms, and Open-source licences); [docs/LEGAL_NOTES.md](docs/LEGAL_NOTES.md) says what is and is not covered, and that a lawyer should review it before any public release. SMS permissions are restricted by Google Play, so this app is for direct installs (sideloading), not the Play Store.
 
 ## Reporting a vulnerability
 

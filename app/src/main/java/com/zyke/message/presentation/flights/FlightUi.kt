@@ -246,7 +246,7 @@ private fun FeaturedFlight(m: FlightCardModel, stack: Boolean, onOpen: () -> Uni
             }
         }
         Box(
-            Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = 2.dp).size(40.dp).clip(CircleShape)
+            Modifier.align(Alignment.TopEnd).offset(x = 14.dp, y = (-2).dp).size(48.dp).clip(CircleShape)
                 .clickable(role = Role.Button, onClickLabel = "Hide for today", onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -260,7 +260,7 @@ private fun FeaturedFlight(m: FlightCardModel, stack: Boolean, onOpen: () -> Uni
     }
 }
 
-private val DISMISS_SPACE = 32.dp
+private val DISMISS_SPACE = 36.dp
 private const val SIDE_BY_SIDE_MAX_FONT = 1.15f
 
 /** Terminal, gate and the like: small rounded labels, one per known fact; never drawn empty. */

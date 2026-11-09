@@ -1,0 +1,110 @@
+Zyke Message
+
+This file lists the third-party software, fonts, icons and services the app uses, with each licence's name and
+the project's address. The projects' own licence texts apply. It is not legal advice.
+The licence of Zyke Message's own code has not been chosen by this file.
+
+== Libraries in the app ==
+
+AndroidX AppCompat, Core KTX, Activity, Lifecycle
+  Android support libraries
+  Licence: Apache License 2.0
+  https://developer.android.com/jetpack/androidx
+
+Jetpack Compose (UI, Graphics, Tooling preview, BOM)
+  The user-interface toolkit
+  Licence: Apache License 2.0
+  https://developer.android.com/jetpack/compose
+
+Material 3 for Compose
+  Buttons, sheets, switches and other components
+  Licence: Apache License 2.0
+  https://developer.android.com/jetpack/androidx/releases/compose-material3
+
+Kotlin and Kotlin standard library
+  The programming language and its runtime
+  Licence: Apache License 2.0
+  https://kotlinlang.org
+
+kotlinx.coroutines
+  Background work
+  Licence: Apache License 2.0
+  https://github.com/Kotlin/kotlinx.coroutines
+
+Google Play services Auth
+  Google sign-in for the optional Drive backup
+  Licence: Google Play services terms (not open source; see the Android SDK licence)
+  https://developer.android.com/studio/terms
+
+== Only in the optional watch build ==
+
+Google Play services Wearable
+  Watch link (only when built with -PwithWear=true)
+  Licence: Google Play services terms (not open source; see the Android SDK licence)
+  https://developer.android.com/studio/terms
+
+AndroidX Wear Compose, Tiles, ProtoLayout, Watch Face, Concurrent Futures
+  The watch app (separate module)
+  Licence: Apache License 2.0
+  https://developer.android.com/jetpack/androidx
+
+== Used to build and test, not in the app ==
+
+JUnit 4
+  Unit tests
+  Licence: Eclipse Public License 1.0
+  https://junit.org/junit4/
+
+AndroidX Test (JUnit extensions, Espresso), Compose UI test
+  Instrumented tests
+  Licence: Apache License 2.0
+  https://developer.android.com/jetpack/androidx/releases/test
+
+kotlinx-coroutines-test
+  Tests of background work
+  Licence: Apache License 2.0
+  https://github.com/Kotlin/kotlinx.coroutines
+
+Android Gradle Plugin and detekt
+  Build and code checks
+  Licence: Apache License 2.0
+  https://detekt.dev
+
+== Fonts and icons ==
+
+Plus Jakarta Sans
+  The app's typeface, by the Plus Jakarta Sans Project Authors; the licence text is in third_party/fonts
+  Licence: SIL Open Font License 1.1
+  https://github.com/tokotype/PlusJakartaSans
+
+Material Icons
+  Many of the app's small icons (Google)
+  Licence: Apache License 2.0
+  https://fonts.google.com/icons
+
+== Services the app can ask ==
+
+Brand logos
+  Bank, airline and other brand logos are fetched from public icon services only to identify a sender. They belong to their owners and are not part of this software.
+  Licence: Owned by each brand
+  https://www.google.com/s2/favicons
+
+Google Favicon service, DuckDuckGo icons
+  Where logos are fetched from
+  Licence: Their own terms of service
+  https://duckduckgo.com/duckduckgo-help-pages/privacy/
+
+Yahoo Finance
+  Market prices and stock-name suggestions (opt-in)
+  Licence: Yahoo's own terms of service
+  https://legal.yahoo.com/
+
+Flightradar24
+  Live flight status (opt-in)
+  Licence: Flightradar24's own terms of service
+  https://www.flightradar24.com/terms-and-conditions
+
+Google Drive API
+  Optional backup to your own Drive
+  Licence: Google API terms of service
+  https://developers.google.com/terms

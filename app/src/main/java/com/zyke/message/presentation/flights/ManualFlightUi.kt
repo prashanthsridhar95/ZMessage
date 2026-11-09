@@ -231,7 +231,8 @@ internal fun ManualFlightSheet(initial: ManualFlight?, onDismiss: () -> Unit, ac
         FormField(
             label = "PNR (optional)", value = pnr, onChange = { pnr = it.take(12) }, placeholder = "A note for yourself",
             supporting = "Kept on this phone and never sent anywhere.",
-            error = if (problem?.field == "pnr") problem?.message else null, capitalization = KeyboardCapitalization.Characters
+            error = if (problem?.field == "pnr") problem?.message else null, capitalization = KeyboardCapitalization.Characters,
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done
         )
         LookupPanel(state, canLookUp, container.demo, ok, zone)
     }
@@ -264,7 +265,7 @@ private fun AirlineField(
             Text(if (open) "▴" else "▾", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
         }
         if (open) {
-            FormField(label = "Search airlines", value = query, onChange = onQuery, placeholder = "Name or code, like IndiGo or 6E")
+            FormField(label = "Search airlines", value = query, onChange = onQuery, placeholder = "Name or code, like IndiGo or 6E", imeAction = androidx.compose.ui.text.input.ImeAction.Done)
             val matches = remember(query) { ManualFlightRules.airlines(query) }
             val shown = matches.take(MAX_LISTED)
             if (shown.isEmpty()) Caption("No airline matches. Try its name or two-character code.", maxLines = 2)

@@ -49,7 +49,7 @@ internal fun SpendSummaryRow(
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .clickable(onClickLabel = "Show spending breakdown", onClick = onOpen)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show spending breakdown", onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

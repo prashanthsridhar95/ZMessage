@@ -100,7 +100,7 @@ internal fun ReportCardSummary(card: ReportCard, onOpen: () -> Unit, modifier: M
             .clip(shape)
             .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.16f), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))))
             .border(BorderStroke(1.dp, accent.copy(alpha = 0.28f)), shape)
-            .clickable(onClickLabel = "Open report card", onClick = onOpen)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Open report card", onClick = onOpen)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

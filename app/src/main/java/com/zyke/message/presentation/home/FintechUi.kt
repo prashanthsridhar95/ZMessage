@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import com.zyke.message.presentation.common.toggleRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -559,7 +560,7 @@ internal fun AccountSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val pick = com.zyke.message.presentation.common.rememberPicturePicker(ACCOUNT_PICTURE_PREFIX + account.key, account.title)
-                AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(onClickLabel = "Change picture", onClick = pick) else Modifier))
+                AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Change picture", onClick = pick) else Modifier))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Caption("${account.kind.label} •• ${account.last4}")
@@ -692,8 +693,11 @@ internal fun AccountSheet(
             }
 
             if (account.kind == AccountKind.BANK_ACCOUNT) {
-                FintechCard(onClick = { onProvidentFund(!account.isProvidentFund) }) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                FintechCard {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleRow(account.isProvidentFund, androidx.compose.ui.semantics.Role.Switch, onProvidentFund),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
                             RowTitle("Provident fund account")
                             Caption("Shown under Investments, and left out of your bank total", maxLines = 2)

@@ -141,7 +141,7 @@ internal fun DataUsageCard(
     Column(
         modifier
             .padding(vertical = 8.dp)
-            .clickable(onClickLabel = "Show message", onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick)
             .semantics(mergeDescendants = true) { if (spoken != null) contentDescription = spoken }
     ) {
         Row(

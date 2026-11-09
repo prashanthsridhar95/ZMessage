@@ -220,6 +220,7 @@ private fun CodeSharingContent() {
                 "The texts go from your SIM and your mobile plan may charge for them.",
             Modifier.padding(top = 4.dp), maxLines = 10
         )
+        SeeWhatIsSentLink()
     }
 
     // ---- the switch
@@ -572,6 +573,7 @@ private fun PersonSheet(
         FormField("Name", name, { name = it }, placeholder = "Sister", capitalization = KeyboardCapitalization.Words)
         FormField(
             "Mobile number", number, { number = it }, placeholder = "98765 43210", keyboardType = KeyboardType.Phone,
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
             error = numberError ?: if (duplicate) TrustedContacts.explain(com.zyke.message.domain.sharing.ContactProblem.DUPLICATE_NUMBER) else null,
             supporting = if (normalised != null) "Texts go to ${PhoneNumbers.pretty(normalised)}" else "10 digits, or with + and the country code"
         )

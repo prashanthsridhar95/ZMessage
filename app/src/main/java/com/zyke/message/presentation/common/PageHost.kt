@@ -3,6 +3,11 @@ package com.zyke.message.presentation.common
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -143,6 +148,8 @@ private fun PageLayer(entry: PageEntry) {
                 // The page rises with the keyboard, so the field being typed in and the footer stay in view.
                 .imePadding()
                 .semantics { paneTitle = entry.title }
+                // Escape on a hardware keyboard goes back, like Back.
+                .onPreviewKeyEvent { if (it.key == Key.Escape && it.type == KeyEventType.KeyUp) { leave(); true } else false }
         ) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(

@@ -100,7 +100,7 @@ internal fun MessageRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
-    clickModifier: Modifier = Modifier.clickable(onClickLabel = "Show message", onClick = onClick),
+    clickModifier: Modifier = Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick),
     content: @Composable RowScope.() -> Unit
 ) {
     val spoken = LocalSpokenSummary.current

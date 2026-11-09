@@ -287,7 +287,8 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
             is EnquiryPlan.NeedsUan -> {
                 FormField(
                     "UAN (12 digits)", uanDraft, { uanDraft = Uan.clean(it) }, keyboardType = KeyboardType.Number,
-                    supporting = "Find it on your payslip or the EPFO member portal. Kept only on this phone, never in backups."
+                    supporting = "Find it on your payslip or the EPFO member portal. Kept only on this phone, never in backups.",
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done
                 )
                 Caption("Then Zyke shows the exact text before it sends anything.", maxLines = 2)
             }
@@ -326,6 +327,7 @@ private fun ReadyState(
         AppButton("Change", onChange, Modifier.padding(top = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
     Caption("${BalanceEnquiry.NOTE_RATES} ${BalanceEnquiry.NOTE_UNVERIFIED}", maxLines = 4)
+    com.zyke.message.presentation.settings.SeeWhatIsSentLink()
     if (target.isProvidentFund) Caption("UAN ${Uan.mask(Uan.clean(plan.text.filter { it.isDigit() || it == ' ' }.split(' ').firstOrNull { it.length == BalanceEnquiry.UAN_LENGTH }.orEmpty()))} · the reply is shown in Messages and, when it states a balance, under Investments.", maxLines = 3)
     if (dualSim) {
         Caption(BalanceEnquiry.SIM_NOTE, maxLines = 5)

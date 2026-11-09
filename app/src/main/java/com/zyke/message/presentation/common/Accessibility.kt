@@ -1,13 +1,22 @@
 package com.zyke.message.presentation.common
 
 import android.provider.Settings
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+
+/**
+ * One tap target for a row that holds a checkbox or switch and its label: the whole row toggles, and TalkBack reads the label,
+ * the role and "on" / "off" (or "checked"). The box or switch inside is drawn with `onCheckedChange = null`.
+ */
+fun Modifier.toggleRow(value: Boolean, role: Role = Role.Checkbox, onValueChange: (Boolean) -> Unit): Modifier =
+    toggleable(value = value, role = role, onValueChange = onValueChange)
 
 /** Marks a title as a heading, so screen-reader users can jump between sections. */
 fun Modifier.heading(): Modifier = semantics { heading() }

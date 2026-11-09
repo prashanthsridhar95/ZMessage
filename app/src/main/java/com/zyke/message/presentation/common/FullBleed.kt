@@ -21,7 +21,8 @@ val LocalContentInset = compositionLocalOf { 0.dp }
  */
 fun Modifier.fullWidthClickable(
     onClickLabel: String? = null,
-    role: Role? = null,
+    /** What TalkBack calls it; a tappable row is a button unless it says otherwise. */
+    role: Role? = Role.Button,
     onClick: () -> Unit
 ): Modifier = composed {
     val inset: Dp = LocalContentInset.current

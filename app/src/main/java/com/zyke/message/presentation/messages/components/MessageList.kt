@@ -169,7 +169,7 @@ private fun GroupedItem(
         Text(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClickLabel = if (expanded) "Show fewer" else "Show all") {
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (expanded) "Show fewer" else "Show all") {
                     actions.onToggleGroup(group.key)
                 }
                 .padding(start = 92.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),

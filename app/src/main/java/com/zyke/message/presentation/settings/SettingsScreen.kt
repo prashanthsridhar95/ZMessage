@@ -112,6 +112,8 @@ private enum class SettingsGroup(val title: String, val icon: Int) {
     HELP("Help and tour", R.drawable.ic_info_24),
     DEMO("Demo mode", R.drawable.ic_demo_24),
     ABOUT("Your data and about", R.drawable.ic_info_24),
+    LEGAL("Privacy and terms", R.drawable.ic_lock_24),
+    LICENCES("Open-source licences", R.drawable.baseline_list_24),
     DEVELOPER("Developer options", R.drawable.ic_info_24)
 }
 
@@ -187,6 +189,8 @@ fun SettingsPage(
                     add(SettingsGroup.HELP to "Take the app tour")
                     add(SettingsGroup.DEMO to if (com.zyke.message.data.demo.DemoMode.active) "On \u00B7 sample data" else "Show the app with sample data")
                     add(SettingsGroup.ABOUT to "Version $versionName")
+                    add(SettingsGroup.LEGAL to "What is sent, permissions, terms")
+                    add(SettingsGroup.LICENCES to "Libraries, font and icons we use")
                     if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
                 }
             ) { openName = it.name }
@@ -198,7 +202,7 @@ fun SettingsPage(
             // This page is about one thing, so its sections show their contents instead of folding away.
             CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
                 Column(Modifier.fillMaxWidth().tourAnchor(TourAnchor.SETTINGS_GROUP_BODY), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    GroupContent(group, state, versionName, onIntent, onDeleteAll = { deleting = true })
+                    GroupContent(group, state, versionName, onIntent, onDeleteAll = { deleting = true }, onOpenGroup = { openName = it.name })
                 }
             }
         }
@@ -240,7 +244,7 @@ private fun DeleteAllSheet(onDismiss: () -> Unit) {
             "Removes the transactions read from your messages, your plan, limits, cards, goals, reminders, events, entries, names, categories, pictures and settings from this app. Your messages on the phone are not touched.",
             maxLines = 8
         )
-        com.zyke.message.presentation.common.FormField("Type DELETE to confirm", typed, { typed = it }, placeholder = "DELETE")
+        com.zyke.message.presentation.common.FormField("Type DELETE to confirm", typed, { typed = it }, placeholder = "DELETE", imeAction = androidx.compose.ui.text.input.ImeAction.Done, autoFocus = true)
     }
 }
 
@@ -334,7 +338,14 @@ private fun SettingsList(title: String, rows: List<Pair<SettingsGroup, String>>,
 }
 
 @Composable
-private fun GroupContent(group: SettingsGroup, state: State, versionName: String, onIntent: (Intent) -> Unit, onDeleteAll: () -> Unit) {
+private fun GroupContent(
+    group: SettingsGroup,
+    state: State,
+    versionName: String,
+    onIntent: (Intent) -> Unit,
+    onDeleteAll: () -> Unit,
+    onOpenGroup: (SettingsGroup) -> Unit
+) {
     when (group) {
         SettingsGroup.MONEY -> {
             PlanSection(
@@ -432,7 +443,7 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
             com.zyke.message.presentation.common.FormField(
                 "Low balance floor", floor, { floor = it; onIntent(Intent.SetLowBalanceFloor(it)) },
                 modifier = Modifier.padding(top = 12.dp), placeholder = "None", prefix = "\u20b9",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = androidx.compose.ui.text.input.ImeAction.Done
             )
             Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = 12.dp), maxLines = 2)
         }
@@ -564,6 +575,8 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
         SettingsGroup.HELP -> com.zyke.message.presentation.tour.TourHelpSection()
         SettingsGroup.DEMO -> com.zyke.message.presentation.demo.DemoModeSettings()
         SettingsGroup.DEVELOPER -> DeveloperContent()
+        SettingsGroup.LEGAL -> LegalContent(onOpenLicences = { onOpenGroup(SettingsGroup.LICENCES) })
+        SettingsGroup.LICENCES -> LicencesContent()
         SettingsGroup.ABOUT -> {
             SectionCard("Take your data with you") {
                 Caption("Nothing leaves the phone unless you share the file yourself.", maxLines = 3)
@@ -608,6 +621,8 @@ private fun GroupContent(group: SettingsGroup, state: State, versionName: String
                 VersionRow(versionName)
                 if (!demo) ShareLogsLink()
                 Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
+                TextButton(onClick = { onOpenGroup(SettingsGroup.LEGAL) }) { Text("Privacy and terms") }
+                TextButton(onClick = { onOpenGroup(SettingsGroup.LICENCES) }) { Text("Open-source licences") }
             }
         }
     }

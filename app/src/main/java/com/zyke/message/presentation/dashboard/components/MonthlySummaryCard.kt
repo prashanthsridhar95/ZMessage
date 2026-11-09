@@ -110,7 +110,7 @@ private fun CardBillLine(summary: MonthlySummary) {
     val hidden = LocalPrivacyMode.current.hidden
     Row(
         Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp)
-            .clickable(onClickLabel = "Show the card bill payments") { open = true }
+            .clickable(role = Role.Button, onClickLabel = "Show the card bill payments") { open = true }
             .semantics(mergeDescendants = true) { contentDescription = if (hidden) "Card bill payments, not counted" else "Card bill payments $total, not counted" },
         verticalAlignment = Alignment.CenterVertically
     ) {

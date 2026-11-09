@@ -100,6 +100,9 @@ internal fun WelcomeBack(onFinished: () -> Unit) {
         }
         AppButton("Start fresh", ::startFresh, Modifier.fillMaxWidth(), style = if (hub == null) ButtonStyle.PRIMARY else ButtonStyle.OUTLINE)
         if (made != null) Caption("Starting fresh also removes the old backup file from this phone.", maxLines = 2)
+        // One quiet line, not a gate: the terms are one tap away and nothing here blocks the person.
+        Caption("By continuing you agree to the Terms and Privacy.", maxLines = 2)
+        com.zyke.message.presentation.settings.SeeWhatIsSentLink(label = "Read the terms and privacy")
     }
     if (hub != null) restore?.let { RestoreFlow(it, { restore = null; chosenFile = null }, chosenFile) }
 }

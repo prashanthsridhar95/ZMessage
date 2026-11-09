@@ -35,7 +35,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -200,7 +202,12 @@ private val DIGIT_HEIGHT = 58.dp
 @Composable
 private fun CountdownRing(fraction: Float, seconds: Int, accent: androidx.compose.ui.graphics.Color, expired: Boolean) {
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+    // The ring and its digits are one thing to a screen reader: a label, and the time left as its state.
+    val left = if (expired) "Expired" else "%d minutes %d seconds left".format(seconds / SECONDS_IN_MINUTE, seconds % SECONDS_IN_MINUTE)
+    Box(
+        Modifier.size(56.dp).clearAndSetSemantics { contentDescription = "Code timer"; stateDescription = left },
+        contentAlignment = Alignment.Center
+    ) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
             // A stroke is centred on the arc's edge, so the arc is inset by half of it or the outer half is clipped.

@@ -1,5 +1,37 @@
 # Privacy: data inventory and threat model
 
+*Last updated 9 November 2026 (text version 1). This is a technical description written by the developers, not legal advice and not reviewed by a lawyer. The plain-language version people read is in the app, Settings, Privacy and terms (`LegalText` in `:domain`); a test keeps its hosts and permissions the same as the ones below. See [LEGAL_NOTES.md](LEGAL_NOTES.md).*
+
+## Where the app talks to the internet
+
+Only these hosts, and only for the feature named. A unit test (`LegalPolicyTest`, with `ManifestPolicyTest`) compares this list with the hosts written in the code and with the page in the app.
+
+| Host | Feature | Sent |
+|---|---|---|
+| `www.google.com` | Brand logos (favicon service); the in-app Google Images page when you tap "From the web" | A well-known website name; the sender's name as the search text. Google's page may use its own cookies |
+| `icons.duckduckgo.com` | Brand logos (second source) | A well-known website name |
+| `query1.finance.yahoo.com` | Market prices (opt-in) | The tickers in your watch list |
+| `query2.finance.yahoo.com` | Stock-name suggestions (opt-in) | The letters you type in the add-stock box |
+| `api.flightradar24.com` | Live flight status (opt-in) | An airline code and flight number |
+| `www.googleapis.com` | Backup to your own Google Drive (opt-in, scope `drive.appdata`) | One encrypted file |
+
+A brand's own website is also asked for its icon (`https://<brand>/apple-touch-icon.png`), from a fixed list of well-known brands in the app. Texts the app sends (code sharing, balance check) are SMS from the SIM, not internet requests. The app sets no cookies of its own, so it shows no cookie banner (see LEGAL_NOTES.md).
+
+## Permissions
+
+| Permission | Why |
+|---|---|
+| `READ_SMS` | Read the inbox to organise payments, bills and codes; never writes or deletes |
+| `RECEIVE_SMS` | Live alerts and code sharing; the text is read in memory and dropped |
+| `SEND_SMS` | Only "Share codes with trusted people" and "Check balance by SMS"; Google Play restricts it, so the app is for direct installs |
+| `INTERNET` | Only the hosts above |
+| `POST_NOTIFICATIONS` | Reminders, digest, code buttons, flight notification |
+| `RECEIVE_BOOT_COMPLETED` | Put alarms back after a restart |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` | Reading a very large inbox; following a flight in the air (opt-in) |
+| `POST_PROMOTED_NOTIFICATIONS` | Android 16 Live Update for the flight notification; gives no access to anything |
+
+Notification access (RCS chat messages) is a system setting, not a manifest permission, and is off until the person allows it.
+
 ## Data the app touches
 
 | Data | Where it comes from | Stored? | Leaves the device? |

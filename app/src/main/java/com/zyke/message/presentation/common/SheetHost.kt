@@ -1,6 +1,11 @@
 package com.zyke.message.presentation.common
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -169,6 +174,8 @@ private fun SheetLayer(entry: SheetEntry) {
                 // Unseen until it has been measured, so it cannot flash at its open position before sliding up.
                 .graphicsLayer { alpha = if (sheetHeight == 0 || !entry.ready) 0f else 1f }
                 .nestedScroll(connection)
+                // Escape on a hardware keyboard closes it, like Back.
+                .onPreviewKeyEvent { if (it.key == Key.Escape && it.type == KeyEventType.KeyUp) { dismiss(); true } else false }
                 // Touches on the sheet itself must not fall through to the scrim.
                 .pointerInput(Unit) { detectTapGestures { } }
                 .semantics { paneTitle = "Sheet" },

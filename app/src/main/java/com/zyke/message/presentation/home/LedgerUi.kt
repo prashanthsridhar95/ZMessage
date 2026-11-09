@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
+import com.zyke.message.presentation.common.toggleRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -265,7 +266,7 @@ internal fun ReviewPage(
                 Caption("These stay in your spending until you say. A card bill payment is not counted: the card's swipes already were.", maxLines = 3)
                 if (!picking) SelectHint { lastSection = SECTION_CARDBILL; picking = true }
                 androidx.compose.foundation.layout.Row(
-                    Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Switch whether to remember this for the payee", onClick = { alwaysSame = !alwaysSame }),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleRow(alwaysSame, androidx.compose.ui.semantics.Role.Checkbox) { alwaysSame = it },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = alwaysSame, onCheckedChange = null) }
@@ -290,7 +291,7 @@ internal fun ReviewPage(
                 Caption("One payment often sends several texts. Both are counted until you say, so one payment is not counted twice.", maxLines = 3)
                 if (!picking) SelectHint { lastSection = SECTION_SAME; picking = true }
                 androidx.compose.foundation.layout.Row(
-                    Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Switch whether to remember this for the sender", onClick = { rememberSender = !rememberSender }),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleRow(rememberSender, androidx.compose.ui.semantics.Role.Checkbox) { rememberSender = it },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = rememberSender, onCheckedChange = null) }

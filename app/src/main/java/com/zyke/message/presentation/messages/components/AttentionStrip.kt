@@ -127,7 +127,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
         }
 
         Box(
-            Modifier.size(48.dp).clip(CircleShape).clickable(onClickLabel = "Dismiss") { actions.onDismissAttention(item.key) },
+            Modifier.size(48.dp).clip(CircleShape).clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Dismiss") { actions.onDismissAttention(item.key) },
             contentAlignment = Alignment.Center
         ) {
             Image(

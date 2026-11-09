@@ -26,7 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -151,13 +150,11 @@ internal fun ReminderDialog(
             else "A notification at ${FormatCache.pattern("h:mm a", Locale.getDefault()).format(time)} on the day"
         )
         FormGroup("Repeat") {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Every month", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                    Caption("on day ${day.dayOfMonth}")
-                }
-                Switch(checked = monthly, onCheckedChange = { monthly = it })
-            }
+            // One labelled switch: TalkBack reads "Every month, on day 5, switch, on" and the whole row toggles.
+            com.zyke.message.presentation.settings.ToggleRow(
+                title = "Every month", description = "on day ${day.dayOfMonth}", checked = monthly, onCheckedChange = { monthly = it },
+                modifier = Modifier.heightIn(min = 48.dp)
+            )
         }
     }
 }

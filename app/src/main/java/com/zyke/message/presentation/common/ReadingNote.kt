@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.usecase.LoadProgress
 import com.zyke.message.notifications.BackfillService
@@ -27,7 +28,8 @@ internal fun ReadingNote(progress: LoadProgress) {
             Caption("Reading older messages · ${BackfillService.describe(progress)}")
             LinearProgressIndicator(
                 progress = { progress.monthsLoaded.toFloat() / progress.monthsTotal.coerceAtLeast(1) },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    .semantics { stateDescription = "${progress.monthsLoaded} of ${progress.monthsTotal} months read" },
                 color = MaterialTheme.colorScheme.primary
             )
         }

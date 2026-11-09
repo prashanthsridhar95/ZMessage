@@ -1,7 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,8 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
@@ -44,8 +42,8 @@ fun SegmentedControl(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(11.dp))
                     .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .clickable(onClickLabel = label) { onSelect(index) }
-                    .semantics { role = Role.Tab },
+                    // One selectable tab: TalkBack says "selected" for the current one.
+                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

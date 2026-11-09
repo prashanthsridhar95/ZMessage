@@ -40,7 +40,7 @@ fun FintechCard(
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = if (trueBlack) 0.09f else 0.05f))
                 .then(if (trueBlack) Modifier.border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f), shape) else Modifier)
                 .then(if (movingOutline) Modifier.movingBorder(MaterialTheme.colorScheme.primary, corner = 24.dp) else Modifier)
-                .then(if (onClick != null) Modifier.clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick) else Modifier)
+                .then(if (onClick != null) Modifier.clickable(interactionSource = source, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick) else Modifier)
                 .padding(20.dp),
             content = content
         )

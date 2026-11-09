@@ -124,7 +124,7 @@ internal fun MessageDetailSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MerchantChip(
                     item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
-                    modifier = if (pickPicture != null) Modifier.clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Change picture", onClick = pickPicture) else Modifier
+                    modifier = if (pickPicture != null) Modifier.clip(RoundedCornerShape(13.dp)).clickable(role = Role.Button, onClickLabel = "Change picture", onClick = pickPicture) else Modifier
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {

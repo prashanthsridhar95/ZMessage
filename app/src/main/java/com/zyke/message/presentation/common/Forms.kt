@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.clickable
@@ -111,7 +112,11 @@ fun FormField(
     suggestions: List<String> = emptyList(),
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     /** False for free text: the field grows to a few lines instead of staying on one. */
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    /** The keyboard's action key: Next moves to the following field; give the last field of a form Done, which closes the keyboard. */
+    imeAction: ImeAction = ImeAction.Next,
+    /** Puts the cursor in this field when it appears; for a sheet whose one job is to type here. */
+    autoFocus: Boolean = false
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
@@ -122,10 +127,13 @@ fun FormField(
         val prefilledMoney = remember { prefix == "\u20B9" && value.isNotEmpty() }
         val masked = prefilledMoney && LocalPrivacyMode.current.hidden
         val reveal = LocalAmountReveal.current
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        val requester = remember { androidx.compose.ui.focus.FocusRequester() }
+        if (autoFocus) androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).onFocusChanged {
+            modifier = Modifier.fillMaxWidth().heightIn(min = if (large) 68.dp else 56.dp).focusRequester(requester).onFocusChanged {
                 focused = it.isFocused
                 if (masked && it.isFocused) reveal.requestReveal()
             },
@@ -136,7 +144,9 @@ fun FormField(
             textStyle = if (large) MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyLarge,
             placeholder = placeholder?.let { { Text(it, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)) } },
             prefix = prefix?.let { { Text(it, style = if (large) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge) } },
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next, capitalization = capitalization),
+            // A field that grows to several lines keeps Enter for a new line.
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = if (singleLine) imeAction else ImeAction.Default, capitalization = capitalization),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() }),
             shape = RoundedCornerShape(16.dp),
             // Filled and borderless until it is the one being typed in, then ringed in the brand colour.
             colors = OutlinedTextFieldDefaults.colors(

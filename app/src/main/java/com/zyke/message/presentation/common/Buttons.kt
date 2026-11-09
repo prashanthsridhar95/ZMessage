@@ -69,7 +69,8 @@ fun AppButton(
     val narrow = LocalResponsive.current.isCompact
     val padding = if (compact) PaddingValues(horizontal = 14.dp, vertical = 6.dp) else PaddingValues(horizontal = if (narrow) 16.dp else 24.dp, vertical = 12.dp)
     val source = remember { MutableInteractionSource() }
-    val sized = modifier.heightIn(min = if (compact) 40.dp else 48.dp).pressScale(source)
+    // Compact buttons are smaller to look at but keep the 48 dp touch target.
+    val sized = modifier.heightIn(min = 48.dp).pressScale(source)
     val scheme = MaterialTheme.colorScheme
 
     val label: @Composable () -> Unit = {
