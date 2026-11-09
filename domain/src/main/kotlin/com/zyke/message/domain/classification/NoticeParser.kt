@@ -40,8 +40,15 @@ object NoticeParser {
     /** Whether [body] is a bank's reply to a balance enquiry; see [REPLY_BALANCE]. */
     fun isBalanceReply(body: String): Boolean {
         val flat = body.replace(SPACES_NBSP, " ")
-        return flat.length <= MAX_REPLY && REPLY_BALANCE.containsMatchIn(flat) && REPLY_ACCOUNT.containsMatchIn(flat) && !REPLY_NOT.containsMatchIn(flat)
+        if (flat.length > MAX_REPLY) return false
+        // "Explore our WhatsApp Banking for UPI payments ..." after the figure is the bank's advert, not a payment word of the reply.
+        val figure = REPLY_BALANCE.find(flat) ?: return false
+        val reply = flat.substring(0, MARKETING_TAIL.find(flat, figure.range.last)?.range?.first ?: flat.length)
+        return REPLY_ACCOUNT.containsMatchIn(reply) && !REPLY_NOT.containsMatchIn(reply)
     }
+
+    /** Where a rich reply's advert starts ("Explore our WhatsApp Banking ...", "Try ChatBanking"); everything from there is left out of the checks. */
+    private val MARKETING_TAIL = Regex("(?i)\\b(?:explore our|try chatbanking|discover our|download our|visit our)\\b")
 
     private const val MAX_REPLY = 320
 
