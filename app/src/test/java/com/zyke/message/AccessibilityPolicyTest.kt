@@ -104,6 +104,20 @@ class AccessibilityPolicyTest {
     }
 
     @Test
+    fun theTrainKeyFieldHasALabel_andItsShowHideToggleADescriptionAndA48dpTarget() {
+        val key = File(presentation, "trains/TrainKeySection.kt").readText()
+        // The field has a real label (read by a screen reader), not only a placeholder.
+        assertTrue("label = { Text(\"Train data key\") }" in key)
+        // Show/Hide says what it does and for what, and is an AppButton, whose compact size still keeps a 48 dp target.
+        assertTrue("contentDescription = if (shown) \"Hide train data key\" else \"Show train data key\"" in key)
+        assertTrue("AppButton(" in key.substringAfter("trailingIcon"))
+        assertTrue("heightIn(min = 48.dp)" in File(presentation, "common/Buttons.kt").readText())
+        // Error text is shown under the field in words, and the last action of the keyboard is Done.
+        assertTrue("isError = problem != null" in key && "ImeAction.Done" in key)
+        assertEquals(0, Regex("contentDescription = null").findAll(key).count())
+    }
+
+    @Test
     fun pagesAndSectionsAreHeadingsAndEscapeGoesBack() {
         val pages = File(presentation, "common/PageHost.kt").readText()
         assertTrue("Modifier.heading()" in pages && "paneTitle" in pages)

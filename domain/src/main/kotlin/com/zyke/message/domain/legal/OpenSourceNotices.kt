@@ -63,13 +63,7 @@ object OpenSourceNotices {
         Notice("Google Favicon service, DuckDuckGo icons", "Where logos are fetched from", "Their own terms of service", "https://duckduckgo.com/duckduckgo-help-pages/privacy/", NoticeKind.SERVICE),
         Notice("Yahoo Finance", "Market prices and stock-name suggestions (opt-in)", "Yahoo's own terms of service", "https://legal.yahoo.com/", NoticeKind.SERVICE),
         Notice("Flightradar24", "Live flight status (opt-in)", "Flightradar24's own terms of service", "https://www.flightradar24.com/terms-and-conditions", NoticeKind.SERVICE),
-        Notice("ConfirmTkt", "Live train running status (opt-in, unofficial; no agreement with them)", "Its own terms of service", "https://www.confirmtkt.com/", NoticeKind.SERVICE),
-        Notice("ConfirmTkt (www)", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://www.confirmtkt.com/", NoticeKind.SERVICE),
-        Notice("RailYatri", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://www.railyatri.in/", NoticeKind.SERVICE),
-        Notice("ixigo", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://www.ixigo.com/", NoticeKind.SERVICE),
-        Notice("Indian Railways NTES", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://enquiry.indianrail.gov.in/mntes/", NoticeKind.SERVICE),
-        Notice("Trainman", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://www.trainman.in/", NoticeKind.SERVICE),
-        Notice("runningstatus.in", "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number", "Its own terms of service", "https://runningstatus.in/", NoticeKind.SERVICE),
+        Notice("Live Train Status, Indian Rail API", "Live train running status (opt-in, needs your own key; no agreement between this project and them)", "Its own terms of service and pricing", "https://indianrailapi.com/", NoticeKind.SERVICE),
         Notice("Google Drive API", "Optional backup to your own Drive", "Google API terms of service", "https://developers.google.com/terms", NoticeKind.SERVICE)
     )
 

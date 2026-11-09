@@ -155,6 +155,12 @@ class DemoPolicyTest {
         val lookup = service.substringAfter("suspend fun lookup(")
         assertTrue(lookup.indexOf("if (demo ||") in 0 until lookup.indexOf("ask(train)"))
         assertTrue("the train is in the demo's own messages", File("../domain/src/main/kotlin/com/zyke/message/domain/demo/DemoData.kt").readText().contains("trainToday()"))
+        // No key is asked for, saved or needed in the demo: the settings show a note instead of the key field, and the service answers first.
+        val settings = text("presentation/trains/TrainSettings.kt")
+        assertTrue("if (demo) Caption(" in settings && "else TrainKeySection()" in settings)
+        assertTrue("fun isOn(): Boolean = demo || settings.liveEnabled.value" in service)
+        assertTrue("diagnose" in service && "if (demo) return null" in service.substringAfter("suspend fun diagnose(").take(120))
+        assertFalse("the demo never reads a key", "settings.key()" in refresh.substringBefore("ask(train)").substringAfter("if (demo)").substringBefore("return@forEach"))
     }
 
     @Test fun trainTrackingNeverStartsAnAlarmOrAServiceInTheDemo_andAHandMadeTrainIsInMemoryOnly() {

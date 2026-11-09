@@ -19,7 +19,7 @@ class TrainTrackerTest {
     )
     private fun sms(body: String, at: Instant) = TrainSms(body, at.toEpochMilli())
     private fun live(json: String, at: Instant, t: BookedTrain = train) =
-        (TrainStatusParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
+        (IndianRailApiParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
 
     @Test fun textsAboutOneJourneyAreMergedAndALaterOneWins() {
         val now = ist(12, 12, 0)
@@ -122,7 +122,7 @@ class TrainTrackerTest {
         assertEquals(ist(13, 4, 47), s.bestArrival)
         assertEquals(listOf("VRI", "ALU", "TPJ"), s.upcoming.map { it.code })
         assertEquals("VM", s.position?.code)
-        assertEquals("2", s.platform)
+        assertNull(s.platform)
         assertNull(s.reachesBoarding)
         assertTrue(s.isLive)
     }
@@ -134,7 +134,7 @@ class TrainTrackerTest {
         // The train is at Tambaram on its way: only the first stops have happened.
         val base = live(json, now, mine)
         val stops = base.stops.map { s -> if (s.code in setOf("VM")) s.copy(actualArrival = null, actualDeparture = null) else s }
-        val seen = base.copy(stops = stops, lastStationCode = "TBM", lastSeenAt = ist(12, 22, 14), delayMinutes = 12)
+        val seen = base.copy(stops = stops, lastStationCode = "TBM", atStation = false, lastSeenAt = ist(12, 22, 14), delayMinutes = 12)
         val s = TrainTracker.snapshot(mine, seen, now)
         assertFalse(s.departed)
         assertEquals(TrainStatusKind.RUNNING_LATE, s.kind)
@@ -152,9 +152,9 @@ class TrainTrackerTest {
         assertTrue(a.arrived)
         assertEquals(ist(13, 4, 41), a.bestArrival)
         assertEquals(6, a.delayMinutes)
-        assertEquals("2", a.platform)
+        assertNull(a.platform)
         assertTrue(a.upcoming.isEmpty())
-        val c = TrainTracker.snapshot(train, live(TrainFixtures.cancelled, at), at)
+        val c = TrainTracker.snapshot(train, live(TrainFixtures.notStarted, at).copy(cancelled = true), at)
         assertEquals(TrainStatusKind.CANCELLED, c.kind)
         val n = TrainTracker.snapshot(train, live(TrainFixtures.notStarted, ist(12, 18, 0)), ist(12, 18, 0))
         assertEquals(TrainStatusKind.SCHEDULED, n.kind)

@@ -71,9 +71,9 @@ class ManualTrainsTest {
     }
 
     @Test fun aLookUpFillsTheNameTheStationsAndTheSchedule() {
-        val live = (TrainStatusParser.parse(TrainFixtures.running, BookedTrain("12633", null, DOJ, null, null, null, null), DOJ, 0L) as TrainLookup.Found).live
+        val live = (IndianRailApiParser.parse(TrainFixtures.running, BookedTrain("12633", null, DOJ, null, null, null, null), DOJ, 0L) as TrainLookup.Found).live
         val m = ManualTrains.confirmed(ManualTrain("m1", "12633", DOJ), live)
-        assertEquals("Kanyakumari Express", m.name)
+        assertNull("the provider sends no train name", m.name)
         assertEquals("MS", m.boardingCode)
         assertEquals("TPJ", m.destinationCode)
         assertEquals(LocalTime.of(21, 30), m.departure)

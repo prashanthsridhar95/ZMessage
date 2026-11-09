@@ -16,7 +16,7 @@ class TrainNotificationTextTest {
     private val phone = ZoneId.of("Asia/Kolkata")
     private val train = BookedTrain("12633", "Kanniyakumari Express", DOJ, Place("MS", "Chennai Egmore"), Place("TPJ", "Tiruchirappalli"), LocalTime.of(21, 30), LocalTime.of(4, 35))
     private fun live(json: String, at: Instant, t: BookedTrain = train) =
-        (TrainStatusParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
+        (IndianRailApiParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
     private fun snap(t: BookedTrain, l: TrainLive?, now: Instant) = TrainTracker.snapshot(t, l, now)
 
     @Test fun inTransitLateWithTheNextStation() {
@@ -47,8 +47,8 @@ class TrainNotificationTextTest {
 
     @Test fun atAStationSaysWhere() {
         val now = ist(12, 23, 41)
-        val json = """{"success":true,"train_number":"12633","status":"Arrived at Villupuram","current_station_code":"VM","delay":3,
-            "route":[{"station_code":"MS","sch_dep":"21:30","act_dep":"21:33","has_arrived":true,"has_departed":true},{"station_code":"VM","station_name":"Villupuram","sch_arr":"23:40","sch_dep":"23:42","act_arr":"23:43","has_arrived":true,"has_departed":false},{"station_code":"TPJ","station_name":"Tiruchirappalli","sch_arr":"04:35"}]}"""
+        val vm = TrainFixtures.stop(1, "VM", "Villupuram", "23:40", "23:42", "23:43", "23:45", "3 M", "3 M")
+        val json = """{"ResponseCode":"200","StartDate":"12-11-2026","TrainNumber":"12633","CurrentStation":$vm,"TrainRoute":[${TrainFixtures.stop(0, "MS", "Chennai Egmore", null, "21:30", ad = "21:33", delayDep = "3 M")},$vm,${TrainFixtures.stop(2, "TPJ", "Tiruchirappalli", "04:35", null, "04:38", null, "3 M")}],"Message":"SUCCESS"}"""
         val n = TrainNotificationText.inTransit(snap(train, live(json, now), now), now, phone, now.toEpochMilli())
         assertEquals("On time · at Villupuram", n.text)
     }
@@ -83,7 +83,7 @@ class TrainNotificationTextTest {
         val mine = train.copy(from = Place("VM", "Villupuram"), departure = LocalTime.of(23, 42))
         val now = ist(12, 22, 50)
         val base = live(TrainFixtures.running, now, mine)
-        val seen = base.copy(stops = base.stops.map { if (it.code == "VM") it.copy(actualArrival = null, actualDeparture = null) else it }, lastStationCode = "TBM", delayMinutes = 12)
+        val seen = base.copy(stops = base.stops.map { if (it.code == "VM") it.copy(actualArrival = null, actualDeparture = null) else it }, lastStationCode = "TBM", atStation = false, delayMinutes = 12)
         val n = TrainNotificationText.approaching(snap(mine, seen, now), now, phone, now.toEpochMilli())
         assertEquals("Reaches VM in 1 h 2 min (12 min late)", n.title)
     }
@@ -93,12 +93,12 @@ class TrainNotificationTextTest {
         val s = snap(train, live(TrainFixtures.arrived, now), now)
         val n = TrainNotificationText.arrived(s)
         assertEquals("Arrived at TPJ at 04:41", n.title)
-        assertEquals("6 min late (scheduled 04:35) · Platform 2", n.text)
+        assertEquals("6 min late (scheduled 04:35)", n.text)
         assertEquals("Arrived around 04:41".replace("Arrived", "Arrived at TPJ"), TrainNotificationText.arrived(s, estimated = true).title)
         val onTime = TrainNotificationText.arrived(s.copy(bestArrival = ist(13, 4, 36), platform = null))
         assertEquals("On time", onTime.text)
         val early = TrainNotificationText.arrived(s.copy(bestArrival = ist(13, 4, 28)))
-        assertEquals("7 min early (scheduled 04:35) · Platform 2", early.text)
+        assertEquals("7 min early (scheduled 04:35)", early.text)
         assertEquals("Arrived", TrainNotificationText.arrived(s.copy(bestArrival = null, scheduledArrival = null, platform = null)).text)
     }
 

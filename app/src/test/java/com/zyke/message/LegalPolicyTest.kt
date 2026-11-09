@@ -5,6 +5,7 @@ import com.zyke.message.domain.legal.LegalText
 import com.zyke.message.domain.legal.OpenSourceNotices
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,7 +35,7 @@ class LegalPolicyTest {
     fun theHostsOnThePageAreTheHostsInTheCode() {
         val hostPattern = Regex("""https://([a-z0-9.]+)/""")
         val files = listOf(
-            "data/logo/LogoFetcher.kt", "data/markets/QuoteFetcher.kt", "data/markets/FlightFetcher.kt", "data/markets/TrainFetcher.kt", "data/markets/TrainProbe.kt",
+            "data/logo/LogoFetcher.kt", "data/markets/QuoteFetcher.kt", "data/markets/FlightFetcher.kt", "data/markets/TrainFetcher.kt",
             "data/backup/DriveBackupClient.kt", "presentation/common/ImageSearchSheet.kt"
         )
         val inCode = files.flatMap { f -> hostPattern.findAll(main(f)).map { it.groupValues[1] }.toList() }.toSet()
@@ -48,21 +49,27 @@ class LegalPolicyTest {
     }
 
     @Test
-    fun theProbeHostsAreLabelledDeveloperOnly_onThePageAndInEveryDoc() {
+    fun theTrainProviderIsNamedEverywhere_andTheOldUnofficialSourcesAreGone() {
         val text = LegalText.fullText()
-        assertTrue("developer probe only, nothing is sent unless the developer taps probe, only the sample train number" in text.lowercase())
         val notice = File(repoRoot(), "NOTICE").readText()
         val privacy = File(repoRoot(), "docs/PRIVACY.md").readText()
         val notes = File(repoRoot(), "docs/LEGAL_NOTES.md").readText()
-        LegalText.probeHosts.forEach { host ->
-            assertTrue("$host missing from the page", host in text)
-            assertTrue("$host missing from docs/PRIVACY.md", host in privacy)
-            assertTrue("$host missing from docs/LEGAL_NOTES.md", host in notes)
-            assertTrue("$host is not labelled developer-only in PRIVACY.md", privacy.lines().any { host in it && "Developer probe only, nothing is sent unless the developer taps Probe" in it })
+        val architecture = File(repoRoot(), "docs/ARCHITECTURE.md").readText()
+        val security = File(repoRoot(), "SECURITY.md").readText()
+        assertEquals("indianrailapi.com", LegalText.HOST_TRAINS)
+        for ((name, doc) in listOf("the page" to text, "PRIVACY.md" to privacy, "LEGAL_NOTES.md" to notes, "NOTICE" to notice, "ARCHITECTURE.md" to architecture, "SECURITY.md" to security)) {
+            assertTrue("indianrailapi.com missing from $name", "indianrailapi.com" in doc)
+            for (gone in listOf("confirmtkt", "railyatri.in", "ixigo.com", "enquiry.indianrail.gov.in", "trainman.in", "runningstatus.in", "Probe train sources")) {
+                assertFalse("$gone is still in $name", gone in doc)
+            }
         }
-        // NOTICE carries the label for every probe site (it names the sites by project address).
-        assertTrue(Regex("Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number").findAll(notice).count() >= LegalText.probeHosts.size)
-        listOf("railyatri.in", "ixigo.com", "indianrail.gov.in", "trainman.in", "runningstatus.in", "confirmtkt.com").forEach { assertTrue("$it missing from NOTICE", it in notice) }
+        // What is sent: the number, the day, the person's own key, over HTTPS; the key stays on the phone.
+        val lower = text.lowercase()
+        assertTrue("your own train data key" in lower && "https" in lower && "not backed up" in lower)
+        assertTrue("train number" in privacy.lowercase() && "journey date" in privacy.lowercase() && "key" in privacy.lowercase() && "https" in privacy.lowercase())
+        // The provider's terms and prices are unchecked, and the notes say so.
+        assertTrue("unverified" in notes.lowercase() && "indianrailapi.com" in notes)
+        assertTrue(Regex("(?i)terms").containsMatchIn(notes.substringAfter("Live train status source").substringBefore("\n")))
     }
 
     @Test

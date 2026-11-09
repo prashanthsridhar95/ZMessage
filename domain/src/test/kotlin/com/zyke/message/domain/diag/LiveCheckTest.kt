@@ -2,7 +2,7 @@ package com.zyke.message.domain.diag
 
 import com.zyke.message.domain.flight.FlightStatusParser
 import com.zyke.message.domain.train.TrainFixtures
-import com.zyke.message.domain.train.TrainStatusParser
+import com.zyke.message.domain.train.IndianRailApiParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -50,12 +50,12 @@ class LiveCheckTest {
     }
 
     @Test fun theParsersNameTheMissingField() {
-        assertNull(TrainStatusParser.firstMissingField(TrainFixtures.running))
-        assertNull(TrainStatusParser.firstMissingField("<html>"))
-        assertEquals("route (or stations, stops)", TrainStatusParser.firstMissingField("""{"hello":1}"""))
-        assertEquals("station_code", TrainStatusParser.firstMissingField("""{"route":[{"name":"x"}]}"""))
-        assertEquals("sch_arr (or sch_dep)", TrainStatusParser.firstMissingField("""{"route":[{"station_code":"MS"}]}"""))
-        assertEquals("top-level object", TrainStatusParser.firstMissingField("[1]"))
+        assertNull(IndianRailApiParser.firstMissingField(TrainFixtures.running))
+        assertNull(IndianRailApiParser.firstMissingField("<html>"))
+        assertEquals("ResponseCode", IndianRailApiParser.firstMissingField("""{"hello":1}"""))
+        assertEquals("StationCode", IndianRailApiParser.firstMissingField("""{"ResponseCode":"200","TrainRoute":[{"StationName":"x"}]}"""))
+        assertEquals("ScheduleArrival (or ScheduleDeparture)", IndianRailApiParser.firstMissingField("""{"ResponseCode":"200","TrainRoute":[{"StationCode":"MS"}]}"""))
+        assertEquals("top-level object", IndianRailApiParser.firstMissingField("[1]"))
         assertEquals("result", FlightStatusParser.firstMissingField("""{"a":1}"""))
         assertEquals("result.response", FlightStatusParser.firstMissingField("""{"result":{}}"""))
         assertEquals("result.response.data", FlightStatusParser.firstMissingField("""{"result":{"response":{}}}"""))
@@ -93,4 +93,39 @@ class LiveCheckTest {
     }
 
     private fun reasonOf(r: LiveReply) = LiveCheck.classify(r)
+
+    @Test fun aKeyedServiceTellsTheKeyFromTheLimit() {
+        for (c in listOf(401, 403)) {
+            val d = LiveCheck.classify(c, "denied", keyed = true)
+            assertEquals(LiveFailure.KEY_REJECTED, d.reason)
+            assertEquals("HTTP $c", d.detail)
+        }
+        assertEquals(LiveFailure.LIMIT_REACHED, LiveCheck.classify(429, "slow down", keyed = true).reason)
+        assertEquals(LiveFailure.BLOCKED, LiveCheck.classify(451, "", keyed = true).reason)
+        assertEquals(LiveFailure.HTTP_STATUS, LiveCheck.classify(404, "", keyed = true).reason)
+        // Without a key (flights) nothing changes.
+        assertEquals(LiveFailure.BLOCKED, LiveCheck.classify(403, "denied").reason)
+        assertEquals(LiveFailure.BLOCKED, LiveCheck.classify(429, "").reason)
+        assertTrue("key" in LiveCheck.describe(LiveDiagnosis(LiveFailure.KEY_REJECTED, "HTTP 403")) && "HTTP 403" in LiveCheck.describe(LiveDiagnosis(LiveFailure.KEY_REJECTED, "HTTP 403")))
+        assertTrue("limit" in LiveCheck.describe(LiveDiagnosis(LiveFailure.LIMIT_REACHED)))
+    }
+
+    @Test fun theTrainCardLinesAreTheOnesTheCardPromises() {
+        assertEquals("Train data key was rejected", LiveCheck.cardLine(LiveFailure.KEY_REJECTED, false, "train status"))
+        assertEquals("Daily limit reached · showing last known status", LiveCheck.cardLine(LiveFailure.LIMIT_REACHED, true, "train status"))
+        assertEquals("Live status unavailable right now", LiveCheck.cardLine(LiveFailure.PROVIDER, false, "train status"))
+        assertEquals("No running status for this train on this day", LiveCheck.NO_STATUS_LINE)
+        assertEquals("Couldn’t make a secure connection · showing your booking", LiveCheck.cardLine(LiveFailure.TLS, false, "train status"))
+        for (r in listOf(LiveFailure.KEY_REJECTED, LiveFailure.LIMIT_REACHED, LiveFailure.PROVIDER)) assertFalse(r.isReplyProblem)
+    }
+
+    @Test fun theSharedTextNeverHoldsTheKey() {
+        val reply = LiveReply(200, "application/json", "{}", 2)
+        val request = com.zyke.message.domain.train.TrainApi.redactedRequest("12676", java.time.LocalDate.of(2026, 11, 9))
+        val report = LiveCheckReport("Train 12676", reply, LiveDiagnosis(LiveFailure.NONE), "found", "ResponseCode 200", request)
+        val text = LiveCheck.shareText(report, """{"echo":"https://indianrailapi.com/api/v2/livetrainstatus/apikey/SECRET123/trainnumber/12676/date/20261109/"}""")
+        assertFalse("SECRET123" in text)
+        assertTrue("https://indianrailapi.com/api/v2/livetrainstatus/apikey/<key>/trainnumber/12676/date/20261109/" in text)
+        assertTrue("Provider: ResponseCode 200" in text)
+    }
 }

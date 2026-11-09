@@ -48,9 +48,9 @@ class ManifestPolicyTest {
 
     /**
      * INTERNET exists for five features: the brand-logo fetch (on by default, can be turned off), the market strip's
-     * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only), live train status (off until switched on; the train number and the run's start day only) and the optional backup to the person's own Google Drive (off until switched on).
+     * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only), live train status (off until the person has saved their own key and switched it on; the train number, the run's start day and the key only) and the optional backup to the person's own Google Drive (off until switched on).
      * The promise "your messages never leave the phone" is kept by making sure the network is reachable from exactly
-     * five files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a train number and start day (live train status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
+     * five files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a train number, start day and the person's own key (live train status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
      * and one only the single PIN-encrypted backup file, to the private app folder of the person's own Drive.
      */
     @Test
@@ -59,7 +59,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt", "TrainProbe.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
@@ -90,11 +90,15 @@ class ManifestPolicyTest {
         assertTrue("flights.refresh(" in tracking)
         assertFalse("FlightFetcher" in tracking || "FlightFetcher" in File("src/main/java/com/zyke/message/notifications/FlightTrackingControl.kt").readText())
 
-        // Live train status (off until switched on) asks one host, for one train: the number and the run's start day, nothing else.
+        // Live train status (off until the person has saved their own key and switched it on) asks one host over HTTPS, for one train: the
+        // number, the run's start day and the person's key, nothing else.
         val trainsFetcher = File("src/main/java/com/zyke/message/data/markets/TrainFetcher.kt").readText()
         val trainHosts = Regex("https://([a-z0-9.]+)/").findAll(trainsFetcher).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("api.confirmtkt.com"), trainHosts)
-        assertTrue("https://api.confirmtkt.com/api/trains/runningstatus?trainno=" in trainsFetcher)
+        assertEquals(setOf("indianrailapi.com"), trainHosts)
+        assertEquals(trainHosts.single(), com.zyke.message.domain.legal.LegalText.HOST_TRAINS)
+        assertTrue("https://indianrailapi.com/api/v2/livetrainstatus/apikey/\$safeKey/trainnumber/\$digits/date/\$date/" in trainsFetcher)
+        // The key is sent only over HTTPS: no clear-text address anywhere in the code, and no fallback to one.
+        assertFalse(Regex("(?<![a-z])http://").containsMatchIn(listOf("data/markets/TrainFetcher.kt", "data/trains/TrainService.kt", "data/trains/TrainKeyStore.kt").map { File("src/main/java/com/zyke/message/$it") }.joinToString("\n") { f -> f.readLines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n") }))
         assertTrue("instanceFollowRedirects = false" in trainsFetcher)
         assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(trainsFetcher))
         assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "TrainFetcher()" in it.readText() })
@@ -102,23 +106,10 @@ class ManifestPolicyTest {
         val trainTracking = File("src/main/java/com/zyke/message/notifications/TrainTrackingService.kt").readText()
         assertTrue("trains.refresh(" in trainTracking)
         assertFalse("TrainFetcher" in trainTracking || "TrainFetcher" in File("src/main/java/com/zyke/message/notifications/TrainTrackingControl.kt").readText())
-
-        // The developer's train source probe (temporary, to find a working source) is the one other train network class: its own pinned list of
-        // candidate hosts, the same rules, and nothing in the live feature, the services or the tracking code can reach it.
-        val probe = File("src/main/java/com/zyke/message/data/markets/TrainProbe.kt").readText()
-        val probeHosts = Regex("https://([a-z0-9.]+)/").findAll(probe).map { it.groupValues[1] }.toSet()
-        assertEquals(
-            setOf("api.confirmtkt.com", "www.confirmtkt.com", "www.railyatri.in", "www.ixigo.com", "enquiry.indianrail.gov.in", "www.trainman.in", "runningstatus.in"),
-            probeHosts
-        )
-        assertEquals(probeHosts - "api.confirmtkt.com", com.zyke.message.domain.legal.LegalText.probeHosts.toSet())
-        assertTrue("instanceFollowRedirects = false" in probe)
-        assertFalse("readNBytes(" in probe.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n"))
-        assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(probe))
-        val users = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" && "TrainProbe" in it.readText() }.map { it.name }.toList().sorted()
-        assertEquals(listOf("LiveStatusChecks.kt", "TrainProbe.kt", "TrainProbeMemo.kt"), users)
-        assertFalse("TrainProbe" in File("src/main/java/com/zyke/message/data/trains/TrainService.kt").readText())
-        assertFalse("TrainProbe" in trainsFetcher)
+        // The train source probe and the unofficial source it was looking for are gone, with every host they used.
+        val everything = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.joinToString("\n") { it.readText() }
+        assertFalse("TrainProbe" in everything)
+        for (gone in listOf("confirmtkt", "railyatri.in", "ixigo.com", "enquiry.indianrail.gov.in", "trainman.in", "runningstatus.in")) assertFalse("$gone must not be in the code", gone in everything)
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()

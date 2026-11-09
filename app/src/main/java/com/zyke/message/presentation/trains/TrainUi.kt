@@ -306,6 +306,7 @@ internal fun TrainSheet(trainKey: String, today: TrainsToday, onDismiss: () -> U
     val failed = trainKey in today.live.failed
     val notFound = trainKey in today.live.notFound
     val refreshing = today.live.loading
+    val hasKey by service.hasKey.collectAsStateWithLifecycle()
     val model = TrainCardModel.of(snapshot, now, today.liveOn)
     val stack = rememberStackRoute()
 
@@ -315,7 +316,8 @@ internal fun TrainSheet(trainKey: String, today: TrainsToday, onDismiss: () -> U
         autoPage = false,
         footer = {
             if (!today.liveOn) {
-                AppButton("Turn on live train status", { service.setLiveEnabled(true) }, Modifier.fillMaxWidth())
+                if (hasKey) AppButton("Turn on live train status", { service.setLiveEnabled(true) }, Modifier.fillMaxWidth())
+                else Caption("Live train status needs your own train data key. Add it in Settings, Flights and trains.", Modifier.fillMaxWidth(), maxLines = 3)
             } else {
                 AppButton(
                     if (failed) "Retry" else if (refreshing) "Refreshing…" else "Refresh",
@@ -337,7 +339,7 @@ internal fun TrainSheet(trainKey: String, today: TrainsToday, onDismiss: () -> U
             }
             Facts(snapshot, train, stack, onCopyPnr = { copyPnr(context, it) })
             UpcomingStops(snapshot)
-            Freshness(snapshot, today, now, failed, notFound, today.live.reasons[trainKey])
+            Freshness(snapshot, today, now, failed, notFound, today.live.reasons[trainKey], trainKey in today.live.paused, hasKey)
             val mine = today.manual.firstOrNull { it.key == trainKey }
             if (mine != null) ManualTrainButtons(mine, onEdit, onDismiss)
         }
@@ -436,22 +438,33 @@ private fun StopRow(stop: TrainStop, delay: Int, yours: Boolean) {
 
 /** Where the status comes from and how fresh it is; what went wrong when it could not be refreshed; or that it is off. */
 @Composable
-private fun Freshness(s: TrainSnapshot, today: TrainsToday, now: Instant, failed: Boolean, notFound: Boolean, reason: com.zyke.message.domain.diag.LiveFailure? = null) {
+private fun Freshness(
+    s: TrainSnapshot, today: TrainsToday, now: Instant, failed: Boolean, notFound: Boolean, reason: com.zyke.message.domain.diag.LiveFailure? = null,
+    paused: Boolean = false, hasKey: Boolean = true
+) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     when {
         today.demo -> Caption("Demo: a made-up train whose status moves with the clock. Nothing is asked of the internet.", maxLines = 4)
         !today.liveOn -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Live train status is off", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
-            Caption("These times are from your booking message. Turning it on asks an unofficial running-status service where the train is, sending only the train number (like ${s.train.number}) and the day it started, never your messages, PNR or stations.", maxLines = 7)
+            Caption(
+                "These times are from your booking message. " + if (hasKey) "Turning it on asks Live Train Status (Indian Rail API) where the train is, sending only the train number (like ${s.train.number}), the day it started and your own key, never your messages, PNR or stations."
+                else "Live train status needs your own train data key, which you add in Settings, Flights and trains. Only the train number (like ${s.train.number}), the day it started and your key are then sent, never your messages, PNR or stations.",
+                maxLines = 7
+            )
         }
         failed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 com.zyke.message.domain.diag.LiveCheck.cardLine(reason, s.updatedAt != null, "train status"),
                 style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface
             )
+            if (paused) Caption("Not asking again until you save the key again or tomorrow.", maxLines = 2)
             s.updatedAt?.let { Caption(FlightText.updated(now.toEpochMilli(), it)) }
         }
-        notFound && s.updatedAt == null -> Caption("No live data for this train yet. It usually appears when the train starts its run. Showing your booking.", maxLines = 4)
+        notFound && s.updatedAt == null -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(com.zyke.message.domain.diag.LiveCheck.NO_STATUS_LINE, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+            Caption("It usually appears when the train starts its run. Showing your booking.", maxLines = 3)
+        }
         s.updatedAt != null -> Caption(FlightText.updated(now.toEpochMilli(), s.updatedAt!!) + if (s.kind.isFinal) "" else " · refreshes every 30 s", maxLines = 2)
         else -> Caption("Getting live status…")
     }

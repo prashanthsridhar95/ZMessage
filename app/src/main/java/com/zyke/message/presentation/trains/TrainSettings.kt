@@ -8,7 +8,9 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,20 +34,38 @@ fun TrainSettingsSection() {
     val context = LocalContext.current
     val service = (context.applicationContext as ZykeMessagesApplication).container.trains
     val on by service.liveEnabled.collectAsStateWithLifecycle()
+    val hasKey by service.hasKey.collectAsStateWithLifecycle()
+    val requests by service.requestsToday.collectAsStateWithLifecycle()
+    val demo = (context.applicationContext as ZykeMessagesApplication).container.demo
+    LaunchedEffect(Unit) { service.syncDay() }
     val tracking by service.trackingEnabled.collectAsStateWithLifecycle()
     SectionCard("Live train status") {
+        if (demo) Caption("Demo mode makes up a train from the clock. It needs no key and asks nothing of the internet.", Modifier.padding(top = 4.dp), maxLines = 3)
+        else TrainKeySection()
+        val canSwitch = !demo && (hasKey || on)
         Row(
-            Modifier.fillMaxWidth().padding(top = 4.dp).toggleable(value = on, onValueChange = { service.setLiveEnabled(it); TrainTrackingControl.rearm(context) }, role = Role.Switch),
+            Modifier.fillMaxWidth().padding(top = 16.dp).toggleable(
+                value = on, enabled = canSwitch,
+                onValueChange = { service.setLiveEnabled(it); TrainTrackingControl.rearm(context) }, role = Role.Switch
+            ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
                 RowTitle("Track trains on the day you travel")
                 Caption(
-                    "Asks an unofficial running-status service where your train is and how late. Only the train number (like 12633) and the day it started are sent, never your messages, PNR, stations or name.",
+                    "Asks Live Train Status (Indian Rail API) where your train is and how late. Only the train number (like 12633), the day it started and your own key are sent, over a secure connection, never your messages, PNR, stations or name.",
                     maxLines = 6
                 )
             }
-            Switch(checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
+            Switch(checked = on, onCheckedChange = null, enabled = canSwitch, modifier = Modifier.padding(start = 12.dp))
+        }
+        if (!demo && !hasKey) Caption("Add a train data key above to turn this on.", Modifier.padding(top = 6.dp), maxLines = 2)
+        if (!demo) {
+            Text(
+                "Live train requests today: $requests", Modifier.padding(top = 12.dp),
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface
+            )
+            Caption("Your plan may limit requests. Each refresh counts, about one every 30 seconds while a train is on screen or its notification is on.", maxLines = 3)
         }
         Row(
             Modifier.fillMaxWidth().padding(top = 12.dp).toggleable(value = tracking, onValueChange = { service.setTrackingEnabled(it); TrainTrackingControl.rearm(context) }, role = Role.Switch),
@@ -62,7 +82,7 @@ fun TrainSettingsSection() {
         }
         HorizontalDivider(Modifier.padding(top = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Caption(
-            "Off: the Home card still shows the times from your booking message, with no internet. The service is unofficial and may be slow, wrong or unavailable; then the card says so in one line and keeps your booking.",
+            "Off: the Home card still shows the times from your booking message, with no internet. The service may be slow, wrong or unavailable, or refuse your key; then the card says so in one line and keeps your booking.",
             Modifier.padding(top = 12.dp), maxLines = 6
         )
         Caption(

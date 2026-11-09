@@ -27,17 +27,8 @@ object LegalText {
     const val HOST_YAHOO_PRICES = "query1.finance.yahoo.com"
     const val HOST_YAHOO_SEARCH = "query2.finance.yahoo.com"
     const val HOST_FLIGHTRADAR = "api.flightradar24.com"
-    const val HOST_TRAINS = "api.confirmtkt.com"
+    const val HOST_TRAINS = "indianrailapi.com"
     const val HOST_GOOGLE_APIS = "www.googleapis.com"
-
-    /**
-     * Developer probe only (Settings > Live status check, developer options on, never in Demo mode): candidate train-status sites the
-     * developer's "Probe train sources" tries for one sample train, to find a working source. Nothing is sent unless the developer taps
-     * Probe, and only the sample train number. This list is cut down to the winner and then removed.
-     */
-    val probeHosts: List<String> = listOf(
-        "www.confirmtkt.com", "www.railyatri.in", "www.ixigo.com", "enquiry.indianrail.gov.in", "www.trainman.in", "runningstatus.in"
-    )
 
     /**
      * Every fixed internet address the app can ask. A test compares this with the hosts written in the code, so the page cannot
@@ -45,7 +36,7 @@ object LegalText {
      */
     val networkHosts: Set<String> = setOf(
         HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS
-    ) + probeHosts
+    )
 
     private val onPhone = LegalSection(
         id = "on-phone",
@@ -83,12 +74,8 @@ object LegalText {
                 "An airline code and flight number, such as 6E2345, go to Flightradar24 ($HOST_FLIGHTRADAR). The day, the booking reference, your name and message text are never sent. While a flight is about to leave or in the air, the app asks again every 30 seconds."
             ),
             LegalItem(
-                "Live train status (off until you switch it on)",
-                "A five-digit train number, such as 12633, and how many days ago that run started go to an unofficial running-status service ($HOST_TRAINS). Your stations, the booking reference (PNR), your name and message text are never sent. While a train is about to leave your station or under way, the app asks again every 30 seconds."
-            ),
-            LegalItem(
-                "Developer train source probe (developer options only)",
-                "Developer probe only, nothing is sent unless the developer taps Probe, only the sample train number: a short list of train-status websites (${probeHosts.joinToString(", ")}) is asked once each. It is never used by the live train status feature and is not shown in Demo mode."
+                "Live train status (off until you add your own key and switch it on)",
+                "A five-digit train number, such as 12633, the day that run started and your own train data key go to Live Train Status, Indian Rail API ($HOST_TRAINS), over a secure (HTTPS) connection. You get the key from that service and paste it into Settings. It stays on this phone: it is not backed up and is never written to the log, a notification or a report you share. Your stations, the booking reference (PNR), your name and message text are never sent. While a train is about to leave your station or under way, and only while its card is open or its notification is on, the app asks again every 30 seconds. Every answer may count against your plan with that service, which may limit requests; Settings shows how many requests were made today. That service's own terms and prices apply and have not been checked by this app, so read them before you rely on it."
             ),
             LegalItem(
                 "Backup to your own Google Drive (off until you switch it on and sign in)",
@@ -120,7 +107,7 @@ object LegalText {
             LegalItem("INTERNET", "Used only by the features listed under \"What leaves the phone\", to the hosts named there."),
             LegalItem("POST_NOTIFICATIONS", "Shows reminders, code buttons, the morning summary and the flight notification. Optional."),
             LegalItem("RECEIVE_BOOT_COMPLETED", "Puts your reminder and morning-summary alarms back after the phone restarts."),
-            LegalItem("FOREGROUND_SERVICE and FOREGROUND_SERVICE_DATA_SYNC", "Keep two jobs going with a visible notification: reading a very large inbox month by month, and (only with live flight status on) following a flight that is about to leave or in the air."),
+            LegalItem("FOREGROUND_SERVICE and FOREGROUND_SERVICE_DATA_SYNC", "Keep two jobs going with a visible notification: reading a very large inbox month by month, and (only with live flight or train status on) following a flight or train that is about to leave or under way."),
             LegalItem("POST_PROMOTED_NOTIFICATIONS", "Lets the flight notification appear as a Live Update on Android 16 and later. It gives no access to anything."),
             LegalItem("Notification access (a system setting, not a normal permission)", "If you allow it, the app reads incoming chat (RCS) notifications from your messaging app so those messages can be organised too: the sender and the text the notification shows, never a banner image or a button. Chat messages are not in the phone's message store, so this is the only way the app can see them. It is off until you allow it in the phone's settings and keeps up to 2000 messages on the phone.")
         )
@@ -133,7 +120,7 @@ object LegalText {
         items = listOf(
             LegalItem("Hide amounts", "Shows every amount as dots, in the app, in notifications and in the widget, until you confirm with your screen lock."),
             LegalItem("App lock and screenshots", "Ask for your fingerprint, face or screen lock when you return to the app, and block screenshots and the recent-apps preview."),
-            LegalItem("Switch features off", "Logos, market prices, flight status, live alerts, code sharing and backups can each be switched off in Settings. Reading messages can be paused."),
+            LegalItem("Switch features off", "Logos, market prices, flight and train status, live alerts, code sharing and backups can each be switched off in Settings. Reading messages can be paused."),
             LegalItem("Backups", "Backups are off until you switch them on. Switching Drive backup off does not delete files already in your Drive; remove them in Google Drive settings, Manage apps."),
             LegalItem("Delete all my data", "Settings, Your data and about, Delete all my data removes everything the app has saved on the phone, after you type a word to confirm. It cannot remove a copy that Android or Google already holds, or a file you shared."),
             LegalItem("Demo mode", "Shows the app with sample data. It reads none of your messages and sends no requests for logos, prices or flights.")
@@ -150,7 +137,7 @@ object LegalText {
             LegalItem("Read from texts, so it can be wrong", "Amounts, balances, dates, categories, bills and flights are worked out from your SMS by rules. A text can be missing, late, forged or worded in a way the app does not understand. Check anything that matters against your bank or provider before you rely on it."),
             LegalItem("Features that send texts", "Sharing codes and checking a balance by SMS send real texts from your SIM. You use them at your own risk, and carrier charges apply."),
             LegalItem("Share codes only with people you trust", "A login code lets someone sign in to an account. Only add people you trust and only for accounts you have the right to share with them. You are responsible for what you share, and for following the rules of the services concerned."),
-            LegalItem("Third-party services", "Logos, prices, flight status, Google sign-in and Google Drive come from other companies, and their own terms and privacy policies apply when you use those features. Their data can be late, wrong or stop without notice. Brand names and logos belong to their owners."),
+            LegalItem("Third-party services", "Logos, prices, flight and train status, Google sign-in and Google Drive come from other companies, and their own terms and privacy policies apply when you use those features. Their data can be late, wrong or stop without notice. Brand names and logos belong to their owners."),
             LegalItem("Your responsibility", "Keep your phone, screen lock, backup PIN and passphrase safe. A forgotten backup PIN or passphrase cannot be recovered by anyone."),
             LegalItem("Limit of liability", "To the extent the law allows, the publisher is not liable for any loss or damage that comes from using or not being able to use the app, including money lost, a missed payment, a wrong figure, an unwanted text or its cost. Nothing here limits any right you have by law that cannot be limited."),
             LegalItem("Changes", "These terms and this page may change. The date and version at the end say which text is current; using the app after a change means you accept it.")

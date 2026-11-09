@@ -75,37 +75,64 @@ class LiveStatusCheckPolicyTest {
         assertTrue("service blocked the request" in File("../domain/src/main/kotlin/com/zyke/message/domain/diag/LiveCheck.kt").readText())
     }
 
-    @Test fun theTrainProbeIsDeveloperOnly_sequential_boundedAndKeptInMemory() {
-        // Inside the developer card, which is itself developer-only and returns early in the demo.
-        assertTrue(tools.indexOf("if (container.demo) return") < tools.indexOf("Probe train sources"))
-        assertTrue("TrainProbe()" in tools && "probe.probe(" in tools && "TrainProbeMemo.put(" in tools)
-        assertTrue("TrainProbeMemo.shareText()" in tools && "LogShare.shareText(" in tools)
-        // One after another: the loop awaits each request (no async, launch or parallel work inside it).
-        val loop = tools.substringAfter("list.forEachIndexed").substringBefore("probeShareable =")
-        assertFalse(Regex("async|launch|awaitAll").containsMatchIn(loop))
-        assertTrue("withContext(Dispatchers.IO)" in loop)
-        // Equal-width buttons.
-        assertTrue("ResponsiveRow(" in tools.substringAfter("Probe train sources:"))
-        assertEquals(2, Regex("Modifier\\.cell\\(\\)").findAll(tools).count())
-        val probe = text("data/markets/TrainProbe.kt")
-        assertTrue("TIMEOUT_MS = 6_000" in probe)
-        assertTrue("HARD_LIMIT_MS = 7_000L" in probe)
-        assertFalse("retry" in probe.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n").lowercase())
-        assertEquals(14, Regex("""ProbeCandidate\("[^"]+", "https://""").findAll(probe).count())
-        // Only the sample train number goes out, never anything of the person's.
-        assertTrue("candidates(SAMPLE_TRAIN)" in tools)
-        // Memory only, never stored or logged.
-        val memoText = text("data/diag/TrainProbeMemo.kt")
-        assertFalse(Regex("DevLog|BlackBox|Log\\.|println|File\\(|SharedPreferences|getSharedPreferences|writeText|openFileOutput|Context").containsMatchIn(memoText))
-        assertFalse(Regex("DevLog|BlackBox|Log\\.|println|SharedPreferences|writeText").containsMatchIn(probe))
-        assertEquals(1, Regex("private var held").findAll(memoText).count())
-        assertTrue("@Volatile" in memoText)
-        // The live feature never sees the probe.
-        for (f in listOf("data/trains/TrainService.kt", "data/markets/TrainFetcher.kt", "notifications/TrainTrackingService.kt", "notifications/TrainTrackingControl.kt", "presentation/trains/TrainUi.kt", "di/AppContainer.kt")) {
-            assertFalse("$f must not use the probe", "TrainProbe" in text(f))
+    @Test fun theTrainProbeIsGone() {
+        assertFalse("TrainProbe" in tools || "Probe train sources" in tools || "probe" in tools.lowercase())
+        assertFalse(File(main, "data/markets/TrainProbe.kt").exists() || File(main, "data/diag/TrainProbeMemo.kt").exists())
+        assertFalse(File("../domain/src/main/kotlin/com/zyke/message/domain/diag/TrainProbe.kt").exists())
+        // The one equal-width pair of buttons the probe had is gone with it; the remaining buttons are full width.
+        assertFalse("ResponsiveRow(" in tools)
+    }
+
+    @Test fun theTrainTestUsesTheKeyAndASampleForTodayButNeverShowsOrSharesTheKey() {
+        val service = text("data/trains/TrainService.kt")
+        val diagnose = service.substringAfter("suspend fun diagnose(").substringBefore("/** One run's reply")
+        // The key comes from the settings, never from the screen; the sample is today's run of train 12676.
+        assertTrue("settings.key()" in diagnose && "LocalDate.now(Stations.ZONE)" in diagnose)
+        assertTrue("SAMPLE_TRAIN = \"12676\"" in tools && "container.trains.diagnose(SAMPLE_TRAIN)" in tools)
+        // The request shown is the address with a placeholder; the reply and the provider's words are redacted before they are kept.
+        assertTrue("TrainApi.redactedRequest(" in diagnose)
+        assertTrue("LiveReplyMemo.put(report, TrainApi.redact(body.orEmpty(), key))" in diagnose)
+        assertTrue("TrainApi.redact(it, key)" in diagnose)
+        // The shared text is redacted once more, whatever put it together.
+        val liveCheck = File("../domain/src/main/kotlin/com/zyke/message/domain/diag/LiveCheck.kt").readText()
+        assertTrue("return TrainApi.redact(head + truncate(body))" in liveCheck)
+        assertFalse(Regex("settings\\.key\\(\\)|getKey|\\.maskedKey|api_key").containsMatchIn(tools + memo))
+        // Nothing on this screen reads the key at all.
+        assertFalse("key()" in tools)
+    }
+
+    @Test fun theTrainFetcherNeverLogsTheKeyNorPutsItInAnException() {
+        val fetcher = text("data/markets/TrainFetcher.kt")
+        val code = fetcher.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }
+        val logged = code.filter { "DevLog." in it || "Log." in it || "println(" in it }
+        assertTrue(logged.isNotEmpty())
+        // Status codes and exception class names only: no address, no key, no message text.
+        for (line in logged) {
+            val body = line.substringAfter("{", "")
+            assertFalse("log line may hold the address or key: $line", Regex("address|key|safeKey|\\.message|localizedMessage|stackTrace|body|toString").containsMatchIn(body))
         }
-        // The result is words and numbers only, built by the pure formatter, bodies cut at 16 KB.
-        val domain = File("../domain/src/main/kotlin/com/zyke/message/domain/diag/TrainProbe.kt").readText()
-        assertTrue("const val BODY_READ_MAX = 16 * 1024" in domain && "const val PREVIEW_CHARS = 160" in domain)
+        assertFalse(Regex("\\b(e|it|error|t)\\.message\\b|localizedMessage|stackTraceToString|printStackTrace").containsMatchIn(code.joinToString("\n")))
+        assertTrue("e.javaClass.simpleName" in fetcher)
+        // HTTPS only: one address, and it is https; there is no second attempt on another scheme.
+        assertEquals(1, Regex("\"https://").findAll(fetcher).count())
+        assertFalse(Regex("(?<![a-z])http://").containsMatchIn(code.joinToString("\n")))
+        assertTrue("instanceFollowRedirects = false" in fetcher)
+        // The host is pinned in the address itself and is the one the legal text names.
+        assertTrue("\"https://indianrailapi.com/api/v2/livetrainstatus/apikey/" in fetcher)
+        assertEquals("indianrailapi.com", com.zyke.message.domain.legal.LegalText.HOST_TRAINS)
+        // A key that cannot be one is not sent, and what is sent is percent-encoded.
+        assertTrue("TrainApi.isValidKey(key)" in fetcher && "URLEncoder.encode(" in fetcher)
+    }
+
+    @Test fun aSecureConnectionFailureHasItsOwnCardLineAndNeverFallsBack() {
+        assertTrue("Couldn’t make a secure connection" in File("../domain/src/main/kotlin/com/zyke/message/domain/diag/LiveCheck.kt").readText())
+        assertTrue("is SSLException -> NetworkProblem.TLS" in text("data/markets/TrainFetcher.kt"))
+    }
+
+    @Test fun theTrainCardNamesTheKeyAndTheLimitAndTheMissingStatus() {
+        val domain = File("../domain/src/main/kotlin/com/zyke/message/domain/diag/LiveCheck.kt").readText()
+        for (line in listOf("Train data key was rejected", "Daily limit reached", "Live status unavailable right now", "No running status for this train on this day")) assertTrue(line, line in domain)
+        assertTrue("LiveCheck.NO_STATUS_LINE" in text("presentation/trains/TrainUi.kt"))
+        assertTrue("LiveCheck.classify(reply, keyed = true)" in text("data/trains/TrainService.kt"))
     }
 }

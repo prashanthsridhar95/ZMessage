@@ -18,7 +18,7 @@ class TrainCardModelTest {
         trainClass = "SL", coach = "S4", berth = "32 SU"
     )
     private fun live(json: String, at: Instant, t: BookedTrain = train) =
-        (TrainStatusParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
+        (IndianRailApiParser.parse(json, t, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
     private fun model(t: BookedTrain, l: TrainLive?, now: Instant, liveOn: Boolean = true) = TrainCardModel.of(TrainTracker.snapshot(t, l, now), now, liveOn)
     private val nb = ' '
 
@@ -47,7 +47,7 @@ class TrainCardModelTest {
         val mine = train.copy(from = Place("VM", "Villupuram"), departure = LocalTime.of(23, 42))
         val base = live(TrainFixtures.running, now, mine)
         val stops = base.stops.map { s -> if (s.code == "VM") s.copy(actualArrival = null, actualDeparture = null) else s }
-        val seen = base.copy(stops = stops, lastStationCode = "CGL", lastSeenAt = ist(12, 22, 37), delayMinutes = 12)
+        val seen = base.copy(stops = stops, lastStationCode = "CGL", atStation = false, lastSeenAt = ist(12, 22, 37), delayMinutes = 12)
         val m = model(mine, seen, now)
         assertEquals("Late 12${nb}min", m.pill)
         assertEquals("Reaches your station in 52m", m.supporting.replace(nb, ' '))
@@ -67,7 +67,7 @@ class TrainCardModelTest {
         assertEquals("04:47 +1", m.destination.time)
         assertEquals("04:35", m.destination.was)
         assertEquals(TimeShift.LATER, m.destination.shift)
-        assertEquals(listOf("Platform 2", "SL · S4 · 32 SU"), m.chips)
+        assertEquals(listOf("SL · S4 · 32 SU"), m.chips)
         assertTrue(m.progress in 0.3f..0.5f)
         assertEquals("Updated just now", m.caption)
         assertTrue(m.showTrain)
@@ -81,12 +81,12 @@ class TrainCardModelTest {
         assertEquals(1f, m.progress, 0f)
         assertNull(m.next)
         assertTrue(m.isFinal)
-        assertEquals(listOf("Platform 2", "SL · S4 · 32 SU"), m.chips)
+        assertEquals(listOf("SL · S4 · 32 SU"), m.chips)
     }
 
     @Test fun cancelledHasNoChipsOrTrain() {
         val now = ist(12, 20, 0)
-        val m = model(train, live(TrainFixtures.cancelled, now), now)
+        val m = model(train, live(TrainFixtures.notStarted, now).copy(cancelled = true), now)
         assertEquals("Cancelled", m.pill)
         assertEquals("Cancelled · check with Indian Railways", m.supporting)
         assertTrue(m.chips.isEmpty())
@@ -109,7 +109,7 @@ class TrainCardModelTest {
         assertFalse(nb in m.spoken)
         assertTrue("Train Kanniyakumari Express 12633, Late 12 min" in m.spoken)
         assertTrue("Chennai Egmore to Tiruchirappalli" in m.spoken)
-        assertTrue("Platform 2" in m.spoken)
+        assertFalse("Platform" in m.spoken)
     }
 
     @Test fun featuredFirstPutsFinishedOnesLast() {

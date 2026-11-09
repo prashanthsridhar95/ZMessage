@@ -14,7 +14,7 @@ import org.junit.Test
 
 class TrainTrackingTest {
     private val train = BookedTrain("12633", "Kanniyakumari Express", DOJ, Place("MS", "Chennai Egmore"), Place("TPJ", "Tiruchirappalli"), LocalTime.of(21, 30), LocalTime.of(4, 35))
-    private fun live(json: String, at: Instant) = (TrainStatusParser.parse(json, train, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
+    private fun live(json: String, at: Instant) = (IndianRailApiParser.parse(json, train, DOJ, at.toEpochMilli()) as TrainLookup.Found).live
     private fun phase(now: Instant, l: TrainLive? = null, t: BookedTrain = train, stopped: Boolean = false) = TrainTracking.evaluate(t, l, now, stopped).phase
 
     @Test fun theBooleansOfEachPhase() {
@@ -52,7 +52,7 @@ class TrainTrackingTest {
         val d = TrainTracking.evaluate(train, live(TrainFixtures.arrived, at), at)
         assertEquals(TrainPhase.ARRIVED, d.phase)
         assertFalse(d.arrivalEstimated)
-        assertEquals(TrainPhase.CANCELLED, phase(at, live(TrainFixtures.cancelled, at)))
+        assertEquals(TrainPhase.CANCELLED, phase(at, live(TrainFixtures.notStarted, at).copy(cancelled = true)))
         assertEquals(TrainPhase.PARTIALLY_CANCELLED, phase(at, live(TrainFixtures.running, at).copy(partiallyCancelled = true)))
         assertEquals(TrainPhase.DIVERTED, phase(at, live(TrainFixtures.running, at).copy(diverted = true)))
     }
