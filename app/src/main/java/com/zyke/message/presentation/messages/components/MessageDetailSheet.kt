@@ -188,6 +188,7 @@ internal fun MessageDetailSheet(
             }
 
             if (message.isMms) MmsPictures(item.id)
+            if (message.isMms) MmsStructureShare(item.id)
 
             FintechCard {
                 Caption(message.sourceHeading())
@@ -200,7 +201,7 @@ internal fun MessageDetailSheet(
                     )
                 }
                 if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = 8.dp))
-                if (message.isChat()) ChatNote()
+                if (message.isChat() && !message.isMms) ChatNote()
             }
 
             MergedMessages(item, actions.onUnmerge)

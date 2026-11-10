@@ -80,9 +80,12 @@ class ObserveMessagesUseCase(
     /** What the person said about which texts are the same payment as a bank debit. */
     private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments
 ) {
+    /** Ids of notification items folded into a picture message by [RichMerge]; they are not rows any more, and their marks moved. */
+    private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Boolean>()
+
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
-            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState, paused = isReadingPaused)
+            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState, paused = isReadingPaused, folded = { foldedIds.keys })
         } else {
             null
         }
@@ -224,7 +227,7 @@ class ObserveMessagesUseCase(
             val classified = classifyBatch(inbox)
             if (inbox.isNotEmpty()) {
                 // A message deleted in the messaging app is gone from here too, along with every trace of it.
-                val present = inbox.mapTo(HashSet()) { it.id }
+                val present = inbox.mapTo(HashSet()) { it.id }.apply { removeAll(foldedIds.keys) }
                 classificationCache.retainOnly(present)
                 userState?.retainOnly(present)
             }
@@ -235,7 +238,10 @@ class ObserveMessagesUseCase(
     private suspend fun classifyBatch(inbox: List<SmsMessage>): List<ClassifiedMessage> {
         // Every message in the phone's inbox is a message of its own: nothing is dropped as a "copy" here. Five alike
         // payment alerts, even in one minute, are five payments (a duplicate is only ever suggested in Needs review).
-        val ordered = inbox.sortedByDescending { it.date }
+        // One rich card, one message: the MMS row and the notification items of the same card become one, before anything is read.
+        val merge = com.zyke.message.domain.mms.RichMerge.apply(inbox)
+        carryMarks(merge.folded)
+        val ordered = merge.messages.sortedByDescending { it.date }
         val remembered = classificationCache.load(ordered.map { it.id })
         val fresh = ArrayList<ClassifiedMessage>()
 
@@ -249,6 +255,19 @@ class ObserveMessagesUseCase(
 
     private fun read(sms: SmsMessage, fresh: MutableList<ClassifiedMessage>): ClassifiedMessage =
         classifier.classify(sms).also { fresh += it }
+
+    /** What the person marked on a folded notification item (read, pinned, archived) moves to the message it was folded into. */
+    private fun carryMarks(folded: Map<Long, Long>) {
+        if (folded.isEmpty()) return
+        folded.keys.forEach { foldedIds[it] = true }
+        val repo = userState ?: return
+        val state = repo.state.value
+        for ((from, to) in folded) {
+            if (from in state.readIds && to !in state.readIds) repo.markRead(to)
+            if (from in state.pinnedIds && to !in state.pinnedIds) repo.setPinned(to, true)
+            if (from in state.archivedIds && to !in state.archivedIds) repo.setArchived(to, true)
+        }
+    }
 
     /** The same text from the same sender at the same time; the read flag may have changed since, which does not matter. */
     private fun sameText(old: SmsMessage, new: SmsMessage) =

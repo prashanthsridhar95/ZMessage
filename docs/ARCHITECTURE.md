@@ -547,6 +547,28 @@ What Zyke can and cannot see of a message depends on where the phone keeps it.
   notice (`RichReplyTest`); the advert after the figure ("Explore our WhatsApp Banking ...") is ignored. While a balance request is
   waiting and Notification access is off, the tile says "Reply may arrive as a rich message - turn on notification access so Zyke can
   read it" with a button to the phone's settings page.
+* **One rich card, one message.** Google Messages can keep a rich card (an RBM business agent such as HDFC Bank) in the MMS provider
+  and also post one or two notifications for it (the text, and "Image" for the picture); all of them used to be listed. `RbmSender`
+  (pure) turns the agent address `<brand>_<random id>_agent@rbm.google.com` (or `@rbm.goog`, any case) into a name ("HDFC Bank": split
+  on `_`/`-`, drop `agent`, drop the id token of 6 to 12 letters and digits that holds a digit or looks random, title-case, known
+  acronyms in capitals), so the logo and bank-based balance matching work for it as for the notification items. `RichMerge` (pure) runs
+  at the top of `ObserveMessagesUseCase.classifyBatch`, before classification, so a balance is read once: a notification of the same
+  sender within three minutes of an MMS (nearest wins) is folded into it; the result keeps the MMS id, date and pictures, the fullest
+  text (MMS text, or the notification's when the MMS has none or the notification holds it with a card title in front) and both flags
+  (tag "RCS"; a plain MMS keeps "MMS"). Notification items that are only a media word ("Image", "Photo", "Video", "Sticker", "GIF",
+  "Audio", "Contact", "Location", optionally with an emoji) are folded into a same-sender message or notification, or else shown as
+  "Picture". Read, pinned and archived marks of a folded item move to the message it joined (`carryMarks`), and the folded ids are left
+  out of the clean-up sets so no stale mark stays. It is idempotent. Not merged: a notification whose conversation name is a contact
+  while the MMS has only a number (no contacts are read). `RULES_VERSION` is 26.
+* **MMS text extraction.** `MmsMessages.textKind` reads the `text` column (or, if null, the part's data through the content resolver, at
+  most 64 KB, in the `chset` column's charset, UTF-8 by default) of every `text/*` part except contact cards and SMIL, of JSON parts
+  (`application/json`, `...+json`) and of an odd content type whose text column holds something. JSON is read by `RbmCardText`: a bounded,
+  defensive walk collecting the strings of title, description, text, message and subtitle in document order (at most 4 KB). The real
+  layout of a card in the provider is unverified; the tests use a constructed payload, not one captured from a phone.
+* **Developer structure dump.** In developer mode only, the detail sheet of an MMS/RCS message has "Share message structure"
+  (`MmsDataSource.structureDump`, `MmsStructureDump`): each part's content type, size, whether it had text or data, the first 300
+  characters of any text, the address types counted, the sender; no picture bytes and no message id. Header "Developer structure dump,
+  may contain the message text". It is built in memory, shared through `LogShare.shareText`, never logged.
 * **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
   expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
 

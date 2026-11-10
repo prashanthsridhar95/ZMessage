@@ -1,7 +1,7 @@
 package com.zyke.message.domain.mms
 
 /** One part of a picture message as the telephony provider lists it (content://mms/part): its row id, its content type and, for text, the text. */
-data class MmsPart(val id: Long, val contentType: String, val text: String? = null, val seq: Int = 0)
+data class MmsPart(val id: Long, val contentType: String, val text: String? = null, val seq: Int = 0, val charset: Int = 0)
 
 /** One address row of a picture message (content://mms/<id>/addr): the number and its type (137 = from, 151 = to). */
 data class MmsAddress(val address: String, val type: Int)
@@ -39,17 +39,72 @@ object MmsMessages {
 
     private const val MILLIS_FLOOR = 100_000_000_000L
 
-    private fun isText(part: MmsPart) = part.contentType.substringBefore(';').trim().equals("text/plain", ignoreCase = true)
+    private fun baseType(part: MmsPart) = part.contentType.substringBefore(';').trim().lowercase()
 
-    private fun isImage(part: MmsPart) = part.contentType.substringBefore(';').trim().startsWith("image/", ignoreCase = true)
+    private fun isImage(part: MmsPart) = baseType(part).startsWith("image/")
 
-    /** The ids of the parts whose text has to be read: text parts that came without their text in the row. */
-    fun textPartsToRead(parts: List<MmsPart>): List<MmsPart> = parts.filter { isText(it) && it.text == null }
+    /** How a part's content is read as text. */
+    enum class TextKind { TEXT, HTML, JSON, NONE }
+
+    /**
+     * Which parts can hold the words of a message. Plain text of any "text/" type (not a contact card), a JSON payload (a rich card
+     * may be kept as "application/json" or "...+json"), and, for an odd content type, the part's own text column when it has
+     * any. Layout (SMIL), pictures, sound, video and contact cards are never text.
+     *
+     * UNVERIFIED on a device: the real layout of a rich card in the MMS provider is not known; this accepts every shape we can think of.
+     */
+    fun textKind(part: MmsPart): TextKind {
+        val type = baseType(part)
+        return when {
+            type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/") -> TextKind.NONE
+            type.contains("smil") || type.contains("vcard") || type.contains("vcalendar") -> TextKind.NONE
+            type == "text/html" -> TextKind.HTML
+            type.startsWith("text/") -> TextKind.TEXT
+            type.contains("json") -> TextKind.JSON
+            else -> {
+                val own = part.text?.trim().orEmpty()
+                when {
+                    own.isEmpty() -> TextKind.NONE
+                    own.startsWith("{") || own.startsWith("[") -> TextKind.JSON
+                    else -> TextKind.TEXT
+                }
+            }
+        }
+    }
+
+    /** The parts whose text has to be read from the part's data: text or JSON parts that came without their text in the row. */
+    fun textPartsToRead(parts: List<MmsPart>): List<MmsPart> =
+        parts.filter { it.text == null && textKind(it) != TextKind.NONE }
+
+    /** The Java charset name for the provider's "chset" column (an IANA MIB number); UTF-8 when absent or unknown. */
+    fun charsetName(mib: Int): String = when (mib) {
+        3 -> "US-ASCII"
+        4 -> "ISO-8859-1"
+        106 -> "UTF-8"
+        1013 -> "UTF-16BE"
+        1014 -> "UTF-16LE"
+        1015 -> "UTF-16"
+        2252 -> "windows-1252"
+        else -> "UTF-8"
+    }
+
+    /** The words of one part, according to its kind. */
+    private fun partText(part: MmsPart): String {
+        val raw = part.text?.trim().orEmpty()
+        if (raw.isEmpty()) return ""
+        return when (textKind(part)) {
+            TextKind.TEXT -> raw
+            TextKind.HTML -> raw.replace(Regex("(?is)<(script|style)[^>]*>.*?</\\1>"), " ").replace(Regex("<[^>]*>"), " ")
+                .replace(Regex("[ \\t]+"), " ").lines().joinToString("\n") { it.trim() }.trim()
+            TextKind.JSON -> RbmCardText.strings(raw).joinToString("\n")
+            TextKind.NONE -> ""
+        }
+    }
 
     /** All text parts in their order, trimmed, empty ones dropped, joined by a line break. */
     fun text(parts: List<MmsPart>): String =
-        parts.filter { isText(it) }.sortedWith(compareBy({ it.seq }, { it.id }))
-            .mapNotNull { it.text?.trim()?.takeIf { text -> text.isNotEmpty() } }
+        parts.sortedWith(compareBy({ it.seq }, { it.id }))
+            .map { partText(it) }.filter { it.isNotEmpty() }
             .joinToString("\n").take(MAX_TEXT)
 
     /** The picture parts in their order, at most [max]. */

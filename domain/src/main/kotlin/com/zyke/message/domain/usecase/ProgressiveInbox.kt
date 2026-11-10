@@ -35,7 +35,9 @@ class ProgressiveInbox(
     private val maxMonths: Int = DEFAULT_MAX_MONTHS,
     private val clock: () -> Long = System::currentTimeMillis,
     /** While true the phone's inbox is not read at all; what was read before is shown from memory. */
-    private val paused: () -> Boolean = { false }
+    private val paused: () -> Boolean = { false },
+    /** Ids of items folded into another message (see RichMerge): they are no longer rows, so nothing is kept for them. */
+    private val folded: () -> Set<Long> = { emptySet() }
 ) {
     private class Window(val stamp: Long, val messages: List<ClassifiedMessage>)
 
@@ -140,7 +142,7 @@ class ProgressiveInbox(
 
         // With the whole inbox seen, what has gone from it (deleted in the messaging app) is forgotten here too.
         if (full && scan.allIds.isNotEmpty()) {
-            val present = scan.allIds.toHashSet()
+            val present = scan.allIds.toHashSet().apply { removeAll(folded()) }
             cache.retainOnly(present)
             userState?.retainOnly(present)
         }

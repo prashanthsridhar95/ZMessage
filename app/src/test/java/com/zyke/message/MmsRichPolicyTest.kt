@@ -77,4 +77,23 @@ class MmsRichPolicyTest {
         assertTrue(ui.contains("ACTION_NOTIFICATION_LISTENER_SETTINGS"))
         assertTrue(ui.substringAfter("fun RichReplyHint(").take(200).contains("DemoMode.active"))
     }
+
+    @Test fun oneRichCardIsOneMessage_mergedBeforeClassification() {
+        val use = File(main, "../../../../../../../domain/src/main/kotlin/com/zyke/message/domain/usecase/ObserveMessagesUseCase.kt")
+        if (use.exists()) {
+            val text = use.readText()
+            val batch = text.substringAfter("private suspend fun classifyBatch(")
+            assertTrue("the merge runs before any message is classified", batch.indexOf("RichMerge.apply(") in 0 until batch.indexOf("classificationCache.load("))
+        }
+    }
+
+    @Test fun theStructureDumpIsDeveloperOnly_inMemory_andNeverLogged() {
+        val ui = text("presentation/messages/components/ChatSourceUi.kt")
+        val share = ui.substringAfter("fun MmsStructureShare(").substringBefore("fun ChatNote(")
+        assertTrue(share.contains("DevLog.developerMode") && share.contains("DemoMode.active") && share.contains("LogShare.shareText("))
+        assertFalse("the dump is never logged", Regex("""DevLog\.d\(|DiagLog|\bLog\.""").containsMatchIn(share))
+        assertTrue(text("presentation/messages/components/MessageDetailSheet.kt").contains("MmsStructureShare(item.id)"))
+        val dump = code("data/sms/MmsDataSource.kt").substringAfter("fun structureDump(").substringBefore("private fun measure(")
+        assertFalse("no picture bytes in the dump", dump.contains("decodeStream") || dump.contains("BitmapFactory"))
+    }
 }

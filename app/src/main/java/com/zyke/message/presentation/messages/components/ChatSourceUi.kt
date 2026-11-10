@@ -1,6 +1,14 @@
 package com.zyke.message.presentation.messages.components
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import com.zyke.message.data.diag.LogShare
+import com.zyke.message.data.sms.MmsDataSource
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -44,9 +52,10 @@ internal const val RICH_NOT_AVAILABLE = "Image and buttons from the original mes
 /** A small "MMS" or "RCS" tag for a message that did not arrive as a plain text; nothing for an SMS. */
 @Composable
 internal fun SourceTag(message: SmsMessage, modifier: Modifier = Modifier) {
+    // A rich card kept in the MMS provider carries both flags and is an RCS message; a plain picture message stays "MMS".
     val label = when {
-        message.isMms -> "MMS"
         message.isChat() -> "RCS"
+        message.isMms -> "MMS"
         else -> return
     }
     val color = MaterialTheme.colorScheme.primary
@@ -85,6 +94,37 @@ internal fun MmsPictures(messageId: Long) {
             )
         }
     }
+}
+
+/**
+ * Developer mode only, for a picture or rich message: shares a text file describing the message's parts (types, sizes, whether they
+ * had text or data, the start of any text, address types; no picture bytes, no message id), so the real layout can be handled. Built in
+ * memory at the tap, off the main thread, never logged or kept.
+ */
+@Composable
+internal fun MmsStructureShare(messageId: Long) {
+    val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+    if (!developer || com.zyke.message.data.demo.DemoMode.active) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    AppButton(
+        "Share message structure",
+        {
+            scope.launch {
+                val dump = withContext(Dispatchers.IO) { MmsDataSource(context.contentResolver).structureDump(messageId) }
+                if (dump == null) {
+                    Toast.makeText(context, "The structure could not be read", Toast.LENGTH_SHORT).show()
+                } else {
+                    val name = "zyke-message-structure-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))}.txt"
+                    if (LogShare.shareText(context, name, "Zyke Message structure", dump) == LogShare.Result.FAILED) {
+                        Toast.makeText(context, "Could not share the structure", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        },
+        Modifier.fillMaxWidth(),
+        style = ButtonStyle.TONAL
+    )
 }
 
 /** The honest note under a chat (RCS) message, with the way to the full message: the phone's messaging app. */
