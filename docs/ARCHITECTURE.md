@@ -569,6 +569,20 @@ What Zyke can and cannot see of a message depends on where the phone keeps it.
   (`MmsDataSource.structureDump`, `MmsStructureDump`): each part's content type, size, whether it had text or data, the first 300
   characters of any text, the address types counted, the sender; no picture bytes and no message id. Header "Developer structure dump,
   may contain the message text". It is built in memory, shared through `LogShare.shareText`, never logged.
+* **One payment, one row (presentation grouping).** `SamePayment.detect` (after the merges in `ObserveMessagesUseCase`) links a text to
+  the bank debit it repeats; `PaymentGroups.of(messages)` (pure, domain/ledger) turns the *certain* links into groups: the debit is the
+  anchor, the linked messages its followers (oldest first, at most `MAX_FOLLOWERS` = 6, no chains, an unsure link never groups).
+  `FeedBuilder` folds followers into the anchor's `FeedItem.Single.related` (key stays `m-<anchor id>`, so lazy keys stay unique), places
+  the row by the anchor's time, makes a search that finds a follower show its anchor, keeps an anchor in an "unread" filter while a
+  follower is unread, counts rows in the filter chips, and leaves archived or pinned followers as rows; `ConversationBuilder.thread` does
+  the same inside one sender's thread (a follower of another sender stays in its own sender's thread). `GlobalSearch`, Home's recent
+  activity and `AccountActivities` fold the same way (the account's spent and received skip a repeat). The UI is a quiet "+N related"
+  in the caption of `TransactionCard`, "N related messages" in `spokenSummary`, and `RelatedMessages` in the detail sheet; opening a
+  group marks its followers read. Nothing is stored for this: no serialised shape changed, so `RULES_VERSION` stays 26. Exports list
+  every message with a `same_payment` column. Evidence added to `SamePayment`: merchant booking/order confirmations (`Life` TRAVEL
+  "Booking confirmed", DELIVERY "Order placed") and bank-bank pairs (shared reference or same account+amount in 2 minutes, different
+  wording templates by word-set similarity below 0.6, never identical bodies, direction must match, the balance-stating message or the
+  earlier one stays the anchor). `Balances.movement` skips a certain repeat so the debit moves a balance once.
 * **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
   expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
 

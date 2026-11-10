@@ -181,6 +181,8 @@ object BalanceReader {
         messages.forEach { message ->
             val tx = message.content as? MessageContent.Transaction ?: return@forEach
             if (message.message.date <= reading.at) { before++; return@forEach }
+            // A second alert of a transaction another bank message already tells (see SamePayment): the money moved once.
+            if (com.zyke.message.domain.ledger.SamePayment.isRepeat(message)) { other++; return@forEach }
             if (tx.isCard) { card++; return@forEach }
             val read = readingsMemo.of(message.message)
             val account = tx.accountNumber.filter { it.isDigit() }.takeLast(4).ifEmpty { read.accountInText }

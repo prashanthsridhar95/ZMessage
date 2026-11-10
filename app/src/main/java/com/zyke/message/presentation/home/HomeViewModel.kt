@@ -179,7 +179,8 @@ class HomeViewModel(
             is Intent.SaveManualEntry -> io { manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it }) }
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
-                io { userStateRepository.markRead(intent.messageId) }
+                val repeats = com.zyke.message.domain.ledger.PaymentGroups.of(currentState().messages).followersOf(intent.messageId)
+                io { userStateRepository.markRead(intent.messageId); repeats.forEach { userStateRepository.markRead(it.id) } }
                 reduce { copy(detailMessageId = intent.messageId) }
             }
             Intent.CloseMessage -> reduce { copy(detailMessageId = null) }
@@ -481,7 +482,11 @@ class HomeViewModel(
                 val refunds = part { memo("refunds", live, now) { RefundTracker.build(live, now, zone) } }
                 val owed = part { memo("owed", updated.splits, msgs) { SplitInsights.build(updated.splits, msgs, zone).filter { !it.settled } } }
                 val subscriptions = part { memo("subs", live, now) { Subscriptions.find(live, now, zone) } }
-                val recent = part { memo("recent", live) { live.filter { it.content is MessageContent.Transaction }.take(RECENT_COUNT) } }
+                val recent = part { memo("recent", live) {
+                    // One payment, one row: a message that repeats a payment in this list is inside that payment's row.
+                    val groups = com.zyke.message.domain.ledger.PaymentGroups.of(live)
+                    live.filter { it.content is MessageContent.Transaction && !groups.isFollower(it.id) }.take(RECENT_COUNT)
+                } }
                 val alerts = part { memo("alerts", live, now) { SpendAlerts.find(live, now.toEpochMilli()) } }
                 val agenda = part { memo("agenda", live, now) { LifeAgenda.build(live.filter { !it.isPromotional }, today, zone) } }
                 val unread = part { memo("unread", live, us.readIds) { live.count { !it.message.isRead && it.id !in us.readIds } } }

@@ -3,6 +3,7 @@ package com.zyke.message.domain.search
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.domain.calendar.CalendarEvent
 import com.zyke.message.domain.feed.FeedBuilder
+import com.zyke.message.domain.ledger.PaymentGroups
 import com.zyke.message.domain.feed.SmartFilter
 import com.zyke.message.domain.goals.Goal
 import com.zyke.message.domain.ledger.ManualEntries
@@ -174,30 +175,38 @@ object GlobalSearch {
 
     private fun messageHits(
         needle: String, amount: String?, messages: List<ClassifiedMessage>, hand: Boolean, filters: ParsedSearch?, zone: ZoneId
-    ): List<SearchHit> =
-        messages.mapNotNull { m ->
-            if (ManualEntries.isManual(m) != hand) return@mapNotNull null
-            val content = m.content
-            if (filters != null && !passes(m, filters, zone)) return@mapNotNull null
+    ): List<SearchHit> {
+        val groups = if (hand) PaymentGroups.NONE else PaymentGroups.of(messages)
+        val byId = if (groups.isEmpty) null else messages.associateBy { it.id }
+        val hits = messages.mapNotNull { found ->
+            if (ManualEntries.isManual(found) != hand) return@mapNotNull null
+            if (filters != null && !passes(found, filters, zone)) return@mapNotNull null
+            val content = found.content
             val payee = (content as? MessageContent.Transaction)?.payee
-            val shown = m.merchant.name
             val rank = if (needle.isEmpty()) 0 else listOfNotNull(
-                best(needle, shown, payee),
+                best(needle, found.merchant.name, payee),
                 amountRank(amount, amountOf(content)),
-                best(needle, m.category.displayString)?.plus(CATEGORY_PENALTY),
-                m.tags.mapNotNull { rank(needle, it) }.minOrNull()?.plus(CATEGORY_PENALTY),
-                m.note?.let { best(needle, it)?.plus(NOTE_PENALTY + 1) },
-                if (FeedBuilder.matches(m, needle)) TEXT_RANK else null
+                best(needle, found.category.displayString)?.plus(CATEGORY_PENALTY),
+                found.tags.mapNotNull { rank(needle, it) }.minOrNull()?.plus(CATEGORY_PENALTY),
+                found.note?.let { best(needle, it)?.plus(NOTE_PENALTY + 1) },
+                if (FeedBuilder.matches(found, needle)) TEXT_RANK else null
             ).minOrNull() ?: return@mapNotNull null
-            val money = amountOf(content)?.let { "₹$it" }
+            // A message that repeats a payment is found by its own text but shows, and opens, the payment whose row holds it.
+            val m = groups.anchorOf(found.id)?.let { byId?.get(it) } ?: found
+            val shown = m.merchant.name
+            val mc = m.content
+            val money = amountOf(mc)?.let { "₹$it" }
             val sub = listOfNotNull(m.category.displayString, money).joinToString(" · ")
             SearchHit(
                 if (hand) SearchKind.HAND_MADE else SearchKind.MESSAGE, m.id.toString(), shown, sub,
-                messageId = m.id, rank = rank, date = m.message.date, amount = amountOf(content),
-                credit = (content as? MessageContent.Transaction)?.isReceived == true,
+                messageId = m.id, rank = rank, date = m.message.date, amount = amountOf(mc),
+                credit = (mc as? MessageContent.Transaction)?.isReceived == true,
                 category = m.category.displayString, logo = m.merchant.logo, imageKey = m.merchant.imageKey
             ) to m.message.date
         }.sortedWith(compareBy({ it.first.rank }, { -it.second })).map { it.first }
+        // The payment and a repeat of it both matched: the better match stands for the one row.
+        return if (groups.isEmpty) hits else hits.distinctBy { it.messageId }
+    }
 
     /** Whether a message is inside the time span, category, type and amount bounds the query asked for. */
     private fun passes(m: ClassifiedMessage, f: ParsedSearch, zone: ZoneId): Boolean {

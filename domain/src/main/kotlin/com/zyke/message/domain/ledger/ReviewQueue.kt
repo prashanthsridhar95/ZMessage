@@ -100,7 +100,7 @@ object ReviewQueues {
     ): ReviewQueue {
         val live = messages.filter { !it.isPromotional && !it.isMuted && it.setAside == null }
 
-        val txs = live.filter { it.content is MessageContent.Transaction && !ManualEntries.isManual(it) }
+        val txs = live.filter { it.content is MessageContent.Transaction && !ManualEntries.isManual(it) && !SamePayment.isRepeat(it) }
             .filter { (it.content as MessageContent.Transaction).let { tx -> !tx.isCardPayment && last4(tx).isNotEmpty() } }
             // Asked about on its own: "is this a credit card bill payment?"
             .filter { it.cardBill?.kind != CardBillKind.SUSPECTED }
@@ -169,7 +169,7 @@ object ReviewQueues {
     }
 
     private fun duplicates(live: List<ClassifiedMessage>, asides: SetAsides): List<DuplicateCandidate> {
-        val txs = live.filter { it.content is MessageContent.Transaction && !ManualEntries.isManual(it) }.sortedBy { it.message.date }
+        val txs = live.filter { it.content is MessageContent.Transaction && !ManualEntries.isManual(it) && !SamePayment.isRepeat(it) }.sortedBy { it.message.date }
         val used = HashSet<Long>()
         val found = ArrayList<DuplicateCandidate>()
         for (i in txs.indices) {

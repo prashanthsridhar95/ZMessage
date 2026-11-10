@@ -88,7 +88,7 @@ fun ThreadSheet(
                     )
                 }
                 items(section.items.distinctBy { it.key }, key = { it.key }, contentType = { "message" }) { item ->
-                    MessageItem(item = item.newest, state = state, actions = actions, modifier = Modifier.animateItem())
+                    MessageItem(item = item.newest, state = state, actions = actions, modifier = Modifier.animateItem(), related = (item as? com.zyke.message.domain.feed.FeedItem.Single)?.related ?: emptyList())
                 }
             }
         }

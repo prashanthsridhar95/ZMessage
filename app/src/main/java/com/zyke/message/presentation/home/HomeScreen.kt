@@ -725,7 +725,8 @@ private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) ->
                 onIntent(Intent.CloseMessage)
                 onNavigate(AppTab.INBOX)
             },
-            onDismiss = { onIntent(Intent.CloseMessage) }
+            onDismiss = { onIntent(Intent.CloseMessage) },
+            related = remember(detail.id, state.messages) { com.zyke.message.domain.ledger.PaymentGroups.of(state.messages).followersOf(detail.id) }
         )
     }
 

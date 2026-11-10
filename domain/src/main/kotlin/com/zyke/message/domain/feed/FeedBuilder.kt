@@ -1,5 +1,6 @@
 package com.zyke.message.domain.feed
 
+import com.zyke.message.domain.ledger.PaymentGroups
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.FastTagEvent
@@ -40,14 +41,19 @@ object FeedBuilder {
         }
         val searchNote = if (searching && !smartResults.isNullOrEmpty()) interpreted?.note else null
 
-        val pinned = if (searching) emptyList() else visible.filter { it.id in userState.pinnedIds }
-        val rest = visible - pinned.toSet()
+        val pinnedIds = userState.pinnedIds
+        // One payment, one row: a bank debit leads the messages that repeat it. Archived and pinned messages stay rows of their own.
+        val groups = PaymentGroups.of(messages) { it.id in archived || (!searching && it.id in pinnedIds) }
+        val shown = if (groups.isEmpty) visible else foldRelated(visible, messages, groups, filter, searching, userState, today, zone)
+
+        val pinned = if (searching) emptyList() else shown.filter { it.id in pinnedIds }
+        val rest = if (pinned.isEmpty()) shown else shown - pinned.toSet()
 
         val sections = buildList {
-            if (pinned.isNotEmpty()) add(FeedSection(SectionId.Pinned, pinned.map(FeedItem::Single)))
+            if (pinned.isNotEmpty()) add(FeedSection(SectionId.Pinned, pinned.map { FeedItem.Single(it, groups.followersOf(it.id)) }))
             rest.groupBy { LocalDate.ofInstant(Instant.ofEpochMilli(it.message.date), zone) }
                 .forEach { (date, dayMessages) ->
-                    val items = if (searching) dayMessages.map(FeedItem::Single) else group(dayMessages, date)
+                    val items = if (searching) dayMessages.map { FeedItem.Single(it, groups.followersOf(it.id)) } else group(dayMessages, date, groups)
                     add(FeedSection(SectionId.Day(date), items))
                 }
         }
@@ -64,12 +70,45 @@ object FeedBuilder {
             },
             summary = if (showSummary) SpendSummaryBuilder.build(live, now, zone) else null,
             sections = sections,
-            availableFilters = availableFilters(messages, userState),
-            counts = counts(messages, userState),
-            categories = categoryCounts(messages, userState),
-            visibleCount = visible.size,
+            availableFilters = availableFilters(messages, userState, groups),
+            counts = counts(messages, userState, groups),
+            categories = categoryCounts(messages, userState, groups),
+            visibleCount = shown.size,
             searchNote = searchNote
         )
+    }
+
+    /**
+     * The list with every follower that has its payment in the list left out of it. A search that finds a follower shows its
+     * payment instead (the group opens); an "unread" filter keeps a payment whose follower is unread. Newest first, as given.
+     */
+    private fun foldRelated(
+        visible: List<ClassifiedMessage>,
+        messages: List<ClassifiedMessage>,
+        groups: PaymentGroups,
+        filter: MessageFilter,
+        searching: Boolean,
+        userState: UserMessageState,
+        today: LocalDate,
+        zone: ZoneId
+    ): List<ClassifiedMessage> {
+        if (visible.none { groups.isFollower(it.id) }) return visible
+        val byId = HashMap<Long, ClassifiedMessage>(messages.size * 2)
+        for (m in messages) byId[m.id] = m
+        val inList = visible.mapTo(HashSet()) { it.id }
+        val keep = HashSet<Long>(inList)
+        val unreadOnly = !searching && filter.status == StatusFilter.UNREAD
+        val anyStatus = if (unreadOnly) filter.copy(status = StatusFilter.ANY) else filter
+        for (f in visible) {
+            val anchorId = groups.anchorOf(f.id) ?: continue
+            val anchor = byId[anchorId] ?: continue
+            when {
+                searching -> { keep -= f.id; keep += anchorId }
+                anchorId in inList -> keep -= f.id
+                unreadOnly && passes(anchor, anyStatus, userState, today, zone) -> { keep -= f.id; keep += anchorId }
+            }
+        }
+        return messages.filter { it.id in keep }
     }
 
     private fun passes(
@@ -134,29 +173,41 @@ object FeedBuilder {
         }
     }
 
-    private fun availableFilters(messages: List<ClassifiedMessage>, userState: UserMessageState): List<SmartFilter> {
-        val counts = counts(messages, userState)
+    private fun availableFilters(messages: List<ClassifiedMessage>, userState: UserMessageState, groups: PaymentGroups): List<SmartFilter> {
+        val counts = counts(messages, userState, groups)
         return SmartFilter.entries.filter { it == SmartFilter.ALL || (counts[it] ?: 0) > 0 }
     }
 
-    private fun counts(messages: List<ClassifiedMessage>, userState: UserMessageState): Map<SmartFilter, Int> {
+    /** How many rows each type holds: a payment's followers are inside its row, so they are not counted again where it is. */
+    private fun counts(messages: List<ClassifiedMessage>, userState: UserMessageState, groups: PaymentGroups): Map<SmartFilter, Int> {
         val live = messages.filter { it.id !in userState.archivedIds }
+        val byId = if (groups.isEmpty) null else live.associateBy { it.id }
         return SmartFilter.entries.associateWith { filter ->
-            if (filter == SmartFilter.ARCHIVED) messages.size - live.size else live.count { bucket(it, filter) }
+            if (filter == SmartFilter.ARCHIVED) messages.size - live.size
+            else live.count { m ->
+                bucket(m, filter) && !(byId != null && groups.anchorOf(m.id)?.let { id -> byId[id]?.let { a -> bucket(a, filter) } } == true)
+            }
         }
     }
 
-    private fun categoryCounts(messages: List<ClassifiedMessage>, userState: UserMessageState) =
-        messages.filter { it.id !in userState.archivedIds && !it.isPromotional }
+    private fun categoryCounts(messages: List<ClassifiedMessage>, userState: UserMessageState, groups: PaymentGroups): List<Pair<MessageCategory, Int>> {
+        val byId = if (groups.isEmpty) null else messages.associateBy { it.id }
+        return messages.filter { m ->
+            if (m.id in userState.archivedIds || m.isPromotional) return@filter false
+            // A follower is inside its payment's row, so it is not counted again under the same category.
+            val anchor = byId?.let { index -> groups.anchorOf(m.id)?.let { index[it] } }
+            anchor == null || anchor.category != m.category || anchor.id in userState.archivedIds
+        }
             .groupingBy { it.category }.eachCount()
             .toList()
             .sortedByDescending { it.second }
+    }
 
     /**
      * Collapses repeats within one day: several OTPs from one sender, or repeated
      * data-usage alerts from one carrier, become a single expandable item.
      */
-    private fun group(dayMessages: List<ClassifiedMessage>, date: LocalDate): List<FeedItem> {
+    private fun group(dayMessages: List<ClassifiedMessage>, date: LocalDate, groups: PaymentGroups): List<FeedItem> {
         val order = LinkedHashMap<String, MutableList<ClassifiedMessage>>()
         val kinds = HashMap<String, GroupKind>()
 
@@ -172,7 +223,7 @@ object FeedBuilder {
 
         return order.map { (key, members) ->
             val kind = kinds[key]
-            if (kind != null && members.size > 1) FeedItem.Group(key, kind, members) else FeedItem.Single(members.first())
+            if (kind != null && members.size > 1) FeedItem.Group(key, kind, members) else members.first().let { FeedItem.Single(it, groups.followersOf(it.id)) }
         }
     }
 

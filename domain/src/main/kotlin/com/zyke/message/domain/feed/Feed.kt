@@ -66,7 +66,12 @@ sealed interface FeedItem {
     /** The message to show (for groups: the newest one). */
     val newest: ClassifiedMessage
 
-    data class Single(val message: ClassifiedMessage) : FeedItem {
+    /**
+     * One message. When it is a bank debit that other messages repeat (a gateway's confirmation, a booking, a second alert),
+     * [related] holds them, oldest first: they are shown inside this row ("+2 related") and never as rows of their own.
+     * The key stays the message's own id, so the row is unique and stable in a lazy list.
+     */
+    data class Single(val message: ClassifiedMessage, val related: List<ClassifiedMessage> = emptyList()) : FeedItem {
         override val key get() = "m-${message.id}"
         override val newest get() = message
     }

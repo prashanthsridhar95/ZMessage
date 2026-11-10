@@ -6,6 +6,7 @@ import com.zyke.message.domain.feed.FeedItem
 import com.zyke.message.domain.feed.FeedSection
 import com.zyke.message.domain.feed.SectionId
 import com.zyke.message.domain.categories.CategoryKey
+import com.zyke.message.domain.ledger.PaymentGroups
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.UserMessageState
 import java.time.Instant
@@ -35,8 +36,13 @@ class ConversationBuilder(private val merchants: MerchantResolver = MerchantReso
         val group = messages.filter { it.id !in userState.archivedIds && senderKey(it) == key }
         if (group.isEmpty()) return null
 
-        val sections = group.groupBy { LocalDate.ofInstant(Instant.ofEpochMilli(it.message.date), zone) }
-            .map { (date, items) -> FeedSection(SectionId.Day(date), items.map(FeedItem::Single)) }
+        // A payment's row carries the messages that repeat it, here and in the timeline alike. A repeat that came from another
+        // sender stays in that sender's own conversation, where it is one of that sender's messages.
+        val groups = PaymentGroups.of(messages) { it.id in userState.archivedIds }
+        val inThread = if (groups.isEmpty) null else group.mapTo(HashSet()) { it.id }
+        val rows = if (inThread == null) group else group.filter { m -> groups.anchorOf(m.id)?.let { it in inThread } != true }
+        val sections = rows.groupBy { LocalDate.ofInstant(Instant.ofEpochMilli(it.message.date), zone) }
+            .map { (date, items) -> FeedSection(SectionId.Day(date), items.map { FeedItem.Single(it, groups.followersOf(it.id)) }) }
         return Thread(build(key, group, userState), sections)
     }
 

@@ -21,11 +21,13 @@ internal fun MessageItem(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** The messages that repeat this payment (see PaymentGroups): shown inside this row, never as rows of their own. */
+    related: List<ClassifiedMessage> = emptyList()
 ) {
     val isPinned = item.id in state.userState.pinnedIds
     val isArchived = item.id in state.userState.archivedIds
-    val card: @Composable () -> Unit = { MessageCard(item, state, actions) }
+    val card: @Composable () -> Unit = { MessageCard(item, state, actions, related = related) }
 
     val mergeable = item.content is MessageContent.Transaction && !state.isSearching
     val drag = LocalMergeDrag.current
@@ -52,14 +54,16 @@ internal fun MessageCard(
     item: ClassifiedMessage,
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    related: List<ClassifiedMessage> = emptyList()
 ) {
     val time = remember(item.message.date) { DisplayFormatters.time(item.message.date) }
     val today = remember(state.now) { LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
-    val isUnread = state.isUnread(item)
+    // A payment with a repeat nobody has read yet is unread, as a whole.
+    val isUnread = state.isUnread(item) || related.any { state.isUnread(it) }
     val expand = { actions.onOpenMessage(item.id) }
 
-    val spoken = com.zyke.message.presentation.common.privateSpeech(remember(item, isUnread, time, today) { item.spokenSummary(time, isUnread, today) })
+    val spoken = com.zyke.message.presentation.common.privateSpeech(remember(item, isUnread, time, today, related.size) { item.spokenSummary(time, isUnread, today, related.size) })
 
     CompositionLocalProvider(LocalSpokenSummary provides spoken) {
         when (val content = item.content) {
@@ -71,7 +75,7 @@ internal fun MessageCard(
                 modifier = modifier
             )
             is MessageContent.FastTag -> FastTagCard(item, content, time, isUnread, expand, modifier)
-            is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier)
+            is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier, relatedCount = related.size)
             is MessageContent.CardBill -> CardBillCard(item, content, time, isUnread, today, expand, modifier)
             is MessageContent.ScheduledPayment -> ScheduledPaymentCard(item, content, time, isUnread, today, expand, modifier)
             is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)

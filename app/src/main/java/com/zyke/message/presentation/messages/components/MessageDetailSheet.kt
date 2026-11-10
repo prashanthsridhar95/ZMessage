@@ -95,7 +95,9 @@ internal fun MessageDetailSheet(
     onMoreFromSender: () -> Unit,
     onDismiss: () -> Unit,
     /** Other messages that look like the same payment, offered for merging. */
-    mergeCandidates: List<ClassifiedMessage> = emptyList()
+    mergeCandidates: List<ClassifiedMessage> = emptyList(),
+    /** The messages that repeat this payment (see PaymentGroups): the payment's row held them, here they are listed. */
+    related: List<ClassifiedMessage> = emptyList()
 ) {
     val message = item.message
     val content = item.content
@@ -204,6 +206,10 @@ internal fun MessageDetailSheet(
                 if (message.isChat() && !message.isMms) ChatNote()
             }
 
+            if (related.isNotEmpty()) {
+                val relatedLedger = com.zyke.message.presentation.common.rememberLedgerActions()
+                RelatedMessages(related, onOpen = actions.onOpenMessage, onNotTheSame = { relatedLedger.answerSamePayment(listOf(it), false, false) })
+            }
             MergedMessages(item, actions.onUnmerge)
             MergeSuggestions(item, mergeCandidates, actions.onRequestMerge)
 
@@ -275,7 +281,7 @@ internal fun MessageDetailSheet(
                             DetailRow("Yes, this paid my credit card bill", null) { ledger.answerCardBill(listOf(item), true, true) }
                         }
                     }
-                    if (!manual && item.setAside == null) SamePaymentRows(item, ledger)
+                    if (!manual && item.setAside == null) { SamePaymentRows(item, ledger); OpenPaymentRow(item, actions.onOpenMessage) }
                     if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) GoalLinkRow(item)
                     if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
                 }
@@ -285,6 +291,7 @@ internal fun MessageDetailSheet(
                 SettingsGroup("In your totals") {
                     Caption(com.zyke.message.domain.ledger.CountedReason.explain(item), maxLines = 3)
                     SamePaymentRows(item, ledger)
+                    OpenPaymentRow(item, actions.onOpenMessage)
                 }
             }
 
@@ -320,6 +327,13 @@ private fun SamePaymentRows(item: ClassifiedMessage, ledger: com.zyke.message.pr
         DetailRow("Yes, same payment", null) { ledger.answerSamePayment(listOf(item), true, false) }
     }
     DetailRow("This is a separate payment", null) { ledger.answerSamePayment(listOf(item), false, false) }
+}
+
+/** A message that sits inside another payment's row: a way back to that payment. */
+@Composable
+private fun OpenPaymentRow(item: ClassifiedMessage, onOpen: (Long) -> Unit) {
+    val same = item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN } ?: return
+    DetailRow("Open the ${same.primaryLabel}", null) { onOpen(same.primaryId) }
 }
 
 /** A titled card of rows, for settings that belong together. */

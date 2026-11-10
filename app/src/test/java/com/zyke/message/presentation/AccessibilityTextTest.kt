@@ -21,6 +21,14 @@ class AccessibilityTextTest {
     }
 
     @Test
+    fun aPaymentWithRelatedMessagesSaysHowMany() {
+        val message = classifier.classify(SmsMessage(1, "AD-HDFCBK", "Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 1", 0, true))
+        val today = LocalDate.of(2026, 10, 26)
+        assertEquals("Paid ₹540 to Burmy Foods, account ending 5765, 2 related messages. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 2))
+        assertEquals("Paid ₹540 to Burmy Foods, account ending 5765, 1 related message. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 1))
+    }
+
+    @Test
     fun unreadIsSaidFirst() {
         assertTrue(summary("Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 1", unread = true).startsWith("Unread. Paid"))
     }

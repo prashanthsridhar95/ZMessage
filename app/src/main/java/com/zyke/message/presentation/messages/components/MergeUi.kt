@@ -6,6 +6,7 @@ import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -233,6 +234,44 @@ private fun MergeCard(label: String, message: ClassifiedMessage) {
         )
     }
 }
+
+/**
+ * The messages that repeat this payment (a booking confirmation, a gateway's text, a second bank alert): one compact card, a
+ * row for each, that opens it; "Not the same payment" takes it out again (the answer is kept, and can be undone).
+ */
+@Composable
+internal fun RelatedMessages(
+    related: List<ClassifiedMessage>,
+    onOpen: (Long) -> Unit,
+    onNotTheSame: (ClassifiedMessage) -> Unit
+) {
+    if (related.isEmpty()) return
+    FintechCard {
+        Caption("RELATED MESSAGES")
+        related.forEach { message ->
+            val sender = com.zyke.message.domain.conversation.SenderKey.displayAddress(message.message.sender)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .androidxClickable(onClickLabel = "Open this message") { onOpen(message.id) }
+            ) {
+                Text("$sender · ${DisplayFormatters.time(message.message.date)}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    message.message.body.replace(Regex("\\s+"), " "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            AppButton("Not the same payment", { onNotTheSame(message) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        }
+    }
+}
+
+private fun Modifier.androidxClickable(onClickLabel: String, onClick: () -> Unit): Modifier =
+    this.clickable(onClickLabel = onClickLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
 
 /** The messages merged into this one, each with a way to take it out again. */
 @Composable

@@ -150,6 +150,8 @@ class MessagesViewModel(
     private fun openMessage(messageId: Long) {
         if (currentState().messages.none { it.id == messageId }) return
         userStateRepository.markRead(messageId)
+        // Opening a payment opens the messages that repeat it too: the group is one row, so it is read as one.
+        com.zyke.message.domain.ledger.PaymentGroups.of(currentState().messages).followersOf(messageId).forEach { userStateRepository.markRead(it.id) }
         reduce { copy(detailMessageId = messageId) }
     }
 
