@@ -1094,6 +1094,8 @@ private fun DeveloperContent() {
         }
     }
 
+    InboxAuditCard()
+
     SimulatorCard()
 
     SectionCard("Developer mode") {

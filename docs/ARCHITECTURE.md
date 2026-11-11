@@ -593,6 +593,40 @@ What Zyke can and cannot see of a message depends on where the phone keeps it.
 * **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
   expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
 
+## Where every message goes (dispositions)
+
+A message on the phone reaches the All tab through these stages. Each can take it out of the list or tuck it inside another row;
+nothing deletes it. `InboxAudit` (domain/diagnostics) follows every id through them on demand and says which one applied.
+
+| Stage | What it does | Disposition |
+| --- | --- | --- |
+| Providers | `SmsDataSource` reads `content://sms/inbox` (type 1 only: sent, drafts, failed and queued rows are never inbox), the MMS inbox (`MmsDataSource`) and the chat notifications `RcsMessageStore` kept. Chat (RCS) messages are in no provider; only the text a notification showed, and only if Notification access is on and a notification was posted | counted per source in the audit; SMS rows in other folders are counted separately |
+| Data source | An MMS with no sender and no text or picture is dropped; a stored chat notification whose text is already an SMS (same text, ten minutes) is dropped; an identical chat notification within ten minutes is one item | `MMS_UNUSABLE`, `RCS_SEEN_AS_SMS` |
+| `ProgressiveInbox` | Reads month by month, newest first, and keeps 36 months (`DEFAULT_MAX_MONTHS`); older messages are not loaded and nothing in the app says so | `NOT_LOADED` |
+| `RichMerge` | Folds a picture message and its chat notifications (and "Photo" placeholders) into one card | `FOLDED_RICH` |
+| Pipeline stages | Muted sender (`SenderKey`, which ignores the route prefix and the -S/-T/-P/-G suffix, so muting a promotional header also mutes that brand's transactional alerts) makes a message promotional and muted; the person's merges fold a duplicate into its primary | `MUTED`, `MERGED_BY_YOU` |
+| Classifier | A message read as plain text (Generic) is promotional when its header ends in -P, it holds a marketing phrase ("T&C", "use code", "click here"...) or the spam scorer says so. OTPs, payments, bills, FASTag and the like are never promotional by themselves | `PROMOTIONAL` (Promos chip) |
+| `FeedBuilder` | All = not promotional and not archived. A chip, status, category or time filter narrows further; a search ignores promotional and archived. Followers of a bank debit (`PaymentGroups`, at most 6 per debit) and the other codes of an OTP group (`FeedItem.Group`) are inside the first row, not rows | `ROW`, `RELATED`, `IN_GROUP`, `ARCHIVED` |
+
+Hidden accounts are not a message filter: they leave an account out of the Accounts tab and the totals, and hide no message.
+FASTag "active" and "recharge needed" messages used to be left out of every list (only search found them); they are rows now.
+
+`Feed.hiddenByFilters` counts the rows of the unfiltered All list that the filter in force leaves out, computed only when a filter is on
+and nothing is searched; the list ends with "N hidden by filters . Show" (and nothing when it is 0). The audit runs the real
+`FeedBuilder` and walks its sections, so it cannot drift from the screen. Developer options > Inbox audit shows the counts, the twenty
+newest rows with the reason for each (masked sender, length, type, never text) and shares the same text with Share audit.
+
+## Sender names and the verified check
+
+`SenderDisplay` (domain/conversation) takes an India DLT header apart (route prefix, name, one-letter category S/T/P/G; any part may be
+missing; the name may hold hyphens) and returns the name alone plus `verified`. A registered header shows its name ("AX-HDFCBK-T" is
+"HDFC Bank", "VM-SPINNY-S" is "Spinny") with a 16 dp check (`SenderTitle`, `VerifiedBadge` in presentation/common) in the same row as the name,
+which takes one line and is cut with an ellipsis so the check stays. Numbers, short codes, contacts and mixed-case names are never verified. "Verified"
+means the header has the registered shape; nothing on the phone proves who owns it. An RBM agent's own address is marked, but once `RbmSender`
+has turned it into a plain name (always the case after `RichMerge`) it can no longer be told from a contact and is not. A name the person gave a
+sender wins for the name, the check follows the header. Notifications say the name only; exports keep the raw header. Screen readers hear
+"Spinny, verified sender".
+
 ## Budget phones and lite mode
 
 `presentation/common/Responsive.kt` (`LocalResponsive`, `ChromeScale`, `FitText`, `ResponsiveRow`) holds the layout rules for

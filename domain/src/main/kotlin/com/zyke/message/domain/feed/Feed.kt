@@ -146,7 +146,9 @@ data class Feed(
     val categories: List<Pair<MessageCategory, Int>> = emptyList(),
     val visibleCount: Int = 0,
     /** How a search was understood, e.g. "Fuel Spends · Last 7 days"; null for plain text searches. */
-    val searchNote: String? = null
+    val searchNote: String? = null,
+    /** Rows of the unfiltered All list that the chip, status, category or time filter in force leaves out; 0 when no filter is on or a search is. */
+    val hiddenByFilters: Int = 0
 ) {
     companion object {
         val EMPTY = Feed()

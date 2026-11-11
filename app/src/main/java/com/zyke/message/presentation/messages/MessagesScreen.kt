@@ -320,7 +320,8 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onSetMessageCategory = { id, category -> this(Intent.SetMessageCategory(id, category)) },
     onToggleMute = { this(Intent.ToggleMute(it)) },
     onRequestMerge = { primary, duplicate -> this(Intent.RequestMerge(primary, duplicate)) },
-    onUnmerge = { this(Intent.Unmerge(it)) }
+    onUnmerge = { this(Intent.Unmerge(it)) },
+    onResetFilters = { this(Intent.ResetFilters) }
 )
 
 /** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */

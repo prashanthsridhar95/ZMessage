@@ -81,7 +81,10 @@ class ObserveMessagesUseCase(
     private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments
 ) {
     /** Ids of notification items folded into a picture message by [RichMerge]; they are not rows any more, and their marks moved. */
-    private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Boolean>()
+    private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
+    /** Which notification item was folded into which picture message so far (dropped id to kept id); read by the developer inbox audit. */
+    fun foldedInto(): Map<Long, Long> = HashMap(foldedIds)
 
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -259,7 +262,7 @@ class ObserveMessagesUseCase(
     /** What the person marked on a folded notification item (read, pinned, archived) moves to the message it was folded into. */
     private fun carryMarks(folded: Map<Long, Long>) {
         if (folded.isEmpty()) return
-        folded.keys.forEach { foldedIds[it] = true }
+        foldedIds.putAll(folded)
         val repo = userState ?: return
         val state = repo.state.value
         for ((from, to) in folded) {

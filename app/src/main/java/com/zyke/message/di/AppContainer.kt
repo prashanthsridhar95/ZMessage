@@ -73,7 +73,7 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     /** Sends the paired watch (if any) its small snapshot; does nothing unless built with -PwithWear=true. */
     val wearSync by lazy { com.zyke.message.wear.WearSync(com.zyke.message.wear.WatchLinks.create(context)) }
     val rcsStore by lazy { RcsMessageStore(context.applicationContext) }
-    private val smsDataSource by lazy { SmsDataSource(context.applicationContext.contentResolver, rcsStore, com.zyke.message.data.sms.MmsDataSource(context.applicationContext.contentResolver)) }
+    val smsDataSource by lazy { SmsDataSource(context.applicationContext.contentResolver, rcsStore, com.zyke.message.data.sms.MmsDataSource(context.applicationContext.contentResolver)) }
 
     val smsRepository: SmsRepository by lazy { if (demo) DemoSmsRepository(demoData.messages) else SmsRepositoryImpl(smsDataSource) }
     val userMessageState: UserMessageStateRepository by lazy { UserMessageStateRepositoryImpl(context) }

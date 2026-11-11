@@ -112,6 +112,49 @@ class SmsDataSource(
         return InboxScan(months, allIds)
     }
 
+    /**
+     * Developer audit (never on the normal path): every id the phone holds for the inbox, every id this data source turns into a message, how many
+     * SMS rows sit outside the inbox, and the newest rows across SMS, picture messages and stored chat notifications (sender, text length, date and
+     * type only). Reads the whole inbox once, like opening the app does. Throws [SecurityException] without the SMS permission.
+     */
+    fun auditSnapshot(zone: ZoneId): com.zyke.message.domain.diagnostics.ProviderSnapshot {
+        val scan = scan(zone, 0L)
+        val materialized = readInbox().map { it.id }.toLongArray()
+        val smsInboxRows = scan.allIds.count { it > 0 }
+        val smsAllRows = countRows(Telephony.Sms.CONTENT_URI)
+        val newest = ArrayList<com.zyke.message.domain.diagnostics.ProviderRow>()
+        contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI,
+            arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.TYPE),
+            null, null, "${Telephony.Sms.DATE} DESC"
+        )?.use {
+            val id = it.getColumnIndexOrThrow(Telephony.Sms._ID)
+            val address = it.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+            val body = it.getColumnIndexOrThrow(Telephony.Sms.BODY)
+            val date = it.getColumnIndexOrThrow(Telephony.Sms.DATE)
+            val type = it.getColumnIndexOrThrow(Telephony.Sms.TYPE)
+            while (newest.size < AUDIT_NEWEST && it.moveToNext()) {
+                newest += com.zyke.message.domain.diagnostics.ProviderRow(
+                    it.getLong(id), it.getLong(date), it.getString(address).orEmpty(), it.getString(body).orEmpty().length,
+                    com.zyke.message.domain.diagnostics.ProviderSource.SMS, it.getInt(type)
+                )
+            }
+        }
+        mms?.newestRows(AUDIT_NEWEST)?.let { newest += it }
+        rcsStore?.all()?.sortedByDescending { it.date }?.take(AUDIT_NEWEST)?.forEach {
+            newest += com.zyke.message.domain.diagnostics.ProviderRow(it.id, it.date, it.sender, it.body.length, com.zyke.message.domain.diagnostics.ProviderSource.RCS)
+        }
+        return com.zyke.message.domain.diagnostics.ProviderSnapshot(
+            scan.allIds, materialized, (smsAllRows - smsInboxRows).coerceAtLeast(0), newest.sortedByDescending { it.date }.take(AUDIT_NEWEST)
+        )
+    }
+
+    private fun countRows(uri: Uri): Int = try {
+        contentResolver.query(uri, arrayOf(Telephony.Sms._ID), null, null, null)?.use { it.count } ?: 0
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        0
+    }
+
     /** The messages of one month, newest first, with that month's RCS messages added. */
     fun readWindow(fromMillis: Long, untilMillis: Long): List<SmsMessage> {
         val sms = readSms("${Telephony.Sms.DATE} >= ? AND ${Telephony.Sms.DATE} < ?", arrayOf(fromMillis.toString(), untilMillis.toString()))
@@ -199,6 +242,7 @@ class SmsDataSource(
 
     private companion object {
         const val INITIAL_IDS = 4096
+        const val AUDIT_NEWEST = 20
         /** 1 Jan 2100: the end of "everything" for a window read, kept clear of overflow when converted to seconds. */
         const val FAR_FUTURE = 4_102_444_800_000L
         const val STAMP_COUNT = 1_000_003L

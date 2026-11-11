@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -118,7 +119,35 @@ fun MessageList(
                 }
             }
         }
+
+        // Only when the filters in force leave something out of All: "3 hidden by filters · Show". Nothing is drawn otherwise.
+        if (feed.hiddenByFilters > 0 && !state.isSearching) {
+            item(key = "hidden-by-filters", contentType = "hidden-footer") {
+                HiddenByFilters(feed.hiddenByFilters, actions.onResetFilters, Modifier.animateItem())
+            }
+        }
     }
+    }
+}
+
+/** One quiet line under the list: how many messages the filters hide, and a way to show them. */
+@Composable
+internal fun HiddenByFilters(count: Int, onShow: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear filters and show them", onClick = onShow)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "$count hidden by filters \u00B7 ",
+            style = MaterialTheme.typography.bodySmall,
+            color = mutedColor(),
+            maxLines = 1
+        )
+        Text(text = "Show", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
     }
 }
 

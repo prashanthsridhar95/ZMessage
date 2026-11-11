@@ -32,6 +32,19 @@ class MmsDataSource(private val contentResolver: ContentResolver) {
         }.orEmpty()
     }
 
+    /**
+     * Developer audit: the [limit] newest rows of the MMS inbox as sender, text length and date, newest first, so the audit can say what became of
+     * them. The text itself is read only to count it and is not kept. Rows the app cannot show (no sender, no text, no picture) are included.
+     */
+    fun newestRows(limit: Int): List<com.zyke.message.domain.diagnostics.ProviderRow> = runQuiet(emptyList()) {
+        stubs(0L).take(limit).map { stub ->
+            val rowId = MmsMessages.rowIdOf(stub.messageId) ?: 0L
+            val sender = MmsMessages.sender(addresses(rowId))
+            val length = MmsMessages.text(parts(rowId)).length
+            com.zyke.message.domain.diagnostics.ProviderRow(stub.messageId, stub.date, sender, length, com.zyke.message.domain.diagnostics.ProviderSource.MMS)
+        }
+    }
+
     /** The MMS dated from [fromMillis] up to [untilMillis], with their text and sender. */
     fun readWindow(fromMillis: Long, untilMillis: Long): List<SmsMessage> = runQuiet(emptyList()) {
         val rows = contentResolver.query(

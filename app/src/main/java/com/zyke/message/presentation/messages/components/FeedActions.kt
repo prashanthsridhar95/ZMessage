@@ -27,6 +27,8 @@ data class FeedActions(
     val onRequestMerge: (primaryId: Long, duplicateId: Long) -> Unit = { _, _ -> },
     /** Make a merged message a message of its own again. */
     val onUnmerge: (duplicateId: Long) -> Unit = {},
+    /** Clear every filter, so the messages they hide are shown again. */
+    val onResetFilters: () -> Unit = {},
     /** Start splitting a payment with friends; null where splitting is not offered. */
     val onSplit: ((messageId: Long) -> Unit)? = null
 ) {

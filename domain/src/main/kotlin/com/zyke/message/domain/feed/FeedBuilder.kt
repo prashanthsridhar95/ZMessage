@@ -3,7 +3,6 @@ package com.zyke.message.domain.feed
 import com.zyke.message.domain.ledger.PaymentGroups
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.model.ClassifiedMessage
-import com.zyke.message.domain.model.FastTagEvent
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.UserMessageState
@@ -74,8 +73,31 @@ object FeedBuilder {
             counts = counts(messages, userState, groups),
             categories = categoryCounts(messages, userState, groups),
             visibleCount = shown.size,
-            searchNote = searchNote
+            searchNote = searchNote,
+            hiddenByFilters = if (searching || !filter.isActive) 0 else hiddenByFilters(messages, shown, groups, userState, today, zone)
         )
+    }
+
+    /**
+     * How many rows the unfiltered All list holds that the filter the person set leaves out: what "N hidden by filters" says. A payment's
+     * related messages are inside its row, so they are not counted again. Only worked out when a filter is on and nothing is searched.
+     */
+    private fun hiddenByFilters(
+        messages: List<ClassifiedMessage>,
+        shown: List<ClassifiedMessage>,
+        groups: PaymentGroups,
+        userState: UserMessageState,
+        today: LocalDate,
+        zone: ZoneId
+    ): Int {
+        val inAll = messages.filter { passes(it, MessageFilter.All, userState, today, zone) }
+        val allIds = inAll.mapTo(HashSet()) { it.id }
+        val shownIds = HashSet<Long>(shown.size * 2)
+        for (m in shown) {
+            shownIds += m.id
+            groups.followersOf(m.id).forEach { shownIds += it.id }
+        }
+        return inAll.count { m -> m.id !in shownIds && groups.anchorOf(m.id)?.let { it in allIds } != true }
     }
 
     /**
@@ -119,7 +141,6 @@ object FeedBuilder {
         zone: ZoneId
     ): Boolean {
         val isArchived = message.id in userState.archivedIds
-        if (isFastTagStatusOnly(message)) return false
         if (filter.category != null && message.category != filter.category) return false
 
         val statusOk = when (filter.status) {
@@ -143,15 +164,6 @@ object FeedBuilder {
         return if (filter.smart == SmartFilter.ARCHIVED) isArchived else !isArchived && bucket(message, filter.smart)
     }
 
-    /**
-     * "FASTag active" and "recharge needed" say nothing a row can act on by itself; low balance is raised
-     * in the attention strip instead, and search still finds them.
-     */
-    private fun isFastTagStatusOnly(message: ClassifiedMessage): Boolean {
-        val event = (message.content as? MessageContent.FastTag)?.event
-        return event is FastTagEvent.Activated || event is FastTagEvent.RechargeNeeded
-    }
-
     internal fun bucket(message: ClassifiedMessage, filter: SmartFilter): Boolean {
         val content = message.content
         return when (filter) {
@@ -161,7 +173,7 @@ object FeedBuilder {
                 content is MessageContent.ScheduledPayment
             SmartFilter.OTP -> content is MessageContent.Otp
             SmartFilter.BILLS -> content is MessageContent.CardBill
-            SmartFilter.TRAVEL -> (content is MessageContent.FastTag && !isFastTagStatusOnly(message)) ||
+            SmartFilter.TRAVEL -> content is MessageContent.FastTag ||
                 content is MessageContent.Courier ||
                 (content is MessageContent.Life && (content.kind == LifeKind.TRAVEL || content.kind == LifeKind.DELIVERY))
             SmartFilter.REMINDERS -> content is MessageContent.Life &&
