@@ -112,12 +112,14 @@ internal object LiveAlerts {
         )
         // The code is the headline, large and spaced so it can be read at a glance and typed from the shade.
         val spaced = if (content.code.length == 6) "${content.code.take(3)} ${content.code.drop(3)}" else content.code
+        // The sender's name alone: no check mark in a notification (a registered header shows as its name, "HDFC Bank").
+        val from = com.zyke.message.domain.conversation.SenderDisplay.of(message.message.sender, message.merchant.name.takeIf { message.merchant.renamed }, content.senderName).name
         val forPayment = content.paymentAmount?.let { " for ${if (NotificationPrivacy.hidden(context)) "an amount" else DisplayFormatters.rupees(it)}" }.orEmpty()
         notify(
             context, id, CODE_CHANNEL,
             title = spaced,
-            text = "From ${content.senderName}$forPayment · tap to copy",
-            bigText = "From ${content.senderName}$forPayment.\nTap to copy the code, then paste it where it is asked for.\nNever share it with anyone.",
+            text = "From $from$forPayment · tap to copy",
+            bigText = "From $from$forPayment.\nTap to copy the code, then paste it where it is asked for.\nNever share it with anyone.",
             publicTitle = "One-time code",
             publicText = "Unlock to see it",
             action = "Copy code" to copy,
@@ -126,7 +128,7 @@ internal object LiveAlerts {
             // The code itself is drawn large, with the rest in small type beneath.
             customView = android.widget.RemoteViews(context.packageName, R.layout.notification_code).apply {
                 setTextViewText(R.id.code_value, spaced)
-                setTextViewText(R.id.code_detail, "From ${content.senderName}$forPayment · tap to copy")
+                setTextViewText(R.id.code_detail, "From $from$forPayment · tap to copy")
             }
         )
     }

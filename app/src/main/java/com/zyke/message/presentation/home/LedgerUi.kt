@@ -439,7 +439,9 @@ internal fun ReviewPage(
                 SectionHeader("Messages not understood", review.unclear.size)
                 review.unclear.forEach { message ->
                     FintechCard(onClick = { teaching = message }) {
-                        RowTitle(message.merchant.name)
+                        com.zyke.message.presentation.common.SenderTitle(
+                            com.zyke.message.presentation.common.rememberSenderLabel(message.message.sender, message.merchant.name.takeIf { message.merchant.renamed }, message.merchant.name)
+                        )
                         Caption(stampOf(message), Modifier.padding(top = 2.dp))
                         Caption(message.message.body.replace(Regex("\\s+"), " ").trim(), Modifier.padding(top = 2.dp), maxLines = 2)
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

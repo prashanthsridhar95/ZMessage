@@ -13,7 +13,7 @@ object RbmSender {
     private val domain = Regex("(?i)^rbm\\.goog(?:le(?:\\.com)?)?$")
 
     /** Words always written in capitals. */
-    private val acronyms = setOf(
+    internal val acronyms = setOf(
         "hdfc", "sbi", "icici", "upi", "idfc", "pnb", "rbl", "hsbc", "uco", "bob", "idbi", "npci", "lic", "emi", "atm", "kvb", "irctc"
     )
 

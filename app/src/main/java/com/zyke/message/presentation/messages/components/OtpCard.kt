@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import com.zyke.message.R
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.presentation.common.SenderTitle
+import com.zyke.message.presentation.common.rememberSenderLabel
 import com.zyke.message.presentation.format.DisplayFormatters
 
 /**
@@ -80,10 +82,13 @@ internal fun OtpCard(
                 )
             }
 
-            Caption(
-                text = listOfNotNull(content.senderName, hint, time).joinToString(" · "),
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                SenderTitle(
+                    rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }, content.senderName),
+                    Modifier.weight(1f, fill = false), MaterialTheme.typography.bodySmall, mutedColor()
+                )
+                Caption(listOfNotNull(hint, time).joinToString(" · ", prefix = " · "))
+            }
 
             val paymentAmount = content.paymentAmount
             val paymentCard = content.cardNumber

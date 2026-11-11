@@ -30,6 +30,8 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.CourierStatus
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.MessageContent
+import com.zyke.message.presentation.common.SenderTitle
+import com.zyke.message.presentation.common.rememberSenderLabel
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
 
@@ -50,7 +52,7 @@ internal fun GenericCard(
 
         Column(Modifier.weight(1f)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                RowTitle(item.message.sender, Modifier.weight(1f))
+                SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }), Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
                 SourceTag(item.message)
                 if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(6.dp))
@@ -83,7 +85,7 @@ internal fun CourierCard(
         Spacer(Modifier.width(16.dp))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            RowTitle(item.message.sender)
+            SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }))
             Caption(time)
         }
 

@@ -102,7 +102,8 @@ internal fun MessageDetailSheet(
     val message = item.message
     val content = item.content
     val facts = item.detailFacts()
-    val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else SenderKey.displayAddress(message.sender)
+    val senderLabel = com.zyke.message.presentation.common.rememberSenderLabel(message.sender, item.merchant.name.takeIf { item.merchant.renamed })
+    val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else if (senderLabel.verified) senderLabel.name else SenderKey.displayAddress(message.sender)
     val sender = SenderKey.displayAddress(message.sender)
     val canTag = content !is MessageContent.Otp && CategoryKey.of(item) != null
     // Which of the two the open sheet is for: this one transaction, or the sender or receiver it is with.
@@ -130,6 +131,10 @@ internal fun MessageDetailSheet(
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
+                    // The sender, named alone with a check when its header is a registered one, above when it arrived.
+                    if (senderLabel.verified || senderLabel.name != title) {
+                        com.zyke.message.presentation.common.SenderTitle(senderLabel, style = MaterialTheme.typography.bodyMedium)
+                    }
                     Caption("${DateFormatters.detailTimestamp(message.date)} · ${com.zyke.message.presentation.common.categoryText(item)}", maxLines = 1)
                 }
             }

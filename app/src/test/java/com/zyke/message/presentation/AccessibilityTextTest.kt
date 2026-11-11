@@ -48,7 +48,22 @@ class AccessibilityTextTest {
     @Test
     fun genericMessageIsTrimmed() {
         val text = summary("hello   there\n" + "x".repeat(500))
-        assertTrue(text.startsWith("Message from AD-HDFCBK: hello there"))
+        assertTrue(text.startsWith("Message from HDFC Bank, verified sender: hello there"))
         assertFalse(text.length > 260)
+    }
+
+    @Test
+    fun aRegisteredSenderIsReadByNameAsAVerifiedSender() {
+        val spinny = classifier.classify(SmsMessage(1, "VM-SPINNY-S", "Your test drive is booked", 0, true))
+        assertTrue(spinny.spokenSummary("2:30 PM", false, LocalDate.of(2026, 10, 26)).startsWith("Message from Spinny, verified sender: "))
+        val otp = classifier.classify(SmsMessage(2, "VM-SPINNY-S", "482913 is your OTP for login", 0, true))
+        assertTrue("One-time password from Spinny, verified sender: 4 8 2 9 1 3" in otp.spokenSummary("2:30 PM", false, LocalDate.of(2026, 10, 26)))
+    }
+
+    @Test
+    fun aPlainNumberIsReadAsItIsAndNeverAsVerified() {
+        val text = classifier.classify(SmsMessage(1, "+919876543210", "hello there", 0, true)).spokenSummary("2:30 PM", false, LocalDate.of(2026, 10, 26))
+        assertTrue(text.startsWith("Message from +919876543210: hello there"))
+        assertFalse("verified" in text)
     }
 }

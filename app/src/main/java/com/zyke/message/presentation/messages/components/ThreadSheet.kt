@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.conversation.Thread
 import com.zyke.message.domain.feed.SectionId
 import com.zyke.message.presentation.format.DateFormatters
+import com.zyke.message.presentation.common.SenderTitle
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
@@ -69,6 +70,7 @@ fun ThreadSheet(
             MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = null, size = 44.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
+                SenderTitle(remember(conversation.key, conversation.merchant, conversation.newest.message.date) { conversation.senderLabel() })
                 Caption("${DisplayFormatters.count(conversation.messages.size, "message", "messages")} · ${conversation.address}")
             }
         }

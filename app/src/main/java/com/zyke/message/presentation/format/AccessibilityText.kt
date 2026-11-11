@@ -14,8 +14,8 @@ import java.time.LocalDate
 fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: LocalDate = LocalDate.now(), related: Int = 0): String {
     val body = when (val c = content) {
         is MessageContent.Otp ->
-            if (c.code.isEmpty()) "Message from ${c.senderName}"
-            else "One-time password from ${c.senderName}: ${c.code.toList().joinToString(" ")}. Tap to copy"
+            if (c.code.isEmpty()) "Message from ${senderSpoken(c.senderName)}"
+            else "One-time password from ${senderSpoken(c.senderName)}: ${c.code.toList().joinToString(" ")}. Tap to copy"
         is MessageContent.Transaction -> {
             val who = merchant.displayName.ifEmpty { c.bankName.displayString }
             val amount = DisplayFormatters.rupees(c.amount)
@@ -44,7 +44,7 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             is FastTagEvent.Activated -> "FASTag active for vehicle ${e.vehicleNumber}"
         }
         is MessageContent.DataUsage -> "${c.carrier.displayName} data usage alert: ${c.percentUsed} percent used"
-        is MessageContent.Courier -> "Courier from ${message.sender}: " + when (c.status) {
+        is MessageContent.Courier -> "Courier from ${senderSpoken()}: " + when (c.status) {
             CourierStatus.ARRIVING_TODAY -> "arriving today"
             CourierStatus.DELIVERED -> "delivered"
             CourierStatus.UPDATE -> "update"
@@ -58,10 +58,14 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             c.reference?.let { "reference $it" }
         ).joinToString(". ")
         is MessageContent.Notice -> "${c.kind.label}${c.amount?.let { ": ${DisplayFormatters.rupees(it)}" }.orEmpty()}"
-        MessageContent.Generic -> "Message from ${message.sender}: ${message.body.replace(Regex("\\s+"), " ").take(160)}"
+        MessageContent.Generic -> "Message from ${senderSpoken()}: ${message.body.replace(Regex("\\s+"), " ").take(160)}"
     }
     return listOfNotNull(if (isUnread) "Unread" else null, body, time).joinToString(". ")
 }
+
+/** The sender as a screen reader says it: "Spinny, verified sender" for a registered header, the name the person gave it if they gave one. */
+private fun ClassifiedMessage.senderSpoken(fallbackName: String? = null): String =
+    com.zyke.message.domain.conversation.SenderDisplay.of(message.sender, merchant.name.takeIf { merchant.renamed }, fallbackName).spoken
 
 private fun account(number: String, isCard: Boolean): String =
     if (number.isEmpty()) "" else ", ${if (isCard) "card" else "account"} ending $number"

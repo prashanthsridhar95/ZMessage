@@ -74,6 +74,7 @@ internal fun CodeCardContent(message: ClassifiedMessage, nowMillis: Long, onCopy
     val low = !expired && fraction <= LOW_FRACTION
     val accent = if (low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val sender = otp.senderName.ifEmpty { message.merchant.name }
+    val senderLabel = com.zyke.message.presentation.common.rememberSenderLabel(message.message.sender, message.merchant.name.takeIf { message.merchant.renamed }, sender)
     val reduceMotion = rememberReduceMotion()
 
     // Copied for a moment, then back to "Copy code".
@@ -90,14 +91,14 @@ internal fun CodeCardContent(message: ClassifiedMessage, nowMillis: Long, onCopy
     LaunchedEffect(otp.code) { if (!reduceMotion) appear.animateTo(1f, tween(APPEAR_MS)) }
 
     Column(
-        Modifier.semantics { contentDescription = "Verification code from $sender, ${otp.code.toList().joinToString(" ")}, " + (if (expired) "expired" else "${seconds / SECONDS_IN_MINUTE} minutes ${seconds % SECONDS_IN_MINUTE} seconds left") }
+        Modifier.semantics { contentDescription = "Verification code from ${senderLabel.spoken}, ${otp.code.toList().joinToString(" ")}, " + (if (expired) "expired" else "${seconds / SECONDS_IN_MINUTE} minutes ${seconds % SECONDS_IN_MINUTE} seconds left") }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = sender, size = 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Caption("VERIFICATION CODE")
-                Text(sender, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                com.zyke.message.presentation.common.SenderTitle(senderLabel, style = MaterialTheme.typography.titleMedium)
             }
             Spacer(Modifier.width(12.dp))
             CountdownRing(fraction, seconds, accent, expired)

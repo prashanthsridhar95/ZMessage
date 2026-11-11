@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.conversation.Conversation
+import com.zyke.message.domain.conversation.SenderDisplay
+import com.zyke.message.domain.conversation.SenderLabel
+import com.zyke.message.presentation.common.SenderTitle
 import com.zyke.message.domain.model.MerchantLogo
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
@@ -44,6 +47,12 @@ fun SendersList(
 internal fun Conversation.title(): String =
     if (merchant.renamed || merchant.logo != MerchantLogo.PERSON) merchant.displayName else address
 
+/** The name this conversation is shown under, and whether its header is a registered one: a name the person gave wins, a registered header shows its name alone. */
+internal fun Conversation.senderLabel(): SenderLabel {
+    val base = SenderDisplay.of(newest.message.sender, merchant.name.takeIf { merchant.renamed })
+    return if (merchant.renamed || base.verified) base else SenderLabel(title(), false)
+}
+
 @Composable
 private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () -> Unit) {
     val newest = conversation.newest.message
@@ -57,7 +66,7 @@ private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () 
 
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RowTitle(conversation.title(), Modifier.weight(1f))
+                SenderTitle(remember(conversation.key, conversation.merchant, newest.date) { conversation.senderLabel() }, Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
                 Caption(stamp, color = if (unread > 0) MaterialTheme.colorScheme.primary else mutedColor())
             }

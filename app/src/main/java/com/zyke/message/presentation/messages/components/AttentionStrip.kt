@@ -36,7 +36,9 @@ import com.zyke.message.domain.feed.AttentionItem
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.SenderTitle
 import com.zyke.message.presentation.common.movingBorder
+import com.zyke.message.presentation.common.rememberSenderLabel
 import com.zyke.message.presentation.format.DisplayFormatters
 import java.time.LocalDate
 
@@ -97,7 +99,7 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
 
         Column(Modifier.weight(1f)) {
             val (title, detail) = when (item) {
-                is AttentionItem.FreshOtp -> item.code to "${item.senderName} · valid for a few minutes"
+                is AttentionItem.FreshOtp -> item.code to " · valid for a few minutes"
                 is AttentionItem.BillDue ->
                     "${DisplayFormatters.rupees(item.amount)} · ${item.bankLabel}" to
                         (item.dueDate?.let { DisplayFormatters.dueLabel(it, today) } ?: "Bill generated")
@@ -111,13 +113,24 @@ private fun AttentionRow(item: AttentionItem, today: LocalDate, actions: FeedAct
                 color = onContainer,
                 maxLines = 1
             )
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = onContainer.copy(alpha = 0.8f),
-                fontWeight = if (urgent) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 2
-            )
+            if (item is AttentionItem.FreshOtp) {
+                // The sender's name with its verified check, then the rest of the line.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SenderTitle(
+                        rememberSenderLabel(item.message.message.sender, fallbackName = item.senderName),
+                        Modifier.weight(1f, fill = false), MaterialTheme.typography.bodySmall, onContainer.copy(alpha = 0.8f)
+                    )
+                    Text(text = detail, style = MaterialTheme.typography.bodySmall, color = onContainer.copy(alpha = 0.8f), maxLines = 1)
+                }
+            } else {
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onContainer.copy(alpha = 0.8f),
+                    fontWeight = if (urgent) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 2
+                )
+            }
         }
 
         val payLink = (item as? AttentionItem.BillDue)?.paymentLink
