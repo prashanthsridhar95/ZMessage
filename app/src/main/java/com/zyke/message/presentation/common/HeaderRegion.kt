@@ -21,6 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +64,15 @@ private fun isLightTheme(): Boolean = MaterialTheme.colorScheme.background.lumin
 
 @Composable
 internal fun headerContentColor(): Color = if (isLightTheme()) MaterialTheme.colorScheme.inverseOnSurface else MaterialTheme.colorScheme.onSurface
+
+/** The header region's own (opaque) colour. */
+@Composable
+internal fun headerContainerColor(): Color =
+    if (isLightTheme()) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surfaceContainerHigh
+
+/** A solid tile colour for something lying on the header: the region colour mixed with the content colour, never see-through. */
+@Composable
+internal fun headerTileColor(strength: Float = 0.10f): Color = lerp(headerContainerColor(), headerContentColor(), strength)
 
 @Composable
 internal fun headerMutedColor(): Color = headerContentColor().copy(alpha = 0.72f)
@@ -99,31 +113,43 @@ fun StackedDeck(
     if (count <= 0) return
     val reduce = rememberReduceMotion()
     val behind = DeckModel.layersBehind(count)
-    val layerColor = headerContentColor()
+    // The cards are opaque: the slabs behind are the header colour mixed with the content colour (never an alpha over what is
+    // underneath), and while swiping the cards stay where they are and swap places instead of sliding sideways.
+    val region = headerContainerColor()
+    val tint = headerContentColor()
     val peek = 8.dp
+    val spacing = 12.dp
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().padding(top = peek * behind)) {
-            // The cards behind: thin tinted slabs above the front card, narrower each step.
+            // The cards behind: thin solid slabs above the front card, narrower each step.
             for (i in behind downTo 1) {
                 Box(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .padding(horizontal = 14.dp * i)
                         .height(36.dp)
                         .graphicsLayer { translationY = -(peek * i).toPx() }
-                        .background(layerColor.copy(alpha = if (i == 1) 0.20f else 0.12f), RoundedCornerShape(18.dp))
+                        .background(lerp(region, tint, if (i == 1) 0.20f else 0.12f), RoundedCornerShape(18.dp))
                 )
             }
-            HorizontalPager(pagerState, Modifier.fillMaxWidth(), pageSpacing = 12.dp, key = { pageKey(it.coerceIn(0, count - 1)) }) { index ->
+            HorizontalPager(pagerState, Modifier.fillMaxWidth(), pageSpacing = spacing, key = { pageKey(it.coerceIn(0, count - 1)) }) { index ->
+                // Which card is nearer the front; read through derivedStateOf so only the flip, not every frame, recomposes.
+                val front by remember(index) {
+                    derivedStateOf { abs(index - pagerState.currentPage - pagerState.currentPageOffsetFraction) < 0.5f }
+                }
                 Box(
-                    Modifier.fillMaxWidth().graphicsLayer {
+                    Modifier.zIndex(if (front) 1f else 0f).fillMaxWidth().graphicsLayer {
                         if (!reduce) {
-                            val offset = (pagerState.currentPage - index) + pagerState.currentPageOffsetFraction
-                            val away = abs(offset).coerceIn(0f, 1f)
+                            val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                            val away = abs(index - position).coerceIn(0f, 1f)
+                            // Cancel the pager's sideways slide: every card is drawn in the same place.
+                            translationX = (position - index) * (size.width + spacing.toPx())
+                            // The leaving card goes back and up, the next one comes forward and down; all stay opaque.
                             val scale = 1f - 0.06f * away
                             scaleX = scale
                             scaleY = scale
-                            rotationZ = -3f * offset.coerceIn(-1f, 1f)
-                            alpha = 1f - 0.4f * away
+                            translationY = -(peek.toPx() * 1.5f) * away
+                            // A card two places away is not drawn at all (it would sit on the same spot).
+                            alpha = if (away >= 1f) 0f else 1f
                         }
                     }
                 ) { page(index.coerceIn(0, count - 1)) }

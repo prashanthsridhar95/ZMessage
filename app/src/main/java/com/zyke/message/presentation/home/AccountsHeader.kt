@@ -39,6 +39,7 @@ import com.zyke.message.presentation.common.LimitTone
 import com.zyke.message.presentation.common.PrivateAmount
 import com.zyke.message.presentation.common.SpendCard
 import com.zyke.message.presentation.common.StackedDeck
+import com.zyke.message.presentation.common.headerTileColor
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.faceCard
 import com.zyke.message.presentation.common.headerContentColor
@@ -129,7 +130,7 @@ internal fun BanksHeaderContent(
     StackedDeck(banks.size, { banks[it].key }, pager, deckModifier) { index ->
         val account = banks[index]
         Column(
-            Modifier.fillMaxWidth().background(headerContentColor().copy(alpha = 0.10f), RoundedCornerShape(20.dp)).padding(16.dp),
+            Modifier.fillMaxWidth().background(headerTileColor(0.10f), RoundedCornerShape(20.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
