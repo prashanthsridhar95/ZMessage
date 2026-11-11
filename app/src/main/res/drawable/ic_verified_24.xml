@@ -1,9 +1,25 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- A ten-point seal with rounded tips in a blue gradient and a white tick: the "verified" mark. Not tinted: it keeps its own colours. -->
+    <path android:pathData="M11.23,2.21 Q12,1.4 12.77,2.21 L14.56,4.11 L17.13,3.63 Q18.23,3.42 18.38,4.53 L18.71,7.12 L21.07,8.24 Q22.08,8.72 21.55,9.71 L20.3,12 L21.55,14.29 Q22.08,15.28 21.07,15.76 L18.71,16.88 L18.38,19.47 Q18.23,20.58 17.13,20.37 L14.56,19.89 L12.77,21.79 Q12,22.6 11.23,21.79 L9.44,19.89 L6.87,20.37 Q5.77,20.58 5.62,19.47 L5.29,16.88 L2.93,15.76 Q1.92,15.28 2.45,14.29 L3.7,12 L2.45,9.71 Q1.92,8.72 2.93,8.24 L5.29,7.12 L5.62,4.53 Q5.77,3.42 6.87,3.63 L9.44,4.11 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="12" android:startY="1.4"
+                android:endX="12" android:endY="22.6"
+                android:type="linear">
+                <item android:color="#FF2AA3F2" android:offset="0" />
+                <item android:color="#FF0078DC" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM10,17l-5,-5 1.41,-1.41L10,14.17l7.59,-7.59L19,8l-9,9z" />
+        android:pathData="M8.4,12.9 L10.9,14.9 L15.4,9.6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector>

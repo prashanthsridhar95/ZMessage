@@ -217,8 +217,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val funds = overview.accounts.filter { it.isProvidentFund }.distinctBy { it.key }
     val cards = overview.accounts.filter { it.isCard }.distinctBy { it.key }
     var tab by rememberSaveable { mutableStateOf(0) }
-    val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
-    val bankDeck = androidx.compose.foundation.pager.rememberPagerState(pageCount = { banks.size })
+    val deckState = com.zyke.message.presentation.common.rememberDeckState()
+    val bankDeck = com.zyke.message.presentation.common.rememberDeckState()
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val shown = when (tab) {
         0 -> banks

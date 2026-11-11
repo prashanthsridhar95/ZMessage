@@ -11,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -24,12 +23,11 @@ import com.zyke.message.domain.conversation.SenderLabel
 
 /** The small filled check beside a registered sender's name. Described for screen readers; drawn from the theme's primary colour. */
 @Composable
-fun VerifiedBadge(modifier: Modifier = Modifier, tint: Color = MaterialTheme.colorScheme.primary) {
+fun VerifiedBadge(modifier: Modifier = Modifier) {
     Image(
         painter = painterResource(R.drawable.ic_verified_24),
         contentDescription = "Verified sender",
-        modifier = modifier.size(16.dp),
-        colorFilter = ColorFilter.tint(tint)
+        modifier = modifier.size(16.dp)
     )
 }
 

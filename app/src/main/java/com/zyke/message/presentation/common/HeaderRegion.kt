@@ -14,14 +14,38 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.zIndex
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -99,65 +123,171 @@ fun HeaderRegion(modifier: Modifier = Modifier, bleed: Dp = 16.dp, content: @Com
 }
 
 /**
- * Cards stacked: the ones behind peek out above the front card, and a swipe moves to the next. In Lite mode or with animations
- * off it is a plain pager (no tilt, no scaling). [onOpen] is called with the page that was tapped.
+ * Which card of a [StackedDeck] is in front, and where the finger has dragged it. [dragPx] is read only in the draw phase, so a
+ * drag does not recompose the cards. The deck is saved across rotation by its front page.
+ */
+@Stable
+class DeckState(initialPage: Int = 0) {
+    var currentPage by mutableIntStateOf(initialPage)
+        internal set
+    internal var dragPx by mutableFloatStateOf(0f)
+    internal var widthPx by mutableFloatStateOf(0f)
+    private var settling = false
+    private var job: Job? = null
+
+    /** The way the front card is heading: 1 = to the next card (dragged left), -1 = to the one before, 0 = nowhere. */
+    internal fun direction(count: Int): Int = when {
+        dragPx < 0f && currentPage < count - 1 -> 1
+        dragPx > 0f && currentPage > 0 -> -1
+        else -> 0
+    }
+
+    internal fun cancelSettle() {
+        if (!settling) job?.cancel()
+    }
+
+    internal fun dragBy(delta: Float, count: Int) {
+        if (settling) return
+        val next = dragPx + delta
+        val open = (next < 0f && currentPage < count - 1) || (next > 0f && currentPage > 0)
+        // With no card that way, the front card only gives a little (a rubber band) and comes back.
+        dragPx = if (open) next else (dragPx + delta * RUBBER).coerceIn(-widthPx * 0.25f, widthPx * 0.25f)
+    }
+
+    /** Called when the finger lifts: the card flies away if it was dragged far enough or flicked, otherwise it springs back. */
+    internal fun release(scope: CoroutineScope, velocity: Float, count: Int, instant: Boolean) {
+        if (settling) return
+        val dx = dragPx
+        val width = widthPx.coerceAtLeast(1f)
+        val dir = direction(count)
+        val flicked = abs(velocity) > FLICK_PX_PER_S && (velocity < 0f) == (dx < 0f)
+        val away = dir != 0 && (abs(dx) > width * DRAG_FRACTION || flicked)
+        job?.cancel()
+        job = scope.launch { if (away) fly(dir, instant) else settleTo(0f, instant, back = true) }
+    }
+
+    /** Moves to the next (1) or previous (-1) card as a swipe would; used by screen-reader actions. */
+    internal fun step(scope: CoroutineScope, dir: Int, count: Int, instant: Boolean) {
+        if (settling || currentPage + dir !in 0 until count) return
+        dragPx = if (dir > 0) -1f else 1f
+        job?.cancel()
+        job = scope.launch { fly(dir, instant) }
+    }
+
+    private suspend fun fly(dir: Int, instant: Boolean) {
+        settling = true
+        try {
+            settleTo(if (dir > 0) -widthPx * 1.25f else widthPx * 1.25f, instant, back = false)
+            currentPage += dir
+        } finally {
+            dragPx = 0f
+            settling = false
+        }
+    }
+
+    private suspend fun settleTo(target: Float, instant: Boolean, back: Boolean) {
+        if (instant) {
+            dragPx = target
+            return
+        }
+        val spec: AnimationSpec<Float> = if (back) spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow) else tween(FLY_MS, easing = FastOutSlowInEasing)
+        animate(dragPx, target, animationSpec = spec) { value, _ -> dragPx = value }
+    }
+
+    private companion object {
+        const val RUBBER = 0.35f
+        const val DRAG_FRACTION = 0.30f
+        const val FLICK_PX_PER_S = 1_200f
+        const val FLY_MS = 260
+    }
+}
+
+@Composable
+fun rememberDeckState(): DeckState = rememberSaveable(saver = Saver<DeckState, Int>(save = { it.currentPage }, restore = { DeckState(it) })) { DeckState() }
+
+/** How far behind the front card a card in [slot] sits: smaller and tucked up so only a sliver of its top shows. */
+private fun GraphicsLayerScope.stackSlot(slot: Float, peekPx: Float) {
+    val scale = 1f - STACK_SCALE_STEP * slot
+    transformOrigin = TransformOrigin(0.5f, 1f)
+    scaleX = scale
+    scaleY = scale
+    translationY = -(peekPx * slot + size.height * (1f - scale))
+}
+
+private const val STACK_SCALE_STEP = 0.06f
+
+/**
+ * Cards stacked like a deck. Drag the front card sideways and it moves away with the finger, tilting, while the card behind it
+ * grows forward into its place; let go past a third of the width (or flick) and it flies off, otherwise it springs back. The
+ * cards are opaque and there is no pager: nothing slides in from the side. With animations off (Lite mode or the system setting)
+ * the swap is instant. Screen readers get "next card" / "previous card" actions. [onOpen] stays with the card's own click.
  */
 @Composable
 fun StackedDeck(
     count: Int,
     pageKey: (Int) -> Any,
-    pagerState: PagerState,
+    state: DeckState,
     modifier: Modifier = Modifier,
     page: @Composable (Int) -> Unit
 ) {
     if (count <= 0) return
     val reduce = rememberReduceMotion()
-    val behind = DeckModel.layersBehind(count)
-    // The cards are opaque: the slabs behind are the header colour mixed with the content colour (never an alpha over what is
-    // underneath), and while swiping the cards stay where they are and swap places instead of sliding sideways.
-    val region = headerContainerColor()
-    val tint = headerContentColor()
-    val peek = 8.dp
-    val spacing = 12.dp
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(count) { if (state.currentPage > count - 1) state.currentPage = count - 1 }
+    val current = DeckModel.clamp(state.currentPage, count)
+    val layers = DeckModel.layersBehind(count)
+    val peekPx = with(LocalDensity.current) { 10.dp.toPx() }
+    val direction by remember(count) { derivedStateOf { state.direction(count) } }
+    val dragState = rememberDraggableState { delta -> state.dragBy(delta, count) }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.fillMaxWidth().padding(top = peek * behind)) {
-            // The cards behind: thin solid slabs above the front card, narrower each step.
-            for (i in behind downTo 1) {
-                Box(
-                    Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .padding(horizontal = 14.dp * i)
-                        .height(36.dp)
-                        .graphicsLayer { translationY = -(peek * i).toPx() }
-                        .background(lerp(region, tint, if (i == 1) 0.20f else 0.12f), RoundedCornerShape(18.dp))
+        Box(
+            Modifier.fillMaxWidth().padding(top = 10.dp * layers)
+                .onSizeChanged { state.widthPx = it.width.toFloat() }
+                .draggable(
+                    dragState, Orientation.Horizontal, enabled = count > 1,
+                    onDragStarted = { state.cancelSettle() },
+                    onDragStopped = { velocity -> state.release(scope, velocity, count, reduce) }
                 )
-            }
-            HorizontalPager(pagerState, Modifier.fillMaxWidth(), pageSpacing = spacing, key = { pageKey(it.coerceIn(0, count - 1)) }) { index ->
-                // Which card is nearer the front; read through derivedStateOf so only the flip, not every frame, recomposes.
-                val front by remember(index) {
-                    derivedStateOf { abs(index - pagerState.currentPage - pagerState.currentPageOffsetFraction) < 0.5f }
-                }
-                Box(
-                    Modifier.zIndex(if (front) 1f else 0f).fillMaxWidth().graphicsLayer {
-                        if (!reduce) {
-                            val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                            val away = abs(index - position).coerceIn(0f, 1f)
-                            // Cancel the pager's sideways slide: every card is drawn in the same place.
-                            translationX = (position - index) * (size.width + spacing.toPx())
-                            // The leaving card goes back and up, the next one comes forward and down; all stay opaque.
-                            val scale = 1f - 0.06f * away
-                            scaleX = scale
-                            scaleY = scale
-                            translationY = -(peek.toPx() * 1.5f) * away
-                            // A card two places away is not drawn at all (it would sit on the same spot).
-                            alpha = if (away >= 1f) 0f else 1f
-                        }
+                .semantics {
+                    contentDescription = "Card ${current + 1} of $count"
+                    customActions = buildList {
+                        if (current < count - 1) add(CustomAccessibilityAction("Next card") { state.step(scope, 1, count, reduce); true })
+                        if (current > 0) add(CustomAccessibilityAction("Previous card") { state.step(scope, -1, count, reduce); true })
                     }
-                ) { page(index.coerceIn(0, count - 1)) }
+                }
+        ) {
+            // The deepest card first, the front card last (drawn on top). While the front card is being dragged to the card
+            // before it, that card is the one coming up from behind; otherwise the next cards are.
+            val coming = if (direction < 0) current - 1 else current + 1
+            if (direction >= 0 && !reduce && current + 2 < count) {
+                key(pageKey(current + 2)) {
+                    Box(Modifier.fillMaxWidth().graphicsLayer {
+                        val progress = (abs(state.dragPx) / (state.widthPx * 0.5f).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        stackSlot(2f - progress, peekPx)
+                    }) { page(current + 2) }
+                }
+            }
+            if (coming in 0 until count) {
+                key(pageKey(coming)) {
+                    Box(Modifier.fillMaxWidth().graphicsLayer {
+                        val progress = (abs(state.dragPx) / (state.widthPx * 0.5f).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        stackSlot(1f - progress, peekPx)
+                    }) { page(coming) }
+                }
+            }
+            key(pageKey(current)) {
+                Box(Modifier.fillMaxWidth().graphicsLayer {
+                    translationX = state.dragPx
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                    if (!reduce) rotationZ = TILT_DEGREES * (state.dragPx / state.widthPx.coerceAtLeast(1f)).coerceIn(-1.25f, 1.25f)
+                }) { page(current) }
             }
         }
-        DeckDots(count, pagerState.currentPage, Modifier.padding(top = 12.dp))
+        DeckDots(count, current, Modifier.padding(top = 12.dp))
     }
 }
+
+private const val TILT_DEGREES = 12f
 
 /** The page dots; at most seven show, a window that follows the current card. */
 @Composable

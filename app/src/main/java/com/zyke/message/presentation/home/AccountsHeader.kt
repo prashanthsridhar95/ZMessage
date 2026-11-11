@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.pager.PagerState
+import com.zyke.message.presentation.common.DeckState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -71,7 +71,7 @@ private fun FrontTitle(title: String, line: String, menu: @Composable () -> Unit
 @Composable
 internal fun CardsHeaderContent(
     cards: List<AccountSummary>,
-    pager: PagerState,
+    pager: DeckState,
     today: LocalDate,
     onOpen: (AccountSummary) -> Unit,
     onRename: (AccountSummary) -> Unit,
@@ -104,7 +104,7 @@ private fun freshness(account: AccountSummary, today: LocalDate): String {
 internal fun BanksHeaderContent(
     overview: AccountsOverview,
     banks: List<AccountSummary>,
-    pager: PagerState,
+    pager: DeckState,
     today: LocalDate,
     onOpen: (AccountSummary) -> Unit,
     onRename: (AccountSummary) -> Unit,
