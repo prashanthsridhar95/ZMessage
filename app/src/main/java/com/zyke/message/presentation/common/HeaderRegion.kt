@@ -135,10 +135,14 @@ class DeckState(initialPage: Int = 0) {
     private var settling = false
     private var job: Job? = null
 
-    /** The way the front card is heading: 1 = to the next card (dragged left), -1 = to the one before, 0 = nowhere. */
+    /**
+     * The way the front card is heading: 1 = to the next card (dragged left), -1 = to the one before, 0 = nowhere. The deck is a
+     * loop: after the last card comes the first, and before the first comes the last. With one card there is nowhere to go.
+     */
     internal fun direction(count: Int): Int = when {
-        dragPx < 0f && currentPage < count - 1 -> 1
-        dragPx > 0f && currentPage > 0 -> -1
+        count < 2 -> 0
+        dragPx < 0f -> 1
+        dragPx > 0f -> -1
         else -> 0
     }
 
@@ -149,9 +153,8 @@ class DeckState(initialPage: Int = 0) {
     internal fun dragBy(delta: Float, count: Int) {
         if (settling) return
         val next = dragPx + delta
-        val open = (next < 0f && currentPage < count - 1) || (next > 0f && currentPage > 0)
-        // With no card that way, the front card only gives a little (a rubber band) and comes back.
-        dragPx = if (open) next else (dragPx + delta * RUBBER).coerceIn(-widthPx * 0.25f, widthPx * 0.25f)
+        // With a single card there is nowhere to go: the front card only gives a little (a rubber band) and comes back.
+        dragPx = if (count > 1) next else (dragPx + delta * RUBBER).coerceIn(-widthPx * 0.25f, widthPx * 0.25f)
     }
 
     /** Called when the finger lifts: the card flies away if it was dragged far enough or flicked, otherwise it springs back. */
@@ -163,22 +166,22 @@ class DeckState(initialPage: Int = 0) {
         val flicked = abs(velocity) > FLICK_PX_PER_S && (velocity < 0f) == (dx < 0f)
         val away = dir != 0 && (abs(dx) > width * DRAG_FRACTION || flicked)
         job?.cancel()
-        job = scope.launch { if (away) fly(dir, instant) else settleTo(0f, instant, back = true) }
+        job = scope.launch { if (away) fly(dir, count, instant) else settleTo(0f, instant, back = true) }
     }
 
     /** Moves to the next (1) or previous (-1) card as a swipe would; used by screen-reader actions. */
     internal fun step(scope: CoroutineScope, dir: Int, count: Int, instant: Boolean) {
-        if (settling || currentPage + dir !in 0 until count) return
+        if (settling || count < 2) return
         dragPx = if (dir > 0) -1f else 1f
         job?.cancel()
-        job = scope.launch { fly(dir, instant) }
+        job = scope.launch { fly(dir, count, instant) }
     }
 
-    private suspend fun fly(dir: Int, instant: Boolean) {
+    private suspend fun fly(dir: Int, count: Int, instant: Boolean) {
         settling = true
         try {
             settleTo(if (dir > 0) -widthPx * 1.25f else widthPx * 1.25f, instant, back = false)
-            currentPage += dir
+            currentPage = (currentPage + dir).mod(count)
         } finally {
             dragPx = 0f
             settling = false
@@ -218,7 +221,7 @@ private const val STACK_SCALE_STEP = 0.06f
 
 /**
  * Cards stacked like a deck. Drag the front card sideways and it moves away with the finger, tilting, while the card behind it
- * grows forward into its place; let go past a third of the width (or flick) and it flies off, otherwise it springs back. The
+ * grows forward into its place; let go past a third of the width (or flick) and it flies off, otherwise it springs back. It loops: the first card is stacked behind the last, so swiping never ends. The
  * cards are opaque and there is no pager: nothing slides in from the side. With animations off (Lite mode or the system setting)
  * the swap is instant. Screen readers get "next card" / "previous card" actions. [onOpen] stays with the card's own click.
  */
@@ -251,23 +254,25 @@ fun StackedDeck(
                 .semantics {
                     contentDescription = "Card ${current + 1} of $count"
                     customActions = buildList {
-                        if (current < count - 1) add(CustomAccessibilityAction("Next card") { state.step(scope, 1, count, reduce); true })
-                        if (current > 0) add(CustomAccessibilityAction("Previous card") { state.step(scope, -1, count, reduce); true })
+                        if (count > 1) add(CustomAccessibilityAction("Next card") { state.step(scope, 1, count, reduce); true })
+                        if (count > 1) add(CustomAccessibilityAction("Previous card") { state.step(scope, -1, count, reduce); true })
                     }
                 }
         ) {
             // The deepest card first, the front card last (drawn on top). While the front card is being dragged to the card
             // before it, that card is the one coming up from behind; otherwise the next cards are.
-            val coming = if (direction < 0) current - 1 else current + 1
-            if (direction >= 0 && !reduce && current + 2 < count) {
-                key(pageKey(current + 2)) {
+            // The deck loops, so the card after the last is the first; with two cards there is no third to show.
+            val coming = (current + if (direction < 0) -1 else 1).mod(count)
+            val third = (current + 2).mod(count)
+            if (direction >= 0 && !reduce && count >= 3) {
+                key(pageKey(third)) {
                     Box(Modifier.fillMaxWidth().graphicsLayer {
                         val progress = (abs(state.dragPx) / (state.widthPx * 0.5f).coerceAtLeast(1f)).coerceIn(0f, 1f)
                         stackSlot(2f - progress, peekPx)
-                    }) { page(current + 2) }
+                    }) { page(third) }
                 }
             }
-            if (coming in 0 until count) {
+            if (count > 1) {
                 key(pageKey(coming)) {
                     Box(Modifier.fillMaxWidth().graphicsLayer {
                         val progress = (abs(state.dragPx) / (state.widthPx * 0.5f).coerceAtLeast(1f)).coerceIn(0f, 1f)
