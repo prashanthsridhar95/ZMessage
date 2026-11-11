@@ -600,13 +600,29 @@ What Zyke can and cannot see of a message depends on where the phone keeps it.
   "Booking confirmed", DELIVERY "Order placed") and bank-bank pairs (shared reference or same account+amount in 2 minutes, different
   wording templates by word-set similarity below 0.6, never identical bodies, direction must match, the balance-stating message or the
   earlier one stays the anchor). `Balances.movement` skips a certain repeat so the debit moves a balance once.
+  **A transaction reference is positive evidence** (`SamePayment.pairCopies`, `transactionRefs`): two bank messages of one direction
+  with the same account (last four), amount and transaction reference (9 to 16 digits after "Ref", "UPI Ref No", "RRN", "UTR") within
+  48 hours are one transaction even with identical bodies (layer `copy`, caption "+1 copy", via `PaymentGroups.relatedCaption`); the
+  balance-stating text, else the SMS-provider row, else the earlier one is the anchor. Identical alerts with no reference or with
+  different references stay separate and all count; the existing "Duplicates" question of Needs review (same amount and account or
+  payee within 15 minutes, answered per pair) covers unlinked identical pairs. `Accounts.build` also skips repeats in an account's
+  spent/received/unbilled sums.
+* **One text delivered twice (`InboxCopies`, domain/mms, runs after `RichMerge` in `classifyBatch`).** A chat-notification or
+  picture-message row of the same normalised sender and the same text (or one containing the other, at least 20 letters or digits)
+  within 10 minutes of an SMS folds into that SMS (never the reverse; one copy per SMS). Two provider SMS rows with the same address and
+  body fold when their dates are identical to the millisecond, or within one second when the body carries a transaction reference; a
+  date with no milliseconds proves nothing and never folds without a reference. Two real alerts a minute apart stay two. Not stored:
+  `RULES_VERSION` stays 26.
 * **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
   expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
 
 ## Where every message goes (dispositions)
 
 A message on the phone reaches the All tab through these stages. Each can take it out of the list or tuck it inside another row;
-nothing deletes it. `InboxAudit` (domain/diagnostics) follows every id through them on demand and says which one applied.
+nothing deletes it. `InboxAudit` (domain/diagnostics) follows every id through them on demand and says which one applied. Its dump also
+lists each newest row with its source (sms / mms / chat), id kind, masked sender header and SIM, and "Payment rows that look alike" (same
+amount, account, direction and payee within 5 minutes): per member the source, masked header, whether the text is identical, whether a
+reference is present or shared (never the number) and what the app decided. No message text.
 
 | Stage | What it does | Disposition |
 | --- | --- | --- |
@@ -614,6 +630,7 @@ nothing deletes it. `InboxAudit` (domain/diagnostics) follows every id through t
 | Data source | An MMS with no sender and no text or picture is dropped; a stored chat notification whose text is already an SMS (same text, ten minutes) is dropped; an identical chat notification within ten minutes is one item | `MMS_UNUSABLE`, `RCS_SEEN_AS_SMS` |
 | `ProgressiveInbox` | Reads month by month, newest first, and keeps 36 months (`DEFAULT_MAX_MONTHS`); older messages are not loaded and nothing in the app says so | `NOT_LOADED` |
 | `RichMerge` | Folds a picture message and its chat notifications (and "Photo" placeholders) into one card | `FOLDED_RICH` |
+| `InboxCopies` | Folds a chat-notification or picture-message copy of an SMS (same sender and text, 10 minutes), and a provider double insert (identical millisecond, or within 1 s with a transaction reference), into the SMS | `FOLDED_COPY` |
 | Pipeline stages | Muted sender (`SenderKey`, which ignores the route prefix and the -S/-T/-P/-G suffix, so muting a promotional header also mutes that brand's transactional alerts) makes a message promotional and muted; the person's merges fold a duplicate into its primary | `MUTED`, `MERGED_BY_YOU` |
 | Classifier | A message read as plain text (Generic) is promotional when its header ends in -P, it holds a marketing phrase ("T&C", "use code", "click here"...) or the spam scorer says so. OTPs, payments, bills, FASTag and the like are never promotional by themselves | `PROMOTIONAL` (Promos chip) |
 | `FeedBuilder` | All = not promotional and not archived. A chip, status, category or time filter narrows further; a search ignores promotional and archived. Followers of a bank debit (`PaymentGroups`, at most 6 per debit) and the other codes of an OTP group (`FeedItem.Group`) are inside the first row, not rows | `ROW`, `RELATED`, `IN_GROUP`, `ARCHIVED` |

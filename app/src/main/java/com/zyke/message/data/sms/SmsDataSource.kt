@@ -123,20 +123,25 @@ class SmsDataSource(
         val smsInboxRows = scan.allIds.count { it > 0 }
         val smsAllRows = countRows(Telephony.Sms.CONTENT_URI)
         val newest = ArrayList<com.zyke.message.domain.diagnostics.ProviderRow>()
-        contentResolver.query(
-            Telephony.Sms.Inbox.CONTENT_URI,
-            arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.TYPE),
-            null, null, "${Telephony.Sms.DATE} DESC"
-        )?.use {
+        // "sub_id" (the SIM) is read by its column name and only when the provider has it; a phone without it just shows no SIM.
+        val base = arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.TYPE)
+        val cursor = try {
+            contentResolver.query(Telephony.Sms.Inbox.CONTENT_URI, base + SUB_ID, null, null, "${Telephony.Sms.DATE} DESC")
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            contentResolver.query(Telephony.Sms.Inbox.CONTENT_URI, base, null, null, "${Telephony.Sms.DATE} DESC")
+        }
+        cursor?.use {
             val id = it.getColumnIndexOrThrow(Telephony.Sms._ID)
             val address = it.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
             val body = it.getColumnIndexOrThrow(Telephony.Sms.BODY)
             val date = it.getColumnIndexOrThrow(Telephony.Sms.DATE)
             val type = it.getColumnIndexOrThrow(Telephony.Sms.TYPE)
+            val sub = it.getColumnIndex(SUB_ID)
             while (newest.size < AUDIT_NEWEST && it.moveToNext()) {
                 newest += com.zyke.message.domain.diagnostics.ProviderRow(
                     it.getLong(id), it.getLong(date), it.getString(address).orEmpty(), it.getString(body).orEmpty().length,
-                    com.zyke.message.domain.diagnostics.ProviderSource.SMS, it.getInt(type)
+                    com.zyke.message.domain.diagnostics.ProviderSource.SMS, it.getInt(type),
+                    if (sub >= 0 && !it.isNull(sub)) it.getInt(sub) else null
                 )
             }
         }
@@ -243,6 +248,7 @@ class SmsDataSource(
     private companion object {
         const val INITIAL_IDS = 4096
         const val AUDIT_NEWEST = 20
+        const val SUB_ID = "sub_id"
         /** 1 Jan 2100: the end of "everything" for a window read, kept clear of overflow when converted to seconds. */
         const val FAR_FUTURE = 4_102_444_800_000L
         const val STAMP_COUNT = 1_000_003L

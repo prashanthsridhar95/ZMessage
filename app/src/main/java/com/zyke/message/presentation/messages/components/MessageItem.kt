@@ -75,7 +75,11 @@ internal fun MessageCard(
                 modifier = modifier
             )
             is MessageContent.FastTag -> FastTagCard(item, content, time, isUnread, expand, modifier)
-            is MessageContent.Transaction -> TransactionCard(item, content, time, isUnread, expand, modifier, relatedCount = related.size)
+            is MessageContent.Transaction -> TransactionCard(
+                item, content, time, isUnread, expand, modifier,
+                relatedCount = related.size,
+                relatedLabel = remember(related) { com.zyke.message.domain.ledger.PaymentGroups.relatedCaption(related) }
+            )
             is MessageContent.CardBill -> CardBillCard(item, content, time, isUnread, today, expand, modifier)
             is MessageContent.ScheduledPayment -> ScheduledPaymentCard(item, content, time, isUnread, today, expand, modifier)
             is MessageContent.DataUsage -> DataUsageCard(content, time, expand, modifier)

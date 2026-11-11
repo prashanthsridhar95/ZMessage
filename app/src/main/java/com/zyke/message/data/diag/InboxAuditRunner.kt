@@ -36,6 +36,7 @@ object InboxAuditRunner {
                 provider = snapshot,
                 messages = messages,
                 foldedInto = container.observeMessages.foldedInto(),
+                copiedInto = container.observeMessages.copiedInto(),
                 userMerges = container.merges.merges.value,
                 userState = container.userMessageState.state.value,
                 filter = filter,

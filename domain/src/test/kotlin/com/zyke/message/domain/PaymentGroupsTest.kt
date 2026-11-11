@@ -154,21 +154,34 @@ class PaymentGroupsTest {
 
     @Test
     fun fiveIdenticalAlerts_stayFiveRows() {
-        val alerts = (0 until 5).map { upiDebit("500.00", "friend@ybl", "6123456789", 10, it) }
+        // Five payments of one amount: each has its own reference number.
+        val alerts = (0 until 5).map { upiDebit("500.00", "friend@ybl", "612345678$it", 10, it) }
         val all = link(alerts)
         assertTrue(all.all { it.samePayment == null })
         assertTrue(PaymentGroups.of(all).isEmpty)
         assertEquals(5, rows(build(all)).size)
         assertMoney(2500, spent(all))
+        // ...and so are five identical alerts that carry no reference at all.
+        val bare = (0 until 5).map { sms("AD-HDFCBK", "Rs 500.00 debited from A/c XX5765 on 28-10-26 to VPA friend@ybl. Not you? Call 18002586161", 11, it) }
+        val bareAll = link(bare)
+        assertTrue(bareAll.all { it.samePayment == null })
+        assertEquals(5, rows(build(bareAll)).size)
     }
 
     @Test
-    fun sameWordingEvenWithOneReference_isNeverPaired() {
-        val a = upiDebit("500.00", "friend@ybl", "6123456789", 10, 0)
-        val b = upiDebit("500.00", "friend@ybl", "6123456789", 10, 1)
+    fun sameWordingWithDifferentReferences_isNeverPaired_butTheSameReferenceIsOneTransaction() {
+        val a = upiDebit("500.00", "friend@ybl", "6123456781", 10, 0)
+        val b = upiDebit("500.00", "friend@ybl", "6123456782", 10, 1)
         val all = link(listOf(a, b))
         assertTrue(all.all { it.samePayment == null })
         assertEquals(2, rows(build(all)).size)
+        // One reference told twice, word for word: one row, "+1 copy".
+        val c = upiDebit("500.00", "friend@ybl", "6123456783", 10, 0)
+        val d = upiDebit("500.00", "friend@ybl", "6123456783", 10, 1)
+        val copies = link(listOf(c, d))
+        assertEquals(c.id, d.linkIn(copies)?.primaryId)
+        assertEquals(1, rows(build(copies)).size)
+        assertMoney(500, spent(copies))
     }
 
     @Test
@@ -257,7 +270,10 @@ class PaymentGroupsTest {
         val a = upiDebit("987.00", "netflix@icici", "6123456789", 10, 0)
         assertNull(sentAlert("987.00", "NETFLIX", "9999999999", 10, 1).let { b -> b.linkIn(link(listOf(a, b))) })
         val late = sentAlert("987.00", "NETFLIX", "6123456789", 11, 0)
-        assertEquals("a shared reference links within half an hour only", null, late.linkIn(link(listOf(a, late))))
+        // The same reference, account and amount an hour later is still one transaction (a reference is unique): linked within 48 hours.
+        assertEquals(SamePaymentKind.CERTAIN, late.linkIn(link(listOf(a, late)))?.kind)
+        val farApart = sms("AD-HDFCBK", "Amt Sent Rs.987.00 From HDFC Bank A/C *5765 To NETFLIX On 31-10 Ref 6123456789 Not You? Call 18002586161", 10, 0, day = 31)
+        assertNull("...but not days later", farApart.linkIn(link(listOf(a, farApart))))
         val other = sms("AD-HDFCBK", "Amt Sent Rs.987.00 From HDFC Bank A/C *4321 To NETFLIX On 28-10 Ref 6123456789 Not You? Call 18002586161", 10, 1)
         assertNull(other.linkIn(link(listOf(a, other))))
     }

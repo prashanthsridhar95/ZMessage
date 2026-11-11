@@ -225,10 +225,12 @@ object Accounts {
             val (bank, bankLabel) = chosenBank(picked, card, detectedBank)
             if (group.split) splitAccounts++
 
+            // A message that repeats another message's payment (a second copy of one alert) is not money moving again.
+            val payments = rows.filter { !com.zyke.message.domain.ledger.SamePayment.isRepeat(it.message) }
             var spent = BigDecimal.ZERO
             var received = BigDecimal.ZERO
             var count = 0
-            rows.forEach { row ->
+            payments.forEach { row ->
                 val tx = row.message.content as? MessageContent.Transaction ?: return@forEach
                 val amount = tx.amount.toBigDecimalOrNull() ?: return@forEach
                 val date = Instant.ofEpochMilli(row.message.message.date).atZone(zone).toLocalDate()
@@ -248,7 +250,7 @@ object Accounts {
             var partPaid: BigDecimal? = null
             if (kind == AccountKind.CREDIT_CARD) {
                 unbilled = statementOn?.let { since ->
-                    rows.fold(BigDecimal.ZERO) { sum, row ->
+                    payments.fold(BigDecimal.ZERO) { sum, row ->
                         val tx = row.message.content as? MessageContent.Transaction ?: return@fold sum
                         val amount = tx.amount.toBigDecimalOrNull() ?: return@fold sum
                         val date = Instant.ofEpochMilli(row.message.message.date).atZone(zone).toLocalDate()
@@ -256,7 +258,7 @@ object Accounts {
                     }
                 }
                 paidSinceBill = billedOn?.let { from ->
-                    rows.fold(BigDecimal.ZERO) { sum, row ->
+                    payments.fold(BigDecimal.ZERO) { sum, row ->
                         val tx = row.message.content as? MessageContent.Transaction ?: return@fold sum
                         val amount = tx.amount.toBigDecimalOrNull() ?: return@fold sum
                         val date = Instant.ofEpochMilli(row.message.message.date).atZone(zone).toLocalDate()

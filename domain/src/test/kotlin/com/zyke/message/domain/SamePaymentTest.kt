@@ -191,7 +191,8 @@ class SamePaymentTest {
 
     @Test
     fun fiveIdenticalBankAlerts_stayFive() {
-        val five = (0 until 5).map { bank("500.00", "6000000010", 10, it) }
+        // Five payments of the same amount: five alerts, each with its own reference number (one reference told twice is one payment).
+        val five = (0 until 5).map { bank("500.00", "600000001$it", 10, it) }
         val all = link(five)
         assertEquals(5, all.size)
         assertTrue(all.all { it.samePayment == null })

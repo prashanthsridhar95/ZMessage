@@ -83,8 +83,14 @@ class ObserveMessagesUseCase(
     /** Ids of notification items folded into a picture message by [RichMerge]; they are not rows any more, and their marks moved. */
     private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
-    /** Which notification item was folded into which picture message so far (dropped id to kept id); read by the developer inbox audit. */
+    /** Ids of chat or picture-message copies of an SMS (and provider double inserts) folded into the SMS that stays, see [com.zyke.message.domain.mms.InboxCopies]. */
+    private val copiedIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
+    /** Which notification item was folded into which picture message so far (dropped id to kept id), copies included; read by the developer inbox audit. */
     fun foldedInto(): Map<Long, Long> = HashMap(foldedIds)
+
+    /** The part of [foldedInto] that was an identical copy of an SMS (dropped id to the SMS kept); read by the developer inbox audit. */
+    fun copiedInto(): Map<Long, Long> = HashMap(copiedIds)
 
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
@@ -243,8 +249,11 @@ class ObserveMessagesUseCase(
         // payment alerts, even in one minute, are five payments (a duplicate is only ever suggested in Needs review).
         // One rich card, one message: the MMS row and the notification items of the same card become one, before anything is read.
         val merge = com.zyke.message.domain.mms.RichMerge.apply(inbox)
-        carryMarks(merge.folded)
-        val ordered = merge.messages.sortedByDescending { it.date }
+        // The same text delivered twice (a chat notification or picture-message copy of an SMS, a provider double insert) is one message; the SMS stays.
+        val copies = com.zyke.message.domain.mms.InboxCopies.apply(merge.messages)
+        copiedIds.putAll(copies.folded)
+        carryMarks(merge.folded + copies.folded)
+        val ordered = copies.messages.sortedByDescending { it.date }
         val remembered = classificationCache.load(ordered.map { it.id })
         val fresh = ArrayList<ClassifiedMessage>()
 

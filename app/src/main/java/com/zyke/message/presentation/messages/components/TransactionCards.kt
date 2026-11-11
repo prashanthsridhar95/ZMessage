@@ -25,7 +25,9 @@ internal fun TransactionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** How many other messages of this payment sit inside this row: a quiet "+2 related" after the time, no extra line. */
-    relatedCount: Int = 0
+    relatedCount: Int = 0,
+    /** What the row says about them when it is more than a count ("+1 copy"); null shows "+N related". */
+    relatedLabel: String? = null
 ) {
     val account = content.accountNumber.takeIf { it.isNotEmpty() }?.let { "•• $it" }
         ?: content.bankName.displayString.takeIf { it.isNotEmpty() }
@@ -39,7 +41,7 @@ internal fun TransactionCard(
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(item.merchant.displayName)
-            Caption(listOfNotNull(repeatOf ?: account, time, if (relatedCount > 0) "+$relatedCount related" else null).joinToString(" · "), maxLines = 2)
+            Caption(listOfNotNull(repeatOf ?: account, time, if (relatedCount > 0) (relatedLabel ?: "+$relatedCount related") else null).joinToString(" · "), maxLines = 2)
         }
 
         Spacer(Modifier.width(12.dp))

@@ -2,6 +2,7 @@ package com.zyke.message.domain.ledger
 
 import com.zyke.message.domain.categories.CategoryKey
 import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.mms.MmsMessages
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.NoticeKind
@@ -30,10 +31,19 @@ import java.time.ZoneId
  *   Anything less is not linked at all (a booking is not a text the person can be asked about).
  * - Two bank messages about one transaction (an account alert and a UPI or card alert): they must carry the same reference
  *   number (or, with no reference on one of them, the same account and amount within two minutes) AND be worded in clearly
- *   different templates. Identical or near-identical bodies are never linked: five identical alerts are five payments.
+ *   different templates (a pair worded alike is linked only by the transaction reference rule below: five identical alerts are five payments).
  *   A shared reference links by itself; without one it is a "Same payment?" question. The one that states the account balance
  *   (else the earlier one) is the payment; the other stops counting, so a total and a balance both see one debit.
  *   Messages of opposite directions (a debit and the credit at the receiver) are never one payment.
+ *
+ * - One transaction told twice in the same words (an identical copy): two bank messages of one direction with the same account
+ *   (last four digits), the same amount and the same transaction reference number (UPI Ref, RRN, UTR, "Ref No": 9 to 16 digits,
+ *   see [transactionRefs]) within 48 hours are one transaction, whatever their wording, even word for word: a reference is
+ *   unique to one transaction, so the second text is a certain repeat (layer [LAYER_COPY] when the bodies are identical). This is
+ *   the ONLY way identical bodies are ever linked here: identical alerts with no reference, or with different references, stay
+ *   separate payments and all count (five identical alerts are five payments); they only ever get the "Duplicates" question of
+ *   Needs review, asked per pair. The payment that stays is the one that states the balance, else the text from the SMS provider
+ *   (not a picture message or a chat notification), else the earlier one.
  *
  * Matching is one to one: one debit takes at most one text from each sender (a bank debit can be confirmed by Razorpay and
  * by the merchant, but two equal debits each take their own Razorpay text), and a shared reference beats nearness in time.
@@ -48,6 +58,10 @@ object SamePayment {
     private const val BOOKING_WITHIN_MS = 15 * MINUTE_MS
     private const val BOOKING_NO_AMOUNT_WITHIN_MS = 10 * MINUTE_MS
     private const val BANK_PAIR_WITHIN_MS = 2 * MINUTE_MS
+    private const val COPY_WITHIN_MS = 48 * 60 * MINUTE_MS
+
+    /** [SamePaymentLink.layer] of a certain repeat whose body is word for word the payment's. */
+    const val LAYER_COPY = "copy"
     private const val BOOKING_AMBIGUOUS_MS = 3 * MINUTE_MS
     private const val SIMILAR_TEMPLATE = 0.6
     private const val BOOKING_CONFIRMED = "Booking confirmed"
@@ -62,6 +76,10 @@ object SamePayment {
     private val NON_ALNUM = Regex("[^a-z0-9]")
     private val REF_KEY = Regex("(?i)\\b(?:upi|ref(?:erence)?|txn|trans(?:action)?|rrn|utr|order|payment|receipt|auth|id)\\b")
     private val REF_VALUE = Regex("(?i)^[\\s.:#\\-]*(?:(?:no|id|number|num|ref|is|upi)\\b[\\s.:#\\-]*)*([A-Za-z0-9]{6,30})\\b")
+    /** "Ref 612345678901", "UPI Ref No. 612345678901", "Ref No: ...", "RRN ...", "UTR ...", "UPI:612345678901", "Txn Id ...": 9 to 16 digits. */
+    private val TXN_REF = Regex(
+        "(?i)\\b(?:upi|ref(?:erence)?|rrn|utr|txn|transaction)\\b(?:\\s*ref(?:erence)?\\b\\.?)?(?:\\s*(?:no|number|num|id)\\b)?[\\s.:#\\-]*(?:is\\s+)?(\\d{9,16})(?!\\d)"
+    )
     private val PAY_ID = Regex("(?i)\\bpay_[A-Za-z0-9]{8,30}\\b")
     private val GATEWAY = Regex(
         "(?i)\\b(?:razorpay|payu|billdesk|bill desk|cashfree|ccavenue|instamojo|juspay|paytm|phonepe|gpay|google pay|amazon pay|cred)\\b"
@@ -90,6 +108,8 @@ object SamePayment {
     private class Facts(raw: String) {
         val flat: String = SPACES.replace(BodyMemo.bounded(raw), " ")
         val refs: Set<String> = refsOf(flat)
+        /** The bank's transaction reference number(s): digits only, 9 to 16 of them; what makes two texts one transaction. */
+        val txnRefs: Set<String> = txnRefsOf(flat)
         val confirms: Boolean = CONFIRMS.containsMatchIn(flat) && !INCOMING.containsMatchIn(flat)
         val gateway: Boolean = GATEWAY.containsMatchIn(flat)
         /** A gateway's confirmation that happens to name a card: it is not a bank's debit. */
@@ -112,6 +132,18 @@ object SamePayment {
         /** Letters and digits only, lower case: where a merchant's name is looked for. */
         val squashed: String = NON_ALNUM.replace(flat.lowercase(), "")
     }
+
+    private fun txnRefsOf(flat: String): Set<String> {
+        val found = LinkedHashSet<String>()
+        for (m in TXN_REF.findAll(flat)) {
+            found += m.groupValues[1]
+            if (found.size >= 4) break
+        }
+        return found
+    }
+
+    /** The transaction reference number(s) a bank message states (9 to 16 digits after "Ref", "UPI Ref No", "RRN", "UTR" ...); empty when it states none. */
+    fun transactionRefs(body: String): Set<String> = txnRefsOf(SPACES.replace(BodyMemo.bounded(body), " "))
 
     private fun refsOf(flat: String): Set<String> {
         val found = LinkedHashSet<String>()
@@ -227,6 +259,7 @@ object SamePayment {
         val bankFollowers = HashSet<Long>()
         pairBanks(anchors, decisions, byId, primaries, found, bankFollowers)
         pairBanks(credits, decisions, byId, primaries, found, bankFollowers)
+        flattenChains(found, byId, bankFollowers)
         // A debit that is a certain repeat of another bank message is no longer the payment a gateway text confirms.
         val payments = anchors.filter { it.id !in bankFollowers }
 
@@ -304,6 +337,81 @@ object SamePayment {
         return shared.toDouble() / total < SIMILAR_TEMPLATE
     }
 
+    /** A message that repeats a payment which is itself a repeat points at the payment that stays (no chains). */
+    private fun flattenChains(found: MutableMap<Long, SamePaymentLink>, byId: Map<Long, ClassifiedMessage>, ids: Set<Long>) {
+        for (id in ids) {
+            val link = found[id] ?: continue
+            var p = link.primaryId
+            var hops = 0
+            while (hops < 4) {
+                val next = found[p]
+                if (next == null || next.kind != SamePaymentKind.CERTAIN || next.primaryId == p) break
+                p = next.primaryId
+                hops++
+            }
+            if (p == link.primaryId || p == id) continue
+            val primary = byId[p] ?: continue
+            found[id] = link.copy(primaryId = p, primaryLabel = labelOf(primary))
+        }
+    }
+
+    /** 0 an SMS from the provider, 1 a picture message, 2 a chat notification: which copy of a text is the one that stays. */
+    private fun sourceRank(id: Long): Int = when {
+        MmsMessages.isMmsId(id) -> 1
+        id < 0 -> 2
+        else -> 0
+    }
+
+    /**
+     * One transaction told twice, word for word or not: bank messages of one direction with the same account, amount and
+     * transaction reference number within [COPY_WITHIN_MS]. The text that states the balance (else the SMS, else the earlier)
+     * is the payment; the others are certain repeats. Returns the ids that became followers.
+     */
+    private fun pairCopies(pool: List<Node>, found: MutableMap<Long, SamePaymentLink>, certain: MutableSet<Long>): Set<Long> {
+        val groups = HashMap<String, MutableList<Node>>()
+        for (n in pool) {
+            val tx = n.tx ?: continue
+            val account = last4(tx)
+            if (account.isEmpty()) continue
+            for (ref in n.body.txnRefs) groups.getOrPut("$account|${amountKey(n.amount)}|$ref") { ArrayList() } += n
+        }
+        val followers = HashSet<Long>()
+        if (groups.isEmpty()) return followers
+        fun settle(run: List<Node>) {
+            val members = run.filter { it.id !in followers }.distinctBy { it.id }
+            if (members.size < 2) return
+            val anchor = members.minWithOrNull(
+                compareBy<Node> { if (it.body.statesBalance) 0 else 1 }.thenBy { sourceRank(it.id) }.thenBy { it.date }.thenBy { it.id }
+            ) ?: return
+            val label = labelOf(anchor.message)
+            for (n in members) {
+                if (n.id == anchor.id) continue
+                followers += n.id
+                certain += n.id
+                found[n.id] =
+                    if (n.body.flat == anchor.body.flat) {
+                        SamePaymentLink(SamePaymentKind.CERTAIN, anchor.id, label, "An identical copy of the $label: same account, amount and reference number", LAYER_COPY)
+                    } else {
+                        SamePaymentLink(SamePaymentKind.CERTAIN, anchor.id, label, "Same amount, account and reference number as the $label", "ref")
+                    }
+            }
+        }
+        for (key in groups.keys.sorted()) {
+            val list = groups.getValue(key).sortedWith(compareBy<Node> { it.date }.thenBy { it.id })
+            if (list.size < 2) continue
+            var run = ArrayList<Node>()
+            for (n in list) {
+                if (run.isNotEmpty() && n.date - run.last().date > COPY_WITHIN_MS) {
+                    settle(run)
+                    run = ArrayList()
+                }
+                run += n
+            }
+            settle(run)
+        }
+        return followers
+    }
+
     private class BankPair(val first: Node, val second: Node, val rank: Int, val gap: Long)
 
     /**
@@ -317,17 +425,28 @@ object SamePayment {
         if (pool.size < 2) return
         // What the person said about a bank message: "same as that one" settles it, "not the same" keeps it apart.
         val free = ArrayList<Node>(pool.size)
+        // A shared reference number is positive evidence by itself, so a "never for this sender" answer does not hide a copy; only an
+        // answer about this very message ("not the same payment") does.
+        val copyPool = ArrayList<Node>(pool.size)
         for (n in pool) {
             val key = CategoryKey.of(n.message)
             val primary = decisions.yes[n.id]?.let { byId[it] }
             when {
-                n.id in decisions.no || (key != null && key in decisions.sendersNo) -> Unit
+                n.id in decisions.no -> Unit
                 primary != null && primary.id != n.id && n.id !in primaries -> {
                     found[n.id] = SamePaymentLink(SamePaymentKind.CERTAIN, primary.id, labelOf(primary), "You said this is the same payment", "you")
                     certain += n.id
                 }
-                else -> free += n
+                key != null && key in decisions.sendersNo -> copyPool += n
+                else -> {
+                    free += n
+                    copyPool += n
+                }
             }
+        }
+        if (copyPool.size >= 2) {
+            val copies = pairCopies(copyPool, found, certain)
+            if (copies.isNotEmpty()) free.removeAll { it.id in copies }
         }
         if (free.size < 2) return
         val byAmount = HashMap<String, MutableList<Node>>()

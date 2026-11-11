@@ -37,6 +37,16 @@ class PaymentGroups private constructor(
         val NONE = PaymentGroups(emptyMap(), emptyMap())
 
         /**
+         * What a payment's row says about the messages inside it: "+1 copy" / "+2 copies" when every one is a word-for-word copy of the
+         * payment (same account, amount and reference number: [SamePayment.LAYER_COPY]), else "+N related"; null when it has none.
+         */
+        fun relatedCaption(related: List<ClassifiedMessage>): String? {
+            if (related.isEmpty()) return null
+            val copies = related.count { it.samePayment?.layer == SamePayment.LAYER_COPY }
+            return if (copies == related.size) "+$copies ${if (copies == 1) "copy" else "copies"}" else "+${related.size} related"
+        }
+
+        /**
          * @param skipFollower messages that must stay rows of their own (archived or pinned ones the list is showing by themselves)
          */
         fun of(messages: List<ClassifiedMessage>, skipFollower: (ClassifiedMessage) -> Boolean = { false }): PaymentGroups {
