@@ -8,8 +8,8 @@ import org.junit.Test
 
 /**
  * "Check balance by SMS" sends a text, so its doors are pinned here: a text leaves only through CodeSharer, only from the Send button
- * of the sheet that showed the exact number and words, never on a schedule or from a receiver, and no number, words or UAN reach a
- * log, a notification or a backup.
+ * of the sheet that showed the exact number and words (the first time for a bank) or from a tap on a bank the person already
+ * confirmed there, never on a schedule or from a receiver, and no number, words or UAN reach a log, a notification or a backup.
  */
 class BalanceCheckPolicyTest {
     private val main = File("src/main/java/com/zyke/message")
@@ -25,7 +25,7 @@ class BalanceCheckPolicyTest {
         for (name in ours) assertFalse(name, code(File(main, name)).any { Regex("""SmsManager|sendTextMessage|SmsMessage\.|Telephony\.Sms""").containsMatchIn(it) })
     }
 
-    @Test fun aRequestIsSentOnlyFromTheSendButton_afterTheExactTextWasShown() {
+    @Test fun aRequestIsSentOnlyFromTheSendButton_orATapOnAnAlreadyConfirmedBank() {
         val callers = kotlinFiles().filter { f -> code(f).any { it.contains("BalanceRequester.send(") } }.map { it.name }
         assertEquals(listOf("BalanceCheckUi.kt"), callers)
         val page = text(ui)
@@ -36,10 +36,33 @@ class BalanceCheckPolicyTest {
         // The number and the words on screen and the ones sent are the same plan.
         assertTrue(page.contains("Text(plan.number,") && page.contains("Text(plan.text,"))
         assertTrue(page.contains("send(ready)") && page.contains("ready.number, ready.text"))
+        // Both doors reach the requester through one function.
+        assertEquals(2, Regex("""dispatchRequest\(context, container, target\.requestKey, ready\)""").findAll(page).count())
+        // The second door, a tap, sends at once only when the flow says so: the bank was confirmed before and the plan is complete.
+        val tap = page.substringAfter("fun rememberCheckTap(").substringBefore("fun CheckBalanceRow")
+        assertTrue(tap.contains("BalanceCheckFlow.onTap(confirmKey(target) in skip, plan) == TapAction.CONFIRM_FIRST) openSheet()"))
+        assertTrue("a provident fund always shows the sheet", tap.contains("target.isProvidentFund ||"))
+        // "Skip the sheet" is written only from the sheet, which shows the checkbox (ticked by default) and the settings switch.
+        assertTrue(page.contains("var alwaysSend by rememberSaveable { mutableStateOf(true) }"))
+        assertEquals(3, Regex("""setSkipConfirm\(""").findAll(page).count())
+        for (f in kotlinFiles().filter { it.name != "BalanceCheckUi.kt" && it.name != "BalanceCheckRepositoryImpl.kt" }) assertFalse(f.name, f.readText().contains("setSkipConfirm("))
+        // Demo sends nothing from either door.
+        assertTrue(tap.contains("if (DemoMode.active)"))
         // The confirm: equal-width Cancel and Send in a ResponsiveRow, the rates note and the published-list note.
         val footer = page.substringAfter("plan is EnquiryPlan.Ready -> ResponsiveRow").substringBefore("else -> AppButton")
         assertTrue(footer.contains("""AppButton("Cancel", onDismiss, Modifier.cell()""") && footer.contains("""AppButton("Send", { onSend(plan) }, Modifier.cell()"""))
         assertTrue(page.contains("BalanceEnquiry.NOTE_RATES") && page.contains("BalanceEnquiry.NOTE_UNVERIFIED"))
+        assertTrue(page.contains("Always send without asking for this bank") && page.contains("Ask before sending"))
+    }
+
+    @Test fun theSlotKeepsOneSize_andThePreferenceStaysOnThisPhone() {
+        val page = text(ui)
+        // The progress is determinate (driven by a one-second tick): no looping animation.
+        assertFalse(page.contains("infiniteRepeatable") || page.contains("CircularProgressIndicator()"))
+        assertTrue(page.contains("LinearProgressIndicator(progress = { progress }"))
+        assertTrue(page.contains("""heightIn(min = 48.dp)"""))
+        assertTrue(text("data/repository/BalanceCheckRepositoryImpl.kt").contains("""device.edit().putStringSet(KEY_SKIP"""))
+        assertTrue(text("presentation/home/AccountsUi.kt").contains("Balance check settings"))
     }
 
     @Test fun nothingIsScheduledAndNoReceiverStartsARequest() {
@@ -60,6 +83,9 @@ class BalanceCheckPolicyTest {
         val page = text(ui)
         assertEquals(1, Regex("""askToSend\.launch\(""").findAll(page).count())
         assertTrue(page.substringAfter("fun onSend(").substringBefore("fun openMessagesApp").contains("askToSend.launch(Manifest.permission.SEND_SMS)"))
+        // The tap door asks the same way, once, and falls back to the sheet when it is refused.
+        assertEquals(1, Regex("""askFirst\.launch\(""").findAll(page).count())
+        assertTrue(page.contains("if (ok && ready != null) fire(ready) else openSheet()"))
         val manifest = File("src/main/AndroidManifest.xml").readText()
         assertFalse("the SIM is the phone's default for texts: READ_PHONE_STATE is not needed", manifest.contains("READ_PHONE_STATE"))
         assertFalse(kotlinFiles().any { f -> code(f).any { it.contains("getActiveSubscriptionInfoList") || it.contains("activeSubscriptionInfoList") } })

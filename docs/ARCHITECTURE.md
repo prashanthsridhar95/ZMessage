@@ -478,13 +478,20 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
 
 On a bank account tile (Accounts tab) and on the provident fund tile (Investments), "Check balance" opens a sheet that texts the bank's
 balance-enquiry number the keyword the person confirms; the bank's reply is an ordinary incoming message that the existing pipeline
-reads, so the balance and its "As of" line update by themselves. Nothing is sent without a tap on Send in that sheet; there is no
-schedule, no receiver that starts a request, and no send from reading the inbox.
+reads, so the balance and its "As of" line update by themselves. **The first time for a bank** nothing is sent without a tap on Send
+in that sheet (number, exact words, rates note, and "Always send without asking for this bank", ticked by default). **After that**
+a tap on Check balance sends at once (`BalanceCheckFlow.onTap`, key in `BalanceCheckRepository.skipConfirm`, stored in the
+`balance_check_device` file so a restored backup asks again) and the button is replaced in place by a determinate progress with
+"Checking…" (`BalanceCheckFlow.state`, one-second tick, no looping animation) until the reply updates the balance ("Updated just
+now", then the normal "As of" line) or two minutes pass ("No reply yet · Try again"). A missing permission, a failed send, a
+bank with no preset, an MPIN bank and the provident fund (UAN) always go to the sheet. The account menu's "Balance check settings"
+shows the number and words, Change, and an "Ask before sending" switch. There is still no schedule, no receiver that starts a
+request, and no send from reading the inbox; both doors reach the requester through `dispatchRequest` (pinned by `BalanceCheckPolicyTest`).
 
 * **Presets (`:domain/balance/BalanceEnquiry`, pure, tested in `BalanceEnquiryTest`).** HDFC Bank 7308080808 `Balance` (`BAL` is
   listed as another wording), Federal Bank 9895088888 `BAL SB{last4}` (5676762 listed as another number), Indian Bank (blocked: its
   text needs the person's MPIN, which Zyke never stores or sends), EPFO 7738299899 `EPFOHO {uan} ENG`. **UNVERIFIED:** they come
-  from an AI-generated list and were not checked against any bank; the sheet says so each time and the person must confirm them.
+  from an AI-generated list and were not checked against any bank; the sheet says so the first time and the person must confirm them.
   Per bank the person can change the number and the words ("Change") or set up a bank with no preset; `templateProblem` refuses any
   PIN / MPIN / password / OTP word and any run of three or more digits (use `{last4}`), so a secret cannot be saved by accident.
   The key of a bank's setup is the `BankName` id, or `other:<name as shown>` for a bank that is not a known one.

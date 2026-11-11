@@ -2,7 +2,10 @@ package com.zyke.message.domain
 
 import com.zyke.message.domain.balance.BalanceCheckRepository
 import com.zyke.message.domain.balance.BalanceEnquiry
+import com.zyke.message.domain.balance.BalanceCheckFlow
 import com.zyke.message.domain.balance.BalanceRequest
+import com.zyke.message.domain.balance.CheckState
+import com.zyke.message.domain.balance.TapAction
 import com.zyke.message.domain.balance.BalanceRequests
 import com.zyke.message.domain.balance.EnquiryEdit
 import com.zyke.message.domain.balance.EnquiryPlan
@@ -179,5 +182,50 @@ class BalanceEnquiryTest {
         assertEquals(RequestStatus.SENT, store.requests.value["a"]!!.status)
         store.updateStatus("a", t0 + 1, RequestStatus.FAILED)
         assertEquals("a report for an older request is ignored", RequestStatus.SENT, store.requests.value["a"]!!.status)
+    }
+
+    // ---- the one-tap flow ----
+    private val ready = BalanceEnquiry.planForAccount(BankName.HDFC, "HDFC", "1234", none) as EnquiryPlan.Ready
+
+    @Test fun firstTapConfirms_thenTapsSendAtOnce_butOnlyWithACompletePlan() {
+        assertEquals(TapAction.CONFIRM_FIRST, BalanceCheckFlow.onTap(false, ready))
+        assertEquals(TapAction.SEND_NOW, BalanceCheckFlow.onTap(true, ready))
+        assertEquals(TapAction.CONFIRM_FIRST, BalanceCheckFlow.onTap(true, EnquiryPlan.Unsupported("X")))
+        assertEquals(TapAction.CONFIRM_FIRST, BalanceCheckFlow.onTap(true, EnquiryPlan.Blocked(ready.service, "MPIN")))
+    }
+
+    @Test fun theSlotGoesCheckingThenUpdatedThenBackToTheButton() {
+        val sent = BalanceRequest("a", t0, RequestStatus.SENT)
+        assertEquals(CheckState.READY, BalanceCheckFlow.state(null, 0, t0))
+        assertEquals(CheckState.CHECKING, BalanceCheckFlow.state(BalanceRequest("a", t0, RequestStatus.SENDING), 0, t0 + 1))
+        assertEquals(CheckState.CHECKING, BalanceCheckFlow.state(sent, 0, t0 + 119_000))
+        assertEquals(CheckState.UPDATED, BalanceCheckFlow.state(sent, t0 + 20_000, t0 + 21_000))
+        assertEquals(CheckState.READY, BalanceCheckFlow.state(sent, t0 + 20_000, t0 + 40_000))
+        assertEquals("an older balance does not answer the request", CheckState.CHECKING, BalanceCheckFlow.state(sent, t0 - 1, t0 + 10_000))
+    }
+
+    @Test fun noReplyAfterTwoMinutes_failureStaysUntilRetry_andTheNoteEndsByItself() {
+        val sent = BalanceRequest("a", t0, RequestStatus.SENT)
+        assertEquals(CheckState.NO_REPLY, BalanceCheckFlow.state(sent, 0, t0 + BalanceCheckFlow.REPLY_TIMEOUT_MS))
+        assertEquals(CheckState.READY, BalanceCheckFlow.state(sent, 0, t0 + BalanceRequests.NO_REPLY_SHOWN_MS))
+        assertEquals(CheckState.FAILED, BalanceCheckFlow.state(BalanceRequest("a", t0, RequestStatus.FAILED), 0, t0 + 5))
+        // "Try again" is possible exactly when the slot offers it: the rate limit and the timeout are the same two minutes.
+        assertEquals(0L, BalanceRequests.waitLeft(sent, t0 + BalanceCheckFlow.REPLY_TIMEOUT_MS))
+        assertEquals(0L, BalanceRequests.waitLeft(BalanceRequest("a", t0, RequestStatus.FAILED), t0 + 5))
+    }
+
+    @Test fun labelsAndTicking() {
+        assertEquals(null, BalanceCheckFlow.label(CheckState.READY))
+        assertEquals("Checking\u2026", BalanceCheckFlow.label(CheckState.CHECKING))
+        assertTrue(BalanceCheckFlow.ticking(CheckState.CHECKING) && BalanceCheckFlow.ticking(CheckState.UPDATED))
+        assertFalse(BalanceCheckFlow.ticking(CheckState.NO_REPLY) || BalanceCheckFlow.ticking(CheckState.READY))
+    }
+
+    @Test fun skipConfirmIsPerBankAndCanBeTurnedBackOff() {
+        val store: BalanceCheckRepository = InMemoryBalanceCheck()
+        store.setSkipConfirm("HDFC", true)
+        assertTrue("HDFC" in store.skipConfirm.value && "FEDERAL" !in store.skipConfirm.value)
+        store.setSkipConfirm("HDFC", false)
+        assertTrue(store.skipConfirm.value.isEmpty())
     }
 }

@@ -238,6 +238,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     var leavingKey by rememberSaveable { mutableStateOf<String?>(null) }
     // "Check balance by SMS": an account's key, or PF_CHECK for the provident fund.
     var checkingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsKey by rememberSaveable { mutableStateOf<String?>(null) }
     val zone = remember { ZoneId.systemDefault() }
     val today = deckToday
     // Recent balance readings per account, for the trend line: worked out once per change of messages, not per frame.
@@ -376,7 +377,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                         onOpen = { onIntent(HomeContract.Intent.OpenAccount(account.key)) },
                         onRename = { renamingKey = account.key },
                         onLeaveOut = { leavingKey = account.key },
-                        onCheckBalance = { checkingKey = account.key }
+                        onCheckBalance = { checkingKey = account.key },
+                        onBalanceSettings = { settingsKey = account.key }
                     )
                 }
             }
@@ -401,6 +403,15 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 BalanceTarget(account.key, account.bankName, account.bankLabel, account.last4, isProvidentFund = false),
                 account.balanceAt,
                 onDismiss = { checkingKey = null }
+            )
+        }
+    }
+    settingsKey?.let { key ->
+        val account = overview.accounts.firstOrNull { it.key == key }
+        if (account == null) settingsKey = null else {
+            CheckBalanceSheet(
+                BalanceTarget(account.key, account.bankName, account.bankLabel, account.last4, isProvidentFund = false),
+                account.balanceAt, onDismiss = { settingsKey = null }, settingsOnly = true
             )
         }
     }
@@ -467,7 +478,11 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
                 Stat("Entries", fund.activityCount.toString())
             }
         }
-        if (onCheck != null) CheckBalanceRow("Check PF balance", rememberRequestStatus(PF_CHECK_REQUEST, maxOf(pf?.balanceAt ?: 0L, fund.balanceAt)), onCheck, Modifier.padding(top = 8.dp))
+        // The provident fund always shows its sheet first (the UAN is typed there); the slot still shows the progress.
+        if (onCheck != null) {
+            val (state, progress) = rememberCheckState(PF_CHECK_REQUEST, maxOf(pf?.balanceAt ?: 0L, fund.balanceAt))
+            CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = 8.dp))
+        }
     }
 }
 
@@ -497,7 +512,8 @@ private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onCheck: () -> 
             Stat("Updated", dayFormat.format(latest.date))
             Stat("Updates", pf.updates.size.toString())
         }
-        CheckBalanceRow("Check PF balance", rememberRequestStatus(PF_CHECK_REQUEST, pf.balanceAt), onCheck, Modifier.padding(top = 8.dp))
+        val (state, progress) = rememberCheckState(PF_CHECK_REQUEST, pf.balanceAt)
+        CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = 8.dp))
     }
 }
 

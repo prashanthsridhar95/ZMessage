@@ -83,7 +83,7 @@ object LegalText {
             ),
             LegalItem(
                 "Texts the app sends, only when you confirm",
-                "Sharing codes: if you switch on \"Share codes\" and add people, a login code from an allowed service (for example a streaming service) is texted from your SIM to those people, with the service name and nothing else. Bank, payment, government and other sensitive codes are never sent. Check balance by SMS: when you tap Send, after a screen that shows the exact number and words, one text goes from your SIM to your bank's enquiry number. These are ordinary texts, not internet requests; your mobile plan may charge for them."
+                "Sharing codes: if you switch on \"Share codes\" and add people, a login code from an allowed service (for example a streaming service) is texted from your SIM to those people, with the service name and nothing else. Bank, payment, government and other sensitive codes are never sent. Check balance by SMS: the first time for a bank, a screen shows the exact number and words and one text goes from your SIM to your bank's enquiry number when you tap Send. That screen has a box, ticked unless you untick it, \"Always send without asking for this bank\"; after that, one tap on Check balance sends the same text at once and the button shows a progress until the reply arrives. You can turn the question back on under the account's menu, Balance check settings. These are ordinary texts, not internet requests; your mobile plan may charge for them."
             ),
             LegalItem(
                 "Contact picker",

@@ -70,11 +70,15 @@ internal fun BankAccountTile(
     onRename: () -> Unit,
     onLeaveOut: () -> Unit,
     /** Opens "Check balance by SMS"; null hides the action. */
-    onCheckBalance: (() -> Unit)? = null
+    onCheckBalance: (() -> Unit)? = null,
+    /** Opens "Balance check settings" (number, words, ask before sending); null hides the menu item. */
+    onBalanceSettings: (() -> Unit)? = null
 ) {
     // Local copies: these come from another module, so they cannot be smart-cast after a null check.
     val balance = account.balance
     val requestStatus = if (onCheckBalance != null) rememberRequestStatus(account.key, account.balanceAt) else null
+    val (checkState, checkProgress) = rememberCheckState(account.key, account.balanceAt)
+    val checkTap = rememberCheckTap(BalanceTarget(account.key, account.bankName, account.bankLabel, account.last4, isProvidentFund = false), onCheckBalance ?: {})
     val asOf = account.balanceAsOf
     val hidden = LocalPrivacyMode.current.hidden
     val low = AccountInsights.isLowBalance(balance)
@@ -103,7 +107,7 @@ internal fun BankAccountTile(
                 RowTitle(account.title)
                 Caption("${account.kind.label} •••• ${account.last4}")
             }
-            AccountActions(account.title, isCard = false, onOpen, onRename, onLeaveOut, onCheckBalance)
+            AccountActions(account.title, isCard = false, onOpen, onRename, onLeaveOut, onCheckBalance, onBalanceSettings)
         }
         Row(Modifier.padding(top = 14.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
@@ -122,7 +126,7 @@ internal fun BankAccountTile(
             }
         }
         FlowAndChips(account, low, stale)
-        if (onCheckBalance != null) CheckBalanceRow("Check balance", requestStatus, onCheckBalance, Modifier.padding(top = 6.dp))
+        if (onCheckBalance != null) CheckBalanceRow("Check balance", checkState, checkProgress, checkTap, Modifier.padding(top = 6.dp))
     }
 }
 
@@ -311,7 +315,8 @@ private fun AccountActions(
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onLeaveOut: () -> Unit,
-    onCheckBalance: (() -> Unit)? = null
+    onCheckBalance: (() -> Unit)? = null,
+    onBalanceSettings: (() -> Unit)? = null
 ) {
     var open by remember { mutableStateOf(false) }
     val openSettings = LocalOpenSettings.current
@@ -322,6 +327,7 @@ private fun AccountActions(
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             ActionItem("Details", null, R.drawable.ic_info_24) { open = false; onOpen() }
             if (onCheckBalance != null) ActionItem("Check balance by SMS", "Text your bank for the latest balance", R.drawable.baseline_message_24) { open = false; onCheckBalance() }
+            if (onBalanceSettings != null) ActionItem("Balance check settings", "Number, words, ask before sending", R.drawable.ic_info_24) { open = false; onBalanceSettings() }
             ActionItem("Edit", "Name, bank and type", R.drawable.ic_edit_24) { open = false; onRename() }
             if (isCard) ActionItem("Edit card", "Limit, bill dates and look", R.drawable.ic_card_24) { open = false; openSettings() }
             ActionItem("Leave out of totals", "Hidden from totals and lists", R.drawable.ic_visibility_off_24) { open = false; onLeaveOut() }

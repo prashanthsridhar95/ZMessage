@@ -32,6 +32,18 @@ class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
     private val _requests = MutableStateFlow(readRequests())
     override val requests: StateFlow<Map<String, BalanceRequest>> = _requests.asStateFlow()
 
+    private val _skip = MutableStateFlow(readSkip())
+    override val skipConfirm: StateFlow<Set<String>> = _skip.asStateFlow()
+
+    override fun setSkipConfirm(key: String, skip: Boolean) {
+        synchronized(lock) {
+            val updated = if (skip) _skip.value + key else _skip.value - key
+            if (updated == _skip.value) return
+            device.edit().putStringSet(KEY_SKIP, updated).apply()
+            _skip.value = updated
+        }
+    }
+
     override fun saveEdit(key: String, edit: EnquiryEdit) = changeSetup { it + (key to edit) }
     override fun clearEdit(key: String) = changeSetup { it - key }
 
@@ -95,7 +107,11 @@ class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
         }.toMap()
     }.getOrDefault(emptyMap())
 
+    // On this phone only (the device file, not backed up): a restored backup on another phone asks again once.
+    private fun readSkip(): Set<String> = runCatching { device.getStringSet(KEY_SKIP, null)?.toSet() }.getOrNull() ?: emptySet()
+
     private companion object {
+        const val KEY_SKIP = "skip_confirm"
         const val KEY_EDITS = "edits"
         const val KEY_UAN = "uan"
         const val KEY_REQUESTS = "requests"

@@ -65,13 +65,70 @@ object BalanceRequests {
     }
 }
 
+/** What the "Check balance" slot on a tile shows: the button, a progress in the button's place, a brief confirmation, or a retry. */
+enum class CheckState { READY, CHECKING, UPDATED, NO_REPLY, FAILED }
+
+/** What a tap on "Check balance" does. */
+enum class TapAction { SEND_NOW, CONFIRM_FIRST }
+
+/**
+ * The one-tap flow. The first check for a bank shows the confirm sheet (number, exact words, rates note) with "Always send without
+ * asking for this bank" ticked; once the person has confirmed that, a tap sends at once and the button turns into a progress in the
+ * same place until the reply updates the balance or [REPLY_TIMEOUT_MS] passes. Pure, so every state is tested.
+ */
+object BalanceCheckFlow {
+    /** How long the slot shows "Checking…" before it offers "No reply yet · Try again". */
+    const val REPLY_TIMEOUT_MS = 2L * 60_000L
+    /** How long "Updated just now" stays after the reply, before the normal "As of" line is all that is left. */
+    const val UPDATED_MS = 5_000L
+
+    /** A tap sends at once only when the bank was confirmed before AND the plan is complete; anything else shows the sheet. */
+    fun onTap(skipConfirm: Boolean, plan: EnquiryPlan): TapAction =
+        if (skipConfirm && plan is EnquiryPlan.Ready) TapAction.SEND_NOW else TapAction.CONFIRM_FIRST
+
+    fun state(request: BalanceRequest?, balanceAt: Long, now: Long): CheckState {
+        if (request == null) return CheckState.READY
+        if (request.status == RequestStatus.FAILED) return CheckState.FAILED
+        if (balanceAt >= request.sentAt && request.status != RequestStatus.SENDING) {
+            return if (now - balanceAt in 0L..UPDATED_MS) CheckState.UPDATED else CheckState.READY
+        }
+        val age = now - request.sentAt
+        return when {
+            age < REPLY_TIMEOUT_MS -> CheckState.CHECKING
+            age < BalanceRequests.NO_REPLY_SHOWN_MS -> CheckState.NO_REPLY
+            else -> CheckState.READY
+        }
+    }
+
+    /** The label of the slot for a state; null in READY (the normal button label is shown). */
+    fun label(state: CheckState): String? = when (state) {
+        CheckState.READY -> null
+        CheckState.CHECKING -> "Checking\u2026"
+        CheckState.UPDATED -> "Updated just now"
+        CheckState.NO_REPLY, CheckState.FAILED -> "Try again"
+    }
+
+    /** The short line beside the "Try again" button; null when the slot says everything itself. */
+    fun note(state: CheckState): String? = when (state) {
+        CheckState.NO_REPLY -> "No reply yet"
+        CheckState.FAILED -> "Couldn't send the request"
+        else -> null
+    }
+
+    /** True while the slot must keep ticking (a progress or a brief confirmation is showing). */
+    fun ticking(state: CheckState): Boolean = state == CheckState.CHECKING || state == CheckState.UPDATED
+}
+
 /** The person's changes to the presets, the saved UAN and the last request per account. */
 interface BalanceCheckRepository {
     val setup: StateFlow<EnquirySetup>
     /** The UAN, digits only; "" when none is saved. */
     val uan: StateFlow<String>
     val requests: StateFlow<Map<String, BalanceRequest>>
+    /** Bank keys (see [BalanceEnquiry.bankKey]) the person confirmed once with "Always send without asking"; a tap sends at once. */
+    val skipConfirm: StateFlow<Set<String>>
 
+    fun setSkipConfirm(key: String, skip: Boolean)
     fun saveEdit(key: String, edit: EnquiryEdit)
     fun clearEdit(key: String)
     fun saveUan(uan: String)
@@ -88,6 +145,9 @@ class InMemoryBalanceCheck : BalanceCheckRepository {
     override val setup: StateFlow<EnquirySetup> = _setup
     override val uan: StateFlow<String> = _uan
     override val requests: StateFlow<Map<String, BalanceRequest>> = _requests
+    private val _skip = MutableStateFlow<Set<String>>(emptySet())
+    override val skipConfirm: StateFlow<Set<String>> = _skip
+    override fun setSkipConfirm(key: String, skip: Boolean) { _skip.value = if (skip) _skip.value + key else _skip.value - key }
 
     override fun saveEdit(key: String, edit: EnquiryEdit) { _setup.value = EnquirySetup(_setup.value.edits + (key to edit)) }
     override fun clearEdit(key: String) { _setup.value = EnquirySetup(_setup.value.edits - key) }

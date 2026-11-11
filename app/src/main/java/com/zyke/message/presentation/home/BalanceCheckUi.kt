@@ -12,6 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -27,14 +34,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.size
+import com.zyke.message.presentation.common.toggleRow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.data.demo.DemoMode
+import com.zyke.message.domain.balance.BalanceCheckFlow
 import com.zyke.message.domain.balance.BalanceEnquiry
+import com.zyke.message.domain.balance.CheckState
+import com.zyke.message.domain.balance.TapAction
 import com.zyke.message.domain.balance.BalanceRequest
 import com.zyke.message.domain.balance.BalanceRequests
 import com.zyke.message.domain.balance.EnquiryEdit
@@ -96,21 +109,108 @@ internal fun rememberRequestStatus(requestKey: String, balanceAt: Long): String?
     return BalanceRequests.statusLine(BalanceRequests.phase(request, balanceAt, now))
 }
 
-/** The small secondary action under a tile: the request's status on the left (when there is one), "Check balance" at the end. */
+/** Where a request stands for one tile, re-read every second while a progress or "Updated just now" is showing. */
 @Composable
-internal fun CheckBalanceRow(label: String, status: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            if (status != null) {
-                Caption(
-                    status, maxLines = 2,
-                    color = if (status.startsWith("Couldn't")) MaterialTheme.colorScheme.error else com.zyke.message.presentation.messages.components.mutedColor()
-                )
-                // A rich (RCS) reply reaches Zyke only through notification access: one line and one button, only while it is waiting.
-                if (status == BalanceRequests.statusLine(RequestPhase.WAITING)) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
+internal fun rememberCheckState(requestKey: String, balanceAt: Long): Pair<CheckState, Float> {
+    val repository = balanceCheck(LocalContext.current)
+    val requests by repository.requests.collectAsStateWithLifecycle()
+    val request = requests[requestKey]
+    var now by remember(request) { mutableLongStateOf(System.currentTimeMillis()) }
+    val state = BalanceCheckFlow.state(request, balanceAt, now)
+    LaunchedEffect(request, balanceAt, state) {
+        // Only ticks while a progress or the brief confirmation is showing; a quiet tile has no timer.
+        if (BalanceCheckFlow.ticking(state)) {
+            delay(1_000)
+            now = System.currentTimeMillis()
+        }
+    }
+    val progress = if (request == null) 0f else ((now - request.sentAt).toFloat() / BalanceCheckFlow.REPLY_TIMEOUT_MS).coerceIn(0.05f, 1f)
+    return state to progress
+}
+
+private fun planFor(target: BalanceTarget, setup: com.zyke.message.domain.balance.EnquirySetup, uan: String): EnquiryPlan =
+    if (target.isProvidentFund) BalanceEnquiry.planForProvidentFund(setup, uan)
+    else BalanceEnquiry.planForAccount(target.bank, target.bankLabel, target.last4, setup)
+
+private fun confirmKey(target: BalanceTarget): String =
+    if (target.isProvidentFund) BalanceEnquiry.EPFO_KEY else BalanceEnquiry.bankKey(target.bank, target.bankLabel)
+
+/**
+ * What a tap on "Check balance" does. For a bank the person already confirmed (the sheet's "Always send without asking" was on) it
+ * sends at once, with no sheet: the slot becomes a progress until the reply arrives. For anything else (first time, a bank with no
+ * preset, an MPIN bank, a provident fund, no permission) it calls [openSheet], where the number and exact words are shown first.
+ */
+@Composable
+internal fun rememberCheckTap(target: BalanceTarget, openSheet: () -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val container = (context.applicationContext as ZykeMessagesApplication).container
+    val repository = container.balanceCheck
+    val setup by repository.setup.collectAsStateWithLifecycle()
+    val skip by repository.skipConfirm.collectAsStateWithLifecycle()
+    val snackbar = LocalAppSnackbar.current
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<EnquiryPlan.Ready?>(null) }
+
+    fun fire(ready: EnquiryPlan.Ready) {
+        if (DemoMode.active) {
+            scope.launch { snackbar.showSnackbar("Demo: balance updated. Nothing was sent.", duration = SnackbarDuration.Short) }
+            return
+        }
+        scope.launch {
+            val result = withContext(Dispatchers.Default) { dispatchRequest(context, container, target.requestKey, ready) }
+            when (result) {
+                BalanceRequester.Result.NO_PERMISSION -> openSheet()
+                BalanceRequester.Result.TOO_SOON -> snackbar.showSnackbar("One request per account every 2 minutes", duration = SnackbarDuration.Short)
+                BalanceRequester.Result.QUEUED, BalanceRequester.Result.FAILED -> Unit
             }
         }
-        AppButton(label, onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+    }
+    val askFirst = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        val ready = pending
+        pending = null
+        if (ok && ready != null) fire(ready) else openSheet()
+    }
+    return {
+        val plan = planFor(target, setup, "")
+        if (target.isProvidentFund || BalanceCheckFlow.onTap(confirmKey(target) in skip, plan) == TapAction.CONFIRM_FIRST) openSheet()
+        else if (plan is EnquiryPlan.Ready) {
+            if (DemoMode.active || ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) fire(plan)
+            else { pending = plan; askFirst.launch(Manifest.permission.SEND_SMS) }
+        }
+    }
+}
+
+/**
+ * The secondary action under a tile. The slot at the end keeps one size in every state, so nothing jumps: the "Check balance"
+ * button, then a small progress with "Checking\u2026" in its place, then "Updated just now", or "Try again" with a short note.
+ */
+@Composable
+internal fun CheckBalanceRow(label: String, state: CheckState, progress: Float, onClick: () -> Unit, modifier: Modifier = Modifier, showRichHint: Boolean = true) {
+    Row(modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            BalanceCheckFlow.note(state)?.let { note ->
+                Caption(note, maxLines = 2, color = if (state == CheckState.FAILED) MaterialTheme.colorScheme.error else com.zyke.message.presentation.messages.components.mutedColor())
+            }
+            // A rich (RCS) reply reaches Zyke only through notification access: one line and one button, only while it is waiting.
+            if (state == CheckState.CHECKING && showRichHint) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
+        }
+        when (state) {
+            CheckState.CHECKING -> Row(
+                Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Checking the balance"; liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Determinate, driven by the one-second tick: no looping animation, so it is calm in Lite mode and with reduced motion.
+                androidx.compose.material3.LinearProgressIndicator(progress = { progress }, Modifier.width(40.dp))
+                Text(BalanceCheckFlow.label(state).orEmpty(), style = MaterialTheme.typography.labelLarge, color = com.zyke.message.presentation.messages.components.mutedColor(), maxLines = 1)
+            }
+            CheckState.UPDATED -> Text(
+                BalanceCheckFlow.label(state).orEmpty(),
+                Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically).padding(horizontal = 12.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1
+            )
+            CheckState.READY -> AppButton(label, onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+            CheckState.NO_REPLY, CheckState.FAILED -> AppButton(BalanceCheckFlow.label(state).orEmpty(), onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        }
     }
 }
 
@@ -150,17 +250,20 @@ internal fun RichReplyHint(text: String) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss: () -> Unit) {
+internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss: () -> Unit, settingsOnly: Boolean = false) {
     val context = LocalContext.current
     val container = (context.applicationContext as ZykeMessagesApplication).container
     val repository = container.balanceCheck
     val setup by repository.setup.collectAsStateWithLifecycle()
     val savedUan by repository.uan.collectAsStateWithLifecycle()
     val requests by repository.requests.collectAsStateWithLifecycle()
+    val skipped by repository.skipConfirm.collectAsStateWithLifecycle()
     val now by rememberNowState()
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
 
+    // Ticked by default: after this first confirm, a tap on Check balance for this bank sends at once.
+    var alwaysSend by rememberSaveable { mutableStateOf(true) }
     var changing by rememberSaveable { mutableStateOf(false) }
     var justSent by rememberSaveable { mutableStateOf(false) }
     var denied by rememberSaveable { mutableStateOf(false) }
@@ -203,14 +306,20 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
         if (DemoMode.active) {
             // Demo mode sends nothing and changes nothing: a clearly labelled stand-in.
             say("Demo: balance updated. Nothing was sent.")
+            if (!target.isProvidentFund) repository.setSkipConfirm(key, alwaysSend)
             onDismiss()
             return
         }
         if (target.isProvidentFund && Uan.isValid(uan)) repository.saveUan(uan)
         scope.launch {
-            val result = withContext(Dispatchers.Default) { BalanceRequester.send(context, container, target.requestKey, ready.number, ready.text) }
+            val result = withContext(Dispatchers.Default) { dispatchRequest(context, container, target.requestKey, ready) }
             when (result) {
-                BalanceRequester.Result.QUEUED, BalanceRequester.Result.FAILED -> { denied = false; justSent = true }
+                BalanceRequester.Result.QUEUED -> {
+                    // The text is on its way: the tile now shows the progress in the button's place, so the sheet closes.
+                    if (!target.isProvidentFund) repository.setSkipConfirm(key, alwaysSend)
+                    onDismiss()
+                }
+                BalanceRequester.Result.FAILED -> { denied = false; justSent = true }
                 BalanceRequester.Result.NO_PERMISSION -> denied = true
                 BalanceRequester.Result.TOO_SOON -> say("One request per account every 2 minutes")
             }
@@ -241,7 +350,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
     val canSave = BalanceEnquiry.numberProblem(shownNumber) == null && BalanceEnquiry.templateProblem(shownText) == null
 
     AdaptiveSheet(
-        title = "Check balance by SMS",
+        title = if (settingsOnly) "Balance check settings" else "Check balance by SMS",
         subtitle = target.subtitle,
         onDismiss = onDismiss,
         contentSpacing = 14.dp,
@@ -262,6 +371,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
                         changing = false; numberDraft = null; textDraft = null
                     }, Modifier.cell(), enabled = canSave)
                 }
+                settingsOnly -> AppButton("Done", onDismiss, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
                 plan is EnquiryPlan.Ready -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
                     AppButton("Cancel", onDismiss, Modifier.cell(), style = ButtonStyle.OUTLINE)
                     AppButton("Send", { onSend(plan) }, Modifier.cell(), enabled = waitLeft == 0L)
@@ -323,8 +433,10 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
                 )
                 Caption("Then Zyke shows the exact text before it sends anything.", maxLines = 2)
             }
-            is EnquiryPlan.Ready -> ReadyState(
-                plan, target, phase, waitLeft, denied, dualSim, uan,
+            is EnquiryPlan.Ready -> if (settingsOnly) SettingsState(
+                plan, askFirst = key !in skipped, onAskFirst = { repository.setSkipConfirm(key, !it) }, onChange = { changing = true }
+            ) else ReadyState(
+                plan, target, phase, waitLeft, denied, dualSim, uan, alwaysSend, { alwaysSend = it },
                 onChange = { changing = true }, onSettings = ::openAppSettings, onMessages = { openMessagesApp(plan) }
             )
             is EnquiryPlan.Unsupported -> Unit
@@ -341,6 +453,8 @@ private fun ReadyState(
     denied: Boolean,
     dualSim: Boolean,
     uan: String,
+    alwaysSend: Boolean,
+    onAlwaysSend: (Boolean) -> Unit,
     onChange: () -> Unit,
     onSettings: () -> Unit,
     onMessages: () -> Unit
@@ -358,6 +472,10 @@ private fun ReadyState(
         AppButton("Change", onChange, Modifier.padding(top = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
     Caption("${BalanceEnquiry.NOTE_RATES} ${BalanceEnquiry.NOTE_UNVERIFIED}", maxLines = 4)
+    if (!target.isProvidentFund) {
+        ToggleLine("Always send without asking for this bank", alwaysSend, onAlwaysSend, Role.Checkbox)
+        Caption("Next time, Check balance texts at once and shows a progress. Turn it back on any time under the account's menu, Balance check settings.", maxLines = 4)
+    }
     com.zyke.message.presentation.settings.SeeWhatIsSentLink()
     if (target.isProvidentFund) Caption("UAN ${Uan.mask(Uan.clean(plan.text.filter { it.isDigit() || it == ' ' }.split(' ').firstOrNull { it.length == BalanceEnquiry.UAN_LENGTH }.orEmpty()))} · the reply is shown in Messages and, when it states a balance, under Investments.", maxLines = 3)
     if (dualSim) {
@@ -395,3 +513,45 @@ private fun SentState(phase: RequestPhase, denied: Boolean, onSettings: () -> Un
     if (phase == RequestPhase.WAITING || phase == RequestPhase.NO_REPLY) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
     if (denied) AppButton("Open settings", onSettings, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
 }
+
+/** A 48dp checkbox or switch row that toggles as one target. */
+@Composable
+private fun ToggleLine(label: String, checked: Boolean, onChange: (Boolean) -> Unit, role: Role) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleRow(checked, role, onChange), verticalAlignment = Alignment.CenterVertically) {
+        if (role == Role.Switch) androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
+        else androidx.compose.foundation.layout.Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = null) }
+        Text(label, Modifier.weight(1f).padding(start = if (role == Role.Switch) 12.dp else 0.dp), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** "Balance check settings": what is sent, and whether Check balance asks first. Nothing here sends a text. */
+@Composable
+private fun SettingsState(plan: EnquiryPlan.Ready, askFirst: Boolean, onAskFirst: (Boolean) -> Unit, onChange: () -> Unit) {
+    FintechCard {
+        Caption("Zyke texts", maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Caption("To", Modifier.padding(top = 2.dp), maxLines = 1)
+            Text(plan.number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Caption("Text", Modifier.padding(top = 2.dp), maxLines = 1)
+            Text(plan.text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        }
+        AppButton("Change number or words", onChange, Modifier.padding(top = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+    }
+    ToggleLine("Ask before sending", askFirst, onAskFirst, Role.Switch)
+    Caption(
+        if (askFirst) "Check balance shows this screen first. Turn this off to send at once with one tap."
+        else "Check balance sends this text at once with one tap and shows a progress on the tile.",
+        maxLines = 4
+    )
+    Caption("${BalanceEnquiry.NOTE_RATES} ${BalanceEnquiry.NOTE_UNVERIFIED}", maxLines = 4)
+    com.zyke.message.presentation.settings.SeeWhatIsSentLink()
+}
+
+/**
+ * The one place a balance request text is handed to the requester. Both doors come here: the Send button of the confirm sheet and a
+ * tap on a bank the person already confirmed.
+ */
+internal fun dispatchRequest(context: android.content.Context, container: com.zyke.message.di.AppContainer, requestKey: String, ready: EnquiryPlan.Ready): BalanceRequester.Result =
+    BalanceRequester.send(context, container, requestKey, ready.number, ready.text)
