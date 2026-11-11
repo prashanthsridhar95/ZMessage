@@ -309,7 +309,7 @@ internal fun CardStatusPanel(
  * menu so a screen-reader user finds all three in one place; a card adds "Edit card", which opens the cards form in Settings.
  */
 @Composable
-private fun AccountActions(
+internal fun AccountActions(
     name: String,
     isCard: Boolean,
     onOpen: () -> Unit,

@@ -38,6 +38,19 @@ latest cycle is used for every cycle (past carry-over chains use today's amount)
 "Suggested for your plan" appeared in Settings > limits and again as a card in Insights. Now it is in Settings > Budgets
 only; Insights links there. The unused `BudgetDialog` was deleted.
 
+### 3. Accounts tab: one visual language for Accounts, Cards and Investments
+
+`HeaderRegion` (a dark, edge-to-edge region with large bottom corners; inverse surface in light themes, a raised surface in dark),
+`StackedDeck` (cards peek out behind the front one, swipe, page dots; a plain pager in Lite mode or with animations off),
+`ActionCircleRow` (up to four round 48 dp actions with labels under them; a 2 x 2 grid at font scale 1.8 and up),
+`SpendCard` ("Spent this month": big amount, limit or "Set a limit", thin bar, one note line, `CategoryBar` and category rows) live
+in `presentation/common` and are the only components the three sub-tabs use. Cards: deck, Pay bill / Details / Limit / Mark paid,
+spend card for the card's cycle, bill panel, recent spends. Accounts: total and a deck of bank accounts, Check balance (progress in
+the circle) / Details / Set balance, spend card with "Came in", recent activity. Investments: total and growth, Add / Check PF /
+Show closed, then the existing holdings. Nothing was removed: Edit, Leave out, Balance check settings and Check by SMS are in the
+three-dot menu beside the name of the card or account in front. Pure logic (limit math, cycle days, category shares, segments,
+deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `CardSpendTest`.
+
 ## Checked and kept (genuinely different, or already one path)
 
 | Candidates | Decision |

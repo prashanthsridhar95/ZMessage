@@ -60,6 +60,7 @@ import com.zyke.message.domain.accounts.AccountActivities
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.presentation.common.DeckCard
 import com.zyke.message.presentation.common.faceCard
+import com.zyke.message.R
 import com.zyke.message.domain.accounts.AccountsOverview
 import com.zyke.message.domain.insights.BalanceReader
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -217,6 +218,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val cards = overview.accounts.filter { it.isCard }.distinctBy { it.key }
     var tab by rememberSaveable { mutableStateOf(0) }
     val deckState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
+    val bankDeck = androidx.compose.foundation.pager.rememberPagerState(pageCount = { banks.size })
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val shown = when (tab) {
         0 -> banks
@@ -257,14 +259,36 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val tick = com.zyke.message.presentation.common.rememberTick()
     val pull = rememberPullToReveal(enabled = !netWorthShown) { tick(); netWorthShown = true }
 
+    // The card and the bank account in front of their decks: what the actions and the spend card below speak about.
+    val frontCard = cards.getOrNull(com.zyke.message.domain.cards.DeckModel.clamp(deckState.currentPage, cards.size))
+    val frontBank = banks.getOrNull(com.zyke.message.domain.cards.DeckModel.clamp(bankDeck.currentPage, banks.size))
+    // This card's open bill, from the upcoming list: it has what "Mark as paid" stores. A bill that is open in the messages but
+    // gone from that list (and not paid in them) was marked as paid by hand.
+    val frontBill = remember(state.upcoming, frontCard?.last4) {
+        frontCard?.let { front ->
+            state.upcoming.firstOrNull { item ->
+                val content = item.message.content as? com.zyke.message.domain.model.MessageContent.CardBill
+                item.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL && content != null &&
+                    content.accountNumber.filter { it.isDigit() }.takeLast(4) == front.last4
+            }
+        }
+    }
+    val cardModel = if (tab == 1 && frontCard != null) {
+        val frontDue = frontCard.dueDate
+        val handMarked = !state.isLoading && frontBill == null && !frontCard.billPaid && frontCard.billPartPaid == null && frontDue != null &&
+            !frontDue.isBefore(today) && !frontDue.isAfter(today.plusDays(30))
+        rememberCardTabModel(frontCard, state.messages, today, zone, frontBill, handMarked)
+    } else null
+
     val accountsList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.ACCOUNTS, accountsList)
     Box(Modifier.fillMaxSize().then(pull.modifier)) {
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
         state = accountsList,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        // No top padding: the header region starts at the top edge. The sides stay 16 dp; the region bleeds through them.
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (netWorthShown) {
             item(key = "net-worth") {
@@ -274,7 +298,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                     enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None
                     else androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
                 ) {
-                    Column {
+                    Column(Modifier.padding(top = 16.dp)) {
                         com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             AppButton(
@@ -285,24 +309,6 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 }
             }
         }
-        // The big number follows the tab: the bank total only on Accounts, what is billed and unbilled on Cards,
-        // and what is invested under Investments.
-        item(key = "total") {
-            androidx.compose.animation.Crossfade(
-                targetState = tab,
-                animationSpec = if (reduceMotion) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(220),
-                label = "accounts-hero"
-            ) { which ->
-                // One height for all three, so the tabs under the hero stay where they are when the tab changes.
-                val same = Modifier.fillMaxWidth().heightIn(min = ACCOUNTS_HERO_MIN_HEIGHT)
-                when (which) {
-                    1 -> CardsHero(cards, same)
-                    2 -> com.zyke.message.presentation.investments.InvestmentsHero(invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0, same)
-                    else -> BalanceHero(overview, onOpen = {}, modifier = same)
-                }
-            }
-        }
-
         item(key = "tabs") {
             UnderlineTabs(
                 modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_TABS),
@@ -314,8 +320,33 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             )
         }
 
+        // The header region follows the tab: the total and a deck of bank accounts; the deck of cards; what is invested.
+        item(key = "header-$tab") {
+            com.zyke.message.presentation.common.HeaderRegion {
+                when (tab) {
+                    1 -> CardsHeaderContent(
+                        cards, deckState, deckToday,
+                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
+                        onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
+                        deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                    )
+                    2 -> InvestmentsHeaderContent(invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0)
+                    else -> BanksHeaderContent(
+                        overview, banks, bankDeck, deckToday,
+                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
+                        onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
+                        onCheckBalance = { checkingKey = it.key }, onBalanceSettings = { settingsKey = it.key },
+                        deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                    )
+                }
+            }
+        }
+
         if (tab == 2) {
-            investmentItems(invest) {
+            val pfActions = if (pf != null || funds.isNotEmpty()) listOf(
+                com.zyke.message.presentation.common.ActionSpec("Check PF balance", R.drawable.baseline_message_24, { checkingKey = PF_CHECK })
+            ) else emptyList()
+            investmentItems(invest, pfActions) {
                 if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf, { checkingKey = PF_CHECK }) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
                 funds.forEachIndexed { index, fund ->
                     // One "Check PF balance" for the fund, on the first tile.
@@ -330,58 +361,21 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 )
             }
         }
-        if (tab == 1 && cards.isNotEmpty()) {
-            // Cards are shown as cards: a deck to swipe, with the one in front opened in full on a tap.
-            item(key = "card-deck") {
-                val deck = cards.map { DeckCard(it.key, it.faceCard(), cardFooter(it, deckToday)) }
-                com.zyke.message.presentation.common.CardDeck(
-                    deck, deckState, modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK),
-                    onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) }
-                )
-            }
-            val front = cards.getOrNull(deckState.currentPage.coerceIn(0, cards.lastIndex))
-            if (front != null) {
-                item(key = "card-front-" + front.key) {
-                    // This card's open bill, from the upcoming list: it has what "Mark as paid" stores. A bill that is open in
-                    // the messages but gone from that list (and not paid in them) was marked as paid by hand.
-                    val frontBill = remember(state.upcoming, front.last4) {
-                        state.upcoming.firstOrNull { item ->
-                            val content = item.message.content as? com.zyke.message.domain.model.MessageContent.CardBill
-                            item.kind == com.zyke.message.domain.home.UpcomingKind.CARD_BILL && content != null &&
-                                content.accountNumber.filter { it.isDigit() }.takeLast(4) == front.last4
-                        }
-                    }
-                    val frontDue = front.dueDate
-                    val handMarked = !state.isLoading && frontBill == null && !front.billPaid && front.billPartPaid == null && frontDue != null &&
-                        !frontDue.isBefore(today) && !frontDue.isAfter(today.plusDays(30))
-                    CardStatusPanel(
-                        front, today,
-                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(front.key)) },
-                        onRename = { renamingKey = front.key },
-                        onLeaveOut = { leavingKey = front.key },
-                        bill = frontBill,
-                        markedPaid = handMarked,
-                        onMarkPaid = { frontBill?.let { markPaidBill(it) } },
-                        onPay = { link -> onIntent(HomeContract.Intent.OpenLink(link)) }
-                    )
-                }
-            }
-            item(key = "add-card") {
-                AppButton("Add or edit cards", openSettings, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
-            }
-        } else {
-            shown.forEach { account ->
-                item(key = account.key) {
-                    BankAccountTile(
-                        account, series[account.last4].orEmpty(), today,
-                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(account.key)) },
-                        onRename = { renamingKey = account.key },
-                        onLeaveOut = { leavingKey = account.key },
-                        onCheckBalance = { checkingKey = account.key },
-                        onBalanceSettings = { settingsKey = account.key }
-                    )
-                }
-            }
+        if (tab == 1 && cardModel != null) {
+            cardBodyItems(
+                cardModel,
+                onPay = { link -> onIntent(HomeContract.Intent.OpenLink(link)) },
+                onMarkPaid = { frontBill?.let { markPaidBill(it) } },
+                onOpen = { onIntent(HomeContract.Intent.OpenAccount(cardModel.card.key)) },
+                onEditCards = openSettings
+            )
+        } else if (tab == 0) {
+            if (frontBank != null) bankBodyItems(
+                frontBank, state.messages, today, zone,
+                onOpen = { onIntent(HomeContract.Intent.OpenAccount(frontBank.key)) },
+                onSetBalance = { renamingKey = frontBank.key },
+                onCheckBalance = { checkingKey = frontBank.key }
+            )
         }
 
     }

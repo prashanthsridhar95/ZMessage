@@ -113,12 +113,12 @@ object Tours {
         // ---- Accounts
         TourStep(
             "accounts.tabs", G.ACCOUNTS, "Accounts, Cards, Investments",
-            "Switch between bank accounts, credit cards and investments. The big number above follows the tab: your bank total, what is billed on cards, or what you have invested.",
+            "Switch between bank accounts, credit cards and investments. The dark region below follows the tab: your bank total and accounts, your cards, or what you have invested.",
             tab = T.ACCOUNTS, anchor = A.ACCOUNTS_TABS, covers = setOf("accounts.tabs", "accounts.hero_number")
         ),
         TourStep(
             "accounts.deck", G.ACCOUNTS, "Your cards and accounts",
-            "Credit cards form a deck you swipe through. Tap any account to fix its name, bank or type, or to leave it out of your totals.",
+            "Cards and bank accounts form a stacked deck you swipe through. The round actions and the spend card below speak about the one in front; the three-dot menu fixes its name, bank or type, or leaves it out of your totals.",
             tab = T.ACCOUNTS, anchor = A.ACCOUNTS_DECK, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.ACCOUNT_CARD,
             covers = setOf("accounts.card_deck", "accounts.edit_account", "accounts.leave_out")
         ),

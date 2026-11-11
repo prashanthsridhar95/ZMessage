@@ -474,6 +474,16 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
   `DemoMode.active` (`DemoPolicyTest`), the page shows only "Not available in Demo mode", and the contact picker and permission
   prompts are not reachable.
 
+## Accounts tab layout and the card limit
+
+See UNIFICATION.md, "Accounts tab". `CardSpend.view` counts a card's spends in its cycle with `Counting` (card payments, set-aside
+and repeated gateway texts are not counted; refunds are taken off), groups them by category (top 4 plus Other, percentages that add
+to 100) and gives the cycle end only when the card has a statement day, so "resets in N days" is silent when it is unknown.
+The per-card monthly limit is the person's own setting in `CardLimitsRepository` (`NoCardLimits`, `InMemoryCardLimits` in the demo,
+`CardLimitsRepositoryImpl` in the private file `card_limits`, which travels in a backup). It only feeds the spend card's bar and
+"left" line; it does not block, notify or send anything. "Details" shows only what messages and settings say; Zyke has no full card
+number, expiry or CVV and never shows or invents one.
+
 ## Check balance by SMS
 
 On a bank account tile (Accounts tab) and on the provident fund tile (Investments), "Check balance" opens a sheet that texts the bank's

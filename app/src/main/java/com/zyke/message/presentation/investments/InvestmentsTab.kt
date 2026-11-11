@@ -194,13 +194,28 @@ private fun dayText(date: LocalDate): String = FormatCache.pattern("d MMM yyyy",
  * grouped by kind. The provident fund tiles read from messages come after, from [providentFundTiles].
  */
 @OptIn(ExperimentalLayoutApi::class)
-internal fun LazyListScope.investmentItems(m: InvestmentsModel, providentFundTiles: LazyListScope.() -> Unit) {
+internal fun LazyListScope.investmentItems(m: InvestmentsModel, extraActions: List<com.zyke.message.presentation.common.ActionSpec>, providentFundTiles: LazyListScope.() -> Unit) {
     val s = m.summary
     val overdue = s.overdue.filter { it.id !in m.dismissed }.take(3)
     overdue.forEach { h -> item(key = "matured:" + h.id) { MaturedCard(m, h) } }
 
     item(key = "inv-add") {
-        AppButton("Add investment", { m.ui.addKind = InvestmentKind.FIXED_DEPOSIT }, Modifier.fillMaxWidth().tourAnchor(TourAnchor.INVESTMENTS_ADD))
+        // The same round-action row as the other two sub-tabs: Add first, then what else this tab can do right now.
+        val closedAction = if (s.closed.isNotEmpty() && m.ui.filter == null) listOf(
+            com.zyke.message.presentation.common.ActionSpec(
+                if (m.ui.closedShown) "Hide closed" else "Show closed", com.zyke.message.R.drawable.baseline_archive_24,
+                { m.ui.closedShown = !m.ui.closedShown }
+            )
+        ) else emptyList()
+        com.zyke.message.presentation.common.ActionCircleRow(
+            listOf(
+                com.zyke.message.presentation.common.ActionSpec(
+                    "Add investment", com.zyke.message.R.drawable.ic_tile_add, { m.ui.addKind = InvestmentKind.FIXED_DEPOSIT },
+                    primary = true, description = "Add an investment"
+                )
+            ) + extraActions + closedAction,
+            Modifier.tourAnchor(TourAnchor.INVESTMENTS_ADD)
+        )
     }
 
     if (s.isEmpty) {

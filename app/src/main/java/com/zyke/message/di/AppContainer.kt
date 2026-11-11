@@ -97,6 +97,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val codeSharing: com.zyke.message.domain.sharing.CodeSharingRepository by lazy { if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context) }
     /** "Check balance by SMS": the person's changes to the bank presets, the saved UAN and the last request per account. In memory only in Demo mode. */
     val balanceCheck: com.zyke.message.domain.balance.BalanceCheckRepository by lazy { if (demo) com.zyke.message.domain.balance.InMemoryBalanceCheck() else com.zyke.message.data.repository.BalanceCheckRepositoryImpl(context) }
+    /** The monthly spending limit per card, set from the Cards tab. In memory only in Demo mode. */
+    val cardLimits: com.zyke.message.domain.cards.CardLimitsRepository by lazy { if (demo) com.zyke.message.domain.cards.InMemoryCardLimits() else com.zyke.message.data.repository.CardLimitsRepositoryImpl(context) }
     val nicknames: NicknameRepository by lazy { NicknameRepositoryImpl(context) }
     val paymentNotes: PaymentNotesRepository by lazy { PaymentNotesRepositoryImpl(context) }
     val learnedTemplates: com.zyke.message.domain.repository.LearnedTemplateRepository by lazy { com.zyke.message.data.repository.LearnedTemplateRepositoryImpl(context) }
