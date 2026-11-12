@@ -24,6 +24,8 @@ class SmsReceiver : BroadcastReceiver() {
         val settings = container.settings.settings.value
         val alerts = settings.liveAlerts
         val sharing = container.codeSharing.rules.value.enabled
+        // A time only, before anything else can return: it lets the sharing page show whether texts reach this receiver at all.
+        if (sharing) runCatching { container.codeSharing.noteReceiverFired(System.currentTimeMillis()) }
         if ((!alerts && !sharing) || settings.readingPaused) return
 
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return

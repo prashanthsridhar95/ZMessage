@@ -45,7 +45,9 @@ data class CodeSharingRules(
     /** Shown to the other person as "Sent by …"; blank is "Zyke". */
     val senderName: String = "",
     /** A code older than this when it is read is never passed on. */
-    val freshForMs: Long = CodeSharing.FRESH_MS
+    val freshForMs: Long = CodeSharing.FRESH_MS,
+    /** Sender names the person taught ("Treat VM-NFLXIN-S as Netflix"): service id to exact sender tokens. */
+    val learned: Map<String, Set<String>> = emptyMap()
 ) {
     val activePeople: Int get() = contacts.count { it.enabled }
 }
@@ -94,6 +96,9 @@ object CodeSharing {
     private const val CLOCK_SKEW_MS = 60_000L
     private const val HOUR_MS = 60L * 60_000L
     const val TEST_TEXT = "Test from Zyke: code sharing is set up"
+
+    /** The made-up code of "Send a test code": it is only ever the made-up one. */
+    const val TEST_CODE = "123456"
     private const val MIN_CODE = 4
     private const val MAX_CODE = 8
     private const val MAX_NAME = 20
@@ -104,35 +109,62 @@ object CodeSharing {
         now: Long,
         history: ShareHistory = ShareHistory(),
         zone: ZoneId = ZoneId.systemDefault()
-    ): ShareDecision {
-        fun none(reason: ShareSkip) = ShareDecision(emptyList(), listOf(Skipped(null, reason)))
-        if (!rules.enabled) return none(ShareSkip.OFF)
-        if (now < rules.pausedUntil) return none(ShareSkip.PAUSED)
+    ): ShareDecision = review(message, rules, now, history, zone).decision
+
+    /**
+     * [decide] plus what the "Recent codes seen" log needs: whether the message looked like a code at all, the service it was
+     * taken for, and one plain outcome. The checks and their order are exactly [decide]'s.
+     */
+    fun review(
+        message: ClassifiedMessage,
+        rules: CodeSharingRules,
+        now: Long,
+        history: ShareHistory = ShareHistory(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): ShareReview {
+        val sms = message.message
+        val content = message.content
+        val byHeader = ShareServices.byHeader(sms.sender, rules.learned)
+        // Worth a line in the log: read as a login code, or from a sender that is (by name) one of the services.
+        val codeLike = content is MessageContent.Otp || byHeader.isNotEmpty()
+        val headerService = byHeader.singleOrNull()
+
+        fun stop(reason: ShareSkip, service: ShareService? = headerService) =
+            ShareReview(ShareDecision(emptyList(), listOf(Skipped(null, reason))), codeLike, service, SeenCodes.outcomeOf(reason, codeLike), null)
+
+        if (!rules.enabled) return stop(ShareSkip.OFF)
+        if (now < rules.pausedUntil) return stop(ShareSkip.PAUSED)
         rules.window?.let { window ->
             val time = Instant.ofEpochMilli(now).atZone(zone)
-            if (!window.contains(time.hour * 60 + time.minute)) return none(ShareSkip.OUTSIDE_HOURS)
+            if (!window.contains(time.hour * 60 + time.minute)) return stop(ShareSkip.OUTSIDE_HOURS)
         }
 
         // The hard blocks come first and read the whole message, not only what was classified.
-        val content = message.content
         val counted = Counting.of(message)
         if (content is MessageContent.Transaction || content is MessageContent.CardBill || content is MessageContent.ScheduledPayment ||
             counted !is Counted.NotCounted
-        ) return none(ShareSkip.FINANCIAL)
-        val sms = message.message
-        if (SharingBlocks.financial(sms.sender, sms.body)) return none(ShareSkip.FINANCIAL)
-        if (SharingBlocks.accountSecurity(sms.sender, sms.body)) return none(ShareSkip.ACCOUNT_SECURITY)
-        if (content !is MessageContent.Otp) return none(ShareSkip.NOT_A_CODE)
-        if (content.paymentAmount != null || content.cardNumber != null) return none(ShareSkip.FINANCIAL)
-        val code = content.code
-        if (code.length !in MIN_CODE..MAX_CODE || code.any { it !in '0'..'9' }) return none(ShareSkip.NOT_A_CODE)
+        ) return stop(ShareSkip.FINANCIAL)
+        if (SharingBlocks.financial(sms.sender, sms.body)) return stop(ShareSkip.FINANCIAL)
+        if (SharingBlocks.accountSecurity(sms.sender, sms.body)) return stop(ShareSkip.ACCOUNT_SECURITY)
+
+        // The classifier only knows wording such as "OTP" and "verification code". A service's own header lets a plainer wording
+        // ("Your Netflix code is 123456") be read too, by the stricter reader.
+        val code: String
+        if (content is MessageContent.Otp) {
+            if (content.paymentAmount != null || content.cardNumber != null) return stop(ShareSkip.FINANCIAL)
+            code = content.code
+        } else {
+            if (headerService == null) return stop(ShareSkip.NOT_A_CODE)
+            code = ShareCodeReader.read(sms.body) ?: return stop(ShareSkip.NOT_A_CODE)
+        }
+        if (code.length !in MIN_CODE..MAX_CODE || code.any { it !in '0'..'9' }) return stop(ShareSkip.NOT_A_CODE)
 
         val age = now - sms.date
-        if (age > rules.freshForMs || age < -CLOCK_SKEW_MS) return none(ShareSkip.STALE)
+        if (age > rules.freshForMs || age < -CLOCK_SKEW_MS) return stop(ShareSkip.STALE)
 
-        val service = ShareServices.match(sms.sender, sms.body) ?: return none(ShareSkip.NOT_AN_ALLOWED_SERVICE)
+        val service = ShareServices.match(sms.sender, sms.body, rules.learned) ?: return stop(ShareSkip.NOT_AN_ALLOWED_SERVICE)
         val candidates = rules.contacts.filter { service.id in it.services }
-        if (candidates.isEmpty()) return none(ShareSkip.NO_ONE_FOR_SERVICE)
+        if (candidates.isEmpty()) return stop(ShareSkip.NO_ONE_FOR_SERVICE, service)
 
         val shares = ArrayList<Share>()
         val skipped = ArrayList<Skipped>()
@@ -148,8 +180,18 @@ object CodeSharing {
                 else -> shares += Share(contact, service, text, key)
             }
         }
-        return ShareDecision(shares, skipped)
+        val outcome = if (shares.isNotEmpty()) SeenOutcome.SENT else SeenCodes.outcomeOf(skipped.first().reason, true)
+        return ShareReview(ShareDecision(shares, skipped), true, service, outcome, code)
     }
+
+    /** What a test code sends: clearly a test, and only the made-up code. Plain ASCII so it stays one SMS. */
+    fun testText(service: ShareService): String = "Zyke TEST - ${service.label} code $TEST_CODE"
+
+    /** The made-up incoming message for "Send a test code": a Netflix-style code from the service's first header, read like any other. */
+    fun testMessage(service: ShareService, now: Long): com.zyke.message.domain.model.SmsMessage =
+        com.zyke.message.domain.model.SmsMessage(
+            0L, "VM-${service.senderTokens.first()}-S", "$TEST_CODE is your ${service.label} verification code. This is a Zyke test.", now, isRead = false
+        )
 
     /**
      * What the duplicate check compares. It contains the code, so it lives in memory only and is never written to the
@@ -211,10 +253,11 @@ internal object SharingBlocks {
         "(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|CANARA|IDFC|YESB|INDUS|RBL|BOB|UNION|PAYTM|PHONEPE|PHNPE|GPAY|GOOGLEPAY|BHIM|AMAZONPAY|AMZNPAY|AMZPAY|CRED|SLICE|SIMPL|LAZYPAY|NPCI|UPI|BANK|BNK|CARD|WALLET|PAY$|FINSERV|LOAN|INSUR|LIC|IRCTC|UIDAI|AADHA|EPFO|INCOMETAX|DIGILOC|AIRTEL|VODAFONE|BSNL|MTNL)"
     )
 
-    fun financial(sender: String, body: String): Boolean {
-        val token = ShareServices.senderToken(sender)
-        return FINANCIAL_BODY.containsMatchIn(body) || (token.isNotEmpty() && FINANCIAL_SENDER.containsMatchIn(token))
-    }
+    fun financial(sender: String, body: String): Boolean =
+        FINANCIAL_BODY.containsMatchIn(body) || financialSender(ShareServices.senderToken(sender))
+
+    /** [token] is a [ShareServices.senderToken]. */
+    fun financialSender(token: String): Boolean = token.isNotEmpty() && FINANCIAL_SENDER.containsMatchIn(token)
 
     fun accountSecurity(sender: String, body: String): Boolean = ACCOUNT_BODY.containsMatchIn(body)
 }

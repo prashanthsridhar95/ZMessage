@@ -19,6 +19,11 @@ import com.zyke.message.di.AppContainer
 import com.zyke.message.domain.device.CodeSharingFacts
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.sharing.CodeSharing
+import com.zyke.message.domain.sharing.CodeSharingRules
+import com.zyke.message.domain.sharing.SeenCodes
+import com.zyke.message.domain.sharing.SeenOutcome
+import com.zyke.message.domain.sharing.ShareHistory
+import com.zyke.message.domain.sharing.ShareServices
 import com.zyke.message.domain.sharing.SentRecord
 import com.zyke.message.domain.sharing.ShareLog
 import com.zyke.message.domain.sharing.ShareLogEntry
@@ -68,32 +73,63 @@ internal object CodeSharer {
 
     /**
      * Called by the receiver, off the main thread, after the message was classified. Decides, then sends. Never throws:
-     * whatever goes wrong with one person must not stop the next.
+     * whatever goes wrong with one person must not stop the next. Every code-like message is also noted in "Recent codes seen"
+     * (the sender header, the time, the service and the outcome; never the code or the text).
      */
     fun onLiveMessage(context: Context, container: AppContainer, message: ClassifiedMessage) {
         if (DemoMode.active) return
         runCatching {
-            val rules = container.codeSharing.rules.value
-            if (!rules.enabled) return
-            val now = System.currentTimeMillis()
-            val decision = CodeSharing.decide(message, rules, now, container.codeSharing.history(now))
-            if (decision.shares.isEmpty() && decision.skipped.isEmpty()) return
-            DevLog.d("sharing") { "code share: ${decision.shares.size} to send, skipped for ${decision.reasons.joinToString { it.name }.ifEmpty { "none" }}" }
-            if (decision.shares.isEmpty()) return
-            if (!canSend(context)) {
-                DevLog.d("sharing") { "no permission to send texts" }
-                return
-            }
-            val manager = smsManager(context)
-            for (share in decision.shares) {
-                runCatching {
-                    val entry = ShareLogEntry(UUID.randomUUID().toString(), share.service.id, share.contact.id, share.contact.name, now, ShareStatus.SENDING)
-                    container.codeSharing.addLog(entry)
-                    container.codeSharing.remember(SentRecord(share.contact.id, share.service.id, now, share.codeKey))
-                    send(context, container, manager, share.contact, share.text, entry)
-                }.onFailure { DevLog.d("sharing") { "one send failed: ${it.javaClass.simpleName}" } }
-            }
+            handle(context, container, message, container.codeSharing.rules.value, test = null)
         }.onFailure { DevLog.d("sharing") { "code share failed: ${it.javaClass.simpleName}" } }
+    }
+
+    /**
+     * The one path a message takes, for a real text and for "Send a test code" alike: review, then permission, then send, then
+     * the note in "Recent codes seen". [test] is the one person a test goes to (with the made-up text), else null.
+     * Returns how it ended, or null when there was nothing to say (sharing off, or not a code).
+     */
+    private fun handle(context: Context, container: AppContainer, message: ClassifiedMessage, rules: CodeSharingRules, test: TrustedContact?): SeenOutcome? {
+        if (!rules.enabled) return null
+        val now = System.currentTimeMillis()
+        val repository = container.codeSharing
+        val scoped = if (test == null) rules else rules.copy(contacts = listOf(test))
+        val history = if (test == null) repository.history(now) else ShareHistory()
+        val review = CodeSharing.review(message, scoped, now, history)
+        val sender = message.message.sender
+        fun note(outcome: SeenOutcome, detail: String = "") {
+            if (!review.codeLike && test == null) return
+            repository.addSeen(SeenCodes.entry(UUID.randomUUID().toString(), now, sender, review.service?.id, outcome, detail, test = test != null))
+        }
+        val decision = review.decision
+        DevLog.d("sharing") { "code share: ${decision.shares.size} to send, skipped for ${decision.reasons.joinToString { it.name }.ifEmpty { "none" }}" }
+        if (decision.shares.isEmpty()) {
+            note(review.outcome)
+            return review.outcome
+        }
+        if (!canSend(context)) {
+            DevLog.d("sharing") { "no permission to send texts" }
+            note(SeenOutcome.NO_PERMISSION)
+            return SeenOutcome.NO_PERMISSION
+        }
+        val manager = smsManager(context)
+        val sentTo = ArrayList<String>()
+        var failed = false
+        for (share in decision.shares) {
+            runCatching {
+                val entry = ShareLogEntry(UUID.randomUUID().toString(), share.service.id, share.contact.id, share.contact.name, now, ShareStatus.SENDING, test = test != null)
+                repository.addLog(entry)
+                if (test == null) repository.remember(SentRecord(share.contact.id, share.service.id, now, share.codeKey))
+                val text = if (test != null) CodeSharing.testText(share.service) else share.text
+                if (send(context, container, manager, share.contact, text, entry)) sentTo += share.contact.name else failed = true
+            }.onFailure {
+                failed = true
+                DevLog.d("sharing") { "one send failed: ${it.javaClass.simpleName}" }
+            }
+        }
+        val outcome = if (sentTo.isNotEmpty()) SeenOutcome.SENT else SeenOutcome.SEND_FAILED
+        note(outcome, if (sentTo.isNotEmpty()) sentTo.joinToString(", ") else "the phone refused the text")
+        if (failed && sentTo.isNotEmpty()) DevLog.d("sharing") { "some sends failed" }
+        return outcome
     }
 
     enum class TestResult { QUEUED, NO_PERMISSION, TOO_SOON, FAILED }
@@ -106,6 +142,24 @@ internal object CodeSharer {
         val entry = ShareLogEntry(UUID.randomUUID().toString(), "", contact.id, contact.name, now, ShareStatus.SENDING, test = true)
         container.codeSharing.addLog(entry)
         return if (send(context, container, smsManager(context), contact, CodeSharing.TEST_TEXT, entry)) TestResult.QUEUED else TestResult.FAILED
+    }
+
+    /**
+     * "Send a test code": a made-up Netflix-style message for [serviceId] goes through the same path as a real text (classify,
+     * review, send) to this one person, and the text they get says "Zyke TEST". It follows the real rules, so a pause, the hours
+     * or a missing permission show up as the reason instead of a send. Returns one plain sentence for the person.
+     */
+    fun sendTestCode(context: Context, container: AppContainer, contact: TrustedContact, serviceId: String): String {
+        if (DemoMode.active) return "Not available in Demo mode"
+        val service = ShareServices.byId(serviceId) ?: return "Choose a service first"
+        val now = System.currentTimeMillis()
+        if (!CodeSharing.canSendTest(container.codeSharing.log.value, contact.id, now)) return "A test was just sent: wait a minute"
+        val rules = container.codeSharing.rules.value
+        if (!rules.enabled) return "Switch Share codes on first"
+        val fake = container.messageClassifier.classify(CodeSharing.testMessage(service, now))
+        val outcome = runCatching { handle(context, container, fake, rules, test = contact) }.getOrNull() ?: return "Couldn't run the test"
+        return SeenCodes.reason(SeenCodes.entry("", now, "", service.id, outcome, test = false))
+            .let { if (outcome == SeenOutcome.SENT) "Test code sent to ${contact.name}" else it }
     }
 
     /**

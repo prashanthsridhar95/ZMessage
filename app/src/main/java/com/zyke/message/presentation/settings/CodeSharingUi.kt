@@ -50,6 +50,9 @@ import com.zyke.message.domain.device.CodeSharingProblem
 import com.zyke.message.domain.sharing.CodeSharing
 import com.zyke.message.domain.sharing.ContactResult
 import com.zyke.message.domain.sharing.PhoneNumbers
+import com.zyke.message.domain.sharing.SeenCodes
+import com.zyke.message.domain.sharing.SeenOutcome
+import com.zyke.message.domain.sharing.ShareLearning
 import com.zyke.message.domain.sharing.ShareLogEntry
 import com.zyke.message.domain.sharing.ShareServices
 import com.zyke.message.domain.sharing.ShareStatus
@@ -133,6 +136,8 @@ private fun CodeSharingContent() {
     val repository = container.codeSharing
     val rules by repository.rules.collectAsStateWithLifecycle()
     val log by repository.log.collectAsStateWithLifecycle()
+    val seen by repository.seen.collectAsStateWithLifecycle()
+    val lastReceiverAt by repository.lastReceiverAt.collectAsStateWithLifecycle()
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
@@ -161,6 +166,11 @@ private fun CodeSharingContent() {
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var testing by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingTest by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingCode by rememberSaveable { mutableStateOf(false) }
+    var codeTesting by rememberSaveable { mutableStateOf<String?>(null) }
+    var codeTestService by rememberSaveable { mutableStateOf<String?>(null) }
+    var teaching by rememberSaveable { mutableStateOf<String?>(null) }
+    var teachService by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun openAppSettings() {
         runCatching {
@@ -200,8 +210,9 @@ private fun CodeSharingContent() {
     }
     val askToTest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         recheck += 1
-        if (ok) testing = pendingTest else openAppSettings()
+        if (ok) { if (pendingCode) codeTesting = pendingTest else testing = pendingTest } else openAppSettings()
         pendingTest = null
+        pendingCode = false
     }
 
     // ---- what it is, and the care it needs
@@ -221,6 +232,15 @@ private fun CodeSharingContent() {
             Modifier.padding(top = 4.dp), maxLines = 10
         )
         SeeWhatIsSentLink()
+    }
+
+    FintechCard {
+        RowTitle("How it works")
+        Caption(
+            "Only codes from the services you choose are forwarded, only while Zyke can read your texts. " +
+                "Netflix and others often send codes by email or in-app instead of SMS, which Zyke can't see.",
+            Modifier.padding(top = 4.dp), maxLines = 6
+        )
     }
 
     // ---- the switch
@@ -282,6 +302,11 @@ private fun CodeSharingContent() {
         FintechCard {
             RowTitle(title, color = if (problem == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
             if (detail.isNotEmpty()) Caption(detail, Modifier.padding(top = 4.dp), maxLines = 4)
+            Caption(
+                if (lastReceiverAt > 0L) "Last text seen by the receiver: " + DisplayFormatters.listStamp(lastReceiverAt)
+                else "No text has reached the receiver yet since you switched this on",
+                Modifier.padding(top = 4.dp), maxLines = 3
+            )
             if (action != null) AppButton(action, run, Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
@@ -305,6 +330,9 @@ private fun CodeSharingContent() {
                 )
                 val labels = ShareServices.all.filter { it.id in person.services }.map { it.label }
                 val perRow = evenRowSize(labels.size)
+                SeenCodes.noServicesWarning(person)?.let { warning ->
+                    Caption(warning, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.error, maxLines = 3)
+                }
                 FlowRow(
                     Modifier.fillMaxWidth().padding(top = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -314,10 +342,19 @@ private fun CodeSharingContent() {
                     AppButton("Edit", { editing = person.id }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                     AppButton(
                         "Test message",
-                        { if (granted(Manifest.permission.SEND_SMS)) testing = person.id else { pendingTest = person.id; askToTest.launch(Manifest.permission.SEND_SMS) } },
+                        { if (granted(Manifest.permission.SEND_SMS)) testing = person.id else { pendingTest = person.id; pendingCode = false; askToTest.launch(Manifest.permission.SEND_SMS) } },
                         Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT
                     )
                 }
+                AppButton(
+                    "Send a test code",
+                    {
+                        codeTestService = ShareServices.all.firstOrNull { it.id in person.services }?.id
+                        if (granted(Manifest.permission.SEND_SMS)) codeTesting = person.id else { pendingTest = person.id; pendingCode = true; askToTest.launch(Manifest.permission.SEND_SMS) }
+                    },
+                    Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT,
+                    enabled = SeenCodes.noServicesWarning(person) == null
+                )
             }
         }
     }
@@ -381,6 +418,69 @@ private fun CodeSharingContent() {
         }
     }
 
+    // ---- recent codes seen: why was it (not) sent?
+    Text("Recent codes seen", Modifier.padding(start = 4.dp, top = 8.dp).heading(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+    FintechCard {
+        RowTitle("Why wasn't it sent?")
+        Caption(
+            "Each code-like text Zyke heard, with its sender name, the service it was taken for and what happened. Never the code or the message.",
+            Modifier.padding(top = 4.dp), maxLines = 4
+        )
+        if (seen.isEmpty()) {
+            Caption("Nothing yet. After the next login code arrives, it is listed here.", Modifier.padding(top = 12.dp), maxLines = 3)
+        } else {
+            seen.forEachIndexed { index, entry ->
+                androidx.compose.runtime.key(entry.id) {
+                    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        Text(
+                            entry.header.ifEmpty { "(no sender)" } + " · " + SeenCodes.serviceLabel(entry),
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2
+                        )
+                        Caption(
+                            DisplayFormatters.listStamp(entry.at) + " · " + SeenCodes.reason(entry),
+                            color = if (entry.outcome == SeenOutcome.SEND_FAILED) MaterialTheme.colorScheme.error else mutedColor(),
+                            maxLines = 4
+                        )
+                        ResponsiveRow(Modifier.fillMaxWidth().padding(top = 4.dp), spacing = 8.dp) {
+                            if (entry.header.isNotEmpty() && !entry.header.startsWith("•")) {
+                                AppButton("Copy sender", {
+                                    runCatching {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Sender", entry.header))
+                                    }
+                                    say("Copied ${entry.header}")
+                                }, Modifier.cell(), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                            }
+                            if (SeenCodes.teachableToken(entry) != null) {
+                                AppButton("Treat ${entry.header} as a service", { teachService = null; teaching = entry.id }, Modifier.cell(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
+                            }
+                        }
+                    }
+                }
+            }
+            AppButton(
+                "Clear this list", { repository.clearSeen() },
+                Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+            )
+        }
+    }
+    if (rules.learned.isNotEmpty()) {
+        FintechCard {
+            RowTitle("Senders you taught")
+            rules.learned.toSortedMap().forEach { (serviceId, tokens) ->
+                val label = ShareServices.byId(serviceId)?.label ?: return@forEach
+                tokens.sorted().forEach { token ->
+                    androidx.compose.runtime.key(serviceId + token) {
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("$token \u2192 $label", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                            AppButton("Remove", { repository.forgetHeader(serviceId, token) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ---- recent log
     Text("Recent", Modifier.padding(start = 4.dp, top = 8.dp).heading(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
     FintechCard {
@@ -425,6 +525,79 @@ private fun CodeSharingContent() {
                 }
             )
         } else editing = null
+    }
+    teaching?.let { id ->
+        val row = seen.firstOrNull { it.id == id }
+        val token = row?.let { SeenCodes.teachableToken(it) }
+        if (row == null || token == null) teaching = null else {
+            val chosen = teachService
+            val service = chosen?.let { ShareServices.byId(it) }
+            val problem = service?.let { ShareLearning.problem(row.header, it.id, rules.learned) }
+            val people = if (service == null) 0 else rules.contacts.count { service.id in it.services && it.enabled }
+            AlertDialog(
+                onDismissRequest = { teaching = null },
+                title = { Text("Treat ${row.header} as which service?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Chips(
+                            ShareServices.all.map { ChipOption(it.label, it.id == chosen) },
+                            onSelect = { index -> teachService = ShareServices.all[index].id }
+                        )
+                        Text(
+                            when {
+                                service == null -> "Pick the service this sender belongs to."
+                                problem != null -> ShareLearning.explain(problem)
+                                else -> "From now on a login code from \u201c${row.header}\u201d is treated as a ${service.label} code and texted to the " +
+                                    "$people ${if (people == 1) "person" else "people"} who have ${service.label} selected: only the code and \u201c${service.label}\u201d, never the message. " +
+                                    "Payment, bank, government, insurance and phone-company texts are still never sent." +
+                                    if (service.senderNeedsBrand) " It must also say ${service.label} in the text." else ""
+                            }
+                        )
+                    }
+                },
+                confirmButton = {
+                    AppButton("Treat as ${service?.label ?: "..."}", {
+                        if (service != null && problem == null) {
+                            repository.learnHeader(service.id, token)
+                            say("${row.header} is now treated as ${service.label}")
+                        }
+                        teaching = null
+                    }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = service != null && problem == null)
+                },
+                dismissButton = { AppButton("Cancel", { teaching = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+            )
+        }
+    }
+    codeTesting?.let { id ->
+        val person = rules.contacts.firstOrNull { it.id == id }
+        if (person == null) codeTesting = null else {
+            val choices = ShareServices.all.filter { it.id in person.services }
+            val chosen = codeTestService ?: choices.firstOrNull()?.id
+            AlertDialog(
+                onDismissRequest = { codeTesting = null },
+                title = { Text("Send a test code to ${person.name}?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Chips(choices.map { ChipOption(it.label, it.id == chosen) }, onSelect = { index -> codeTestService = choices[index].id })
+                        Text(
+                            "A made-up code goes through the same steps as a real one and is texted from your SIM to ${PhoneNumbers.mask(person.number)}: " +
+                                "\u201cZyke TEST - ${ShareServices.byId(chosen.orEmpty())?.label ?: "Netflix"} code ${CodeSharing.TEST_CODE}\u201d. " +
+                                "It follows your pause, hours and switches. Your mobile plan may charge for it."
+                        )
+                    }
+                },
+                confirmButton = {
+                    AppButton("Send test code", {
+                        val service = chosen
+                        codeTesting = null
+                        if (service != null) {
+                            scope.launch(Dispatchers.Default) { say(CodeSharer.sendTestCode(context, container, person, service)) }
+                        }
+                    }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = chosen != null)
+                },
+                dismissButton = { AppButton("Cancel", { codeTesting = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+            )
+        }
     }
     testing?.let { id ->
         val person = rules.contacts.firstOrNull { it.id == id }

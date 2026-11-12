@@ -470,6 +470,26 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
   a notification. The saved log (`code_sharing_log`, left out of backups) has service, person's name, time and status. The
   duplicate check's code keys live in memory only. The people and settings are in the `code_sharing` preferences file and are
   carried by `PrefsBackup` (PIN-encrypted) like every other setup file.
+* **Self-explaining (`CodeSharing.review`, `SeenCodes`, `ShareCodeReader`, `ShareLearning`).** `decide` is now `review(...).decision`;
+  `review` also says whether the message was code-like, the service it was taken for, and one `SeenOutcome`. The Share codes page
+  has "Recent codes seen / Why wasn't it sent?": the last 20 code-like messages the live receiver handled (read as an OTP, or from
+  a sender named like one of the services), each as time, sender HEADER (a header with 6 or more digits, i.e. a phone number, is
+  masked to its last two digits), service or "none", and a plain reason. Never the code, the body or a number (`SeenCode` has
+  exactly those fields; `CodeSharingPolicyTest` and `CodeSeenTest` pin it). Kept in memory and in `code_sharing_seen`
+  (left out of backups). The receiver also writes the time of any text it hears (only while sharing is on) to the same file, shown as
+  "Last text seen by the receiver" so the person can tell whether SMS broadcasts reach the app. Developer mode is not needed.
+* **Wider matching, same two gates.** The header name (route prefix and category suffix stripped) is matched against a longer
+  alias list per service; the aliases are UNVERIFIED guesses, which is why the log exists. A service's own header also lets plainer
+  wording ("Your Netflix code is 123456", "sign-in code") be read by `ShareCodeReader` when the general classifier, which needs
+  "OTP" or "verification code" and similar, does not call the message a code; it needs a code word and exactly one plausible number
+  and runs only after the hard blocks. "Treat VM-XXXX as Netflix" on a "sender isn't one of the six services" row teaches a header
+  (`CodeSharingRules.learned`, kept in `code_sharing`, so it travels with a backup); `ShareLearning.problem` refuses phone numbers
+  and bank, payment, government and phone-company names, a dialog names what will be forwarded, and the hard blocks and the
+  wording gate still apply to a taught header.
+* **Send a test code.** `CodeSharer.sendTestCode` classifies a made-up message (`VM-<alias>-S`, "123456 is your Netflix
+  verification code. This is a Zyke test.") and runs it through the same `handle` as a real text, to the one chosen person, with
+  the text `Zyke TEST - Netflix code 123456` (ASCII hyphen, one segment). It obeys pause, hours and switches. The log entry is
+  marked as a test and is not counted for the rate limit or remembered for the duplicate check.
 * **Demo mode.** `AppContainer` uses `NoCodeSharing` in a demo process; the receiver, `CodeSharer` and the status receiver stop on
   `DemoMode.active` (`DemoPolicyTest`), the page shows only "Not available in Demo mode", and the contact picker and permission
   prompts are not reachable.

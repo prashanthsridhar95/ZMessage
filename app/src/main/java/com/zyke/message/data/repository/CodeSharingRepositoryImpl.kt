@@ -3,8 +3,12 @@ package com.zyke.message.data.repository
 import android.content.Context
 import com.zyke.message.domain.sharing.CodeSharingRepository
 import com.zyke.message.domain.sharing.CodeSharingRules
+import com.zyke.message.domain.sharing.SeenCode
+import com.zyke.message.domain.sharing.SeenCodes
+import com.zyke.message.domain.sharing.SeenOutcome
 import com.zyke.message.domain.sharing.SentRecord
 import com.zyke.message.domain.sharing.ShareHistory
+import com.zyke.message.domain.sharing.ShareLearning
 import com.zyke.message.domain.sharing.ShareLog
 import com.zyke.message.domain.sharing.ShareLogEntry
 import com.zyke.message.domain.sharing.ShareStatus
@@ -24,6 +28,8 @@ import org.json.JSONObject
 class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
     private val prefs = context.applicationContext.getSharedPreferences("code_sharing", Context.MODE_PRIVATE)
     private val logPrefs = context.applicationContext.getSharedPreferences("code_sharing_log", Context.MODE_PRIVATE)
+    // code_sharing_seen: the "Recent codes seen" list and the time the receiver last heard a text. Left out of backups.
+    private val seenPrefs = context.applicationContext.getSharedPreferences("code_sharing_seen", Context.MODE_PRIVATE)
     private val lock = Any()
     private val memory = ArrayList<SentRecord>()
 
@@ -31,6 +37,10 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
     override val rules: StateFlow<CodeSharingRules> = _rules.asStateFlow()
     private val _log = MutableStateFlow(readLog())
     override val log: StateFlow<List<ShareLogEntry>> = _log.asStateFlow()
+    private val _seen = MutableStateFlow(readSeen())
+    override val seen: StateFlow<List<SeenCode>> = _seen.asStateFlow()
+    private val _lastReceiverAt = MutableStateFlow(seenPrefs.getLong(KEY_LAST_RECEIVER, 0L))
+    override val lastReceiverAt: StateFlow<Long> = _lastReceiverAt.asStateFlow()
 
     override fun setEnabled(on: Boolean) = change { it.copy(enabled = on) }
     override fun setPausedUntil(at: Long) = change { it.copy(pausedUntil = at.coerceAtLeast(0L)) }
@@ -51,6 +61,31 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
     override fun addLog(entry: ShareLogEntry) = changeLog { ShareLog.add(it, entry, System.currentTimeMillis()) }
     override fun updateStatus(id: String, incoming: ShareStatus) = changeLog { ShareLog.update(it, id, incoming) }
     override fun clearLog() = changeLog { emptyList() }
+
+    override fun addSeen(entry: SeenCode) {
+        synchronized(lock) {
+            val updated = SeenCodes.add(_seen.value, entry)
+            seenPrefs.edit().putString(KEY_SEEN, JSONArray().apply { updated.forEach { put(seenJson(it)) } }.toString()).apply()
+            _seen.value = updated
+        }
+    }
+
+    override fun clearSeen() {
+        synchronized(lock) {
+            seenPrefs.edit().remove(KEY_SEEN).apply()
+            _seen.value = emptyList()
+        }
+    }
+
+    override fun noteReceiverFired(at: Long) {
+        synchronized(lock) {
+            seenPrefs.edit().putLong(KEY_LAST_RECEIVER, at).apply()
+            _lastReceiverAt.value = at
+        }
+    }
+
+    override fun learnHeader(serviceId: String, token: String) = change { it.copy(learned = ShareLearning.add(it.learned, serviceId, token)) }
+    override fun forgetHeader(serviceId: String, token: String) = change { it.copy(learned = ShareLearning.remove(it.learned, serviceId, token)) }
 
     override fun history(now: Long): ShareHistory = synchronized(lock) {
         memory.removeAll { now - it.at > KEEP_MEMORY_MS }
@@ -89,6 +124,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
             .putInt(KEY_WINDOW_START, rules.window?.startMinute ?: -1)
             .putInt(KEY_WINDOW_END, rules.window?.endMinute ?: -1)
             .putString(KEY_NAME, rules.senderName)
+            .putString(KEY_LEARNED, JSONObject().apply { rules.learned.forEach { (service, tokens) -> put(service, JSONArray().apply { tokens.sorted().forEach { put(it) } }) } }.toString())
             .putString(KEY_CONTACTS, JSONArray().apply { rules.contacts.forEach { put(contactJson(it)) } }.toString())
             .apply()
     }
@@ -101,9 +137,39 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
             contacts = runCatching { readContacts(prefs.getString(KEY_CONTACTS, null)) }.getOrDefault(emptyList()),
             pausedUntil = prefs.getLong(KEY_PAUSED, 0L),
             window = if (start in 0 until 1440 && end in 0 until 1440 && start != end) ShareWindow(start, end) else null,
-            senderName = prefs.getString(KEY_NAME, "").orEmpty()
+            senderName = prefs.getString(KEY_NAME, "").orEmpty(),
+            learned = runCatching { readLearned(prefs.getString(KEY_LEARNED, null)) }.getOrDefault(emptyMap())
         )
     }
+
+    private fun readLearned(json: String?): Map<String, Set<String>> {
+        if (json.isNullOrEmpty()) return emptyMap()
+        val o = JSONObject(json)
+        val out = LinkedHashMap<String, Set<String>>()
+        for (service in o.keys()) {
+            val a = o.getJSONArray(service)
+            val tokens = (0 until a.length()).map { a.getString(it) }.filter { it.isNotEmpty() }.toSet()
+            if (tokens.isNotEmpty()) out[service] = tokens
+        }
+        return out
+    }
+
+    private fun readSeen(): List<SeenCode> = runCatching {
+        val array = JSONArray(seenPrefs.getString(KEY_SEEN, null) ?: return emptyList())
+        (0 until array.length()).mapNotNull { i ->
+            runCatching {
+                val o = array.getJSONObject(i)
+                SeenCode(
+                    o.getString("id"), o.getLong("at"), o.getString("header"), o.optString("service", "").ifEmpty { null },
+                    SeenOutcome.valueOf(o.getString("outcome")), o.optString("detail", ""), o.optBoolean("test", false)
+                )
+            }.getOrNull()
+        }.take(SeenCodes.MAX_ENTRIES)
+    }.getOrDefault(emptyList())
+
+    private fun seenJson(e: SeenCode) = JSONObject()
+        .put("id", e.id).put("at", e.at).put("header", e.header).put("service", e.serviceId.orEmpty())
+        .put("outcome", e.outcome.name).put("detail", e.detail).put("test", e.test)
 
     private fun readContacts(json: String?): List<TrustedContact> {
         if (json.isNullOrEmpty()) return emptyList()
@@ -146,6 +212,9 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
         const val KEY_NAME = "sender_name"
         const val KEY_CONTACTS = "contacts"
         const val KEY_LOG = "log"
+        const val KEY_LEARNED = "learned"
+        const val KEY_SEEN = "seen"
+        const val KEY_LAST_RECEIVER = "last_receiver"
         const val KEEP_MEMORY_MS = 60L * 60_000L
     }
 }

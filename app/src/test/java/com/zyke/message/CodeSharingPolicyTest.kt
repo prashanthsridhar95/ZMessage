@@ -19,8 +19,14 @@ class CodeSharingPolicyTest {
     @Test fun onlyTheLiveReceiverCallsTheSender_soReadingTheInboxNeverForwardsAnything() {
         val callers = kotlinFiles().filter { f -> code(f).any { it.contains("onLiveMessage(") } && f.name != "CodeSharer.kt" }.map { it.name }
         assertEquals(listOf("SmsReceiver.kt"), callers)
-        val decide = kotlinFiles().filter { f -> code(f).any { it.contains("CodeSharing.decide(") } }.map { it.name }
+        val decide = kotlinFiles().filter { f -> code(f).any { it.contains("CodeSharing.decide(") || it.contains("CodeSharing.review(") } }.map { it.name }
         assertEquals(listOf("CodeSharer.kt"), decide)
+        // The test code is started from the page but takes the very same path (CodeSharer.handle), nothing of its own.
+        val testCallers = kotlinFiles().filter { f -> code(f).any { it.contains("sendTestCode(") } && f.name != "CodeSharer.kt" }.map { it.name }
+        assertEquals(listOf("CodeSharingUi.kt"), testCallers)
+        val sharer = text("notifications/CodeSharer.kt")
+        assertTrue(sharer.substringAfter("fun sendTestCode").substringBefore("fun sendPlain").contains("handle(context, container, fake, rules, test = contact)"))
+        assertEquals(2, Regex("""\bhandle\(context, container""").findAll(code(File(main, "notifications/CodeSharer.kt")).joinToString("\n")).count())
         // And it is called after classification, from the broadcast of a new message.
         val receiver = text("notifications/SmsReceiver.kt")
         assertTrue(receiver.indexOf("messageClassifier.classify") in 0 until receiver.indexOf("CodeSharer.onLiveMessage"))
@@ -72,5 +78,49 @@ class CodeSharingPolicyTest {
         val backup = text("data/backup/PrefsBackup.kt")
         assertTrue(Regex("""EXCLUDED = setOf\([^)]*"code_sharing_log"""").containsMatchIn(backup))
         assertFalse(Regex("""EXCLUDED = setOf\([^)]*"code_sharing"[,)]""").containsMatchIn(backup))
+    }
+
+    @Test fun theSeenListHoldsOnlyHeadersTimesAndOutcomes_andIsLeftOutOfBackups() {
+        val repo = text("data/repository/CodeSharingRepositoryImpl.kt")
+        val seenFields = Regex("""\.put\("(\w+)"""").findAll(repo.substringAfter("private fun seenJson").substringBefore("private fun readContacts")).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("id", "at", "header", "service", "outcome", "detail", "test"), seenFields)
+        val backup = text("data/backup/PrefsBackup.kt")
+        assertTrue(Regex("""EXCLUDED = setOf\([^)]*"code_sharing_seen"""").containsMatchIn(backup))
+        // What is added to the list is built by SeenCodes.entry (header masked, detail cleaned) and nothing else.
+        val adders = kotlinFiles().filter { f -> code(f).any { it.contains("addSeen(") } && f.name != "CodeSharingRepositoryImpl.kt" }
+        assertEquals(listOf("CodeSharer.kt"), adders.map { it.name })
+        for (line in code(File(main, "notifications/CodeSharer.kt")).filter { it.contains("addSeen(") }) assertTrue(line, line.contains("SeenCodes.entry("))
+        // The receiver notes a time only.
+        val receiver = text("notifications/SmsReceiver.kt")
+        assertTrue(receiver.contains("noteReceiverFired(System.currentTimeMillis())"))
+        // No code, body or number goes into the seen entry.
+        val handle = text("notifications/CodeSharer.kt").substringAfter("private fun handle").substringBefore("enum class TestResult")
+        for (line in handle.lines().filter { it.contains("SeenCodes.entry(") }) assertFalse(line, Regex("""\.code\b|\.body\b|\.number\b|\.text\b""").containsMatchIn(line))
+    }
+
+    @Test fun demoModeNeverReachesTheSendOrTheLog() {
+        val sharer = text("notifications/CodeSharer.kt")
+        assertTrue(sharer.substringAfter("fun onLiveMessage").substringBefore("private fun handle").contains("if (DemoMode.active) return"))
+        assertTrue(sharer.substringAfter("fun sendTestCode").substringBefore("val service").contains("DemoMode.active"))
+        assertTrue(text("notifications/SmsReceiver.kt").contains("DemoMode.active) return"))
+        assertTrue(File("src/main/java/com/zyke/message/di/AppContainer.kt").readText().contains("if (demo) com.zyke.message.domain.sharing.NoCodeSharing"))
+    }
+
+    @Test fun thePageExplainsItselfAndTheTeachingNeedsAConfirmation() {
+        val page = text("presentation/settings/CodeSharingUi.kt")
+        assertTrue(page.contains("Recent codes seen"))
+        assertTrue(page.contains("Why wasn't it sent?"))
+        assertTrue(page.contains("Last text seen by the receiver: "))
+        assertTrue(page.contains("Netflix and others often send codes by email or in-app instead of SMS, which Zyke can't see."))
+        assertTrue(page.contains("Send a test code"))
+        // Teaching a header: a dialog that names what will be forwarded, and the check that refuses banks, before anything is saved.
+        val dialog = page.substringAfter("teaching?.let").substringBefore("codeTesting?.let")
+        assertTrue(dialog.contains("is treated as a"))
+        assertTrue(dialog.contains("ShareLearning.problem("))
+        assertTrue(dialog.indexOf("ShareLearning.problem(") < dialog.indexOf("repository.learnHeader("))
+        assertFalse(page.contains("developerMode"))
+        // The manifest still has the one receiver, disabled until switched on, and no new permission.
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        assertTrue(manifest.substringAfter("notifications.SmsReceiver").substringBefore("</receiver>").contains("android:enabled=\"false\""))
     }
 }

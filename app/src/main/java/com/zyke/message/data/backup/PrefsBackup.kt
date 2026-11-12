@@ -22,11 +22,12 @@ object PrefsBackup {
     // setting is off until the person picks a folder again.
     // demo_mode: the Demo mode switch is never saved or restored (it would turn a restored phone into a demonstration).
     // code_sharing_log: what was forwarded from this phone (the trusted people and their services travel, in code_sharing).
+    // code_sharing_seen: the "Recent codes seen" list (sender headers and times) and when the receiver last heard a text; it describes this phone.
     // balance_check_device: the saved UAN and the last balance request per account (the presets the person changed travel, in balance_check).
     // card_limits (the monthly limit per card, from the Cards tab) is the person's own setting and travels.
     // train_key_device and train_usage_device: the person's own train data key and the count of requests made today; they describe this phone, so a backup never carries the key.
     // flight_plan and train_plan: the journeys the alarm and the tracking service work from when the app is closed (rebuilt whenever Home is shown); manual_flights and manual_trains travel.
-    private val EXCLUDED = setOf("flight_plan", "train_plan", "code_sharing_log", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
+    private val EXCLUDED = setOf("flight_plan", "train_plan", "code_sharing_log", "code_sharing_seen", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */

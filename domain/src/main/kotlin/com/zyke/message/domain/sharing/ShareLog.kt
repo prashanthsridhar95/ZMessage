@@ -54,7 +54,8 @@ object ShareLog {
     fun headline(entry: ShareLogEntry): String {
         val label = ShareServices.byId(entry.serviceId)?.label
         return when {
-            entry.test -> if (entry.status == ShareStatus.FAILED) "Couldn't send to ${entry.contactName}" else "Sent a test message to ${entry.contactName}"
+            entry.test -> if (entry.status == ShareStatus.FAILED) "Couldn't send to ${entry.contactName}"
+                else if (label != null) "Sent a test $label code to ${entry.contactName}" else "Sent a test message to ${entry.contactName}"
             entry.status == ShareStatus.FAILED -> "Couldn't send to ${entry.contactName}"
             label == null -> "Sent a code to ${entry.contactName}"
             else -> "Sent $label code to ${entry.contactName}"
