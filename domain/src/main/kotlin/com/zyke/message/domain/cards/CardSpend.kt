@@ -155,6 +155,23 @@ object DeckModel {
 
     fun clamp(page: Int, count: Int): Int = if (count <= 0) 0 else page.coerceIn(0, count - 1)
 
+    /** A drag past this share of the deck's width sends the front card away. */
+    const val COMMIT_FRACTION = 0.30f
+
+    /** A flick faster than this (px per second) in the direction of the drag sends it away whatever the distance. */
+    const val FLICK_PX_PER_S = 1_200f
+
+    /**
+     * Whether letting go of the front card at [dragPx] (negative = dragged left) with [velocityPxPerS] sends it away (to the next or
+     * previous card) or lets it spring back. With fewer than two cards there is nowhere to go, so it always springs back.
+     */
+    fun commits(dragPx: Float, widthPx: Float, velocityPxPerS: Float, count: Int): Boolean {
+        if (count < 2 || dragPx == 0f) return false
+        val width = widthPx.coerceAtLeast(1f)
+        val flicked = Math.abs(velocityPxPerS) > FLICK_PX_PER_S && (velocityPxPerS < 0f) == (dragPx < 0f)
+        return Math.abs(dragPx) > width * COMMIT_FRACTION || flicked
+    }
+
     /** One entry per dot shown: its card index and whether it is the current one. With many cards, a window that follows the page. */
     data class Dot(val index: Int, val on: Boolean)
 

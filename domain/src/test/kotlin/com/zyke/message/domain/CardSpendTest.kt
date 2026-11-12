@@ -12,6 +12,7 @@ import com.zyke.message.domain.model.SmsMessage
 import java.math.BigDecimal
 import java.time.ZoneOffset
 import java.time.LocalDate
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -119,6 +120,22 @@ class CardSpendTest {
         assertEquals(0, DeckModel.dots(20, 0).first().index)
         assertEquals(19, DeckModel.dots(20, 19).last().index)
         assertEquals(19, DeckModel.clamp(50, 20)); assertEquals(0, DeckModel.clamp(-3, 20)); assertEquals(0, DeckModel.clamp(3, 0))
+    }
+
+    @Test fun aSwipeCommitsOnDistanceOrOnAFlickTheSameWay() {
+        // Past 30 percent of the width, either way.
+        assertTrue(DeckModel.commits(-301f, 1000f, 0f, 3))
+        assertTrue(DeckModel.commits(301f, 1000f, 0f, 3))
+        assertFalse(DeckModel.commits(-299f, 1000f, 0f, 3))
+        // A fast flick in the direction of the drag commits at any distance; one against it does not.
+        assertTrue(DeckModel.commits(-40f, 1000f, -1_500f, 3))
+        assertFalse(DeckModel.commits(-40f, 1000f, 1_500f, 3))
+        assertFalse(DeckModel.commits(-40f, 1000f, -1_000f, 3))
+        // One card (or none) has nowhere to go; no drag is no commit; a zero width does not divide by zero.
+        assertFalse(DeckModel.commits(-900f, 1000f, -5_000f, 1))
+        assertFalse(DeckModel.commits(-900f, 1000f, -5_000f, 0))
+        assertFalse(DeckModel.commits(0f, 1000f, -5_000f, 3))
+        assertTrue(DeckModel.commits(-5f, 0f, 0f, 2))
     }
 
     @Test fun limitsAreKeptPerCardInMemory() {
