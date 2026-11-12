@@ -38,6 +38,15 @@ import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.mutedColor
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.common.FitText
+import com.zyke.message.presentation.motion.AnimatedAmount
+import com.zyke.message.presentation.motion.rememberProgressReveal
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.TypeRole
+import java.math.BigDecimal
 
 /**
  * Shared pieces of the Goals, Reminders and Calendar pages, so the three read as one family: the same header,
@@ -64,7 +73,7 @@ internal fun StatusPill(text: String, tone: Tone, modifier: Modifier = Modifier)
     val color = toneColor(tone)
     Text(
         text,
-        modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+        modifier.background(color.copy(alpha = 0.14f), AppShapes.chip).padding(horizontal = Spacing.sm, vertical = Spacing.xs),
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
         color = color,
@@ -74,36 +83,37 @@ internal fun StatusPill(text: String, tone: Tone, modifier: Modifier = Modifier)
 
 @Composable
 internal fun SectionHeader(text: String, count: Int? = null, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text.uppercase(),
-            Modifier.heading(),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = androidx.compose.ui.unit.TextUnit(1.2f, androidx.compose.ui.unit.TextUnitType.Sp),
-            color = mutedColor()
-        )
+    Row(modifier.fillMaxWidth().padding(start = Spacing.xs, top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        Text(text.uppercase(), Modifier.heading(), style = TypeRole.section, color = mutedColor())
         if (count != null) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             Caption(count.toString())
         }
     }
 }
 
-/** The headline of a page: one number that answers "how am I doing?", with a line of context and an optional bar. */
+/**
+ * The headline of a page: one number that answers "how am I doing?", with a line of context and an optional bar. It is the
+ * hero of its page. Give [amount] for a money figure and it counts up on the first showing (and stays dots while hidden);
+ * otherwise [value] is shown as it is, on one line that shrinks to fit.
+ */
 @Composable
-internal fun PageSummary(label: String, value: String, caption: String, modifier: Modifier = Modifier, extra: (@Composable () -> Unit)? = null) {
-    FintechCard(modifier) {
-        Caption(label.uppercase())
-        Text(
-            value,
-            Modifier.padding(top = 4.dp),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1
-        )
-        Caption(caption, Modifier.padding(top = 4.dp), maxLines = 2)
+internal fun PageSummary(
+    label: String,
+    value: String,
+    caption: String,
+    modifier: Modifier = Modifier,
+    amount: BigDecimal? = null,
+    extra: (@Composable () -> Unit)? = null
+) {
+    FintechCard(modifier, level = Tonal.Hero) {
+        CardHeader(label)
+        if (amount != null) {
+            AnimatedAmount(amount, style = TypeRole.hero, color = MaterialTheme.colorScheme.primary, fit = true, fromZero = true)
+        } else {
+            FitText(value, style = TypeRole.hero, color = MaterialTheme.colorScheme.primary)
+        }
+        Caption(caption, Modifier.padding(top = Spacing.xs), maxLines = 2)
         extra?.invoke()
     }
 }
@@ -116,6 +126,8 @@ internal fun EmptyPlan(icon: Int, title: String, body: String, actionLabel: Stri
 /** A ring that fills as a goal is met, with the percentage inside it. */
 @Composable
 internal fun ProgressRing(fraction: Float, tone: Tone, modifier: Modifier = Modifier.size(56.dp)) {
+    // The sweep grows to its value once when first shown; it is read only while drawing.
+    val shown = rememberProgressReveal(fraction)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
     val color = if (tone == Tone.NEUTRAL) MaterialTheme.colorScheme.primary else toneColor(tone)
     val percent = (fraction * 100).toInt()
@@ -125,7 +137,7 @@ internal fun ProgressRing(fraction: Float, tone: Tone, modifier: Modifier = Modi
             val inset = stroke.width / 2
             val arc = Size(size.width - stroke.width, size.height - stroke.width)
             drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = stroke)
-            if (fraction > 0f) drawArc(color, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = stroke)
+            if (shown.value > 0f) drawArc(color, -90f, 360f * shown.value, false, Offset(inset, inset), arc, style = stroke)
         }
         Text("$percent%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
@@ -143,6 +155,6 @@ internal object PlanSuggestions {
 internal fun FintechPreviewCard(text: String, note: String, modifier: Modifier = Modifier) {
     FintechCard(modifier) {
         Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-        Caption(note, Modifier.padding(top = 4.dp), maxLines = 2)
+        Caption(note, Modifier.padding(top = Spacing.xs), maxLines = 2)
     }
 }

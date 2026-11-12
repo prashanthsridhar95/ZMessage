@@ -1,6 +1,11 @@
 package com.zyke.message.presentation.home
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.zyke.message.presentation.motion.AppearVisibility
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
@@ -353,12 +358,14 @@ internal fun GroupHeaderRow(
     amount: @Composable () -> Unit
 ) {
     val spoken = privateSpeech("$name, $subtitle, $spokenAmounts")
-    val shape = RoundedCornerShape(16.dp)
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    val shape = AppShapes.control
+    val source = remember { MutableInteractionSource() }
+    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
         if (picking) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { Checkbox(checked = picked, onCheckedChange = null) }
         Row(
-            Modifier.weight(1f).heightIn(min = 56.dp).clip(shape)
+            Modifier.weight(1f).heightIn(min = 56.dp).pressFeedback(source).clip(shape)
                 .combinedClickable(
+                    interactionSource = source, indication = LocalIndication.current,
                     onClickLabel = if (picking) (if (picked) "Drop from selection" else "Add to selection") else if (expanded) "Collapse $name" else "Expand $name",
                     onClick = { if (picking) onPick() else onToggle() },
                     onLongClickLabel = "Pick several",
@@ -378,9 +385,7 @@ internal fun GroupHeaderRow(
             }
             Spacer(Modifier.width(8.dp))
             amount()
-            Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                Text(if (expanded) "▴" else "▾", style = MaterialTheme.typography.labelLarge, color = mutedColor())
-            }
+            ChevronTurn(expanded)
         }
         if (!picking) RowMenu(name, menu)
     }
@@ -397,11 +402,7 @@ internal fun GroupMembers(expanded: Boolean, content: @Composable () -> Unit) {
                 .padding(start = 8.dp)
         ) { content() }
     }
-    if (rememberReduceMotion()) {
-        if (expanded) body()
-    } else {
-        AnimatedVisibility(visible = expanded) { body() }
-    }
+    AppearVisibility(expanded) { body() }
 }
 
 /** "Group these?" for each suggestion, with Group and No. */

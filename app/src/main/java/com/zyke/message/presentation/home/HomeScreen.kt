@@ -235,7 +235,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when (page) {
             HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true })
-            HomePage.BILLS -> BillsPage(state, today, onIntent)
+            HomePage.BILLS -> BillsPage(state, today, onIntent, gate)
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
         // The one prominent add action: money that came in no message.
@@ -605,160 +605,6 @@ private fun SummaryPage(
     if (affordOpen) com.zyke.message.presentation.plan.AffordPage(state, onIntent) { affordOpen = false }
 }
 
-private const val REMINDERS_SHOWN = 4
-
-/** Everything due or owed, soonest first, on one plain list. */
-@Composable
-private fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit) {
-    val markPaid = rememberMarkPaid(onIntent)
-    val planHandler = rememberPlanActionHandler(onIntent)
-    val merge = rememberMergeActions(state, onIntent)
-    val group = rememberGroupActions(state, onIntent)
-    // Entries and groups, already arranged by the view model; a group only folds rows, each entry still counts on its own.
-    val recurringArranged = state.recurringItems
-    val billsList = androidx.compose.foundation.lazy.rememberLazyListState()
-    TourScroll(TourTab.BILLS, billsList)
-    CompositionLocalProvider(LocalContentInset provides 16.dp) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = billsList,
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (state.upcoming.isEmpty()) {
-            item(key = "no-bills") {
-                FintechCard {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("\u2713", style = MaterialTheme.typography.headlineMedium, color = com.zyke.message.presentation.common.limitColors().good, fontWeight = FontWeight.Bold)
-                        Text(
-                            "No bills currently available", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Caption(
-                            "Nothing is due in the next 30 days. Card bills and auto-debits show up here when their messages arrive.",
-                            Modifier.padding(top = 4.dp), maxLines = 4, textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
-        // Your own reminders belong with what is coming due, so the page is not bare when no bill is.
-        if (state.planReminders.isNotEmpty()) {
-            item(key = "reminders") {
-                PlainSection("Your reminders") {
-                    state.planReminders.take(REMINDERS_SHOWN).forEachIndexed { index, due ->
-                        if (index > 0) HorizontalDivider()
-                        val reminder = due.reminder
-                        val key = PlanKeys.reminder(reminder)
-                        val done = PlanExtraAction("Done", "Mark ${reminder.title} as done") {
-                            if (reminder.repeatsMonthly) {
-                                // This month's is done: it comes back the day after, for next month.
-                                onIntent(Intent.PlanSnooze(key, reminder.title, PlanKind.REMINDER, due.on.plusDays(1)))
-                                planHandler.announce("Done: ${reminder.title}") { onIntent(Intent.PlanRestore(key)) }
-                            } else {
-                                onIntent(Intent.RemoveReminder(reminder.id))
-                                planHandler.announce("Done: ${reminder.title}") { onIntent(Intent.SaveReminder(reminder)) }
-                            }
-                        }
-                        PlanItemFrame(reminder.title, key, PlanKind.REMINDER, today, planHandler, extras = listOf(done), onOpen = { onIntent(Intent.OpenReminders) }) { more ->
-                            PlanRow(
-                                title = reminder.title,
-                                modifier = Modifier.fullWidthClickable(onClickLabel = "Open reminders") { onIntent(Intent.OpenReminders) },
-                                caption = {
-                                    Caption(
-                                        DisplayFormatters.dueLabel(due.on, today).replaceFirst("Due ", "").replaceFirstChar { it.uppercase() } + if (reminder.repeatsMonthly) " \u00B7 every month" else "",
-                                        maxLines = 2
-                                    )
-                                },
-                                amount = reminder.amount?.let { amt -> { AmountText(DisplayFormatters.rupees(amt), MaterialTheme.colorScheme.secondary) } },
-                                more = more
-                            )
-                        }
-                    }
-                    if (state.planReminders.size > REMINDERS_SHOWN) LinkButton("All reminders", { onIntent(Intent.OpenReminders) })
-                }
-            }
-        }
-        if (state.upcoming.isNotEmpty()) {
-            item(key = "upcoming") {
-              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_DUE)) {
-                PlainSection("Due") {
-                    state.upcoming.forEachIndexed { index, item ->
-                        if (index > 0) HorizontalDivider()
-                        val row: @Composable (@Composable () -> Unit) -> Unit = { more ->
-                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
-                        }
-                        if (item.paidOn != null) {
-                            UpcomingRow(item, today, onOpen = { onIntent(Intent.OpenMessage(item.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
-                        } else {
-                            // Every bill stays on this tab, even an overdue one that was snoozed or dismissed (dismissed means "not in my plans", not "paid"); a snooze says so.
-                            val key = PlanKeys.bill(item)
-                            PlanItemFrame(item.title, key, PlanKind.BILL, today, planHandler, hide = PlanActions.hideFor(key, state.planActions, today)?.takeIf { it.isSnooze }, content = row)
-                        }
-                    }
-                }
-              }
-            }
-        }
-        if (state.refunds.isNotEmpty()) {
-            item(key = "refunds") {
-                PlainSection("Refunds") {
-                    state.refunds.forEachIndexed { index, refund ->
-                        if (index > 0) HorizontalDivider()
-                        RefundRow(refund) { onIntent(Intent.OpenMessage(refund.message.id)) }
-                    }
-                }
-            }
-        }
-        if (state.owed.isNotEmpty()) {
-            item(key = "owed") {
-                PlainSection("Friends owe you") {
-                    state.owed.forEachIndexed { index, share ->
-                        if (index > 0) HorizontalDivider()
-                        OwedRow(share, onSettle = { onIntent(Intent.SettleShare(share.split.id, share.person.name)) }) {
-                            onIntent(Intent.OpenMessage(share.split.messageId))
-                        }
-                    }
-                }
-            }
-        }
-        item(key = "friends-link") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_FRIENDS)) { FriendsLink(state, onIntent) } }
-        val recurring = recurringArranged
-        if (recurring.isNotEmpty()) {
-            item(key = "subscriptions") {
-              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.BILLS_REPEATS)) {
-                PlainSection("Repeats monthly") {
-                    recurring.forEachIndexed { index, listItem ->
-                        androidx.compose.runtime.key(listItem.listKey) {
-                            if (index > 0) HorizontalDivider()
-                            val entry: @Composable (com.zyke.message.domain.insights.RecurringItem, Boolean) -> Unit = { item, grouped ->
-                                SubscriptionRow(
-                                    item, today,
-                                    onConfirm = { onIntent(Intent.ConfirmRecurring(item.subscription.key)) },
-                                    onIgnore = { onIntent(Intent.IgnoreRecurring(item.subscription.key)) },
-                                    menu = merge.menuFor(item.subscription, group.entryMenu(item.subscription, grouped))
-                                ) { onIntent(Intent.OpenMessage(item.subscription.messageId)) }
-                            }
-                            when (listItem) {
-                                is com.zyke.message.domain.insights.RecurringListItem.Single -> entry(listItem.item, false)
-                                is com.zyke.message.domain.insights.RecurringListItem.Group -> BillsGroupBlock(listItem, today, group) { member -> entry(member, true) }
-                            }
-                        }
-                    }
-                    LinkButton("Merge duplicates, yearly cost, how to cancel", { onIntent(Intent.OpenSubscriptions) })
-                }
-              }
-            }
-        } else if (state.subscriptionOverview.lines.isNotEmpty()) {
-            // Everything that repeats was cancelled or is paused: the full list is still one tap away.
-            item(key = "subscriptions-link") { LinkButton("Subscriptions", { onIntent(Intent.OpenSubscriptions) }) }
-        }
-        item(key = "marked-paid") { PaidBillsLink(onIntent) }
-    }
-    }
-}
-
-
 /** Opened by tapping any item: the message in full, or a budget's detail. */
 @Composable
 private fun HomeSheets(state: State, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
@@ -944,17 +790,6 @@ private const val MAX_PLANS = 4
 private const val REMINDER_SOON_DAYS = 7L
 private const val MAX_RECENT_ACTIVITY = 5
 
-/** A titled card with its rows. */
-@Composable
-private fun PlainSection(title: String, subtitle: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    FintechCard {
-        Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp))
-        Spacer(Modifier.height(8.dp))
-        content()
-    }
-}
-
 /** The month in one line of type: what was spent, and how that compares. Tap for the detail. */
 @Composable
 private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
@@ -1007,13 +842,13 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit, mo
 
 /** The person says it is paid: the bill goes from the list and the attention strip, and a tap on Undo brings it back. */
 @Composable
-internal fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Unit {
+internal fun rememberMarkPaid(onIntent: (Intent) -> Unit, tickOnPay: Boolean = true): (UpcomingItem) -> Unit {
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val paidBills = rememberPaidBills()
     val tick = com.zyke.message.presentation.common.rememberTick()
     return { item ->
-        tick()
+        if (tickOnPay) tick()
         paidBills.record(com.zyke.message.domain.home.PaidBill.from(item, LocalDate.now()))
         onIntent(Intent.DismissAttention(item.markedPaidKey, forever = true))
         item.attentionKey?.let { onIntent(Intent.DismissAttention(it, forever = true)) }
@@ -1027,56 +862,6 @@ internal fun rememberMarkPaid(onIntent: (Intent) -> Unit): (UpcomingItem) -> Uni
             }
         }
     }
-}
-
-@Composable
-private fun UpcomingRow(
-    item: UpcomingItem, today: LocalDate, onOpen: () -> Unit, onMarkPaid: (UpcomingItem) -> Unit,
-    more: (@Composable () -> Unit)? = null, onPay: (String) -> Unit
-) {
-    val paid = item.paidOn != null
-    val urgent = !paid && DisplayFormatters.isUrgent(item.date, today)
-    val good = com.zyke.message.presentation.common.limitColors().good
-    // Paid some other way, with no message about it: say so, and it goes. The buttons get their own full-width line.
-    val link = item.paymentLink
-    val actions = if (paid) emptyList() else listOfNotNull(
-        link?.let { RowAction("Pay bill", ButtonStyle.PRIMARY) { onPay(it) } },
-        RowAction("Mark as paid", ButtonStyle.OUTLINE) { onMarkPaid(item) }
-    )
-    PlanRow(
-        title = item.title,
-        modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
-        leading = { MerchantChip(item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, description = item.title, size = 44.dp) },
-        caption = {
-            if (paid) {
-                // Paid today: the day shows it done. Tomorrow the row is gone.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("\u2713", color = good, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Paid today", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = good)
-                }
-            } else {
-                Caption(
-                    (if (item.kind == UpcomingKind.CARD_BILL) "Bill \u00B7 " else "Auto-debit \u00B7 ") + DisplayFormatters.dueLabel(item.date, today),
-                    color = if (urgent) MaterialTheme.colorScheme.error else mutedColor(),
-                    maxLines = 2
-                )
-                // Part of it was paid, not all: say how much, and how much is left.
-                val partPaid = item.partPaid
-                if (partPaid != null) {
-                    val left = (item.amount - partPaid).max(java.math.BigDecimal.ZERO)
-                    Caption(
-                        "Part paid ${DisplayFormatters.rupees(partPaid)} \u00B7 ${DisplayFormatters.rupees(left)} left",
-                        color = ChartColors.warning,
-                        maxLines = 2
-                    )
-                }
-            }
-        },
-        amount = { AmountText(DisplayFormatters.rupees(item.paidAmount ?: item.amount), if (paid) good else MaterialTheme.colorScheme.secondary) },
-        more = more,
-        actions = actions
-    )
 }
 
 @Composable
@@ -1133,96 +918,6 @@ internal fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         )
     }
 }
-
-@Composable
-private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
-    val status = if (item.isPending) {
-        "On the way since " + shortDate(item.startedOn)
-    } else {
-        "Arrived " + shortDate(item.arrivedOn!!)
-    }
-    Row(
-        Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            RowTitle(item.from)
-            Caption(status, color = if (item.isPending) mutedColor() else MaterialTheme.colorScheme.primary)
-        }
-        Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
-    }
-}
-
-@Composable
-private fun OwedRow(share: SplitShare, onSettle: () -> Unit, onOpen: () -> Unit) {
-    PlanRow(
-        title = share.person.name,
-        modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
-        caption = { Caption("For ${share.split.title}", maxLines = 2) },
-        amount = { AmountText(DisplayFormatters.rupees(share.person.share), MaterialTheme.colorScheme.secondary) },
-        actions = listOf(RowAction("Mark as paid", ButtonStyle.OUTLINE) { onSettle() })
-    )
-}
-
-/** A group in the "Repeats monthly" card: the monthly sum on its header and, when opened, its entries as ordinary rows. */
-@Composable
-private fun BillsGroupBlock(
-    item: com.zyke.message.domain.insights.RecurringListItem.Group<com.zyke.message.domain.insights.RecurringItem>,
-    today: LocalDate,
-    group: GroupActions,
-    entry: @Composable (com.zyke.message.domain.insights.RecurringItem) -> Unit
-) {
-    // Closed to begin with; remembered per group, and across rotation.
-    var expanded by androidx.compose.runtime.saveable.rememberSaveable(item.group.id) { androidx.compose.runtime.mutableStateOf(false) }
-    GroupHeaderRow(
-        name = item.name, subtitle = item.countLabel() + " \u00b7 " + item.nextDueLabel(), spokenAmounts = item.spokenTotals(),
-        expanded = expanded, onToggle = { expanded = !expanded },
-        picking = false, picked = false, onPick = { expanded = !expanded },
-        menu = group.groupMenu(item.group, canCancel = true)
-    ) {
-        AmountText(DisplayFormatters.rupees(item.monthly), MaterialTheme.colorScheme.secondary)
-    }
-    GroupMembers(expanded) {
-        item.members.forEach { member -> androidx.compose.runtime.key(member.subscription.key) { entry(member) } }
-    }
-}
-
-@Composable
-private fun SubscriptionRow(
-    recurring: com.zyke.message.domain.insights.RecurringItem,
-    today: LocalDate,
-    onConfirm: () -> Unit,
-    onIgnore: () -> Unit,
-    menu: List<MenuEntry>,
-    onOpen: () -> Unit
-) {
-    val item: Subscription = recurring.subscription
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                RowTitle(item.fullName())
-                Caption(DisplayFormatters.dueLabel(item.nextDue, today) + " · " + recurring.expectedLabel + " · paid ${item.times} months running")
-                if (item.reference.isNotEmpty()) Caption(item.reference)
-                Caption(if (recurring.isConfirmed) "Confirmed" else "Looks recurring \u2014 is it?")
-            }
-            Spacer(Modifier.width(12.dp))
-            AmountText(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary)
-            RowMenu(item.fullName(), menu)
-        }
-        if (!recurring.isConfirmed) {
-            Row(Modifier.fillMaxWidth()) {
-                TextButton(onClick = onConfirm) { Text("Confirm") }
-                TextButton(onClick = onIgnore) { Text("Not recurring") }
-            }
-        }
-    }
-}
-
-private fun shortDate(date: LocalDate): String = java.time.format.DateTimeFormatter.ofPattern("d MMM").format(date)
 
 /** The one thing to read first, set apart by space and a single colour rather than a box of detail. */
 @Composable

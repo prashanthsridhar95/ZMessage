@@ -48,6 +48,9 @@ import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LocalAppSnackbar
+import com.zyke.message.presentation.common.ResponsiveRow
+import com.zyke.message.presentation.common.privateSpeech
+import com.zyke.message.presentation.motion.AppearVisibility
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.home.HomeContract.Intent
 import com.zyke.message.presentation.messages.components.Caption
@@ -133,17 +136,18 @@ internal fun PlanItemFrame(
         if (hide != null) {
             StatusPill("Snoozed until ${DayFormat.format(hide.until ?: today)}", Tone.NEUTRAL, Modifier.padding(bottom = 4.dp))
         }
-        if (expanded) {
-            FlowRow(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                onOpen?.let { PlanActionButton("Open", "Open $name", it) }
-                extras.forEach { PlanActionButton(it.label, it.describe, it.onClick) }
+        AppearVisibility(expanded) {
+            val actions = buildList {
+                onOpen?.let { add(RowAction("Open", ButtonStyle.TEXT, "Open $name") { it() }) }
+                extras.forEach { extra -> add(RowAction(extra.label, ButtonStyle.TEXT, extra.describe, extra.onClick)) }
                 if (hide == null) {
-                    PlanActionButton("Snooze", "Snooze $name") { picking = true }
-                    PlanActionButton("Dismiss", "Dismiss $name") { handler.dismiss(key, name, kind); expanded = false }
+                    add(RowAction("Snooze", ButtonStyle.TEXT, "Snooze $name") { picking = true })
+                    add(RowAction("Dismiss", ButtonStyle.TEXT, "Dismiss $name") { handler.dismiss(key, name, kind); expanded = false })
                 } else {
-                    PlanActionButton("Restore", "Restore $name") { handler.restore(key); expanded = false }
+                    add(RowAction("Restore", ButtonStyle.TEXT, "Restore $name") { handler.restore(key); expanded = false })
                 }
             }
+            ActionButtons(actions, Modifier.padding(bottom = Spacing.sm))
         }
     }
     if (picking) {
@@ -152,14 +156,6 @@ internal fun PlanItemFrame(
             expanded = false
             handler.snooze(key, name, kind, until)
         }
-    }
-}
-
-@Composable
-private fun PlanActionButton(label: String, describe: String, onClick: () -> Unit) {
-    val spokenDescribe = com.zyke.message.presentation.common.privateSpeech(describe)
-    TextButton(onClick, Modifier.heightIn(min = 48.dp).semantics { contentDescription = spokenDescribe }) {
-        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
 }
 
@@ -247,23 +243,31 @@ internal fun PlanRow(
     }
 }
 
-/** Buttons on their own full-width line, equal weight, wrapping to a second line when the labels do not fit. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Buttons on their own full-width line with equal widths: side by side up to three, two to a line beyond that, and one under
+ * the other on a narrow phone or at large text (see [ResponsiveRow]). A last button alone on its line keeps the width of
+ * the others, so the wrapping is never uneven.
+ */
 @Composable
 internal fun ActionButtons(actions: List<RowAction>, modifier: Modifier = Modifier) {
-    FlowRow(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-    ) {
-        actions.forEach { action ->
-            AppButton(
-                text = action.label, onClick = action.onClick,
-                modifier = Modifier.weight(1f).then(
-                    if (action.description != null) Modifier.semantics { contentDescription = action.description } else Modifier
-                ),
-                style = action.style, size = ButtonSize.COMPACT
-            )
+    val perLine = if (actions.size <= MAX_ACTIONS_PER_LINE) actions.size.coerceAtLeast(1) else 2
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        actions.chunked(perLine).forEach { line ->
+            ResponsiveRow(spacing = Spacing.sm) {
+                line.forEach { action ->
+                    val spoken = action.description?.let { privateSpeech(it) }
+                    AppButton(
+                        text = action.label, onClick = action.onClick,
+                        modifier = Modifier.cell().then(
+                            if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier
+                        ),
+                        style = action.style, size = ButtonSize.COMPACT
+                    )
+                }
+                if (!stacked) repeat(perLine - line.size) { Spacer(Modifier.cell()) }
+            }
         }
     }
 }
+
+private const val MAX_ACTIONS_PER_LINE = 3

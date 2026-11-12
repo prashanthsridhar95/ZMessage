@@ -64,16 +64,13 @@ internal fun PaidBillsLink(onIntent: (Intent) -> Unit) {
 
 @Composable
 private fun PaidBillCard(bill: PaidBill, onRestore: () -> Unit) {
+    val dayMonth = remember { com.zyke.message.presentation.format.FormatCache.pattern("d MMM", java.util.Locale.getDefault()) }
     FintechCard {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    RowTitle(bill.title)
-                    Caption("Due ${bill.dueDate} · marked paid ${bill.markedOn}")
-                }
-                AmountText(DisplayFormatters.rupees(bill.amount), androidx.compose.material3.MaterialTheme.colorScheme.secondary)
-            }
-            AppButton("Restore", onRestore, style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
-        }
+        PaidBillRow(
+            title = bill.title,
+            caption = "Due ${dayMonth.format(bill.dueDate)} \u00B7 marked paid ${dayMonth.format(bill.markedOn)}",
+            amountText = DisplayFormatters.rupees(bill.amount),
+            onRestore = onRestore
+        )
     }
 }
