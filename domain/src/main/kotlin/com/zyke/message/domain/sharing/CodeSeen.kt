@@ -5,11 +5,13 @@ data class ShareReview(
     val decision: ShareDecision,
     /** Looked like a login code, or came from a sender named like one of the services: worth a line in the log. */
     val codeLike: Boolean,
-    /** The service it was taken for, or null. */
-    val service: ShareService?,
+    /** The source it was taken for, or null (a sender nobody chose). */
+    val service: ShareSource?,
     val outcome: SeenOutcome,
     /** Held in memory for the send only; never put in [SeenCode]. */
-    val code: String?
+    val code: String?,
+    /** What to call the sender in the log: the source's label, else the service named in the code, else the sender's name. */
+    val label: String = ""
 )
 
 /** How a code-like message ended. */
@@ -30,7 +32,9 @@ data class SeenCode(
     val serviceId: String?,
     val outcome: SeenOutcome,
     val detail: String = "",
-    val test: Boolean = false
+    val test: Boolean = false,
+    /** The sender's name for the row ("JioHotstar"); a name only. */
+    val label: String = ""
 )
 
 object SeenCodes {
@@ -70,20 +74,20 @@ object SeenCodes {
         raw.filter { it.isLetter() || it in '0'..'9' || it == ' ' || it == ',' || it == '\'' || it == '.' || it == '-' }
             .replace(Regex("[0-9]{5,}"), "").replace(Regex("\\s+"), " ").trim().take(MAX_DETAIL)
 
-    fun entry(id: String, at: Long, sender: String, serviceId: String?, outcome: SeenOutcome, detail: String = "", test: Boolean = false): SeenCode =
-        SeenCode(id, at, header(sender), serviceId, outcome, cleanDetail(detail), test)
+    fun entry(id: String, at: Long, sender: String, serviceId: String?, outcome: SeenOutcome, detail: String = "", test: Boolean = false, label: String = ""): SeenCode =
+        SeenCode(id, at, header(sender), serviceId, outcome, cleanDetail(detail), test, ShareSources.cleanLabel(label))
 
     /** The newest first, at most [MAX_ENTRIES]. */
     fun add(list: List<SeenCode>, entry: SeenCode): List<SeenCode> =
         (listOf(entry) + list.filter { it.id != entry.id }).sortedByDescending { it.at }.take(MAX_ENTRIES)
 
     /** The plain sentence next to a row. */
-    fun reason(e: SeenCode): String {
-        val label = e.serviceId?.let { ShareServices.byId(it)?.label } ?: "that service"
+    fun reason(e: SeenCode, sources: List<ShareSource> = emptyList()): String {
+        val label = nameOf(e, sources) ?: "that sender"
         val text = when (e.outcome) {
             SeenOutcome.SENT -> "Sent to ${e.detail.ifEmpty { "your people" }}"
             SeenOutcome.OFF -> "Not forwarded: code sharing is off"
-            SeenOutcome.NOT_SERVICE -> "Not forwarded: sender isn't one of the six services"
+            SeenOutcome.NOT_SERVICE -> "Not forwarded: couldn't tell which service this is"
             SeenOutcome.FINANCIAL -> "Not forwarded: looks like a payment or bank code"
             SeenOutcome.ACCOUNT_SECURITY -> "Not forwarded: looks like a government, insurance or phone-company code"
             SeenOutcome.NO_ONE_FOR_SERVICE -> "Not forwarded: nobody has $label selected"
@@ -101,16 +105,27 @@ object SeenCodes {
         return if (e.test) "Test: $text" else text
     }
 
-    /** The service shown in a row: its name, or "none". */
-    fun serviceLabel(e: SeenCode): String = e.serviceId?.let { ShareServices.byId(it)?.label } ?: "none"
+    private fun nameOf(e: SeenCode, sources: List<ShareSource>): String? =
+        e.serviceId?.let { id -> ShareSources.find(id, sources)?.label } ?: e.label.ifEmpty { null }
 
-    /** The sender name that "Treat ... as ..." would teach, or null when this row cannot be taught. */
-    fun teachableToken(e: SeenCode): String? =
-        if (e.outcome == SeenOutcome.NOT_SERVICE && !e.test) ShareServices.senderToken(e.header).takeIf { it.isNotEmpty() } else null
+    /** The source shown in a row: its name, or "none". */
+    fun serviceLabel(e: SeenCode, sources: List<ShareSource> = emptyList()): String = nameOf(e, sources) ?: "none"
+
+    /**
+     * The source "Share this sender's codes" would create (or reuse) for a row, or null when the row cannot offer it: a test, a sender
+     * somebody already has chosen is fine (it opens the chooser), a phone number (header masked), a blocked sender or one that was not code-like.
+     */
+    fun shareable(e: SeenCode, sources: List<ShareSource> = emptyList()): ShareSource? {
+        if (e.test || e.outcome != SeenOutcome.NO_ONE_FOR_SERVICE || e.header.startsWith("\u2022")) return null
+        val key = ShareSources.key(e.header)
+        if (key.isEmpty()) return null
+        sources.firstOrNull { it.key == key }?.let { return it }
+        return ShareSources.custom(e.header, e.label, sources)
+    }
 
     /** The line under a person's card when nothing would be sent to them, or null. */
-    fun noServicesWarning(contact: TrustedContact): String? =
-        if (contact.services.none { ShareServices.byId(it) != null }) "No services chosen — nothing will be sent" else null
+    fun noServicesWarning(contact: TrustedContact, sources: List<ShareSource> = emptyList()): String? =
+        if (contact.services.none { ShareSources.exists(it, sources) }) "No senders chosen \u2014 nothing will be sent" else null
 }
 
 /**

@@ -23,7 +23,7 @@ import com.zyke.message.domain.sharing.CodeSharingRules
 import com.zyke.message.domain.sharing.SeenCodes
 import com.zyke.message.domain.sharing.SeenOutcome
 import com.zyke.message.domain.sharing.ShareHistory
-import com.zyke.message.domain.sharing.ShareServices
+import com.zyke.message.domain.sharing.ShareSources
 import com.zyke.message.domain.sharing.SentRecord
 import com.zyke.message.domain.sharing.ShareLog
 import com.zyke.message.domain.sharing.ShareLogEntry
@@ -98,7 +98,7 @@ internal object CodeSharer {
         val sender = message.message.sender
         fun note(outcome: SeenOutcome, detail: String = "") {
             if (!review.codeLike && test == null) return
-            repository.addSeen(SeenCodes.entry(UUID.randomUUID().toString(), now, sender, review.service?.id, outcome, detail, test = test != null))
+            repository.addSeen(SeenCodes.entry(UUID.randomUUID().toString(), now, sender, review.service?.id, outcome, detail, test = test != null, label = review.label))
         }
         val decision = review.decision
         DevLog.d("sharing") { "code share: ${decision.shares.size} to send, skipped for ${decision.reasons.joinToString { it.name }.ifEmpty { "none" }}" }
@@ -116,10 +116,10 @@ internal object CodeSharer {
         var failed = false
         for (share in decision.shares) {
             runCatching {
-                val entry = ShareLogEntry(UUID.randomUUID().toString(), share.service.id, share.contact.id, share.contact.name, now, ShareStatus.SENDING, test = test != null)
+                val entry = ShareLogEntry(UUID.randomUUID().toString(), share.source.id, share.contact.id, share.contact.name, now, ShareStatus.SENDING, test = test != null, label = share.source.label)
                 repository.addLog(entry)
-                if (test == null) repository.remember(SentRecord(share.contact.id, share.service.id, now, share.codeKey))
-                val text = if (test != null) CodeSharing.testText(share.service) else share.text
+                if (test == null) repository.remember(SentRecord(share.contact.id, share.source.id, now, share.codeKey))
+                val text = if (test != null) CodeSharing.testText(share.source) else share.text
                 if (send(context, container, manager, share.contact, text, entry)) sentTo += share.contact.name else failed = true
             }.onFailure {
                 failed = true
@@ -145,20 +145,21 @@ internal object CodeSharer {
     }
 
     /**
-     * "Send a test code": a made-up Netflix-style message for [serviceId] goes through the same path as a real text (classify,
+     * "Send a test code": a made-up message from the source [serviceId] goes through the same path as a real text (classify,
      * review, send) to this one person, and the text they get says "Zyke TEST". It follows the real rules, so a pause, the hours
      * or a missing permission show up as the reason instead of a send. Returns one plain sentence for the person.
      */
     fun sendTestCode(context: Context, container: AppContainer, contact: TrustedContact, serviceId: String): String {
         if (DemoMode.active) return "Not available in Demo mode"
-        val service = ShareServices.byId(serviceId) ?: return "Choose a service first"
+        val service = ShareSources.find(serviceId, container.codeSharing.rules.value.sources) ?: return "Choose a sender first"
+        if (service.isPhone) return "A test code can't be made for a phone number"
         val now = System.currentTimeMillis()
         if (!CodeSharing.canSendTest(container.codeSharing.log.value, contact.id, now)) return "A test was just sent: wait a minute"
         val rules = container.codeSharing.rules.value
         if (!rules.enabled) return "Switch Share codes on first"
         val fake = container.messageClassifier.classify(CodeSharing.testMessage(service, now))
         val outcome = runCatching { handle(context, container, fake, rules, test = contact) }.getOrNull() ?: return "Couldn't run the test"
-        return SeenCodes.reason(SeenCodes.entry("", now, "", service.id, outcome, test = false))
+        return SeenCodes.reason(SeenCodes.entry("", now, "", service.id, outcome, test = false), rules.sources)
             .let { if (outcome == SeenOutcome.SENT) "Test code sent to ${contact.name}" else it }
     }
 

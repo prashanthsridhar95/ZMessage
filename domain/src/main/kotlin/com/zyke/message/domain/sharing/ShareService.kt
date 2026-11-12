@@ -28,7 +28,7 @@ object ShareServices {
         ShareService(
             id = "netflix", label = "Netflix",
             // UNVERIFIED GUESSES: no real Netflix header was ever seen. The "Recent codes seen" log on the sharing page exists to
-            // discover the real ones (and "Treat ... as ..." lets the person teach one).
+            // discover the real ones (and "Share this sender's codes" lets the person add one).
             senderTokens = listOf("NETFLIX", "NETFLX", "NFLXIN", "NFLX"),
             brandWords = listOf(Regex("(?i)netflix"))
         ),
@@ -81,58 +81,19 @@ object ShareServices {
         return if (s.length >= 3 && s.any { it in 'A'..'Z' }) s else ""
     }
 
-    /**
-     * The services whose header this is, by name only (the body is not looked at): the built-in aliases, or a header the
-     * person taught ([learned]: service id to exact sender tokens).
-     */
-    fun byHeader(sender: String, learned: Map<String, Set<String>> = emptyMap()): List<ShareService> {
+    /** The services whose header this is, by name only (the body is not looked at): the built-in aliases. */
+    fun byHeader(sender: String): List<ShareService> {
         val token = senderToken(sender)
         if (token.isEmpty()) return emptyList()
-        return all.filter { s -> s.senderTokens.any { token.contains(it) } || token in learned[s.id].orEmpty() }
+        return all.filter { s -> s.senderTokens.any { token.contains(it) } }
     }
 
     /** The one service this message is from, or null (no header match, an ambiguous one, or a body naming another service). */
-    fun match(sender: String, body: String, learned: Map<String, Set<String>> = emptyMap()): ShareService? {
-        val service = byHeader(sender, learned).singleOrNull() ?: return null
+    fun match(sender: String, body: String): ShareService? {
+        val service = byHeader(sender).singleOrNull() ?: return null
         val named = all.filter { s -> s.brandWords.any { it.containsMatchIn(body) } }
         if (service.senderNeedsBrand && service !in named) return null
         if (named.any { it !== service }) return null
         return service
-    }
-}
-
-/** Why a header cannot be taught as a service's. */
-enum class LearnProblem { NOT_A_NAME, LOOKS_FINANCIAL, ALREADY_KNOWN, TOO_MANY }
-
-/**
- * "Treat this sender as Netflix": the person teaches the app a header it did not know. It only widens the header gate; the hard
- * blocks (money, banks, government, insurers, phone companies) and the code wording are checked first, as for any message.
- */
-object ShareLearning {
-    const val MAX_PER_SERVICE = 8
-
-    /** Null when [sender]'s name may be taught as [serviceId]'s. */
-    fun problem(sender: String, serviceId: String, learned: Map<String, Set<String>>): LearnProblem? {
-        val token = ShareServices.senderToken(sender)
-        if (token.isEmpty() || ShareServices.byId(serviceId) == null) return LearnProblem.NOT_A_NAME
-        if (SharingBlocks.financialSender(token)) return LearnProblem.LOOKS_FINANCIAL
-        if (ShareServices.byHeader(sender, learned).isNotEmpty()) return LearnProblem.ALREADY_KNOWN
-        if (learned[serviceId].orEmpty().size >= MAX_PER_SERVICE) return LearnProblem.TOO_MANY
-        return null
-    }
-
-    fun explain(problem: LearnProblem): String = when (problem) {
-        LearnProblem.NOT_A_NAME -> "This sender is a phone number or too short to be a service's name"
-        LearnProblem.LOOKS_FINANCIAL -> "This looks like a bank or payment sender, which is never forwarded"
-        LearnProblem.ALREADY_KNOWN -> "Zyke already knows this sender"
-        LearnProblem.TOO_MANY -> "You taught as many senders for this service as allowed"
-    }
-
-    fun add(learned: Map<String, Set<String>>, serviceId: String, token: String): Map<String, Set<String>> =
-        learned + (serviceId to (learned[serviceId].orEmpty() + token))
-
-    fun remove(learned: Map<String, Set<String>>, serviceId: String, token: String): Map<String, Set<String>> {
-        val left = learned[serviceId].orEmpty() - token
-        return if (left.isEmpty()) learned - serviceId else learned + (serviceId to left)
     }
 }

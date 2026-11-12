@@ -54,7 +54,7 @@ class CodeSharingPolicyTest {
     }
 
     @Test fun noCodeNumberOrMessageTextIsLoggedStoredOrPutInANotification() {
-        val files = listOf("notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "data/repository/CodeSharingRepositoryImpl.kt", "presentation/settings/CodeSharingUi.kt")
+        val files = listOf("notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "data/repository/CodeSharingRepositoryImpl.kt", "presentation/settings/CodeSharingUi.kt", "presentation/settings/CodeSharingSources.kt")
         val risky = Regex("""\.number|\.text\b|codeKey|\.body\b|\.code\b|\$\{?(code|number|text|body)\b""")
         for (name in files) {
             for (line in code(File(main, name))) {
@@ -68,7 +68,7 @@ class CodeSharingPolicyTest {
         // The saved log has these fields and no others.
         val repo = text("data/repository/CodeSharingRepositoryImpl.kt")
         val logFields = Regex("""\.put\("(\w+)"""").findAll(repo.substringAfter("private fun logJson").substringBefore("private companion")).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("id", "service", "contact", "name", "at", "status", "test"), logFields)
+        assertEquals(listOf("id", "service", "contact", "name", "at", "status", "test", "label"), logFields)
         // The notification text comes from the log wording, which has the service and the name only.
         val sharer = text("notifications/CodeSharer.kt")
         assertTrue(sharer.contains(".setContentTitle(ShareLog.headline(entry))"))
@@ -83,7 +83,7 @@ class CodeSharingPolicyTest {
     @Test fun theSeenListHoldsOnlyHeadersTimesAndOutcomes_andIsLeftOutOfBackups() {
         val repo = text("data/repository/CodeSharingRepositoryImpl.kt")
         val seenFields = Regex("""\.put\("(\w+)"""").findAll(repo.substringAfter("private fun seenJson").substringBefore("private fun readContacts")).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("id", "at", "header", "service", "outcome", "detail", "test"), seenFields)
+        assertEquals(listOf("id", "at", "header", "service", "outcome", "detail", "test", "label"), seenFields)
         val backup = text("data/backup/PrefsBackup.kt")
         assertTrue(Regex("""EXCLUDED = setOf\([^)]*"code_sharing_seen"""").containsMatchIn(backup))
         // What is added to the list is built by SeenCodes.entry (header masked, detail cleaned) and nothing else.
@@ -111,16 +111,38 @@ class CodeSharingPolicyTest {
         assertTrue(page.contains("Recent codes seen"))
         assertTrue(page.contains("Why wasn't it sent?"))
         assertTrue(page.contains("Last text seen by the receiver: "))
-        assertTrue(page.contains("Netflix and others often send codes by email or in-app instead of SMS, which Zyke can't see."))
+        assertTrue(page.contains("Choose any sender from the codes you've received. Bank and payment codes are never shared."))
+        assertTrue(page.contains("which Zyke can't see."))
         assertTrue(page.contains("Send a test code"))
-        // Teaching a header: a dialog that names what will be forwarded, and the check that refuses banks, before anything is saved.
-        val dialog = page.substringAfter("teaching?.let").substringBefore("codeTesting?.let")
-        assertTrue(dialog.contains("is treated as a"))
-        assertTrue(dialog.contains("ShareLearning.problem("))
-        assertTrue(dialog.indexOf("ShareLearning.problem(") < dialog.indexOf("repository.learnHeader("))
+        // Sharing an unchosen sender: a dialog that names what will be forwarded, and the check that refuses banks, before anything is saved.
+        val dialog = page.substringAfter("sharing?.let").substringBefore("renaming?.let")
+        assertTrue(dialog.contains("will be texted to the people you tick"))
+        assertTrue(dialog.contains("ShareSources.problem("))
+        assertTrue(dialog.indexOf("ShareSources.problem(") < dialog.indexOf("repository.addSource("))
+        assertTrue(page.contains("Share this sender's codes"))
+        assertFalse("the old teaching flow is gone", page.contains("learnHeader") || page.contains("ShareLearning") || page.contains("Treat \${"))
         assertFalse(page.contains("developerMode"))
         // The manifest still has the one receiver, disabled until switched on, and no new permission.
         val manifest = File("src/main/AndroidManifest.xml").readText()
         assertTrue(manifest.substringAfter("notifications.SmsReceiver").substringBefore("</receiver>").contains("android:enabled=\"false\""))
+    }
+
+    @Test fun chosenSendersAreNamesOnly_theListIsReadOnlyWhileThePickerIsOpen_andRemovalIsConfirmed() {
+        val repo = text("data/repository/CodeSharingRepositoryImpl.kt")
+        val sourceFields = Regex("""\.put\("(\w+)"""").findAll(repo.substringAfter("private fun sourceJson").substringBefore("private fun readLog")).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("id", "label", "key", "header"), sourceFields.take(4))
+        val picker = text("presentation/settings/CodeSharingSources.kt")
+        // The inbox is only observed while the picker is open (the `enabled` flag), and only the pure builder sees the messages.
+        assertTrue(picker.contains("if (!enabled) return@produceState"))
+        assertTrue(picker.contains("ReceivedCodeSenders.build("))
+        assertFalse(Regex("""\.(body|code)\b""").containsMatchIn(picker))
+        assertTrue(picker.contains("ShareSources.BLOCKED_REASON"))
+        assertTrue(picker.contains("No codes received yet"))
+        assertTrue(picker.contains("AdaptiveSheet("))
+        // Removing a source asks first, and the earlier learned-header store is only read to be migrated.
+        val page = text("presentation/settings/CodeSharingUi.kt")
+        assertTrue(page.substringAfter("removing?.let").substringBefore("if (picking)").contains("ConfirmDialog("))
+        assertTrue(repo.contains("ShareMigration.fromLearned("))
+        assertFalse(Regex("""learnHeader|forgetHeader|ShareLearning""").containsMatchIn(kotlinFiles().joinToString("\n") { it.readText() }))
     }
 }

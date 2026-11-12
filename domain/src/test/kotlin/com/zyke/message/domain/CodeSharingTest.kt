@@ -15,6 +15,7 @@ import com.zyke.message.domain.sharing.ShareHistory
 import com.zyke.message.domain.sharing.ShareLog
 import com.zyke.message.domain.sharing.ShareLogEntry
 import com.zyke.message.domain.sharing.ShareServices
+import com.zyke.message.domain.sharing.ShareSources
 import com.zyke.message.domain.sharing.ShareSkip
 import com.zyke.message.domain.sharing.ShareStatus
 import com.zyke.message.domain.sharing.ShareWindow
@@ -64,7 +65,7 @@ class CodeSharingTest {
         for ((id, sender, body) in samples) {
             val d = decide(message(sender, body), rules(sister))
             assertEquals("$sender: ${d.skipped}", 1, d.shares.size)
-            assertEquals(id, d.shares.single().service.id)
+            assertEquals(id, d.shares.single().source.id)
         }
         assertEquals(6, ShareServices.all.size)
         assertEquals(setOf("netflix", "hotstar", "prime", "sunnxt", "sonyliv", "zee5"), ShareServices.all.map { it.id }.toSet())
@@ -124,7 +125,8 @@ class CodeSharingTest {
         for (sender in listOf("VM-ABCDEF", "9876543210", "+919876543210", "ADVERT", "Mom", "VM-TXTLCL-S")) {
             val d = decide(message(sender, "482913 is your Netflix verification code. Do not share it with anyone."), rules(sister))
             assertTrue(sender, d.shares.isEmpty())
-            assertEquals(sender, setOf(ShareSkip.NOT_AN_ALLOWED_SERVICE), d.reasons)
+            // Nobody chose that sender, so nothing goes out.
+            assertEquals(sender, setOf(ShareSkip.NO_ONE_FOR_SERVICE), d.reasons)
         }
     }
 
@@ -253,7 +255,7 @@ class CodeSharingTest {
     @Test fun theTextIsOneSegmentForEveryServiceAndAnyName() {
         val names = listOf("", "Aman", "Aman 😀 Kümar", "अमन", "A".repeat(200), "  spaced   out  name ")
         for (service in ShareServices.all) for (name in names) {
-            val text = CodeSharing.text(service, "12345678", name)
+            val text = CodeSharing.text(ShareSources.of(service), "12345678", name)
             assertTrue(text, text.length <= 160)
             assertTrue(text, CodeSharing.isOneSegment(text))
         }

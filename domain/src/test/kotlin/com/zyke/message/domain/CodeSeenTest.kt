@@ -6,14 +6,13 @@ import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.domain.model.SmsMessage
 import com.zyke.message.domain.sharing.CodeSharing
 import com.zyke.message.domain.sharing.CodeSharingRules
-import com.zyke.message.domain.sharing.LearnProblem
 import com.zyke.message.domain.sharing.SeenCode
 import com.zyke.message.domain.sharing.SeenCodes
 import com.zyke.message.domain.sharing.SeenOutcome
 import com.zyke.message.domain.sharing.SentRecord
 import com.zyke.message.domain.sharing.ShareCodeReader
 import com.zyke.message.domain.sharing.ShareHistory
-import com.zyke.message.domain.sharing.ShareLearning
+import com.zyke.message.domain.sharing.ShareSources
 import com.zyke.message.domain.sharing.ShareServices
 import com.zyke.message.domain.sharing.ShareWindow
 import com.zyke.message.domain.sharing.TrustedContact
@@ -46,7 +45,7 @@ class CodeSeenTest {
     @Test fun eachOutcomeHasItsPlainReason() {
         val netflix = "482913 is your Netflix verification code. Do not share it with anyone."
         assertEquals(SeenOutcome.SENT, review(msg("VM-NFLXIN-S", netflix)).outcome)
-        assertEquals(SeenOutcome.NOT_SERVICE, review(msg("VM-ABCDEF", netflix)).outcome)
+        assertEquals(SeenOutcome.NO_ONE_FOR_SERVICE, review(msg("VM-ABCDEF", netflix)).outcome)
         assertEquals(SeenOutcome.FINANCIAL, review(msg("AX-HDFCBK", "123456 is the OTP for txn of Rs.1,500.00 at NETFLIX. Do not share it.")).outcome)
         assertEquals(SeenOutcome.FINANCIAL, review(msg("VM-NFLXIN-S", "Your Netflix OTP is 482913 for payment of Rs 649.")).outcome)
         assertEquals(SeenOutcome.ACCOUNT_SECURITY, review(msg("VM-NFLXIN-S", "482913 is your Netflix verification code. Also your Aadhaar OTP.")).outcome)
@@ -64,7 +63,7 @@ class CodeSeenTest {
 
     @Test fun everyReasonSentenceIsExact() {
         assertEquals("Sent to Sister, Brother", SeenCodes.reason(seen(SeenOutcome.SENT, detail = "Sister, Brother")))
-        assertEquals("Not forwarded: sender isn't one of the six services", SeenCodes.reason(seen(SeenOutcome.NOT_SERVICE, null)))
+        assertEquals("Not forwarded: couldn't tell which service this is", SeenCodes.reason(seen(SeenOutcome.NOT_SERVICE, null)))
         assertEquals("Not forwarded: looks like a payment or bank code", SeenCodes.reason(seen(SeenOutcome.FINANCIAL, null)))
         assertEquals("Not forwarded: looks like a government, insurance or phone-company code", SeenCodes.reason(seen(SeenOutcome.ACCOUNT_SECURITY, null)))
         assertEquals("Not forwarded: nobody has Netflix selected", SeenCodes.reason(seen(SeenOutcome.NO_ONE_FOR_SERVICE)))
@@ -150,7 +149,7 @@ class CodeSeenTest {
             assertEquals("$h", listOf(id), ShareServices.byHeader(h).map { it.id })
         }
         // None of the header names is a bank or payment name, or every one would be blocked.
-        for (s in ShareServices.all) for (t in s.senderTokens) assertFalse(t, ShareLearning.problem("VM-$t-S", s.id, emptyMap()) == LearnProblem.LOOKS_FINANCIAL)
+        for (s in ShareServices.all) for (t in s.senderTokens) assertFalse(t, ShareSources.isBlocked(ShareSources.key("VM-$t-S"), s.label))
     }
 
     @Test fun theGenericAmazonHeaderStillNeedsPrimeInTheBody() {
@@ -160,47 +159,21 @@ class CodeSeenTest {
         assertEquals(SeenOutcome.FINANCIAL, review(msg("AD-AMAZONPAY", "123456 is your Amazon Pay Prime OTP.")).outcome)
     }
 
-    // ---- teaching a header
+    // ---- a sender nobody chose yet
 
-    @Test fun aTaughtHeaderIsAcceptedForItsServiceOnly() {
+    @Test fun anUnchosenSenderIsLoggedWithItsNameAndOffersToBeShared() {
         val body = "482913 is your Netflix verification code. Do not share it with anyone."
-        assertEquals(SeenOutcome.NOT_SERVICE, review(msg("VM-XYZNFL-S", body)).outcome)
-        assertNull(ShareLearning.problem("VM-XYZNFL-S", "netflix", emptyMap()))
-        val learned = ShareLearning.add(emptyMap(), "netflix", "XYZNFL")
-        val taught = rules.copy(learned = learned)
-        val r = review(msg("VM-XYZNFL-S", body), taught)
-        assertEquals(listOf("netflix"), r.decision.shares.map { it.service.id })
-        // The body still has to fit: a taught Netflix header with a Hotstar message is ambiguous, not forwarded.
-        assertTrue(review(msg("VM-XYZNFL-S", "561234 is your Hotstar verification code."), taught).decision.shares.isEmpty())
-        // Any form of the same header works, and it is now known.
-        assertEquals(LearnProblem.ALREADY_KNOWN, ShareLearning.problem("AX-XYZNFL", "netflix", learned))
-        // It can be taken back.
-        assertEquals(emptyMap<String, Set<String>>(), ShareLearning.remove(learned, "netflix", "XYZNFL"))
-    }
-
-    @Test fun aTaughtHeaderNeverSkipsTheHardBlocks() {
-        val taught = rules.copy(learned = ShareLearning.add(emptyMap(), "netflix", "XYZNFL"))
-        assertEquals(SeenOutcome.FINANCIAL, review(msg("VM-XYZNFL-S", "Your Netflix OTP is 482913 for payment of Rs 649."), taught).outcome)
-        assertEquals(SeenOutcome.ACCOUNT_SECURITY, review(msg("VM-XYZNFL-S", "482913 is your Netflix code and Aadhaar OTP."), taught).outcome)
-        assertEquals(SeenOutcome.NOT_READ_AS_CODE, review(msg("VM-XYZNFL-S", "Your Netflix plan has a new look."), taught).outcome)
-    }
-
-    @Test fun bankAndPaymentHeadersCannotBeTaught() {
-        for (h in listOf("AX-HDFCBK", "JD-ICICIB-S", "VM-PHONEPE", "AD-AMAZONPAY", "VK-SBIINB", "VM-PAYTM", "BZ-UPIIND", "AX-AXISBK", "VM-AIRTEL", "VM-UIDAI", "AD-CREDIN")) {
-            assertEquals(h, LearnProblem.LOOKS_FINANCIAL, ShareLearning.problem(h, "netflix", emptyMap()))
-        }
-        assertEquals(LearnProblem.NOT_A_NAME, ShareLearning.problem("+919876543210", "netflix", emptyMap()))
-        assertEquals(LearnProblem.NOT_A_NAME, ShareLearning.problem("VM-XYZNFL", "nonesuch", emptyMap()))
-        var learned: Map<String, Set<String>> = emptyMap()
-        for (i in 1..ShareLearning.MAX_PER_SERVICE) learned = ShareLearning.add(learned, "zee5", "ZZZ$i")
-        assertEquals(LearnProblem.TOO_MANY, ShareLearning.problem("VM-QQQQQ", "zee5", learned))
-    }
-
-    @Test fun onlyTheNotAServiceRowsCanBeTaught() {
-        assertEquals("XYZNFL", SeenCodes.teachableToken(SeenCode("1", now, "VM-XYZNFL-S", null, SeenOutcome.NOT_SERVICE)))
-        assertNull(SeenCodes.teachableToken(SeenCode("1", now, "VM-XYZNFL-S", null, SeenOutcome.FINANCIAL)))
-        assertNull(SeenCodes.teachableToken(SeenCode("1", now, "••••••10", null, SeenOutcome.NOT_SERVICE)))
-        assertNull(SeenCodes.teachableToken(SeenCode("1", now, "VM-XYZNFL-S", null, SeenOutcome.NOT_SERVICE, test = true)))
+        val r = review(msg("VM-XYZNFL-S", body))
+        assertEquals(SeenOutcome.NO_ONE_FOR_SERVICE, r.outcome)
+        assertEquals("Netflix", r.label)
+        val row = SeenCodes.entry("1", now, "VM-XYZNFL-S", null, r.outcome, label = r.label)
+        assertEquals("Not forwarded: nobody has Netflix selected", SeenCodes.reason(row))
+        assertEquals("XYZNFL", SeenCodes.shareable(row)?.key)
+        assertEquals("c:XYZNFL", SeenCodes.shareable(row)?.id)
+        assertNull(SeenCodes.shareable(row.copy(outcome = SeenOutcome.FINANCIAL)))
+        assertNull(SeenCodes.shareable(SeenCode("1", now, "\u2022\u2022\u2022\u2022\u202210", null, SeenOutcome.NO_ONE_FOR_SERVICE)))
+        assertNull(SeenCodes.shareable(row.copy(test = true)))
+        assertNull(SeenCodes.shareable(SeenCode("1", now, "AX-HDFCBK-T", null, SeenOutcome.NO_ONE_FOR_SERVICE, label = "HDFC Bank")))
     }
 
     // ---- nothing personal is kept
@@ -216,7 +189,7 @@ class CodeSeenTest {
 
     @Test fun theLogHoldsNoCodeBodyOrNumber() {
         val fields = SeenCode::class.java.declaredFields.map { it.name }.filter { !it.startsWith("$") }.toSet()
-        assertEquals(setOf("id", "at", "header", "serviceId", "outcome", "detail", "test"), fields)
+        assertEquals(setOf("id", "at", "header", "serviceId", "outcome", "detail", "test", "label"), fields)
         val body = "482913 is your Netflix verification code. Do not share it with anyone."
         val sms = msg("+919876543210", body)
         val entry = SeenCodes.entry("x", now, sms.message.sender, null, review(sms).outcome, "Sister 9876543210")
@@ -242,8 +215,8 @@ class CodeSeenTest {
     // ---- a person with nothing chosen, and the test code
 
     @Test fun aPersonWithNoServicesIsWarnedAbout() {
-        assertEquals("No services chosen — nothing will be sent", SeenCodes.noServicesWarning(sister.copy(services = emptySet())))
-        assertEquals("No services chosen — nothing will be sent", SeenCodes.noServicesWarning(sister.copy(services = setOf("nonesuch"))))
+        assertEquals("No senders chosen \u2014 nothing will be sent", SeenCodes.noServicesWarning(sister.copy(services = emptySet())))
+        assertEquals("No senders chosen \u2014 nothing will be sent", SeenCodes.noServicesWarning(sister.copy(services = setOf("nonesuch"))))
         assertNull(SeenCodes.noServicesWarning(sister))
         // And nothing is sent to them.
         val none = rules.copy(contacts = listOf(sister.copy(services = emptySet())))
@@ -252,16 +225,16 @@ class CodeSeenTest {
 
     @Test fun theTestCodeTakesTheRealPathForEveryService() {
         for (service in ShareServices.all) {
-            val m = classifier.classify(CodeSharing.testMessage(service, now))
+            val m = classifier.classify(CodeSharing.testMessage(ShareSources.of(service), now))
             assertTrue(service.id, m.content is MessageContent.Otp)
             val r = review(m)
-            assertEquals(service.id, listOf(service.id), r.decision.shares.map { it.service.id })
-            assertEquals("Zyke TEST - ${service.label} code 123456", CodeSharing.testText(service))
-            assertTrue(CodeSharing.isOneSegment(CodeSharing.testText(service)))
+            assertEquals(service.id, listOf(service.id), r.decision.shares.map { it.source.id })
+            assertEquals("Zyke TEST - ${service.label} code 123456", CodeSharing.testText(ShareSources.of(service)))
+            assertTrue(CodeSharing.isOneSegment(CodeSharing.testText(ShareSources.of(service))))
         }
-        assertEquals("Zyke TEST - Netflix code 123456", CodeSharing.testText(ShareServices.byId("netflix")!!))
+        assertEquals("Zyke TEST - Netflix code 123456", CodeSharing.testText(ShareSources.of(ShareServices.byId("netflix")!!)))
         // It obeys the real rules: paused means not sent.
-        val m = classifier.classify(CodeSharing.testMessage(ShareServices.byId("netflix")!!, now))
+        val m = classifier.classify(CodeSharing.testMessage(ShareSources.of(ShareServices.byId("netflix")!!), now))
         assertEquals(SeenOutcome.PAUSED, review(m, rules.copy(pausedUntil = now + 1)).outcome)
     }
 }

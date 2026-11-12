@@ -10,7 +10,8 @@ data class ParsedOtp(
 
 class OtpParser {
 
-    fun parse(body: String, sender: String): ParsedOtp {
+    fun parse(rawBody: String, sender: String): ParsedOtp {
+        val body = withoutRetrieverHash(rawBody)
         val codeRegex = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
         // "The OTP is 48213679 for Rs.15,000.00 TXN ... Txn Ref: 523412345678": the code is the one the OTP is said to be.
         val code = (if (codeRegex === NUMERIC_CODE) STATED_CODE.find(body)?.groupValues?.get(1) else null)
@@ -38,6 +39,15 @@ class OtpParser {
     }
 
     companion object {
+        private val RETRIEVER_HASH = "\\s+[A-Za-z0-9+/=]{11}\\s*$".toRegex()
+
+        /**
+         * An SMS Retriever message ("<#> 1496 is your JioHotstar verification code. /wAX/OsgZgE") starts with "<#>" and ends with the
+         * app's 11-character hash, which is not part of the text and could hold a run of digits. It is cut off before the code is read.
+         */
+        fun withoutRetrieverHash(body: String): String =
+            if (body.trimStart().startsWith("<#>")) body.replace(RETRIEVER_HASH, "") else body
+
         private val OTP_KEYWORDS = listOf(
             "One-Time Password", "one time password", "Verification Code",
             "Delivery Code", "Happy Code", "Share Code", "OTP"
@@ -47,7 +57,8 @@ class OtpParser {
          * A one-time-password message names the thing AND carries the code. A warning such as "will never call you for
          * the card number/CVV/OTP/PIN" mentions OTP but holds no code, so it is not one (and offers nothing to copy).
          */
-        fun isOtp(body: String): Boolean {
+        fun isOtp(rawBody: String): Boolean {
+            val body = withoutRetrieverHash(rawBody)
             if (OTP_KEYWORDS.none { body.contains(it, ignoreCase = true) }) return false
             val code = if (body.contains("Simpl", ignoreCase = true)) SIMPL_CODE else NUMERIC_CODE
             return code.containsMatchIn(body)

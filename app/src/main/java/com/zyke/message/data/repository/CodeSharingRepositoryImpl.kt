@@ -8,9 +8,11 @@ import com.zyke.message.domain.sharing.SeenCodes
 import com.zyke.message.domain.sharing.SeenOutcome
 import com.zyke.message.domain.sharing.SentRecord
 import com.zyke.message.domain.sharing.ShareHistory
-import com.zyke.message.domain.sharing.ShareLearning
+import com.zyke.message.domain.sharing.ShareMigration
 import com.zyke.message.domain.sharing.ShareLog
 import com.zyke.message.domain.sharing.ShareLogEntry
+import com.zyke.message.domain.sharing.ShareSource
+import com.zyke.message.domain.sharing.ShareSources
 import com.zyke.message.domain.sharing.ShareStatus
 import com.zyke.message.domain.sharing.ShareWindow
 import com.zyke.message.domain.sharing.TrustedContact
@@ -21,9 +23,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The code-sharing setup in the `code_sharing` preferences (part of a backup) and the log of what was sent in
+ * The code-sharing setup in the `code_sharing` preferences (part of a backup; the senders the person chose are sender names only) and the log of what was sent in
  * `code_sharing_log` (left out of backups: it describes this phone). The log holds the service, the person's name, the
- * time and the status; the duplicate check's code keys are kept in memory only and never reach a file.
+ * time, the status and the source's name; the duplicate check's code keys are kept in memory only and never reach a file.
  */
 class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
     private val prefs = context.applicationContext.getSharedPreferences("code_sharing", Context.MODE_PRIVATE)
@@ -84,8 +86,9 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
         }
     }
 
-    override fun learnHeader(serviceId: String, token: String) = change { it.copy(learned = ShareLearning.add(it.learned, serviceId, token)) }
-    override fun forgetHeader(serviceId: String, token: String) = change { it.copy(learned = ShareLearning.remove(it.learned, serviceId, token)) }
+    override fun addSource(source: ShareSource) = change { it.copy(sources = ShareSources.add(it.sources, source)) }
+    override fun renameSource(id: String, label: String) = change { it.copy(sources = ShareSources.rename(it.sources, id, label)) }
+    override fun removeSource(id: String) = change { ShareSources.remove(it, id) }
 
     override fun history(now: Long): ShareHistory = synchronized(lock) {
         memory.removeAll { now - it.at > KEEP_MEMORY_MS }
@@ -124,7 +127,9 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
             .putInt(KEY_WINDOW_START, rules.window?.startMinute ?: -1)
             .putInt(KEY_WINDOW_END, rules.window?.endMinute ?: -1)
             .putString(KEY_NAME, rules.senderName)
-            .putString(KEY_LEARNED, JSONObject().apply { rules.learned.forEach { (service, tokens) -> put(service, JSONArray().apply { tokens.sorted().forEach { put(it) } }) } }.toString())
+            .putString(KEY_SOURCES, JSONArray().apply { rules.sources.forEach { put(sourceJson(it)) } }.toString())
+            // The earlier "learned headers" are now sources; the old key is dropped once they have been carried over.
+            .remove(KEY_LEARNED)
             .putString(KEY_CONTACTS, JSONArray().apply { rules.contacts.forEach { put(contactJson(it)) } }.toString())
             .apply()
     }
@@ -132,15 +137,36 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
     private fun readRules(): CodeSharingRules {
         val start = prefs.getInt(KEY_WINDOW_START, -1)
         val end = prefs.getInt(KEY_WINDOW_END, -1)
-        return CodeSharingRules(
+        val read = CodeSharingRules(
             enabled = prefs.getBoolean(KEY_ENABLED, false),
             contacts = runCatching { readContacts(prefs.getString(KEY_CONTACTS, null)) }.getOrDefault(emptyList()),
             pausedUntil = prefs.getLong(KEY_PAUSED, 0L),
             window = if (start in 0 until 1440 && end in 0 until 1440 && start != end) ShareWindow(start, end) else null,
             senderName = prefs.getString(KEY_NAME, "").orEmpty(),
-            learned = runCatching { readLearned(prefs.getString(KEY_LEARNED, null)) }.getOrDefault(emptyMap())
+            sources = runCatching { readSources(prefs.getString(KEY_SOURCES, null)) }.getOrDefault(emptyList())
         )
+        // Saved by the earlier version: headers the person taught for a service. They become sources, once.
+        val learned = runCatching { readLearned(prefs.getString(KEY_LEARNED, null)) }.getOrDefault(emptyMap())
+        if (!prefs.contains(KEY_LEARNED)) return read
+        val migrated = ShareMigration.fromLearned(read, learned)
+        write(migrated)
+        return migrated
     }
+
+    private fun readSources(json: String?): List<ShareSource> {
+        if (json.isNullOrEmpty()) return emptyList()
+        val array = JSONArray(json)
+        return (0 until array.length()).mapNotNull { i ->
+            runCatching {
+                val o = array.getJSONObject(i)
+                val key = o.getString("key")
+                val label = ShareSources.cleanLabel(o.getString("label"))
+                if (key.isEmpty() || label.isEmpty()) null else ShareSource(o.getString("id"), label, key, false, o.optString("header", ""))
+            }.getOrNull()
+        }.distinctBy { it.id }
+    }
+
+    private fun sourceJson(s: ShareSource) = JSONObject().put("id", s.id).put("label", s.label).put("key", s.key).put("header", s.header)
 
     private fun readLearned(json: String?): Map<String, Set<String>> {
         if (json.isNullOrEmpty()) return emptyMap()
@@ -161,7 +187,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
                 val o = array.getJSONObject(i)
                 SeenCode(
                     o.getString("id"), o.getLong("at"), o.getString("header"), o.optString("service", "").ifEmpty { null },
-                    SeenOutcome.valueOf(o.getString("outcome")), o.optString("detail", ""), o.optBoolean("test", false)
+                    SeenOutcome.valueOf(o.getString("outcome")), o.optString("detail", ""), o.optBoolean("test", false), o.optString("label", "")
                 )
             }.getOrNull()
         }.take(SeenCodes.MAX_ENTRIES)
@@ -169,7 +195,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
 
     private fun seenJson(e: SeenCode) = JSONObject()
         .put("id", e.id).put("at", e.at).put("header", e.header).put("service", e.serviceId.orEmpty())
-        .put("outcome", e.outcome.name).put("detail", e.detail).put("test", e.test)
+        .put("outcome", e.outcome.name).put("detail", e.detail).put("test", e.test).put("label", e.label)
 
     private fun readContacts(json: String?): List<TrustedContact> {
         if (json.isNullOrEmpty()) return emptyList()
@@ -194,7 +220,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
                 val o = array.getJSONObject(i)
                 ShareLogEntry(
                     o.getString("id"), o.getString("service"), o.getString("contact"), o.getString("name"), o.getLong("at"),
-                    ShareStatus.valueOf(o.getString("status")), o.optBoolean("test", false)
+                    ShareStatus.valueOf(o.getString("status")), o.optBoolean("test", false), o.optString("label", "")
                 )
             }.getOrNull()
         }
@@ -202,7 +228,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
 
     private fun logJson(e: ShareLogEntry) = JSONObject()
         .put("id", e.id).put("service", e.serviceId).put("contact", e.contactId).put("name", e.contactName)
-        .put("at", e.at).put("status", e.status.name).put("test", e.test)
+        .put("at", e.at).put("status", e.status.name).put("test", e.test).put("label", e.label)
 
     private companion object {
         const val KEY_ENABLED = "enabled"
@@ -213,6 +239,7 @@ class CodeSharingRepositoryImpl(context: Context) : CodeSharingRepository {
         const val KEY_CONTACTS = "contacts"
         const val KEY_LOG = "log"
         const val KEY_LEARNED = "learned"
+        const val KEY_SOURCES = "sources"
         const val KEY_SEEN = "seen"
         const val KEY_LAST_RECEIVER = "last_receiver"
         const val KEEP_MEMORY_MS = 60L * 60_000L

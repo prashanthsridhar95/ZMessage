@@ -6,7 +6,7 @@ data class TrustedContact(
     val name: String,
     /** Normalised by [PhoneNumbers.normalise]: "+91" and ten digits, or "+" and an international number. */
     val number: String,
-    /** [ShareService.id]s. */
+    /** [ShareSource.id]s: a built-in service's ("netflix") or a custom source's ("c:JIOHOTSTAR"). */
     val services: Set<String>,
     /** The per-person switch: off keeps the person and their choices but sends nothing. */
     val enabled: Boolean = true
@@ -75,11 +75,11 @@ object TrustedContacts {
     fun cleanName(raw: String): String = raw.trim().replace(Regex("\\s+"), " ").take(MAX_NAME).trim()
 
     /** Checks a form and builds the person. [existing] is everyone saved now (including this person when editing). */
-    fun build(id: String, rawName: String, rawNumber: String, services: Set<String>, existing: List<TrustedContact>, enabled: Boolean = true): ContactResult {
+    fun build(id: String, rawName: String, rawNumber: String, services: Set<String>, existing: List<TrustedContact>, enabled: Boolean = true, sources: List<ShareSource> = emptyList()): ContactResult {
         val name = cleanName(rawName)
         if (name.isEmpty()) return ContactResult.Bad(ContactProblem.NAME_EMPTY)
         val number = PhoneNumbers.normalise(rawNumber) ?: return ContactResult.Bad(ContactProblem.NUMBER_INVALID)
-        val known = services.filter { ShareServices.byId(it) != null }.toSet()
+        val known = services.filter { ShareSources.exists(it, sources) }.toSet()
         if (known.isEmpty()) return ContactResult.Bad(ContactProblem.NO_SERVICE)
         if (existing.any { it.id != id && it.number == number }) return ContactResult.Bad(ContactProblem.DUPLICATE_NUMBER)
         if (existing.none { it.id == id } && existing.size >= MAX_PEOPLE) return ContactResult.Bad(ContactProblem.TOO_MANY)
@@ -89,7 +89,7 @@ object TrustedContacts {
     fun explain(problem: ContactProblem): String = when (problem) {
         ContactProblem.NAME_EMPTY -> "Add a name"
         ContactProblem.NUMBER_INVALID -> "Enter a mobile number: 10 digits, or with + and the country code"
-        ContactProblem.NO_SERVICE -> "Choose at least one service"
+        ContactProblem.NO_SERVICE -> "Choose at least one sender"
         ContactProblem.DUPLICATE_NUMBER -> "This number is already on the list"
         ContactProblem.TOO_MANY -> "You can share with up to $MAX_PEOPLE people"
     }

@@ -32,9 +32,12 @@ interface CodeSharingRepository {
     fun clearSeen()
     fun noteReceiverFired(at: Long)
 
-    /** Teaches a sender name ([ShareServices.senderToken]) as a service's; checked by [ShareLearning.problem] by the caller. */
-    fun learnHeader(serviceId: String, token: String)
-    fun forgetHeader(serviceId: String, token: String)
+    /** Adds a custom source (checked by [ShareSources.problem] by the caller); a source with the same id is kept as it is. */
+    fun addSource(source: ShareSource)
+    fun renameSource(id: String, label: String)
+
+    /** Removes a custom source and detaches it from everyone. */
+    fun removeSource(id: String)
 
     /** What was sent lately: the saved log, plus the code keys held in memory since this process started. */
     fun history(now: Long): ShareHistory
@@ -62,8 +65,9 @@ object NoCodeSharing : CodeSharingRepository {
     override fun addSeen(entry: SeenCode) = Unit
     override fun clearSeen() = Unit
     override fun noteReceiverFired(at: Long) = Unit
-    override fun learnHeader(serviceId: String, token: String) = Unit
-    override fun forgetHeader(serviceId: String, token: String) = Unit
+    override fun addSource(source: ShareSource) = Unit
+    override fun renameSource(id: String, label: String) = Unit
+    override fun removeSource(id: String) = Unit
     override fun history(now: Long): ShareHistory = ShareHistory()
     override fun remember(record: SentRecord) = Unit
 }

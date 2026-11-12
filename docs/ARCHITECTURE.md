@@ -429,23 +429,37 @@ For a login code the user shares with family: when a code for an allowed streami
 on by SMS to the people the user chose, so they can sign in while the user is asleep or busy. Off by default in every part (master
 switch, people, hours, pause); Settings, Reminders and alerts, Share codes with trusted people.
 
-* **Rules (`:domain/sharing`, pure, tested in `CodeSharingTest`).** `CodeSharing.decide(message, rules, now, history, zone)`
-  returns the texts to send (`Share`: person, service, text) or the reasons it did not (`ShareSkip`). Hard blocks come first and
-  no setting overrides them: anything financial (a `Transaction`, `CardBill`, `ScheduledPayment`, anything `Counting.of` counts,
-  an OTP with a payment amount or card, any bank / UPI / card / wallet / payment / amount / "Rs", "INR", rupee-sign / transaction
-  wording, or a bank or payment-app sender header), government, insurer and phone-company account security (Aadhaar, tax,
-  insurance, SIM, porting ...), and any sender header that is not one of the allowed services' own. A code needs both an OTP
-  classification (digits, 4 to 8) and a service match. `ShareServices` lists exactly six services (Netflix, Hotstar incl. Disney+
-  and JioHotstar, Prime Video, Sun NXT, Sony LIV, ZEE5); to add one, add a `ShareService` and a test. The SENDER header must match
-  (operator route letters stripped, so `VM-NFLXIN-S` is `NFLXIN`); the body only confirms. A body naming another service is
-  ambiguous and not sent. Amazon's header also sends shopping and Amazon Pay codes, so it needs "Prime" in the body. Wording
-  alone from an unknown header is never enough. "Do not share" is in every OTP, so it is not a block by itself; it blocks only
-  together with payment or transaction wording (which blocks on its own).
-* **What is sent.** Only the code and the service name: `Netflix code 482913 (use it soon). Sent by Aman via Zyke`, plain ASCII,
+* **Rules (`:domain/sharing`, pure, tested in `CodeSharingTest`, `CodeSeenTest`, `CodeSourcesTest`).**
+  `CodeSharing.decide(message, rules, now, history, zone)` returns the texts to send (`Share`: person, `ShareSource`, text) or the
+  reasons it did not (`ShareSkip`). Hard blocks come first and no setting overrides them: anything financial (a `Transaction`,
+  `CardBill`, `ScheduledPayment`, anything `Counting.of` counts, an OTP with a payment amount or card, any bank / UPI / card /
+  wallet / payment / amount / "Rs", "INR", rupee-sign / transaction wording, or a bank, payment-app, wallet, broker, exchange,
+  government, insurer or phone-company sender header, `SharingBlocks.FINANCIAL_SENDER`), and government, insurer and phone-company
+  account security (Aadhaar, tax, insurance, SIM, porting ...). A code needs an OTP classification (digits, 4 to 8; the SMS
+  Retriever form `<#> 1496 is your ... code. /wAX/OsgZgE` is read as 1496, the trailing 11-character app hash is cut off first by
+  `OtpParser.withoutRetrieverHash`) or, from a chosen sender, the stricter plain-wording reader, AND a source.
+* **Sources (`ShareSource`, `ShareSources`).** Where a code may come from. Six built-in sources (`ShareServices`: Netflix, Hotstar
+  incl. Disney+ and JioHotstar, Prime Video, Sun NXT, Sony LIV, ZEE5; ids such as `netflix`, header aliases, brand words,
+  Amazon needs "Prime" in the body) and CUSTOM sources the person picks from the codes they have received (id `c:<key>`, label,
+  key, header; `CodeSharingRules.sources`, in the `code_sharing` preferences, so they travel with a backup; sender names only).
+  The key is the sender with the DLT route and category stripped, upper-case (`VM-JIOHOTSTAR-S` and `JioHotstar` are `JIOHOTSTAR`;
+  a phone number is `#` + digits, allowed as an explicit choice, masked in the UI, never suggested first). A custom source matches
+  by key equality and needs no brand in the body. `TrustedContact.services` is a set of source ids; the old ids are the built-ins,
+  so saved people keep working. A source that is a bank, payment, wallet, broker, government, insurer or phone-company sender
+  (`ShareSources.problem`, key list plus label words) cannot be added; a payment-worded message is never forwarded whatever the
+  source. The label comes from the sender (`SenderDisplay`) or the service named in the code (`ShareBrand.fromBody`, "your
+  JioHotstar verification code"), at most 20 ASCII characters, and can be renamed. Removing a source detaches it from everyone.
+  The earlier "learned headers" (`code_sharing` key `learned`) are migrated once on read by `ShareMigration.fromLearned` into custom
+  sources attached to the people who had that service, then the key is dropped.
+* **The picker (`ReceivedCodeSenders.build(messages, now)`).** The senders of OTP-content messages in the last 90 days, de-duplicated
+  by key, newest first, then phone numbers, then blocked ones (greyed with "Bank and payment codes can't be shared"). The model
+  (`ReceivedSender`) holds a header, names, a count and a time, never a code or a body (`CodeSourcesTest` pins the fields). The page
+  reads it from `ObserveMessagesUseCase` only while the picker sheet is open (`rememberReceivedSenders`).
+* **What is sent.** Only the code and the service name: `Netflix code 482913 (use it soon). Sent by Aman via Zyke` (or `JioHotstar code 1496 ...` for a chosen sender), plain ASCII,
   one SMS segment (the name is reduced to letters, digits and a few marks, 20 characters; blank is just `Sent by Zyke`). Never
   the original message. Limits: at most 5 an hour to one person (`maxPerHour`), the same code + service + person is never sent
   twice, a message older than 5 minutes (or dated in the future) is never sent, an optional daily window (overnight such as
-  22:00 to 08:00 handled), a quick pause ("Off for 1, 8, 24 hours"), a per-person switch and a per-person set of services.
+  22:00 to 08:00 handled), a quick pause ("Off for 1, 8, 24 hours"), a per-person switch and a per-person set of sources.
 * **Live path only.** `SmsReceiver` calls `CodeSharer.onLiveMessage` after classification, for the message that has just arrived;
   nothing else calls it (`CodeSharingPolicyTest` pins that), so reading the inbox never forwards anything. Freshness in the rules
   is a second line of defence. The receiver now runs when either the code alerts or sharing is on (`LiveAlerts.refreshReceiver`
@@ -470,11 +484,11 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
   a notification. The saved log (`code_sharing_log`, left out of backups) has service, person's name, time and status. The
   duplicate check's code keys live in memory only. The people and settings are in the `code_sharing` preferences file and are
   carried by `PrefsBackup` (PIN-encrypted) like every other setup file.
-* **Self-explaining (`CodeSharing.review`, `SeenCodes`, `ShareCodeReader`, `ShareLearning`).** `decide` is now `review(...).decision`;
+* **Self-explaining (`CodeSharing.review`, `SeenCodes`, `ShareCodeReader`).** `decide` is now `review(...).decision`;
   `review` also says whether the message was code-like, the service it was taken for, and one `SeenOutcome`. The Share codes page
   has "Recent codes seen / Why wasn't it sent?": the last 20 code-like messages the live receiver handled (read as an OTP, or from
-  a sender named like one of the services), each as time, sender HEADER (a header with 6 or more digits, i.e. a phone number, is
-  masked to its last two digits), service or "none", and a plain reason. Never the code, the body or a number (`SeenCode` has
+  a sender named like one of the sources), each as time, sender HEADER (a header with 6 or more digits, i.e. a phone number, is
+  masked to its last two digits), source name or "none", and a plain reason ("Not forwarded: nobody has JioHotstar selected", with a one-tap "Share this sender's codes" that opens the person chooser). Never the code, the body or a number (`SeenCode` has
   exactly those fields; `CodeSharingPolicyTest` and `CodeSeenTest` pin it). Kept in memory and in `code_sharing_seen`
   (left out of backups). The receiver also writes the time of any text it hears (only while sharing is on) to the same file, shown as
   "Last text seen by the receiver" so the person can tell whether SMS broadcasts reach the app. Developer mode is not needed.
@@ -482,11 +496,9 @@ switch, people, hours, pause); Settings, Reminders and alerts, Share codes with 
   alias list per service; the aliases are UNVERIFIED guesses, which is why the log exists. A service's own header also lets plainer
   wording ("Your Netflix code is 123456", "sign-in code") be read by `ShareCodeReader` when the general classifier, which needs
   "OTP" or "verification code" and similar, does not call the message a code; it needs a code word and exactly one plausible number
-  and runs only after the hard blocks. "Treat VM-XXXX as Netflix" on a "sender isn't one of the six services" row teaches a header
-  (`CodeSharingRules.learned`, kept in `code_sharing`, so it travels with a backup); `ShareLearning.problem` refuses phone numbers
-  and bank, payment, government and phone-company names, a dialog names what will be forwarded, and the hard blocks and the
-  wording gate still apply to a taught header.
-* **Send a test code.** `CodeSharer.sendTestCode` classifies a made-up message (`VM-<alias>-S`, "123456 is your Netflix
+  and runs only after the hard blocks. A chosen sender's header also lets plainer wording be read. There is no "teaching" flow any more: "Share this sender's codes" on a log row
+  creates (or reuses) a custom source and attaches it to the people ticked, after `ShareSources.problem` has said it is allowed.
+* **Send a test code.** `CodeSharer.sendTestCode` classifies a made-up message (`VM-<key>-S`, "123456 is your Netflix
   verification code. This is a Zyke test.") and runs it through the same `handle` as a real text, to the one chosen person, with
   the text `Zyke TEST - Netflix code 123456` (ASCII hyphen, one segment). It obeys pause, hours and switches. The log entry is
   marked as a test and is not counted for the rate limit or remembered for the duplicate check.

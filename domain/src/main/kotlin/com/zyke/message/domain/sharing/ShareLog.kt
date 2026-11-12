@@ -24,7 +24,9 @@ data class ShareLogEntry(
     val contactName: String,
     val at: Long,
     val status: ShareStatus,
-    val test: Boolean = false
+    val test: Boolean = false,
+    /** The source's name at the time ("JioHotstar"); a name only. Blank for an entry saved before sources could be chosen. */
+    val label: String = ""
 )
 
 object ShareLog {
@@ -52,7 +54,7 @@ object ShareLog {
 
     /** "Sent Netflix code to Sister" / "Couldn't send to Sister": also the notification wording. No code in either. */
     fun headline(entry: ShareLogEntry): String {
-        val label = ShareServices.byId(entry.serviceId)?.label
+        val label = entry.label.ifEmpty { ShareServices.byId(entry.serviceId)?.label.orEmpty() }.ifEmpty { null }
         return when {
             entry.test -> if (entry.status == ShareStatus.FAILED) "Couldn't send to ${entry.contactName}"
                 else if (label != null) "Sent a test $label code to ${entry.contactName}" else "Sent a test message to ${entry.contactName}"
