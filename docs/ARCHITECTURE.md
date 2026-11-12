@@ -654,6 +654,10 @@ has turned it into a plain name (always the case after `RichMerge`) it can no lo
 sender wins for the name, the check follows the header. Notifications say the name only; exports keep the raw header. Screen readers hear
 "Spinny, verified sender".
 
+## Design tokens and motion
+
+`presentation/theme/Tokens.kt` holds the spacing, radius, tonal, icon and type-role tokens; `presentation/motion/` holds the motion tokens (`Motion`), the one function every animation spec comes from (`rememberMotion()`, instant when reduced or lite), and the pieces built on it (press feedback, one-shot staggered entrance, counting amounts, crossfade, appear/disappear, progress reveal, still skeletons, haptics). The arithmetic (stagger delays, count-up, progress clamp) is pure and tested in `:domain` (`MotionMath`). `MotionPolicyTest` keeps loops and raw animation specs out of the shared components. See [DESIGN.md](DESIGN.md).
+
 ## Budget phones and lite mode
 
 `presentation/common/Responsive.kt` (`LocalResponsive`, `ChromeScale`, `FitText`, `ResponsiveRow`) holds the layout rules for

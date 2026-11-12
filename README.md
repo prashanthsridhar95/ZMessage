@@ -35,6 +35,7 @@ Dependencies point inwards: `presentation -> domain <- data`, and `:domain` cann
 - **Privacy and terms in the app:** Settings, Privacy and terms (what stays on the phone, what is sent and to which host, permissions, terms of use, minimum age 18, contact) and Open-source licences. The words live in `:domain` (`LegalText`, `OpenSourceNotices`) and tests keep them in step with the manifest, the network hosts and the dependency list. See [docs/LEGAL_NOTES.md](docs/LEGAL_NOTES.md) (not legal advice; have a lawyer review before a public release), [docs/PRIVACY.md](docs/PRIVACY.md) and [NOTICE](NOTICE). The repository has no LICENSE file yet; that choice is the owner's.
 - **Accessibility:** WCAG AA text contrast, one-sentence TalkBack descriptions for every message, 48dp targets, labelled switches and checkboxes, headings, a state for progress rings, Done / Next on keyboards and Escape to close a sheet or page; `AccessibilityPolicyTest` guards the basics.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Design system:** spacing, shape, tonal and type tokens, one-shot motion that goes quiet in lite mode, and a checklist for new screens. See [docs/DESIGN.md](docs/DESIGN.md).
 - **Budget phones:** layouts bend for 320 to 411 dp screens and large text, and a lite mode (automatic on low-memory phones) drops looping animations and effects. See [docs/LOWEND.md](docs/LOWEND.md).
 - **App tour:** a first-launch walkthrough (also in Settings, Help and tour) that opens each screen and explains it; local only. See [docs/TOUR.md](docs/TOUR.md).
 
