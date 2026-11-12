@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.zyke.message.presentation.theme.IconSize
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -83,6 +86,7 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
         null
     }
 
+    var confirming by remember { mutableStateOf(false) }
     FormSheet(
         title = if (goal == null) "New goal" else "Edit goal",
         onDismiss = onDismiss,
@@ -91,7 +95,7 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
         hint = if (name.isBlank()) "Give the goal a name" else "Enter the amount you are aiming for",
         onPrimary = { onSave(Goal(goal?.id ?: UUID.randomUUID().toString(), name.trim(), amount!!, saved.toBigDecimalOrNull() ?: BigDecimal.ZERO, date)) },
         secondaryLabel = if (onRemove != null) "Delete goal" else null,
-        onSecondary = onRemove
+        onSecondary = if (onRemove != null) ({ confirming = true }) else null
     ) {
         FormField(
             "Goal", name, { name = it }, placeholder = "Goa trip, new laptop, rainy-day fund",
@@ -104,6 +108,12 @@ internal fun GoalDialog(goal: Goal?, onSave: (Goal) -> Unit, onRemove: (() -> Un
             supporting = preview?.let { "${DisplayFormatters.rupees(it)} a month gets you there" }
         )
         if (goal == null) AmountField("Already saved (optional)", saved, { saved = it })
+    }
+    if (confirming && onRemove != null) {
+        ConfirmDelete(
+            "Delete this goal?", "The goal and its saving history go. You can still undo right after.", "Delete goal",
+            onConfirm = { confirming = false; onRemove() }, onDismiss = { confirming = false }
+        )
     }
 }
 
@@ -127,6 +137,7 @@ internal fun ReminderDialog(
     val datePresets = listOf("Today" to today, "Tomorrow" to today.plusDays(1), "In a week" to today.plusWeeks(1))
     val timePresets = listOf("9:00 AM" to java.time.LocalTime.of(9, 0), "12:00 PM" to java.time.LocalTime.of(12, 0), "6:00 PM" to java.time.LocalTime.of(18, 0))
 
+    var confirming by remember { mutableStateOf(false) }
     FormSheet(
         title = if (reminder == null) "New reminder" else "Edit reminder",
         onDismiss = onDismiss,
@@ -135,7 +146,7 @@ internal fun ReminderDialog(
         hint = "Give the reminder a name",
         onPrimary = { onSave(Reminder(reminder?.id ?: UUID.randomUUID().toString(), title.trim(), amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }, day, monthly, time)) },
         secondaryLabel = if (onRemove != null) "Delete reminder" else null,
-        onSecondary = onRemove
+        onSecondary = if (onRemove != null) ({ confirming = true }) else null
     ) {
         FormField(
             "Reminder", title, { title = it }, placeholder = "Rent, insurance premium, pay Ravi",
@@ -157,6 +168,12 @@ internal fun ReminderDialog(
             )
         }
     }
+    if (confirming && onRemove != null) {
+        ConfirmDelete(
+            "Delete this reminder?", "It stops reminding you. You can still undo right after.", "Delete reminder",
+            onConfirm = { confirming = false; onRemove() }, onDismiss = { confirming = false }
+        )
+    }
 }
 
 /** One line on Home for something planned ahead; it opens its own sheet. */
@@ -166,7 +183,7 @@ internal fun PlanTile(title: String, summary: String, onOpen: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowTitle(title, Modifier.weight(1f))
             Caption(summary)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             Text("\u203A", color = mutedColor())
         }
     }
@@ -180,12 +197,12 @@ internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifie
             androidx.compose.foundation.Image(
                 painter = androidx.compose.ui.res.painterResource(icon),
                 contentDescription = null,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(IconSize.tile),
                 colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
             )
             Text(
                 label,
-                Modifier.padding(start = 12.dp),
+                Modifier.padding(start = Spacing.md),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.secondary,
@@ -199,7 +216,7 @@ internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifie
 @Composable
 internal fun PlanPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     com.zyke.message.presentation.common.AppPage(title, onBack) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) { content() }
     }
 }
 
@@ -209,7 +226,7 @@ internal fun PlanSheet(title: String, onDismiss: () -> Unit, content: @Composabl
     AdaptiveSheet(title, onDismiss) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             content()
         }

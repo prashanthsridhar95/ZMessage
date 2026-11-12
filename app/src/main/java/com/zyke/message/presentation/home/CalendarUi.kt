@@ -82,6 +82,31 @@ import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle as ComposeTextStyle
+import androidx.compose.ui.unit.sp
+import com.zyke.message.domain.calendar.CalendarPaging
+import com.zyke.message.domain.calendar.PageDirection
+import com.zyke.message.presentation.common.EmptyState
+import com.zyke.message.presentation.common.LocalResponsive
+import com.zyke.message.presentation.messages.components.RowAmount
+import com.zyke.message.presentation.motion.AnimatedColumnItems
+import com.zyke.message.presentation.motion.CrossfadeKeyed
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.SlideSwap
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
 
 @Composable
 @ReadOnlyComposable
@@ -102,6 +127,11 @@ private fun kindColor(kind: CalendarKind): Color = when (kind) {
  * The app's own calendar: a month at a time, a dot under each day for what is on it, and the day's list below. It
  * brings together the person's events and reminders, the card bills and auto-debits from their messages, orders and
  * appointments, regular payments, the salary day and goal dates.
+ *
+ * Paging: the arrows, a sideways swipe on the grid and the Today button all turn the page the same way. The grid slides at
+ * most 24 dp (30 % of its width on a very small one) in the direction of time, fading, while the title crossfades, with one
+ * light tick; under reduced motion or Lite the page just changes. The swipe is a horizontal drag only, so scrolling the
+ * page is not affected.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -127,59 +157,74 @@ internal fun CalendarPage(
     var adding by rememberSaveable { mutableStateOf(false) }
     val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val holdings by container.investments.state.collectAsState()
-    val entries = remember(month, messages, reminders, events, goals, plan, now, holdings) {
-        CalendarBuilder.month(month, messages, reminders, events, goals, plan, now, zone, holdings.holdings)
+    // A month is built once per set of inputs; the page that is leaving keeps drawing the month it was made for.
+    val monthCache = remember(messages, reminders, events, goals, plan, now, holdings) { HashMap<YearMonth, Map<LocalDate, List<CalendarEntry>>>() }
+    val entriesFor: (YearMonth) -> Map<LocalDate, List<CalendarEntry>> = { m ->
+        monthCache.getOrPut(m) { CalendarBuilder.month(m, messages, reminders, events, goals, plan, now, zone, holdings.holdings) }
     }
-    val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
-
-    val monthName = FormatCache.pattern("MMMM yyyy", Locale.getDefault()).format(month.atDay(1))
-    val monthEntries = entries.values.flatten()
-    val unsettled = monthEntries.filter { (it.kind == CalendarKind.BILL || it.kind == CalendarKind.DEBIT) && !it.done && it.amount != null }
-    val dayEntries = entries[selected].orEmpty()
     val onThisMonth = month == YearMonth.from(today)
+    val goTo: (YearMonth) -> Unit = { target ->
+        if (target != month) {
+            haptics.tick()
+            monthText = target.toString()
+        }
+    }
+    val widthDp = LocalResponsive.current.widthDp.toFloat()
+    val thresholdPx = with(LocalDensity.current) { CalendarPaging.swipeThreshold(widthDp).dp.toPx() }
 
     AppPage(
         "Calendar", onDismiss,
         floating = {
             androidx.compose.material3.ExtendedFloatingActionButton(
                 onClick = { adding = true },
-                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(Spacing.lg),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) { Text("+ Event", fontWeight = FontWeight.SemiBold) }
         }
     ) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             // Where am I, and how do I move: the month with a large arrow either side, Today when away from it.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                MonthArrow("‹", "Previous month") { monthText = month.minusMonths(1).toString() }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(monthName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Caption(
-                        when {
-                            monthEntries.isEmpty() -> "Nothing planned"
-                            unsettled.isEmpty() -> DisplayFormatters.count(monthEntries.size, "thing", "things") + " this month"
-                            else -> DisplayFormatters.count(unsettled.size, "bill or debit", "bills and debits") + " still to pay · " +
-                                DisplayFormatters.rupees(unsettled.fold(java.math.BigDecimal.ZERO) { sum, it -> sum + it.amount!! })
-                        },
-                        textAlign = TextAlign.Center, maxLines = 2
-                    )
+                MonthArrow("\u2039", "Previous month") { goTo(month.minusMonths(1)) }
+                CrossfadeKeyed(month, contentKey = { it }, modifier = Modifier.weight(1f), label = "month-title") { shown ->
+                    val shownEntries = entriesFor(shown).values.flatten()
+                    val unsettled = shownEntries.filter { (it.kind == CalendarKind.BILL || it.kind == CalendarKind.DEBIT) && !it.done && it.amount != null }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            FormatCache.pattern("MMMM yyyy", Locale.getDefault()).format(shown.atDay(1)),
+                            Modifier.heading(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center
+                        )
+                        Caption(
+                            when {
+                                shownEntries.isEmpty() -> "Nothing planned"
+                                unsettled.isEmpty() -> DisplayFormatters.count(shownEntries.size, "thing", "things") + " this month"
+                                else -> DisplayFormatters.count(unsettled.size, "bill or debit", "bills and debits") + " still to pay \u00B7 " +
+                                    DisplayFormatters.rupees(unsettled.fold(java.math.BigDecimal.ZERO) { sum, it -> sum + it.amount!! })
+                            },
+                            textAlign = TextAlign.Center, maxLines = 2
+                        )
+                    }
                 }
-                MonthArrow("›", "Next month") { monthText = month.plusMonths(1).toString() }
+                MonthArrow("\u203A", "Next month") { goTo(month.plusMonths(1)) }
             }
             FintechCard(
-                Modifier.pointerInput(month) {
+                Modifier.pointerInput(month, thresholdPx) {
                     // Swiping the month sideways moves through time, the way the arrows suggest.
                     var travelled = 0f
                     detectHorizontalDragGestures(
                         onDragStart = { travelled = 0f },
                         onDragEnd = {
-                            if (travelled < -120f) monthText = month.plusMonths(1).toString()
-                            else if (travelled > 120f) monthText = month.minusMonths(1).toString()
-                        }
+                            val way = CalendarPaging.swipe(travelled, thresholdPx)
+                            if (way != PageDirection.NONE) goTo(CalendarPaging.shifted(month, way))
+                            travelled = 0f
+                        },
+                        onDragCancel = { travelled = 0f }
                     ) { _, delta -> travelled += delta }
                 }
             ) {
@@ -191,69 +236,35 @@ internal fun CalendarPage(
                         )
                     }
                 }
-                val cells = leading + month.lengthOfMonth()
-                (0 until (cells + 6) / 7).forEach { week ->
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                        (0..6).forEach { column ->
-                            val dayNumber = week * 7 + column - leading + 1
-                            Box(Modifier.weight(1f).height(52.dp), contentAlignment = Alignment.Center) {
-                                if (dayNumber in 1..month.lengthOfMonth()) {
-                                    val date = month.atDay(dayNumber)
-                                    DayCell(date, entries[date].orEmpty(), isToday = date == today, isSelected = date == selected) { selectedText = date.toString() }
-                                }
-                            }
-                        }
-                    }
-                }
-                // Only the colours that appear this month, each with its name.
-                val present = monthEntries.map { it.kind }.distinct()
-                if (present.isNotEmpty()) {
-                    FlowRow(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        present.forEach { kind ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).background(kindColor(kind), CircleShape))
-                                Spacer(Modifier.width(6.dp))
-                                Caption(kind.label)
-                            }
-                        }
-                    }
+                SlideSwap(
+                    targetState = month,
+                    sign = { from, to -> CalendarPaging.enterSign(CalendarPaging.direction(from, to)) },
+                    maxSlideDp = CalendarPaging.SLIDE_MAX_DP, maxShare = CalendarPaging.SLIDE_MAX_SHARE,
+                    label = "month-grid"
+                ) { shown ->
+                    MonthGrid(shown, entriesFor(shown), today, selected) { selectedText = it.toString() }
                 }
             }
 
             // The chosen day: what it is, how busy, and the one action for it.
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(selected),
-                            Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
-                        )
-                        if (selected == today) StatusPill("Today", Tone.NEUTRAL, Modifier.padding(start = 8.dp))
-                    }
-                    Caption(if (dayEntries.isEmpty()) "Nothing on this day" else DisplayFormatters.count(dayEntries.size, "thing", "things"))
-                }
-                // Beside the day it leaves, not above the list, so showing or hiding it moves nothing below.
-                if (!onThisMonth || selected != today) {
-                    AppButton(
-                        "Today", { monthText = YearMonth.from(today).toString(); selectedText = today.toString() },
-                        Modifier.padding(end = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
-                    )
-                }
+            DayHeader(selected, today, entriesFor(YearMonth.from(selected))[selected].orEmpty().size, showToday = !onThisMonth || selected != today) {
+                goTo(YearMonth.from(today))
+                selectedText = today.toString()
             }
-
-            if (dayEntries.isEmpty()) {
-                FintechCard {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("A free day", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                        Caption("Add an appointment or a plan, and it shows here and on the dot above.", Modifier.padding(top = 4.dp), maxLines = 3, textAlign = TextAlign.Center)
-                    }
-                }
-            } else {
-                dayEntries.forEach { entry ->
-                    EntryRow(entry) {
-                        when {
-                            entry.eventId != null -> editing = events.firstOrNull { it.id == entry.eventId }
-                            entry.messageId != null -> onOpenMessage(entry.messageId!!)
+            CrossfadeKeyed(selected, contentKey = { it }, modifier = Modifier.fillMaxWidth(), label = "day-detail") { day ->
+                val dayEntries = entriesFor(YearMonth.from(day))[day].orEmpty()
+                if (dayEntries.isEmpty()) {
+                    EmptyState("A free day", "Add an appointment or a plan, and it shows here and on the dot above.", actionLabel = "Add an event", onAction = { adding = true })
+                } else {
+                    val keyed = remember(dayEntries) { keyedEntries(dayEntries) }
+                    AnimatedColumnItems(keyed, itemKey = { it.first }) { (_, entry), _ ->
+                        Box(Modifier.padding(bottom = Spacing.md)) {
+                            EntryRow(entry) {
+                                when {
+                                    entry.eventId != null -> editing = events.firstOrNull { it.id == entry.eventId }
+                                    entry.messageId != null -> onOpenMessage(entry.messageId!!)
+                                }
+                            }
                         }
                     }
                 }
@@ -282,31 +293,124 @@ internal fun CalendarPage(
     }
 }
 
+/** Entries with a key each, unique even when two are alike, so they can open and close one by one. */
+private fun keyedEntries(entries: List<CalendarEntry>): List<Pair<String, CalendarEntry>> {
+    val seen = HashMap<String, Int>()
+    return entries.map { entry ->
+        val base = "${entry.kind}|${entry.title}|${entry.eventId ?: entry.messageId ?: ""}|${entry.time ?: ""}"
+        val n = (seen[base] ?: 0) + 1
+        seen[base] = n
+        "$base#$n" to entry
+    }
+}
+
+/** The name of the chosen day with how much is on it, and Today when it is not the day shown. */
+@Composable
+private fun DayHeader(selected: LocalDate, today: LocalDate, count: Int, showToday: Boolean, onToday: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    FormatCache.pattern("EEEE d MMMM", Locale.getDefault()).format(selected),
+                    Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
+                )
+                if (selected == today) StatusPill("Today", Tone.NEUTRAL, Modifier.padding(start = Spacing.sm))
+            }
+            Caption(if (count == 0) "Nothing on this day" else DisplayFormatters.count(count, "thing", "things"))
+        }
+        // Beside the day it leaves, not above the list, so showing or hiding it moves nothing below.
+        if (showToday) {
+            AppButton("Today", onToday, Modifier.padding(end = Spacing.xs), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        }
+    }
+}
+
+/** One month as weeks of day cells, with the key to the colours that appear in it. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MonthGrid(
+    month: YearMonth,
+    entries: Map<LocalDate, List<CalendarEntry>>,
+    today: LocalDate,
+    selected: LocalDate,
+    onSelect: (LocalDate) -> Unit
+) {
+    val leading = (month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
+    val cells = leading + month.lengthOfMonth()
+    Column(Modifier.fillMaxWidth()) {
+        (0 until (cells + 6) / 7).forEach { week ->
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
+                (0..6).forEach { column ->
+                    val dayNumber = week * 7 + column - leading + 1
+                    Box(Modifier.weight(1f).heightIn(min = 52.dp), contentAlignment = Alignment.Center) {
+                        if (dayNumber in 1..month.lengthOfMonth()) {
+                            val date = month.atDay(dayNumber)
+                            DayCell(date, today, entries[date].orEmpty(), isSelected = date == selected) { onSelect(date) }
+                        }
+                    }
+                }
+            }
+        }
+        // Only the colours that appear this month, each with its name.
+        val present = entries.values.flatten().map { it.kind }.distinct()
+        if (present.isNotEmpty()) {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(top = Spacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                present.forEach { kind ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(Spacing.sm).background(kindColor(kind), CircleShape))
+                        Spacer(Modifier.width(Spacing.sm))
+                        Caption(kind.label)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MonthArrow(glyph: String, description: String, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
+        Modifier.size(48.dp).pressFeedback(source).clip(CircleShape)
+            .clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(glyph, Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
 
+/**
+ * One day: its number, up to three dots for the kinds of thing on it (and a "+" when there are more), a ring when it is
+ * today, and a fill that fades in when it is chosen. A screen reader hears "Tuesday 12 November, today, 2 bills due" and a
+ * button that selects the day.
+ */
 @Composable
-private fun DayCell(date: LocalDate, entries: List<CalendarEntry>, isToday: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+private fun DayCell(date: LocalDate, today: LocalDate, entries: List<CalendarEntry>, isSelected: Boolean, onClick: () -> Unit) {
+    val motion = rememberMotion()
     val ink = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(14.dp)
+    val onInk = MaterialTheme.colorScheme.onPrimary
+    val isToday = date == today
+    val source = remember { MutableInteractionSource() }
+    val fill = animateColorAsState(if (isSelected) ink else Color.Transparent, motion.tween(Motion.QUICK_MS), label = "day-fill")
+    val numberColor = animateColorAsState(if (isSelected) onInk else ink, motion.tween(Motion.QUICK_MS), label = "day-number")
+    val spoken = remember(date, today, entries) { CalendarPaging.spoken(date, today, entries) }
+    val kinds = remember(entries) { entries.map { it.kind }.distinct() }
+    val dots = CalendarPaging.dots(kinds.size)
+    val corner = with(LocalDensity.current) { Radius.chip.toPx() }
     Column(
         Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .clip(shape)
-            .background(if (isSelected) ink else Color.Transparent)
-            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, ink, shape) else Modifier)
-            .clickable(role = Role.Button, onClickLabel = "Show ${date.dayOfMonth}", onClick = onClick)
+            .heightIn(min = 48.dp)
+            .pressFeedback(source)
+            .clip(AppShapes.chip)
+            .drawBehind { drawRoundRect(fill.value, cornerRadius = CornerRadius(corner)) }
+            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, ink, AppShapes.chip) else Modifier)
+            .clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Show this day", onClick = onClick)
             .semantics {
-                contentDescription = "${date.dayOfMonth}" + (if (isToday) ", today" else "") +
-                    if (entries.isEmpty()) "" else ", ${DisplayFormatters.count(entries.size, "thing", "things")}"
+                contentDescription = spoken
                 selected = isSelected
             },
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -316,11 +420,19 @@ private fun DayCell(date: LocalDate, entries: List<CalendarEntry>, isToday: Bool
             date.dayOfMonth.toString(),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else ink
+            color = numberColor.value
         )
-        Row(Modifier.padding(top = 3.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            entries.map { it.kind }.distinct().take(3).forEach { kind ->
-                Box(Modifier.size(6.dp).background(kindColor(kind), CircleShape).then(if (isSelected) Modifier.border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape) else Modifier))
+        Row(Modifier.padding(top = Spacing.xs).heightIn(min = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+            kinds.take(dots.shown).forEach { kind ->
+                Box(Modifier.size(6.dp).background(kindColor(kind), CircleShape).then(if (isSelected) Modifier.border(1.dp, onInk, CircleShape) else Modifier))
+            }
+            if (dots.more) {
+                Text(
+                    "+",
+                    Modifier.clearAndSetSemantics { },
+                    style = ComposeTextStyle(fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold),
+                    color = numberColor.value, maxLines = 1
+                )
             }
         }
     }
@@ -333,25 +445,23 @@ private fun EntryRow(entry: CalendarEntry, onClick: () -> Unit) {
     val color = kindColor(entry.kind)
     FintechCard(onClick = if (clickable) onClick else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(4.dp).height(44.dp).background(color, RoundedCornerShape(2.dp)))
-            Spacer(Modifier.width(14.dp))
+            Box(Modifier.width(Spacing.xs).height(44.dp).background(color, RoundedCornerShape(2.dp)))
+            Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 RowTitle(entry.title)
-                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         entry.kind.label,
-                        Modifier.background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+                        Modifier.background(color.copy(alpha = 0.14f), AppShapes.chip).padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                         style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1
                     )
                     entry.time?.let { Caption(FormatCache.pattern("h:mm a", Locale.getDefault()).format(it)) }
                 }
-                if (entry.detail.isNotBlank()) Caption(entry.detail, Modifier.padding(top = 4.dp), maxLines = 2)
+                if (entry.detail.isNotBlank()) Caption(entry.detail, Modifier.padding(top = Spacing.xs), maxLines = 2)
             }
             Column(horizontalAlignment = Alignment.End) {
-                entry.amount?.let {
-                    Text(DisplayFormatters.rupees(it), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-                }
-                if (entry.done) StatusPill("Done", Tone.GOOD, Modifier.padding(top = 6.dp))
+                entry.amount?.let { RowAmount(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.primary) }
+                if (entry.done) StatusPill("Done", Tone.GOOD, Modifier.padding(top = Spacing.sm))
             }
         }
     }
@@ -373,6 +483,7 @@ private fun EventForm(
     val date = LocalDate.parse(dateText)
     val time = timeText.takeIf { it.isNotBlank() }?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
 
+    var confirming by remember { mutableStateOf(false) }
     FormSheet(
         title = if (initial == null) "Add an event" else "Edit event",
         onDismiss = onDismiss,
@@ -382,7 +493,7 @@ private fun EventForm(
         hint = "Name the event",
         onPrimary = { onSave(CalendarEvent(initial?.id ?: UUID.randomUUID().toString(), title.trim(), date, time, note.trim())) },
         secondaryLabel = if (onRemove != null) "Remove" else null,
-        onSecondary = onRemove
+        onSecondary = if (onRemove != null) ({ confirming = true }) else null
     ) {
         FormField(
             label = "What is it?", value = title, onChange = { title = it }, placeholder = "e.g. Dentist, Dinner with Ravi",
@@ -395,5 +506,11 @@ private fun EventForm(
             presets = listOf("9:00 AM" to LocalTime.of(9, 0), "12:00 PM" to LocalTime.of(12, 0), "6:00 PM" to LocalTime.of(18, 0))
         )
         FormField(label = "Note (optional)", value = note, onChange = { note = it }, placeholder = "Where, who with, what to bring")
+    }
+    if (confirming && onRemove != null) {
+        ConfirmDelete(
+            "Remove this event?", "It leaves your calendar. You can still undo right after.", "Remove",
+            onConfirm = { confirming = false; onRemove() }, onDismiss = { confirming = false }
+        )
     }
 }

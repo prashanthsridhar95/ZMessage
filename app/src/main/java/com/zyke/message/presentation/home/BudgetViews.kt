@@ -9,6 +9,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.selected
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import com.zyke.message.domain.cycle.CycleRule
@@ -134,6 +147,8 @@ internal fun BudgetCalendarSheet(
     onDismiss: () -> Unit
 ) {
     val zone = ZoneId.systemDefault()
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
+    val shift: (Int) -> Unit = { by -> haptics.tick(); onShift(by) }
     val today = java.time.LocalDate.ofInstant(now, zone)
     val range = remember(cycle, offset, today) { cycle.shifted(today, offset) }
     val days = remember(messages, daily.allowance, range, now) { DailyBudgets.days(messages, daily.allowance, range, now, zone, planned) }
@@ -167,10 +182,10 @@ internal fun BudgetCalendarSheet(
                 maxLines = 2
             )
 
-            HorizontalDivider(Modifier.padding(vertical = 18.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            HorizontalDivider(Modifier.padding(vertical = Spacing.lg), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                AppButton("‹", { shift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "${dayFormat.format(range.start)} – ${dayFormat.format(range.endInclusive)}",
@@ -178,10 +193,10 @@ internal fun BudgetCalendarSheet(
                     )
                     Caption("$within within budget · $over over")
                 }
-                AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = offset < 0)
+                AppButton("›", { shift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = offset < 0)
             }
 
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.md)) {
                 (0..6).forEach { offsetDay ->
                     Caption(
                         DayOfWeek.MONDAY.plus(offsetDay.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(2).uppercase(),
@@ -194,7 +209,7 @@ internal fun BudgetCalendarSheet(
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     (0..6).forEach { column ->
                         val day = days.getOrNull(week * 7 + column - leading)
-                        Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.weight(1f).heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
                             if (day != null) {
                                 DayCell(
                                     day,
@@ -209,9 +224,9 @@ internal fun BudgetCalendarSheet(
                 }
             }
 
-            Caption("Tap a day to see what was spent and received", Modifier.padding(top = 16.dp), maxLines = 2)
+            Caption("Tap a day to see what was spent and received", Modifier.padding(top = Spacing.lg), maxLines = 2)
 
-            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Row(Modifier.padding(top = Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.xl)) {
                 Legend(UnderColor, "Within budget")
                 Legend(OverColor, "Over budget")
             }
@@ -339,16 +354,29 @@ private fun DayBreakdownList(
     }
 }
 
-/** A date with a small mark beneath it: green within budget, red over, none for days that have not happened. */
+/**
+ * A date with a small mark beneath it: green within budget, red over, none for days that have not happened. It dips while
+ * held, and the fill of a chosen day fades in and out with the motion tokens. The mark is also said in words.
+ */
 @Composable
 private fun DayCell(day: BudgetDay, isToday: Boolean, inStreak: Boolean, isSelected: Boolean, onClick: () -> Unit) {
+    val motion = rememberMotion()
     val mark = when (day.status) {
         DayStatus.UNDER -> UnderColor
         DayStatus.OVER -> OverColor
         DayStatus.NONE -> Color.Transparent
     }
-    val shape = RoundedCornerShape(10.dp)
     val ink = MaterialTheme.colorScheme.primary
+    val source = remember { MutableInteractionSource() }
+    val fill = animateColorAsState(
+        when {
+            isSelected -> ink.copy(alpha = 0.14f)
+            inStreak -> ink.copy(alpha = 0.07f)
+            else -> Color.Transparent
+        },
+        motion.tween(Motion.QUICK_MS), label = "budget-day-fill"
+    )
+    val corner = with(LocalDensity.current) { Radius.chip.toPx() }
     val spoken = privateSpeech(when (day.status) {
         DayStatus.UNDER -> "within budget, spent ${DisplayFormatters.rupees(day.spent)}"
         DayStatus.OVER -> "over budget, spent ${DisplayFormatters.rupees(day.spent)}"
@@ -357,18 +385,19 @@ private fun DayCell(day: BudgetDay, isToday: Boolean, inStreak: Boolean, isSelec
     Column(
         Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .clip(shape)
-            .background(
-                when {
-                    isSelected -> ink.copy(alpha = 0.14f)
-                    inStreak -> ink.copy(alpha = 0.07f)
-                    else -> Color.Transparent
-                }
+            .heightIn(min = 44.dp)
+            .pressFeedback(source)
+            .clip(AppShapes.chip)
+            .drawBehind { drawRoundRect(fill.value, cornerRadius = CornerRadius(corner)) }
+            .then(if (isToday) Modifier.border(1.5.dp, ink, AppShapes.chip) else Modifier)
+            .clickable(
+                interactionSource = source, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button,
+                onClickLabel = "Show spending for day ${day.date.dayOfMonth}", onClick = onClick
             )
-            .then(if (isToday) Modifier.border(1.5.dp, ink, shape) else Modifier)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show spending for day ${day.date.dayOfMonth}", onClick = onClick)
-            .semantics { contentDescription = "${day.date.dayOfMonth}, $spoken" },
+            .semantics {
+                contentDescription = "${day.date.dayOfMonth}" + (if (isToday) ", today" else "") + ", $spoken"
+                selected = isSelected
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -378,7 +407,7 @@ private fun DayCell(day: BudgetDay, isToday: Boolean, inStreak: Boolean, isSelec
             fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
             color = if (day.status == DayStatus.NONE) mutedColor() else MaterialTheme.colorScheme.primary
         )
-        Box(Modifier.padding(top = 3.dp).size(width = 14.dp, height = 3.dp).background(mark, RoundedCornerShape(2.dp)))
+        Box(Modifier.padding(top = Spacing.xs).size(width = 14.dp, height = 3.dp).background(mark, RoundedCornerShape(2.dp)))
     }
 }
 

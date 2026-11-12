@@ -42,7 +42,14 @@ import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.LocalAppSnackbar
-import com.zyke.message.presentation.dashboard.components.ShareBar
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.zyke.message.presentation.messages.components.RowAmount
+import com.zyke.message.presentation.messages.components.RowTile
+import com.zyke.message.presentation.motion.AnimatedColumnItems
+import com.zyke.message.presentation.motion.ProgressReveal
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
@@ -97,8 +104,9 @@ internal fun GoalsContent(
             label = "Saved so far",
             value = DisplayFormatters.rupees(saved),
             caption = "of ${DisplayFormatters.rupees(target)} across ${DisplayFormatters.count(goals.size, "goal", "goals")}" +
-                if (reached > 0) " · $reached reached" else ""
-        ) { ShareBar(overall, Modifier.padding(top = 12.dp)) }
+                if (reached > 0) " · $reached reached" else "",
+            amount = saved
+        ) { ProgressReveal(overall, Modifier.padding(top = Spacing.md).clearAndSetSemantics { }) }
 
         AppButton("New goal", { adding = true }, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
 
@@ -106,11 +114,19 @@ internal fun GoalsContent(
         val done = goals.filter { it.isReached }
         if (active.isNotEmpty()) {
             SectionHeader("In progress", active.size)
-            active.forEach { GoalCard(it, history(it), ::removeContribution, onEdit = { editing = it.goal.id }, onAddMoney = { topping = it.goal.id }) }
+            AnimatedColumnItems(active, itemKey = { it.goal.id }) { progress, _ ->
+                Box(Modifier.padding(bottom = Spacing.md)) {
+                    GoalCard(progress, history(progress), ::removeContribution, onEdit = { editing = progress.goal.id }, onAddMoney = { topping = progress.goal.id })
+                }
+            }
         }
         if (done.isNotEmpty()) {
             SectionHeader("Reached", done.size)
-            done.forEach { GoalCard(it, history(it), ::removeContribution, onEdit = { editing = it.goal.id }, onAddMoney = null) }
+            AnimatedColumnItems(done, itemKey = { it.goal.id }) { progress, _ ->
+                Box(Modifier.padding(bottom = Spacing.md)) {
+                    GoalCard(progress, history(progress), ::removeContribution, onEdit = { editing = progress.goal.id }, onAddMoney = null)
+                }
+            }
         }
     }
 
@@ -173,14 +189,14 @@ private fun GoalCard(
     FintechCard(onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ProgressRing(progress.fraction, tone)
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(Spacing.lg))
             Column(Modifier.weight(1f)) {
                 RowTitle(goal.name)
                 Text(
                     "${DisplayFormatters.rupees(goal.saved)} of ${DisplayFormatters.rupees(goal.target)}",
-                    Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1
+                    Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, maxLines = 1
                 )
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                     when {
                         progress.isReached -> StatusPill("Reached", Tone.GOOD)
                         progress.isLate -> StatusPill("Past due", Tone.BAD)
@@ -192,7 +208,7 @@ private fun GoalCard(
             }
         }
         if (onAddMoney != null) {
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                 Caption("${DisplayFormatters.rupees(progress.remaining)} to go", Modifier.weight(1f))
                 AppButton("Add money", onAddMoney, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT)
             }
@@ -210,7 +226,7 @@ private fun GoalHistory(history: List<GoalContribution>, onRemove: (GoalContribu
     if (open) {
         val format = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
         history.forEach { entry ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(DisplayFormatters.rupees(entry.amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Caption("${format.format(entry.date)} · ${entry.source.label}")
@@ -265,7 +281,9 @@ internal fun RemindersContent(
         )
         groups.filter { it.second.isNotEmpty() }.forEach { (title, items) ->
             SectionHeader(title, items.size)
-            items.forEach { ReminderCard(it, today) { editing = it.reminder.id } }
+            AnimatedColumnItems(items, itemKey = { it.reminder.id }) { due, _ ->
+                Box(Modifier.padding(bottom = Spacing.md)) { ReminderCard(due, today) { editing = due.reminder.id } }
+            }
         }
     }
 
@@ -300,10 +318,10 @@ private fun ReminderCard(due: ReminderDue, today: LocalDate, onEdit: () -> Unit)
     FintechCard(onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             DateBadge(due.on, toneColor(tone))
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 RowTitle(due.reminder.title)
-                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                     StatusPill(
                         when {
                             days < 0 -> "Overdue"
@@ -318,8 +336,8 @@ private fun ReminderCard(due: ReminderDue, today: LocalDate, onEdit: () -> Unit)
                 }
             }
             due.reminder.amount?.let {
-                Spacer(Modifier.width(12.dp))
-                Text(DisplayFormatters.rupees(it), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                Spacer(Modifier.width(Spacing.md))
+                RowAmount(DisplayFormatters.rupees(it), MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -329,7 +347,7 @@ private fun ReminderCard(due: ReminderDue, today: LocalDate, onEdit: () -> Unit)
 @Composable
 internal fun DateBadge(date: LocalDate, tint: androidx.compose.ui.graphics.Color) {
     Column(
-        Modifier.size(52.dp).background(tint.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
+        Modifier.size(RowTile).background(tint.copy(alpha = 0.12f), AppShapes.chip),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
