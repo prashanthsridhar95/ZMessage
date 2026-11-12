@@ -34,7 +34,10 @@ import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.common.FormSheet
 import com.zyke.message.presentation.common.PrivateAmount
 import com.zyke.message.presentation.common.Text
-import com.zyke.message.presentation.common.rememberAnimatedRupees
+import com.zyke.message.presentation.motion.AnimatedAmount
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.common.CardHeader
 import com.zyke.message.presentation.dashboard.components.LineTrend
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.home.SectionHeader
@@ -48,7 +51,7 @@ private fun dayText(date: LocalDate): String = FormatCache.pattern("d MMM yyyy",
 
 @Composable
 private fun Fact(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Caption(label, Modifier.weight(1f), maxLines = 3)
         Text(
             value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
@@ -69,30 +72,32 @@ internal fun InvestmentDetailPage(m: InvestmentsModel, id: String) {
     }
     val v = Portfolio.value(h, m.today)
     val onBack = { m.ui.openId = null }
+    val haptics = rememberHaptics()
     AppPage(h.name, onBack) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             FintechCard {
-                Caption((h.kind.label + if (h.institution.isNotBlank()) " · ${h.institution}" else "").uppercase(), maxLines = 2)
-                PrivateAmount(
-                    rememberAnimatedRupees(v.current), Modifier.padding(top = 6.dp),
+                CardHeader(h.kind.label + if (h.institution.isNotBlank()) " · ${h.institution}" else "")
+                // The one figure of this page counts up when it opens, and to any new value after an update.
+                AnimatedAmount(
+                    v.current, Modifier.padding(top = Spacing.xs),
                     style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1, fit = true
+                    maxLines = 1, fit = true, fromZero = true
                 )
                 val periodic = h.isDeposit && h.terms.payout == Payout.PERIODIC
                 if (periodic) {
                     val paid = InvestmentMath.interestSoFar(h, m.today)
                     Text(
                         "Invested ${money(v.invested)}" + (paid?.let { " · Interest paid out so far about ${money(it)}" } ?: ""),
-                        Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary
+                        Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary
                     )
                 } else {
                     Text(
                         investedAndGain(v.invested, v.gain, v.gainPercent, com.zyke.message.presentation.messages.components.mutedColor()),
-                        Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium
+                        Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                v.cagr?.let { Caption("About ${percentText(it)} a year since ${dayText(h.startDate!!)}", Modifier.padding(top = 2.dp), maxLines = 2) }
-                FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                v.cagr?.let { Caption("About ${percentText(it)} a year since ${dayText(h.startDate!!)}", Modifier.padding(top = Spacing.xs), maxLines = 2) }
+                FlowRow(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     if (v.estimated) StatusPill("Estimated", Tone.NEUTRAL)
                     v.daysToMaturity?.let { if (h.isActiveish) StatusPill(maturityPhrase(it), maturityTone(it)) }
                     if (v.stale) StatusPill("Value updated ${agoPhrase(h.valueAsOf, m.today)}", Tone.WARN)
@@ -102,7 +107,7 @@ internal fun InvestmentDetailPage(m: InvestmentsModel, id: String) {
                 if (v.estimated) {
                     Caption(
                         "Worked out from the rate and tenure. Banks and societies round and compound in their own way, so enter the figure from your statement under Update value to replace it.",
-                        Modifier.padding(top = 6.dp), maxLines = 5
+                        Modifier.padding(top = Spacing.sm), maxLines = 5
                     )
                 }
             }
@@ -111,7 +116,7 @@ internal fun InvestmentDetailPage(m: InvestmentsModel, id: String) {
             ValueHistory(h)
 
             FintechCard {
-                Caption("DETAILS")
+                CardHeader("Details")
                 h.startDate?.takeIf { !h.isDeposit }?.let { Fact("Started", dayText(it)) }
                 h.valueAsOf?.let { Fact("Value as of", dayText(it)) }
                 if (h.receiptNo.isNotBlank()) Fact("Receipt or certificate", h.receiptNo)
@@ -123,7 +128,7 @@ internal fun InvestmentDetailPage(m: InvestmentsModel, id: String) {
                 h.renewedFrom?.let { from -> m.find(from)?.let { Fact("Renewed from", it.name) } }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 if (h.status == HoldingStatus.ACTIVE || h.status == HoldingStatus.MATURED) {
                     AppButton("Update value", { m.ui.valueId = h.id }, Modifier.fillMaxWidth(), style = if (h.isDeposit) ButtonStyle.TONAL else ButtonStyle.PRIMARY)
                     if (h.isDeposit) {
@@ -148,6 +153,7 @@ internal fun InvestmentDetailPage(m: InvestmentsModel, id: String) {
                 AppButton("Edit", { m.ui.editId = h.id }, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
                 AppButton(
                     "Delete", {
+                        haptics.reject()
                         val undo = m.repo.remove(h.id)
                         m.ui.openId = null
                         m.announce("Deleted ${h.name}", undo)
@@ -166,7 +172,7 @@ private fun DepositFacts(h: Holding, today: LocalDate) {
     val given = h.terms.maturityAmountGiven != null
     val rd = h.kind == InvestmentKind.RECURRING_DEPOSIT
     FintechCard {
-        Caption(if (rd) "RECURRING DEPOSIT TERMS" else "FIXED DEPOSIT TERMS")
+        CardHeader(if (rd) "Recurring deposit terms" else "Fixed deposit terms")
         h.startDate?.let { Fact("Start", dayText(it)) }
         maturity?.let { Fact("Maturity", dayText(it)) }
         InvestmentMath.tenureMonths(h)?.let { Fact("Tenure", if (it % 12 == 0) "${it / 12} ${if (it == 12) "year" else "years"}" else "$it months") }
@@ -194,15 +200,15 @@ private fun ValueHistory(h: Holding) {
     val points = h.history
     if (points.size < 2) return
     FintechCard {
-        Caption("VALUE OVER TIME")
+        CardHeader("Value over time")
         val first = points.first()
         val last = points.last()
         LineTrend(
             points.map { it.value }, dayText(first.date), dayText(last.date),
             "Value of ${h.name} from ${money(first.value)} on ${dayText(first.date)} to ${money(last.value)} on ${dayText(last.date)}",
-            Modifier.padding(top = 8.dp)
+            Modifier.padding(top = Spacing.sm)
         )
-        HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        HorizontalDivider(Modifier.padding(vertical = Spacing.sm), color = MaterialTheme.colorScheme.outlineVariant)
         points.takeLast(5).reversed().forEach { Fact(dayText(it.date), money(it.value)) }
     }
 }

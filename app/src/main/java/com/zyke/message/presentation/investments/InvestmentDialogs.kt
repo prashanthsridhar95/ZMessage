@@ -7,6 +7,7 @@ import com.zyke.message.domain.investments.InvestmentMath
 @Composable
 internal fun InvestmentsDialogs(m: InvestmentsModel) {
     val ui = m.ui
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     ui.openId?.let { InvestmentDetailPage(m, it) }
 
     ui.addKind?.let { kind ->
@@ -14,6 +15,7 @@ internal fun InvestmentsDialogs(m: InvestmentsModel) {
             initial = null, startKind = kind, institutions = m.institutions, today = m.today,
             onSave = { holding ->
                 val undo = m.repo.add(holding)
+                haptics.tick()
                 ui.addKind = null
                 m.announce("Added ${holding.name}", undo)
             },
@@ -26,6 +28,7 @@ internal fun InvestmentsDialogs(m: InvestmentsModel) {
             initial = h, startKind = h.kind, institutions = m.institutions, today = m.today,
             onSave = { updated ->
                 val undo = m.repo.update(updated)
+                haptics.tick()
                 ui.editId = null
                 m.announce("Saved ${updated.name}", undo)
             },

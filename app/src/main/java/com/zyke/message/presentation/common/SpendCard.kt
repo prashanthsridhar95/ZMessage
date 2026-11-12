@@ -1,25 +1,26 @@
 package com.zyke.message.presentation.common
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.cards.CategoryShare
 import com.zyke.message.presentation.format.DisplayFormatters
+import com.zyke.message.presentation.motion.ProgressReveal
+import com.zyke.message.presentation.motion.enterOnce
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.theme.Spacing
+
+private val BAR_THICKNESS = 6.dp
 
 /** What a [SpendCard] says about its limit: nothing set, fine, close, or passed. Drives the bar colour only; the words carry the meaning. */
 enum class LimitTone { NONE, OK, NEAR, OVER }
@@ -49,8 +50,10 @@ fun SpendCard(
     val responsive = LocalResponsive.current
     // Side by side on a normal phone; the limit drops under the amount when text is large or the screen narrow.
     val stacked = responsive.fontScale >= 1.3f || responsive.widthDp < 340
+    // The category rows rise in one after another the first time this card is shown, never again (not on scroll or recomposition).
+    val gate = rememberEnterGate()
     FintechCard(modifier) {
-        Text(title, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant, maxLines = 1)
+        CardHeader(title)
         val limitBlock: @Composable (Modifier) -> Unit = { m ->
             Column(m, horizontalAlignment = if (stacked) Alignment.Start else Alignment.End) {
                 if (limit != null) {
@@ -63,10 +66,10 @@ fun SpendCard(
             }
         }
         if (stacked) {
-            PrivateAmount(amount, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, fit = true)
+            PrivateAmount(amount, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, fit = true)
             limitBlock(Modifier.fillMaxWidth())
         } else {
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 PrivateAmount(amount, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = colors.onSurface, maxLines = 1, fit = true)
                 limitBlock(Modifier)
             }
@@ -76,19 +79,24 @@ fun SpendCard(
                 LimitTone.OVER -> colors.error
                 else -> colors.primary
             }
-            Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(colors.surfaceContainerHighest).clearAndSetSemantics { }) {
-                Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).height(6.dp).background(fill))
-            }
+            // The bar grows from empty to its value once; the note under it says the same in words.
+            ProgressReveal(
+                progress.coerceIn(0.02f, 1f), Modifier.padding(top = Spacing.md).clearAndSetSemantics { },
+                color = fill, track = colors.surfaceContainerHighest, height = BAR_THICKNESS
+            )
         }
-        if (note != null) Text(note, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = if (tone == LimitTone.OVER) colors.error else colors.onSurfaceVariant, maxLines = 3)
+        if (note != null) Text(note, Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodySmall, color = if (tone == LimitTone.OVER) colors.error else colors.onSurfaceVariant, maxLines = 3)
         if (shares.isEmpty()) {
-            Text(emptyText, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(emptyText, Modifier.padding(top = Spacing.md), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         } else {
-            CategoryBar(shares, Modifier.padding(top = 16.dp))
+            CategoryBar(shares, Modifier.padding(top = Spacing.lg))
             val slot = categorySlotColors()
-            Column(Modifier.padding(top = 4.dp)) {
+            Column(Modifier.padding(top = Spacing.xs)) {
                 shares.forEachIndexed { i, share ->
-                    CategoryRow(categoryName(share), DisplayFormatters.rupees(share.amount), share.percent, slot[i.coerceAtMost(slot.lastIndex)])
+                    CategoryRow(
+                        categoryName(share), DisplayFormatters.rupees(share.amount), share.percent, slot[i.coerceAtMost(slot.lastIndex)],
+                        Modifier.enterOnce(gate, i)
+                    )
                 }
             }
         }

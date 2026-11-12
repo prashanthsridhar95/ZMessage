@@ -40,6 +40,7 @@ import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
+import com.zyke.message.presentation.common.CardHeader
 import com.zyke.message.presentation.common.ChipOption
 import com.zyke.message.presentation.common.Chips
 import com.zyke.message.presentation.common.FintechCard
@@ -49,6 +50,9 @@ import com.zyke.message.presentation.common.SpendCard
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.FormatCache
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
@@ -114,7 +118,9 @@ internal fun LazyListScope.cardBodyItems(
     onPay: (String) -> Unit,
     onMarkPaid: () -> Unit,
     onOpen: () -> Unit,
-    onEditCards: () -> Unit
+    onEditCards: () -> Unit,
+    /** The sub-tab switch's fade/slide, put on each item (nothing when the tab was not just switched). */
+    itemModifier: Modifier = Modifier
 ) {
     val card = model.card
     item(key = "card-actions-" + card.key) {
@@ -122,7 +128,8 @@ internal fun LazyListScope.cardBodyItems(
         var editing by rememberSaveable { mutableStateOf(false) }
         val payLink = model.payLink
         ActionCircleRow(
-            listOf(
+            modifier = itemModifier,
+            actions = listOf(
                 ActionSpec("Pay bill", R.drawable.ic_card_24, { payLink?.let(onPay) }, primary = true, enabled = model.dueOpen && payLink != null,
                     description = "Pay the ${card.title} bill"),
                 ActionSpec("Details", R.drawable.ic_info_24, { details = true }),
@@ -137,6 +144,7 @@ internal fun LazyListScope.cardBodyItems(
         var editing by rememberSaveable { mutableStateOf(false) }
         val limit = model.limit
         SpendCard(
+            modifier = itemModifier,
             title = if (model.spend.cycleKnown) "Spent this cycle" else "Spent this month",
             amount = DisplayFormatters.rupees(model.spend.spent),
             limit = limit?.let { DisplayFormatters.rupees(BigDecimal(it)) },
@@ -150,31 +158,30 @@ internal fun LazyListScope.cardBodyItems(
         )
         if (editing) CardLimitSheet(model) { editing = false }
     }
-    if (model.dueOpen || card.billPaid || card.unbilled?.signum() == 1) item(key = "card-bill-" + card.key) { BillPanel(model) }
-    item(key = "card-recent-" + card.key) { RecentList("Recent spends", model.spend.recent, "No spends on this card yet.", onOpen) }
+    if (model.dueOpen || card.billPaid || card.unbilled?.signum() == 1) item(key = "card-bill-" + card.key) { BillPanel(model, itemModifier) }
+    item(key = "card-recent-" + card.key) { RecentList("Recent spends", model.spend.recent, "No spends on this card yet.", onOpen, itemModifier) }
     item(key = "add-card") {
-        AppButton("Add or edit cards", onEditCards, Modifier.fillMaxWidth(), style = ButtonStyle.TONAL)
+        AppButton("Add or edit cards", onEditCards, itemModifier.fillMaxWidth(), style = ButtonStyle.TONAL)
     }
 }
 
 /** The bill: when it is due, what it is, the minimum, and whether it is paid: one calm panel. */
 @Composable
-private fun BillPanel(model: CardTabModel) {
+private fun BillPanel(model: CardTabModel, modifier: Modifier = Modifier) {
     val card = model.card
     val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val due = card.dueDate
     val amount = card.dueAmount
     val partPaid = card.billPartPaid?.takeIf { amount != null && !card.billPaid }
-    FintechCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Bill", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    FintechCard(modifier) {
+        CardHeader("Bill", trailing = {
             when {
                 card.billPaid -> StatusPill("Paid", Tone.GOOD)
                 model.markedPaid && model.dueOpen -> StatusPill("Marked as paid", Tone.GOOD)
                 partPaid != null -> StatusPill("Part paid", Tone.WARN)
                 model.dueOpen && due != null -> StatusPill(DisplayFormatters.dueLabel(due, model.today), if (java.time.temporal.ChronoUnit.DAYS.between(model.today, due) <= 3) Tone.BAD else Tone.WARN)
             }
-        }
+        })
         if (amount != null) BillLine("Statement", DisplayFormatters.rupees(amount))
         card.minimumDue?.takeIf { it.signum() > 0 && !card.billPaid }?.let { BillLine("Minimum due", DisplayFormatters.rupees(it)) }
         if (partPaid != null && amount != null) BillLine("Paid so far", DisplayFormatters.rupees(partPaid) + " of " + DisplayFormatters.rupees(amount))
@@ -187,14 +194,14 @@ private fun BillPanel(model: CardTabModel) {
 private fun BillLine(label: String, value: String) {
     // Side by side; one above the other when text is large, so neither is squeezed.
     val stacked = com.zyke.message.presentation.common.LocalResponsive.current.fontScale >= 1.5f
-    HorizontalDivider(Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+    HorizontalDivider(Modifier.padding(top = Spacing.sm), color = MaterialTheme.colorScheme.outlineVariant)
     if (stacked) {
-        Column(Modifier.padding(top = 8.dp)) {
+        Column(Modifier.padding(top = Spacing.sm)) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             PrivateAmount(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
     } else {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             PrivateAmount(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
@@ -203,14 +210,17 @@ private fun BillLine(label: String, value: String) {
 
 /** The last five rows of an account or card, newest first; "See all" opens its own page. Money in is marked with a plus. */
 @Composable
-internal fun RecentList(title: String, rows: List<com.zyke.message.domain.model.ClassifiedMessage>, emptyText: String, onOpen: () -> Unit) {
+internal fun RecentList(
+    title: String,
+    rows: List<com.zyke.message.domain.model.ClassifiedMessage>,
+    emptyText: String,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val zone = remember { ZoneId.systemDefault() }
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            AppButton("See all", onOpen, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-        }
+    Column(modifier.fillMaxWidth()) {
+        CardHeader(title, Modifier.heightIn(min = 48.dp), trailing = { AppButton("See all", onOpen, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) })
         if (rows.isEmpty()) {
             Text(emptyText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -219,7 +229,7 @@ internal fun RecentList(title: String, rows: List<com.zyke.message.domain.model.
             val income = Counting.income(m)
             val amount = income ?: Counting.spend(m) ?: BigDecimal.ZERO
             val date = dayFormat.format(java.time.Instant.ofEpochMilli(m.message.date).atZone(zone).toLocalDate())
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 Column(Modifier.weight(1f)) {
                     Text(m.merchant.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text("${m.category.displayString} · $date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
@@ -239,8 +249,9 @@ private fun CardDetailsSheet(model: CardTabModel, onEdit: () -> Unit, onDismiss:
     val card = model.card
     val user = card.userCard
     val dayFormat = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
-    AdaptiveSheet(title = "Card details", subtitle = card.title, onDismiss = onDismiss, contentSpacing = 4.dp) {
+    AdaptiveSheet(title = "Card details", subtitle = card.title, onDismiss = onDismiss, contentSpacing = Spacing.xs) {
         FintechCard {
+            CardHeader("What Zyke knows")
             DetailLine("Bank", card.bankLabel.ifBlank { "Not known" })
             DetailLine("Card ending", card.last4)
             user?.network?.let { DetailLine("Network", it.label) }
@@ -252,9 +263,9 @@ private fun CardDetailsSheet(model: CardTabModel, onEdit: () -> Unit, onDismiss:
         }
         Text(
             "This is what your messages and settings say. Zyke never has your full card number, expiry or CVV, so it cannot show them.",
-            Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            Modifier.padding(top = Spacing.sm), style = TypeRole.caption, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        AppButton("Edit card", { onDismiss(); onEdit() }, Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.TONAL)
+        AppButton("Edit card", { onDismiss(); onEdit() }, Modifier.fillMaxWidth().padding(top = Spacing.sm), style = ButtonStyle.TONAL)
     }
 }
 
@@ -262,12 +273,12 @@ private fun CardDetailsSheet(model: CardTabModel, onEdit: () -> Unit, onDismiss:
 private fun DetailLine(label: String, value: String) {
     val stacked = com.zyke.message.presentation.common.LocalResponsive.current.fontScale >= 1.5f
     if (stacked) {
-        Column(Modifier.padding(vertical = 6.dp)) {
+        Column(Modifier.padding(vertical = Spacing.sm)) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             PrivateAmount(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
     } else {
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             PrivateAmount(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
         }
@@ -281,11 +292,13 @@ internal fun CardLimitSheet(model: CardTabModel, onDismiss: () -> Unit) {
     val card = model.card
     var value by rememberSaveable { mutableLongStateOf(CardLimits.snap(model.limit ?: card.userCard?.creditLimit ?: 1_00_000L)) }
     val presets = remember(card.userCard?.creditLimit) { CardLimits.presets(card.userCard?.creditLimit) }
+    val haptics = rememberHaptics()
     AdaptiveSheet(
-        title = "Monthly limit", subtitle = "${card.title} · •••• ${card.last4}", onDismiss = onDismiss, contentSpacing = 16.dp,
+        title = "Monthly limit", subtitle = "${card.title} · •••• ${card.last4}", onDismiss = onDismiss, contentSpacing = Spacing.lg,
         footer = {
-            AppButton("Save limit", { container.cardLimits.set(card.key, value); onDismiss() }, Modifier.fillMaxWidth())
-            if (model.limit != null) AppButton("Remove limit", { container.cardLimits.clear(card.key); onDismiss() }, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT)
+            AppButton("Save limit", { haptics.tick(); container.cardLimits.set(card.key, value); onDismiss() }, Modifier.fillMaxWidth())
+            // Taking the limit away is the one destructive choice here: the firmer buzz.
+            if (model.limit != null) AppButton("Remove limit", { haptics.reject(); container.cardLimits.clear(card.key); onDismiss() }, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT)
         }
     ) {
         PrivateAmount(
@@ -303,7 +316,7 @@ internal fun CardLimitSheet(model: CardTabModel, onDismiss: () -> Unit) {
         Chips(presets.map { ChipOption(DisplayFormatters.rupees(BigDecimal(it)), it == value) }, { value = presets[it] })
         Text(
             "Zyke shows how much of this is left each cycle. It does not block payments or send anything.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = TypeRole.caption, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

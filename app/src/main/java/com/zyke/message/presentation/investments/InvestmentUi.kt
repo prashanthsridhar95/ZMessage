@@ -35,8 +35,10 @@ import com.zyke.message.domain.plan.PlanActions
 import com.zyke.message.domain.plan.PlanKeys
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.fullWidthClickable
+import com.zyke.message.presentation.common.tappable
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.format.DisplayFormatters
+import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.home.PlanRow
 import com.zyke.message.presentation.home.StatusPill
 import com.zyke.message.presentation.home.Tone
@@ -102,7 +104,7 @@ internal fun kindColor(kind: InvestmentKind): Color = when (kind) {
 internal fun InvestmentChip(kind: InvestmentKind, modifier: Modifier = Modifier, size: Dp = 44.dp) {
     val color = kindColor(kind)
     Box(
-        modifier.size(size).background(color.copy(alpha = 0.18f), RoundedCornerShape(size / 4)),
+        modifier.size(size).background(color.copy(alpha = 0.18f), AppShapes.chip),
         contentAlignment = Alignment.Center
     ) {
         Text(kind.short.take(5), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
@@ -113,7 +115,7 @@ internal fun InvestmentChip(kind: InvestmentKind, modifier: Modifier = Modifier,
 @Composable
 internal fun ActionPill(text: String, tone: Tone, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = description },
+        Modifier.heightIn(min = 48.dp).tappable(onClick).semantics { contentDescription = description },
         contentAlignment = Alignment.CenterStart
     ) { StatusPill(text, tone) }
 }

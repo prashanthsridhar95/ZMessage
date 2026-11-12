@@ -1,7 +1,9 @@
 package com.zyke.message.presentation.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,12 +42,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -69,6 +68,15 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.cards.CategoryShare
 import com.zyke.message.domain.cards.CardSpend
 import com.zyke.message.domain.cards.DeckModel
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.MotionSpecs
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.theme.IconSize
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
 import kotlin.math.abs
 
 /*
@@ -80,7 +88,8 @@ import kotlin.math.abs
  * Only theme tokens are used, so the same code reads correctly in light, dark and true-black themes.
  */
 
-private val REGION_CORNER = 28.dp
+/** The region's bottom corners are the hero's. */
+private val REGION_CORNER = Radius.hero
 
 /** The region is dark in both themes: the inverse surface in light, a raised surface in dark. */
 @Composable
@@ -106,7 +115,7 @@ internal fun headerMutedColor(): Color = headerContentColor().copy(alpha = 0.72f
  * corners are large, so the lighter content below reads as a sheet lying over it.
  */
 @Composable
-fun HeaderRegion(modifier: Modifier = Modifier, bleed: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
+fun HeaderRegion(modifier: Modifier = Modifier, bleed: Dp = Spacing.lg, content: @Composable ColumnScope.() -> Unit) {
     val container = if (isLightTheme()) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surfaceContainerHigh
     Column(
         modifier
@@ -117,7 +126,7 @@ fun HeaderRegion(modifier: Modifier = Modifier, bleed: Dp = 16.dp, content: @Com
                 layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
             }
             .background(container, RoundedCornerShape(bottomStart = REGION_CORNER, bottomEnd = REGION_CORNER))
-            .padding(horizontal = 16.dp + bleed, vertical = 16.dp),
+            .padding(horizontal = Spacing.lg + bleed, vertical = Spacing.lg),
         content = content
     )
 }
@@ -157,30 +166,32 @@ class DeckState(initialPage: Int = 0) {
         dragPx = if (count > 1) next else (dragPx + delta * RUBBER).coerceIn(-widthPx * 0.25f, widthPx * 0.25f)
     }
 
-    /** Called when the finger lifts: the card flies away if it was dragged far enough or flicked, otherwise it springs back. */
-    internal fun release(scope: CoroutineScope, velocity: Float, count: Int, instant: Boolean) {
+    /**
+     * Called when the finger lifts: the card flies away if it was dragged far enough or flicked (the rule is DeckModel.commits,
+     * tested), otherwise it springs back. [onCommit] runs once when the card is sent away (the haptic tick), never on a spring back.
+     */
+    internal fun release(scope: CoroutineScope, velocity: Float, count: Int, motion: MotionSpecs, onCommit: () -> Unit) {
         if (settling) return
-        val dx = dragPx
-        val width = widthPx.coerceAtLeast(1f)
         val dir = direction(count)
-        val flicked = abs(velocity) > FLICK_PX_PER_S && (velocity < 0f) == (dx < 0f)
-        val away = dir != 0 && (abs(dx) > width * DRAG_FRACTION || flicked)
+        val away = dir != 0 && DeckModel.commits(dragPx, widthPx, velocity, count)
         job?.cancel()
-        job = scope.launch { if (away) fly(dir, count, instant) else settleTo(0f, instant, back = true) }
+        if (away) onCommit()
+        job = scope.launch { if (away) fly(dir, count, motion) else settleTo(0f, motion, back = true) }
     }
 
     /** Moves to the next (1) or previous (-1) card as a swipe would; used by screen-reader actions. */
-    internal fun step(scope: CoroutineScope, dir: Int, count: Int, instant: Boolean) {
+    internal fun step(scope: CoroutineScope, dir: Int, count: Int, motion: MotionSpecs, onCommit: () -> Unit) {
         if (settling || count < 2) return
         dragPx = if (dir > 0) -1f else 1f
         job?.cancel()
-        job = scope.launch { fly(dir, count, instant) }
+        onCommit()
+        job = scope.launch { fly(dir, count, motion) }
     }
 
-    private suspend fun fly(dir: Int, count: Int, instant: Boolean) {
+    private suspend fun fly(dir: Int, count: Int, motion: MotionSpecs) {
         settling = true
         try {
-            settleTo(if (dir > 0) -widthPx * 1.25f else widthPx * 1.25f, instant, back = false)
+            settleTo(if (dir > 0) -widthPx * 1.25f else widthPx * 1.25f, motion, back = false)
             currentPage = (currentPage + dir).mod(count)
         } finally {
             dragPx = 0f
@@ -188,20 +199,18 @@ class DeckState(initialPage: Int = 0) {
         }
     }
 
-    private suspend fun settleTo(target: Float, instant: Boolean, back: Boolean) {
-        if (instant) {
+    /** Flying off is a short emphasized slide (240 ms); coming back is the gentle spring. Both are instant when motion is reduced. */
+    private suspend fun settleTo(target: Float, motion: MotionSpecs, back: Boolean) {
+        if (motion.reduced) {
             dragPx = target
             return
         }
-        val spec: AnimationSpec<Float> = if (back) spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow) else tween(FLY_MS, easing = FastOutSlowInEasing)
+        val spec = if (back) motion.gentle<Float>() else motion.tween<Float>(Motion.STANDARD_MS, Motion.Emphasized)
         animate(dragPx, target, animationSpec = spec) { value, _ -> dragPx = value }
     }
 
     private companion object {
         const val RUBBER = 0.35f
-        const val DRAG_FRACTION = 0.30f
-        const val FLICK_PX_PER_S = 1_200f
-        const val FLY_MS = 260
     }
 }
 
@@ -234,28 +243,30 @@ fun StackedDeck(
     page: @Composable (Int) -> Unit
 ) {
     if (count <= 0) return
-    val reduce = rememberReduceMotion()
+    val motion = rememberMotion()
+    val reduce = motion.reduced
+    val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     LaunchedEffect(count) { if (state.currentPage > count - 1) state.currentPage = count - 1 }
     val current = DeckModel.clamp(state.currentPage, count)
     val layers = DeckModel.layersBehind(count)
-    val peekPx = with(LocalDensity.current) { 10.dp.toPx() }
+    val peekPx = with(LocalDensity.current) { DECK_PEEK.toPx() }
     val direction by remember(count) { derivedStateOf { state.direction(count) } }
     val dragState = rememberDraggableState { delta -> state.dragBy(delta, count) }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.fillMaxWidth().padding(top = 10.dp * layers)
+            Modifier.fillMaxWidth().padding(top = DECK_PEEK * layers)
                 .onSizeChanged { state.widthPx = it.width.toFloat() }
                 .draggable(
                     dragState, Orientation.Horizontal, enabled = count > 1,
                     onDragStarted = { state.cancelSettle() },
-                    onDragStopped = { velocity -> state.release(scope, velocity, count, reduce) }
+                    onDragStopped = { velocity -> state.release(scope, velocity, count, motion) { haptics.tick() } }
                 )
                 .semantics {
                     contentDescription = "Card ${current + 1} of $count"
                     customActions = buildList {
-                        if (count > 1) add(CustomAccessibilityAction("Next card") { state.step(scope, 1, count, reduce); true })
-                        if (count > 1) add(CustomAccessibilityAction("Previous card") { state.step(scope, -1, count, reduce); true })
+                        if (count > 1) add(CustomAccessibilityAction("Next card") { state.step(scope, 1, count, motion) { haptics.tick() }; true })
+                        if (count > 1) add(CustomAccessibilityAction("Previous card") { state.step(scope, -1, count, motion) { haptics.tick() }; true })
                     }
                 }
         ) {
@@ -288,23 +299,34 @@ fun StackedDeck(
                 }) { page(current) }
             }
         }
-        DeckDots(count, current, Modifier.padding(top = 12.dp))
+        DeckDots(count, current, Modifier.padding(top = Spacing.md))
     }
 }
 
 private const val TILT_DEGREES = 12f
+
+/** How much of each card behind the front one peeks out above it. */
+private val DECK_PEEK = 10.dp
+private val DOT_SIZE = 6.dp
+private val DOT_ACTIVE_WIDTH = 18.dp
 
 /** The page dots; at most seven show, a window that follows the current card. */
 @Composable
 fun DeckDots(count: Int, page: Int, modifier: Modifier = Modifier, active: Color = headerContentColor()) {
     val dots = DeckModel.dots(count, page)
     if (dots.isEmpty()) return
+    val motion = rememberMotion()
     Row(
         modifier.clearAndSetSemantics { contentDescription = "Card ${DeckModel.clamp(page, count) + 1} of $count" },
-        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically
     ) {
         dots.forEach { dot ->
-            Box(Modifier.height(6.dp).width(if (dot.on) 18.dp else 6.dp).clip(CircleShape).background(active.copy(alpha = if (dot.on) 1f else 0.3f)))
+            // The dot that becomes current widens and brightens; the one that stops being current narrows (160 ms).
+            key(dot.index) {
+                val width by animateDpAsState(if (dot.on) DOT_ACTIVE_WIDTH else DOT_SIZE, motion.tween<Dp>(Motion.QUICK_MS), label = "dot width")
+                val alpha by animateFloatAsState(if (dot.on) 1f else 0.3f, motion.tween<Float>(Motion.QUICK_MS), label = "dot alpha")
+                Box(Modifier.height(DOT_SIZE).width(width).clip(CircleShape).background(active.copy(alpha = alpha)))
+            }
         }
     }
 }
@@ -332,16 +354,16 @@ fun ActionCircleRow(actions: List<ActionSpec>, modifier: Modifier = Modifier) {
     if (shown.isEmpty()) return
     val grid = LocalResponsive.current.fontScale >= 1.8f && shown.size > 2
     if (grid) {
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             shown.chunked(2).forEach { pair ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     pair.forEach { ActionCell(it, Modifier.weight(1f)) }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
     } else {
-        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             shown.forEach { ActionCell(it, Modifier.weight(1f)) }
             // A short row keeps the cell width of a full one, so two actions do not stretch.
             repeat(4 - shown.size) { Spacer(Modifier.weight(1f)) }
@@ -354,24 +376,37 @@ private fun ActionCell(action: ActionSpec, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val fill = if (action.primary) colors.primary else colors.surfaceContainerHigh
     val ink = if (action.primary) colors.onPrimary else colors.onSurface
+    val source = remember { MutableInteractionSource() }
+    val haptics = rememberHaptics()
+    // The cell dips while held and gives a light tick on a tap; a disabled cell does neither.
     Column(
         modifier
             .heightIn(min = 48.dp)
-            .clickable(enabled = action.enabled, role = Role.Button, onClickLabel = action.description) { action.onClick() }
+            .pressFeedback(source, pressedScale = Motion.PRESSED_SCALE, pressedAlpha = 1f)
+            .clickable(
+                interactionSource = source, indication = LocalIndication.current,
+                enabled = action.enabled, role = Role.Button, onClickLabel = action.description,
+                onClick = { haptics.tick(); action.onClick() }
+            )
             .semantics { contentDescription = action.description ?: action.label }
-            .padding(vertical = 4.dp),
+            .padding(vertical = Spacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
     ) {
         Box(
-            Modifier.size(48.dp).background(if (action.enabled) fill else fill.copy(alpha = 0.5f), CircleShape),
+            Modifier.size(CIRCLE).background(if (action.enabled) fill else fill.copy(alpha = 0.5f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            if (action.progress != null) {
-                // Determinate, driven by the caller's tick: no looping animation, so it is calm in Lite mode.
-                androidx.compose.material3.CircularProgressIndicator(progress = { action.progress }, modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = colors.primary)
-            } else {
-                Icon(painterResource(action.icon), contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
+            // The icon and the working ring swap with a short crossfade inside the fixed circle, so the circle never changes size.
+            CrossfadeContent(if (action.progress != null) WORKING else action.icon, label = "action circle") { shown ->
+                Box(Modifier.size(CIRCLE), contentAlignment = Alignment.Center) {
+                    if (shown == WORKING) {
+                        // Determinate, driven by the caller's tick: no looping animation, so it is calm in Lite mode.
+                        androidx.compose.material3.CircularProgressIndicator(progress = { action.progress ?: 0f }, modifier = Modifier.size(IconSize.lg), strokeWidth = 2.dp, color = colors.primary)
+                    } else {
+                        Icon(painterResource(shown), contentDescription = null, tint = ink, modifier = Modifier.size(IconSize.lg))
+                    }
+                }
             }
         }
         Text(
@@ -386,15 +421,27 @@ private fun ActionCell(action: ActionSpec, modifier: Modifier) {
 @Composable
 fun categorySlotColors(): List<Color> = MaterialTheme.colorScheme.let { listOf(it.primary, it.secondary, it.tertiary, it.onSurfaceVariant, it.outline) }
 
-/** A segmented bar: one rounded segment per share, with a small gap, never thinner than a few dp. */
+/** The round action: a touch target. */
+private val CIRCLE = 48.dp
+
+/** The key of the working ring in an action circle (no drawable has this id). */
+private const val WORKING = -1
+
+private val BAR_HEIGHT = 8.dp
+private val SWATCH = 12.dp
+
+/** A segmented bar: one rounded segment per share, with a small gap, never thinner than a few dp. Its segments grow into place once. */
 @Composable
 fun CategoryBar(shares: List<CategoryShare>, modifier: Modifier = Modifier) {
     if (shares.isEmpty()) return
     val weights = CardSpend.segments(shares)
     val colors = categorySlotColors()
-    Row(modifier.fillMaxWidth().height(8.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Row(
+        modifier.fillMaxWidth().height(BAR_HEIGHT).revealOnce().clearAndSetSemantics { },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+    ) {
         weights.forEachIndexed { i, w ->
-            Box(Modifier.weight(w).height(8.dp).clip(RoundedCornerShape(4.dp)).background(colors[i.coerceAtMost(colors.lastIndex)]))
+            Box(Modifier.weight(w).height(BAR_HEIGHT).clip(CircleShape).background(colors[i.coerceAtMost(colors.lastIndex)]))
         }
     }
 }
@@ -407,9 +454,9 @@ fun CategoryBar(shares: List<CategoryShare>, modifier: Modifier = Modifier) {
 fun CategoryRow(name: String, amount: String, percent: Int, color: Color, modifier: Modifier = Modifier) {
     val stacked = LocalResponsive.current.fontScale >= 1.5f
     if (stacked) {
-        Row(modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).background(color, RoundedCornerShape(4.dp)))
-            Spacer(Modifier.width(12.dp))
+        Row(modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(SWATCH).background(color, CircleShape))
+            Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row {
@@ -420,10 +467,10 @@ fun CategoryRow(name: String, amount: String, percent: Int, color: Color, modifi
         }
     } else {
         Row(modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).background(color, RoundedCornerShape(4.dp)))
-            Spacer(Modifier.width(12.dp))
+            Box(Modifier.size(SWATCH).background(color, CircleShape))
+            Spacer(Modifier.width(Spacing.md))
             Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             PrivateAmount(amount, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 1)
             Text("$percent%", Modifier.width(44.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End, maxLines = 1)
         }

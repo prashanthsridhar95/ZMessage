@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.layout.ContentScale
@@ -42,6 +44,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.ui.unit.sp
 import com.zyke.message.R
 import com.zyke.message.domain.accounts.AccountKind
@@ -67,16 +72,18 @@ private val BANK_TILE = 30.dp
 fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = null, onClick: (() -> Unit)? = null) {
     val theme = card.theme
     val description = privateSpeech(listOfNotNull(card.spokenDescription, footer).joinToString(". "))
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(Radius.control)
+    val source = remember { MutableInteractionSource() }
     // The face keeps the proportions of a real card, so its text stops growing at 1.15 times; the details are in the screen-reader text.
     CapFontScale(CARD_MAX_FONT_SCALE) {
     Box(
         modifier
+            .then(if (onClick != null) Modifier.pressFeedback(source) else Modifier)
             .fillMaxWidth()
             .aspectRatio(CARD_RATIO)
             .clip(shape)
             .background(Brush.linearGradient(theme.colors.map { Color(it) }))
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClick = onClick) else Modifier)
             .clearAndSetSemantics {
                 contentDescription = description
                 if (onClick != null) role = Role.Button
@@ -224,27 +231,15 @@ fun CardDeck(cards: List<DeckCard>, pagerState: PagerState, onOpen: (DeckCard) -
             pagerState,
             Modifier.fillMaxWidth(),
             // Less of the next card peeks on a narrow phone, so the front one keeps its width.
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (LocalResponsive.current.isCompact) 20.dp else 28.dp),
-            pageSpacing = 12.dp,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (LocalResponsive.current.isCompact) Spacing.xl else Spacing.xxl + Spacing.xs),
+            pageSpacing = Spacing.md,
             key = { cards[it.coerceIn(cards.indices)].key }
         ) { page ->
             val entry = cards[page.coerceIn(cards.indices)]
             CardFace(entry.card, footer = entry.footer, onClick = { onOpen(entry) })
         }
         if (cards.size > 1) {
-            Row(
-                Modifier.padding(top = 10.dp)
-                    .clearAndSetSemantics { contentDescription = "Card ${pagerState.currentPage + 1} of ${cards.size}" },
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                cards.indices.forEach { i ->
-                    val on = i == pagerState.currentPage
-                    Box(
-                        Modifier.height(6.dp).width(if (on) 18.dp else 6.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = if (on) 1f else 0.25f))
-                    )
-                }
-            }
+            DeckDots(cards.size, pagerState.currentPage, Modifier.padding(top = Spacing.sm), active = MaterialTheme.colorScheme.primary)
         }
     }
 }

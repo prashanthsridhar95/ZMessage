@@ -58,6 +58,8 @@ import com.zyke.message.domain.balance.Uan
 import com.zyke.message.domain.model.BankName
 import com.zyke.message.notifications.BalanceRequester
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -186,7 +188,7 @@ internal fun rememberCheckTap(target: BalanceTarget, openSheet: () -> Unit): () 
  */
 @Composable
 internal fun CheckBalanceRow(label: String, state: CheckState, progress: Float, onClick: () -> Unit, modifier: Modifier = Modifier, showRichHint: Boolean = true) {
-    Row(modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(top = Spacing.xs).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             BalanceCheckFlow.note(state)?.let { note ->
                 Caption(note, maxLines = 2, color = if (state == CheckState.FAILED) MaterialTheme.colorScheme.error else com.zyke.message.presentation.messages.components.mutedColor())
@@ -194,22 +196,26 @@ internal fun CheckBalanceRow(label: String, state: CheckState, progress: Float, 
             // A rich (RCS) reply reaches Zyke only through notification access: one line and one button, only while it is waiting.
             if (state == CheckState.CHECKING && showRichHint) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
         }
-        when (state) {
-            CheckState.CHECKING -> Row(
-                Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Checking the balance"; liveRegion = LiveRegionMode.Polite },
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Determinate, driven by the one-second tick: no looping animation, so it is calm in Lite mode and with reduced motion.
-                androidx.compose.material3.LinearProgressIndicator(progress = { progress }, Modifier.width(40.dp))
-                Text(BalanceCheckFlow.label(state).orEmpty(), style = MaterialTheme.typography.labelLarge, color = com.zyke.message.presentation.messages.components.mutedColor(), maxLines = 1)
+        // Button, progress and "Updated just now" swap in one slot: a short crossfade inside a slot that is never shorter than a
+        // touch target, so nothing above or below it moves.
+        CrossfadeContent(state, Modifier.heightIn(min = 48.dp), label = "balance check") { shown ->
+            when (shown) {
+                CheckState.CHECKING -> Row(
+                    Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Checking the balance"; liveRegion = LiveRegionMode.Polite },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    // Determinate, driven by the one-second tick: no looping animation, so it is calm in Lite mode and with reduced motion.
+                    androidx.compose.material3.LinearProgressIndicator(progress = { progress }, Modifier.width(40.dp))
+                    Text(BalanceCheckFlow.label(shown).orEmpty(), style = MaterialTheme.typography.labelLarge, color = com.zyke.message.presentation.messages.components.mutedColor(), maxLines = 1)
+                }
+                CheckState.UPDATED -> Text(
+                    BalanceCheckFlow.label(shown).orEmpty(),
+                    Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically).padding(horizontal = Spacing.md).semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1
+                )
+                CheckState.READY -> AppButton(label, onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                CheckState.NO_REPLY, CheckState.FAILED -> AppButton(BalanceCheckFlow.label(shown).orEmpty(), onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
-            CheckState.UPDATED -> Text(
-                BalanceCheckFlow.label(state).orEmpty(),
-                Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically).padding(horizontal = 12.dp).semantics { liveRegion = LiveRegionMode.Polite },
-                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1
-            )
-            CheckState.READY -> AppButton(label, onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            CheckState.NO_REPLY, CheckState.FAILED -> AppButton(BalanceCheckFlow.label(state).orEmpty(), onClick, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         }
     }
 }
@@ -235,7 +241,7 @@ internal fun RichReplyHint(text: String) {
     }
     val on = remember(recheck) { notificationAccessOn(context) }
     if (on) return
-    Caption(text, Modifier.padding(top = 2.dp), maxLines = 3)
+    Caption(text, Modifier.padding(top = Spacing.xs), maxLines = 3)
     AppButton(
         "Turn on notification access",
         { runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
@@ -353,15 +359,15 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
         title = if (settingsOnly) "Balance check settings" else "Check balance by SMS",
         subtitle = target.subtitle,
         onDismiss = onDismiss,
-        contentSpacing = 14.dp,
+        contentSpacing = Spacing.lg,
         footer = {
             when {
-                justSent && plan is EnquiryPlan.Ready -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
+                justSent && plan is EnquiryPlan.Ready -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = Spacing.md) {
                     val again = phase == RequestPhase.FAILED || phase == RequestPhase.NO_REPLY
                     AppButton("Close", onDismiss, Modifier.cell(), style = if (again) ButtonStyle.OUTLINE else ButtonStyle.PRIMARY)
                     if (again) AppButton("Try again", { justSent = false }, Modifier.cell(), enabled = waitLeft == 0L)
                 }
-                editorOpen -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
+                editorOpen -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = Spacing.md) {
                     AppButton("Cancel", { if (plan is EnquiryPlan.Unsupported) onDismiss() else { changing = false; numberDraft = null; textDraft = null } }, Modifier.cell(), style = ButtonStyle.OUTLINE)
                     AppButton("Save", {
                         val number = (numberDraft ?: service?.number.orEmpty()).trim()
@@ -372,7 +378,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
                     }, Modifier.cell(), enabled = canSave)
                 }
                 settingsOnly -> AppButton("Done", onDismiss, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
-                plan is EnquiryPlan.Ready -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = 12.dp) {
+                plan is EnquiryPlan.Ready -> ResponsiveRow(Modifier.fillMaxWidth(), spacing = Spacing.md) {
                     AppButton("Cancel", onDismiss, Modifier.cell(), style = ButtonStyle.OUTLINE)
                     AppButton("Send", { onSend(plan) }, Modifier.cell(), enabled = waitLeft == 0L)
                 }
@@ -391,7 +397,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
                     Caption(
                         "Zyke has no balance-check number for this bank. If your bank answers a text, add its number and the words to send. " +
                             "It will ask you before it sends.",
-                        Modifier.padding(top = 4.dp), maxLines = 6
+                        Modifier.padding(top = Spacing.xs), maxLines = 6
                     )
                 }
             }
@@ -419,7 +425,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
             is EnquiryPlan.Blocked -> {
                 FintechCard {
                     RowTitle(plan.reason, color = MaterialTheme.colorScheme.onSurface)
-                    Caption("Zyke never stores or sends an MPIN, a PIN or a password. Use your bank's app or call centre for this one.", Modifier.padding(top = 4.dp), maxLines = 5)
+                    Caption("Zyke never stores or sends an MPIN, a PIN or a password. Use your bank's app or call centre for this one.", Modifier.padding(top = Spacing.xs), maxLines = 5)
                 }
                 AppButton("Set it up another way", { changing = true }, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
             }
@@ -461,15 +467,15 @@ private fun ReadyState(
 ) {
     FintechCard {
         Caption("Zyke will text", maxLines = 1)
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Caption("To", Modifier.padding(top = 2.dp), maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Caption("To", Modifier.padding(top = Spacing.xs), maxLines = 1)
             Text(plan.number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Caption("Text", Modifier.padding(top = 2.dp), maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Caption("Text", Modifier.padding(top = Spacing.xs), maxLines = 1)
             Text(plan.text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
-        AppButton("Change", onChange, Modifier.padding(top = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        AppButton("Change", onChange, Modifier.padding(top = Spacing.xs), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
     Caption("${BalanceEnquiry.NOTE_RATES} ${BalanceEnquiry.NOTE_UNVERIFIED}", maxLines = 4)
     if (!target.isProvidentFund) {
@@ -508,7 +514,7 @@ private fun SentState(phase: RequestPhase, denied: Boolean, onSettings: () -> Un
     }
     FintechCard {
         RowTitle(title, color = if (phase == RequestPhase.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-        Caption(detail, Modifier.padding(top = 4.dp), maxLines = 5)
+        Caption(detail, Modifier.padding(top = Spacing.xs), maxLines = 5)
     }
     if (phase == RequestPhase.WAITING || phase == RequestPhase.NO_REPLY) RichReplyHint(BalanceRequests.RICH_REPLY_HINT)
     if (denied) AppButton("Open settings", onSettings, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
@@ -520,7 +526,7 @@ private fun ToggleLine(label: String, checked: Boolean, onChange: (Boolean) -> U
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleRow(checked, role, onChange), verticalAlignment = Alignment.CenterVertically) {
         if (role == Role.Switch) androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
         else androidx.compose.foundation.layout.Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = null) }
-        Text(label, Modifier.weight(1f).padding(start = if (role == Role.Switch) 12.dp else 0.dp), style = MaterialTheme.typography.bodyMedium)
+        Text(label, Modifier.weight(1f).padding(start = if (role == Role.Switch) Spacing.md else 0.dp), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -529,15 +535,15 @@ private fun ToggleLine(label: String, checked: Boolean, onChange: (Boolean) -> U
 private fun SettingsState(plan: EnquiryPlan.Ready, askFirst: Boolean, onAskFirst: (Boolean) -> Unit, onChange: () -> Unit) {
     FintechCard {
         Caption("Zyke texts", maxLines = 1)
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Caption("To", Modifier.padding(top = 2.dp), maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Caption("To", Modifier.padding(top = Spacing.xs), maxLines = 1)
             Text(plan.number, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Caption("Text", Modifier.padding(top = 2.dp), maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Caption("Text", Modifier.padding(top = Spacing.xs), maxLines = 1)
             Text(plan.text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
-        AppButton("Change number or words", onChange, Modifier.padding(top = 4.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+        AppButton("Change number or words", onChange, Modifier.padding(top = Spacing.xs), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
     ToggleLine("Ask before sending", askFirst, onAskFirst, Role.Switch)
     Caption(

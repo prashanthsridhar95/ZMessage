@@ -14,7 +14,22 @@ import com.zyke.message.presentation.common.LocalImageStore
 import com.zyke.message.domain.classification.MerchantResolver
 import androidx.compose.runtime.collectAsState
 import com.zyke.message.presentation.common.FintechCard
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.SkeletonBlock
+import com.zyke.message.presentation.motion.fadeInOnce
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,6 +41,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import com.zyke.message.presentation.common.toggleRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.common.PrivateAmount
+import com.zyke.message.presentation.common.headerContentColor
+import com.zyke.message.presentation.motion.AnimatedAmount
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -72,7 +93,6 @@ import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.LocalContentInset
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.common.heading
-import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.dashboard.components.LineTrend
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
@@ -84,9 +104,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
 
-/** Tall enough for the tallest of the three heroes on the Accounts tab, so switching tabs never moves what is below. */
-private val ACCOUNTS_HERO_MIN_HEIGHT = 176.dp
-
 /** What the accounts hold in all, as the one big number on Home. */
 @Composable
 internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifier, intro: Boolean = false, onOpen: () -> Unit) {
@@ -97,7 +114,7 @@ internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifi
         if (total != null) {
             com.zyke.message.presentation.motion.AnimatedAmount(
                 total,
-                Modifier.padding(top = 2.dp),
+                Modifier.padding(top = Spacing.xs),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -107,65 +124,13 @@ internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifi
             )
             Caption(
                 DisplayFormatters.count(overview.countedBalances, "bank account", "bank accounts"),
-                Modifier.padding(top = 2.dp),
+                Modifier.padding(top = Spacing.xs),
                 maxLines = 2
             )
         } else {
-            Text("Your accounts", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-            Caption("No balances yet", Modifier.padding(top = 2.dp))
+            Text("Your accounts", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+            Caption("No balances yet", Modifier.padding(top = Spacing.xs))
         }
-    }
-}
-
-/**
- * The Cards tab's big number: what the cards have billed and still wait to be paid, and what was spent since the last
- * statement that is not on a bill yet. Both are sums over the cards the person sees.
- */
-@Composable
-internal fun CardsHero(cards: List<AccountSummary>, modifier: Modifier = Modifier) {
-    val billed = remember(cards) { outstandingBilled(cards) }
-    val unbilled = remember(cards) { cards.fold(java.math.BigDecimal.ZERO) { sum, card -> sum + (card.unbilled?.takeIf { it.signum() > 0 } ?: java.math.BigDecimal.ZERO) } }
-    FintechCard(modifier) {
-        if (cards.isEmpty()) {
-            Caption("CARDS")
-            Text("Your cards", Modifier.padding(top = 6.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-            Caption("No cards yet", Modifier.padding(top = 2.dp))
-            return@FintechCard
-        }
-        // Side by side on a normal phone, one above the other on a narrow one or at large text.
-        com.zyke.message.presentation.common.ResponsiveRow(Modifier.fillMaxWidth(), spacing = 16.dp) {
-            Column(Modifier.cell()) {
-                Caption("BILLED")
-                com.zyke.message.presentation.common.PrivateAmount(
-                    rememberAnimatedRupees(billed),
-                    Modifier.padding(top = 6.dp),
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    fit = true
-                )
-                Caption("to pay on bills", Modifier.padding(top = 2.dp), maxLines = 1)
-            }
-            Column(Modifier.cell()) {
-                Caption("UNBILLED")
-                com.zyke.message.presentation.common.PrivateAmount(
-                    rememberAnimatedRupees(unbilled),
-                    Modifier.padding(top = 6.dp),
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    maxLines = 1,
-                    fit = true
-                )
-                Caption("spent, not billed yet", Modifier.padding(top = 2.dp), maxLines = 1)
-            }
-        }
-        Caption(
-            DisplayFormatters.count(cards.size, "card", "cards"),
-            Modifier.padding(top = 10.dp),
-            maxLines = 1
-        )
     }
 }
 
@@ -209,6 +174,9 @@ internal fun rememberNowState(): androidx.compose.runtime.State<Long> {
 
 // ---- accounts
 
+/** The header's key while the first read is still going (a skeleton), apart from the three sub-tabs 0..2. */
+private const val HEADER_LOADING = -1
+
 private const val PF_CHECK = "pf"
 private val PF_CHECK_REQUEST = com.zyke.message.domain.balance.BalanceEnquiry.PF_REQUEST_KEY
 
@@ -219,6 +187,24 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val funds = overview.accounts.filter { it.isProvidentFund }.distinctBy { it.key }
     val cards = overview.accounts.filter { it.isCard }.distinctBy { it.key }
     var tab by rememberSaveable { mutableStateOf(0) }
+    // Nothing to show yet and still reading: a still skeleton, then a crossfade to the real thing.
+    val loading = state.isLoading && overview.accounts.isEmpty()
+    // Each sub-tab's hero counts up once, the first time that sub-tab is shown, and is still on every later visit.
+    val heroGates = listOf(rememberEnterGate(), rememberEnterGate(), rememberEnterGate())
+    val motion = rememberMotion()
+    // Switching sub-tab: the body slides 24 dp along the shared axis while it fades in (the header crossfades by itself).
+    var previousTab by remember { mutableStateOf(tab) }
+    val slideDirection = remember(tab) { if (tab >= previousTab) 1f else -1f }
+    val tabIn = remember(tab) { Animatable(if (previousTab != tab && !motion.reduced) 0f else 1f) }
+    SideEffect { previousTab = tab }
+    LaunchedEffect(tab) { if (tabIn.value < 1f) tabIn.animateTo(1f, motion.tween(Motion.TAB_MS, Motion.Standard)) }
+    val slidePx = with(LocalDensity.current) { Motion.TAB_SLIDE_DP.dp.toPx() }
+    val bodyIn = Modifier.graphicsLayer {
+        val shown = tabIn.value
+        alpha = shown
+        translationX = (1f - shown) * slidePx * slideDirection
+    }
+    val haptics = rememberHaptics()
     val deckState = com.zyke.message.presentation.common.rememberDeckState()
     val bankDeck = com.zyke.message.presentation.common.rememberDeckState()
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
@@ -257,9 +243,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
     // Net worth stays put-away until it is asked for: pull down at the top. Kept per visit to this tab.
     var netWorthShown by rememberSaveable { mutableStateOf(false) }
-    val reduceMotion = com.zyke.message.presentation.common.rememberReduceMotion()
-    val tick = com.zyke.message.presentation.common.rememberTick()
-    val pull = rememberPullToReveal(enabled = !netWorthShown) { tick(); netWorthShown = true }
+    val reduceMotion = motion.reduced
+        val pull = rememberPullToReveal(enabled = !netWorthShown) { haptics.tick(); netWorthShown = true }
 
     // The card and the bank account in front of their decks: what the actions and the spend card below speak about.
     val frontCard = cards.getOrNull(com.zyke.message.domain.cards.DeckModel.clamp(deckState.currentPage, cards.size))
@@ -288,19 +273,18 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
         state = accountsList,
-        // No top padding: the header region starts at the top edge. The sides stay 16 dp; the region bleeds through them.
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        // No top padding: the header region starts at the top edge. The sides stay at the gutter; the region bleeds through them.
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.lg, end = Spacing.lg, top = 0.dp, bottom = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         if (netWorthShown) {
             item(key = "net-worth") {
                 val appear = remember { androidx.compose.animation.core.MutableTransitionState(reduceMotion).apply { targetState = true } }
                 androidx.compose.animation.AnimatedVisibility(
                     appear,
-                    enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None
-                    else androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
+                    enter = motion.appear
                 ) {
-                    Column(Modifier.padding(top = 16.dp)) {
+                    Column(Modifier.padding(top = Spacing.lg)) {
                         com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             AppButton(
@@ -322,45 +306,64 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             )
         }
 
-        // The header region follows the tab: the total and a deck of bank accounts; the deck of cards; what is invested.
-        item(key = "header-$tab") {
+        // The header region follows the tab: the total and a deck of bank accounts; the deck of cards; what is invested. It is
+        // one item, so its content crossfades (and its height eases) when the sub-tab changes, instead of the list being rebuilt.
+        item(key = "header") {
             com.zyke.message.presentation.common.HeaderRegion {
-                when (tab) {
-                    1 -> CardsHeaderContent(
-                        cards, deckState, deckToday,
-                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
-                        onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
-                        deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
-                    )
-                    2 -> InvestmentsHeaderContent(invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0)
-                    else -> BanksHeaderContent(
-                        overview, banks, bankDeck, deckToday,
-                        onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
-                        onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
-                        onCheckBalance = { checkingKey = it.key }, onBalanceSettings = { settingsKey = it.key },
-                        deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
-                    )
+                CrossfadeContent(if (loading) HEADER_LOADING else tab, label = "accounts header") { which ->
+                    Column(Modifier.fillMaxWidth()) {
+                        when (which) {
+                            HEADER_LOADING -> HeaderSkeleton()
+                            1 -> CardsHeaderContent(
+                                cards, deckState, deckToday,
+                                onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
+                                onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
+                                deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                            )
+                            2 -> InvestmentsHeaderContent(
+                                invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0,
+                                entering = heroGates[2].heroEntering()
+                            )
+                            else -> BanksHeaderContent(
+                                overview, banks, bankDeck, deckToday,
+                                onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
+                                onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
+                                onCheckBalance = { checkingKey = it.key }, onBalanceSettings = { settingsKey = it.key },
+                                entering = heroGates[0].heroEntering(),
+                                deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        if (tab == 2) {
+        if (loading) {
+            item(key = "body-loading") { BodySkeleton(bodyIn) }
+        } else if (tab == 2) {
             val pfActions = if (pf != null || funds.isNotEmpty()) listOf(
                 com.zyke.message.presentation.common.ActionSpec("Check PF balance", R.drawable.baseline_message_24, { checkingKey = PF_CHECK })
             ) else emptyList()
-            investmentItems(invest, pfActions) {
-                if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf, { checkingKey = PF_CHECK }) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
+            investmentItems(invest, pfActions, bodyIn) {
+                if (pf != null && funds.isEmpty()) item(key = "pf") { PfTile(pf, { checkingKey = PF_CHECK }, bodyIn) { onIntent(HomeContract.Intent.OpenMessage(pf.latest.messageId)) } }
                 funds.forEachIndexed { index, fund ->
                     // One "Check PF balance" for the fund, on the first tile.
-                    item(key = fund.key) { FundTile(fund, pf, if (index == 0) ({ checkingKey = PF_CHECK }) else null) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
+                    item(key = fund.key) { FundTile(fund, pf, if (index == 0) ({ checkingKey = PF_CHECK }) else null, bodyIn) { onIntent(HomeContract.Intent.OpenAccount(fund.key)) } }
                 }
             }
         } else if (shown.isEmpty()) {
-            item(key = "empty") {
-                com.zyke.message.presentation.common.EmptyState(
-                    if (tab == 0) "No accounts yet" else "No cards yet",
-                    if (tab == 0) "Bank accounts appear here once a message with a balance arrives." else "Cards appear here once a card payment or bill message arrives."
-                )
+            item(key = "empty-$tab") {
+                if (tab == 0) {
+                    com.zyke.message.presentation.common.EmptyState(
+                        "No accounts yet", "They appear when your bank texts you a balance.",
+                        bodyIn, icon = R.drawable.ic_accounts_24
+                    )
+                } else {
+                    com.zyke.message.presentation.common.EmptyState(
+                        "No cards yet", "They appear when your bank texts you about a card.",
+                        bodyIn, icon = R.drawable.ic_card_24, actionLabel = "Add a card", onAction = openSettings
+                    )
+                }
             }
         }
         if (tab == 1 && cardModel != null) {
@@ -369,14 +372,16 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 onPay = { link -> onIntent(HomeContract.Intent.OpenLink(link)) },
                 onMarkPaid = { frontBill?.let { markPaidBill(it) } },
                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(cardModel.card.key)) },
-                onEditCards = openSettings
+                onEditCards = openSettings,
+                itemModifier = bodyIn
             )
-        } else if (tab == 0) {
+        } else if (tab == 0 && !loading) {
             if (frontBank != null) bankBodyItems(
                 frontBank, state.messages, today, zone,
                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(frontBank.key)) },
                 onSetBalance = { renamingKey = frontBank.key },
-                onCheckBalance = { checkingKey = frontBank.key }
+                onCheckBalance = { checkingKey = frontBank.key },
+                itemModifier = bodyIn
             )
         }
 
@@ -427,7 +432,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             onDismissRequest = { leavingKey = null },
             title = { Text("Leave out ${target.title}?") },
             text = { Text("It will be left out of your accounts and totals. Its messages stay in your inbox.") },
-            confirmButton = { AppButton("Leave out", { leavingKey = null; onIntent(HomeContract.Intent.RemoveAccount(key)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            confirmButton = { AppButton("Leave out", { haptics.reject(); leavingKey = null; onIntent(HomeContract.Intent.RemoveAccount(key)) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
             dismissButton = { AppButton("Cancel", { leavingKey = null }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
         )
     }
@@ -449,23 +454,22 @@ internal fun cardFooter(account: AccountSummary, today: java.time.LocalDate): St
 
 /** An account marked as a provident fund: a calmer tile that leads with what has been put in, not spending. */
 @Composable
-private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onCheck: (() -> Unit)?, onOpen: () -> Unit) {
+private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.ProvidentFund?, onCheck: (() -> Unit)?, modifier: Modifier = Modifier, onOpen: () -> Unit) {
     val dayFormat = FormatCache.pattern("d MMM", Locale.getDefault())
     val asOf = fund.balanceAsOf
-    FintechCard(onClick = onOpen) {
-        Caption("PROVIDENT FUND  ••  ${fund.last4}")
-        com.zyke.message.presentation.common.FitText(
-            fund.balance?.let { DisplayFormatters.rupees(it) } ?: "—",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 6.dp)
-        )
+    val balance = fund.balance
+    FintechCard(modifier, onClick = onOpen) {
+        CardHeader("Provident fund  \u2022\u2022  ${fund.last4}")
+        if (balance != null) {
+            AnimatedAmount(balance, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+        } else {
+            PrivateAmount("\u2014", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+        }
         Caption(if (asOf != null) "balance as of ${dayFormat.format(asOf)}" else "balance not stated", maxLines = 2)
-        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        HorizontalDivider(Modifier.padding(vertical = Spacing.md), color = MaterialTheme.colorScheme.outlineVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             if (fund.fromPassbook && pf != null) {
-                Stat("Last added", pf.latest.added?.let { DisplayFormatters.rupees(it) } ?: "—")
+                Stat("Last added", pf.latest.added?.let { DisplayFormatters.rupees(it) } ?: "\u2014")
                 Stat("Updated", FormatCache.pattern("d MMM yyyy", Locale.getDefault()).format(pf.latest.date))
                 Stat("Updates", pf.updates.size.toString())
             } else {
@@ -477,48 +481,72 @@ private fun FundTile(fund: AccountSummary, pf: com.zyke.message.domain.pf.Provid
         // The provident fund always shows its sheet first (the UAN is typed there); the slot still shows the progress.
         if (onCheck != null) {
             val (state, progress) = rememberCheckState(PF_CHECK_REQUEST, maxOf(pf?.balanceAt ?: 0L, fund.balanceAt))
-            CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = 8.dp))
+            CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = Spacing.sm))
         }
     }
 }
 
 /** The provident fund: its balance when a passbook message states one, else what the latest update added. */
 @Composable
-private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onCheck: () -> Unit, onOpen: () -> Unit) {
+private fun PfTile(pf: com.zyke.message.domain.pf.ProvidentFund, onCheck: () -> Unit, modifier: Modifier = Modifier, onOpen: () -> Unit) {
     val dayFormat = FormatCache.pattern("d MMM yyyy", Locale.getDefault())
     val latest = pf.latest
     val asOf = pf.balanceAsOf
-    FintechCard(onClick = onOpen) {
-        Caption("PROVIDENT FUND (EPF)")
-        com.zyke.message.presentation.common.FitText(
-            (pf.balance ?: latest.added)?.let { DisplayFormatters.rupees(it) } ?: "—",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 6.dp)
-        )
+    val shown = pf.balance ?: latest.added
+    FintechCard(modifier, onClick = onOpen) {
+        CardHeader("Provident fund (EPF)")
+        if (shown != null) {
+            AnimatedAmount(shown, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+        } else {
+            PrivateAmount("\u2014", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+        }
         Caption(
             if (pf.balance != null && asOf != null) "balance as of ${dayFormat.format(asOf)}"
             else "latest passbook update, ${dayFormat.format(latest.date)}. No balance stated yet.",
             maxLines = 2
         )
-        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        HorizontalDivider(Modifier.padding(vertical = Spacing.md), color = MaterialTheme.colorScheme.outlineVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("Last added", latest.added?.let { DisplayFormatters.rupees(it) } ?: "—")
+            Stat("Last added", latest.added?.let { DisplayFormatters.rupees(it) } ?: "\u2014")
             Stat("Updated", dayFormat.format(latest.date))
             Stat("Updates", pf.updates.size.toString())
         }
         val (state, progress) = rememberCheckState(PF_CHECK_REQUEST, pf.balanceAt)
-        CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = 8.dp))
+        CheckBalanceRow("Check PF balance", state, progress, onCheck, Modifier.padding(top = Spacing.sm))
     }
 }
 
+private val HEADER_DECK_SKELETON = 150.dp
+private val BODY_SKELETON_CARD = 140.dp
+private val SKELETON_CIRCLE = 48.dp
+
+/** The header while the first read is going: still blocks in the region's own ink, where the label, the figure and the deck will be. */
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text, Modifier.padding(start = 4.dp, top = 12.dp).heading(),
-        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary
-    )
+private fun HeaderSkeleton() {
+    val ink = headerContentColor().copy(alpha = 0.14f)
+    Column(
+        Modifier.fillMaxWidth().fadeInOnce().clearAndSetSemantics { contentDescription = "Loading your accounts" },
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        Spacer(Modifier.fillMaxWidth(0.3f).height(Spacing.md).background(ink, AppShapes.chip))
+        Spacer(Modifier.fillMaxWidth(0.6f).height(Spacing.xxxl).background(ink, AppShapes.chip))
+        Spacer(Modifier.fillMaxWidth().height(HEADER_DECK_SKELETON).background(ink, AppShapes.card))
+    }
+}
+
+/** The body while the first read is going: the action circles and two cards, still. */
+@Composable
+private fun BodySkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxWidth().fadeInOnce().clearAndSetSemantics { contentDescription = "Loading" },
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            repeat(3) { SkeletonBlock(Modifier.size(SKELETON_CIRCLE), corner = SKELETON_CIRCLE / 2) }
+        }
+        SkeletonBlock(Modifier.fillMaxWidth().height(BODY_SKELETON_CARD), corner = Radius.card)
+        SkeletonBlock(Modifier.fillMaxWidth().height(BODY_SKELETON_CARD), corner = Radius.card)
+    }
 }
 
 @Composable
@@ -564,16 +592,17 @@ internal fun AccountSheet(
     var naming by rememberSaveable { mutableStateOf(false) }
     var editingCycle by rememberSaveable { mutableStateOf(false) }
     var removing by rememberSaveable { mutableStateOf(false) }
+    val haptics = rememberHaptics()
 
     AdaptiveSheet(account.title, onDismiss, asPage = true) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val pick = com.zyke.message.presentation.common.rememberPicturePicker(ACCOUNT_PICTURE_PREFIX + account.key, account.title)
-                AccountChip(account, 48.dp, Modifier.clip(RoundedCornerShape(12.dp)).then(if (pick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Change picture", onClick = pick) else Modifier))
-                Spacer(Modifier.width(12.dp))
+                AccountChip(account, 48.dp, Modifier.clip(AppShapes.chip).then(if (pick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Change picture", onClick = pick) else Modifier))
+                Spacer(Modifier.width(Spacing.md))
                 Column(Modifier.weight(1f)) {
                     Caption("${account.kind.label} •• ${account.last4}")
                 }
@@ -588,13 +617,13 @@ internal fun AccountSheet(
                         else -> "BALANCE"
                     }
                 )
-                com.zyke.message.presentation.common.FitText(
-                    (if (account.kind == AccountKind.CREDIT_CARD && account.unbilled != null) account.unbilled else if (account.isCard) account.dueAmount else account.balance)
-                        ?.let { DisplayFormatters.rupees(it) } ?: "—",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                // Local copy: these come from another module, so they cannot be smart-cast after a null check.
+                val figure: java.math.BigDecimal? = if (account.kind == AccountKind.CREDIT_CARD && account.unbilled != null) account.unbilled else if (account.isCard) account.dueAmount else account.balance
+                if (figure != null) {
+                    AnimatedAmount(figure, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+                } else {
+                    PrivateAmount("—", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, fit = true)
+                }
                 Caption(
                     when {
                         account.kind == AccountKind.CREDIT_CARD && account.unbilled != null ->
@@ -628,7 +657,7 @@ internal fun AccountSheet(
                         firstLabel = dayFormat.format(history.first().asOf),
                         lastLabel = dayFormat.format(history.last().asOf),
                         description = "Line chart of the balance, from ${DisplayFormatters.rupees(history.first().amount)} to ${DisplayFormatters.rupees(history.last().amount)}",
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = Spacing.sm)
                     )
                 }
             }
@@ -637,7 +666,7 @@ internal fun AccountSheet(
                 FintechCard(onClick = { editingCycle = true }) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Caption("BILLING CYCLE")
+                            CardHeader("Billing cycle")
                             Text(
                                 account.userCard?.statementDay?.let { "Statement on day $it" } ?: "Calendar months",
                                 style = MaterialTheme.typography.titleSmall,
@@ -647,7 +676,7 @@ internal fun AccountSheet(
                         Text(if (account.userCard?.statementDay == null && account.suggestedStatementDay != null) "Set" else "Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
                     }
                     account.suggestedStatementDay?.let { day ->
-                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                             Caption("Your bills arrive around day $day. Use it as the statement day?", Modifier.weight(1f), maxLines = 3)
                             AppButton("Use day $day", { onStatementDay(day) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                         }
@@ -658,17 +687,17 @@ internal fun AccountSheet(
             // The card's bill, next to what is not billed yet.
             if (account.kind == AccountKind.CREDIT_CARD && (account.dueAmount != null || account.unbilled != null)) {
                 FintechCard {
-                    Caption("THE BILL")
-                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    CardHeader("The bill")
+                    Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
                         Stat("Billed", account.dueAmount?.let { DisplayFormatters.rupees(it) } ?: "—")
                         Stat("Due", due?.let { dayFormat.format(it) } ?: "—")
                         Stat("Minimum", account.minimumDue?.let { DisplayFormatters.rupees(it) } ?: "—")
                     }
                     account.paidSinceBill?.let {
-                        Caption("${DisplayFormatters.rupees(it)} paid since the bill came", Modifier.padding(top = 10.dp), maxLines = 2)
+                        Caption("${DisplayFormatters.rupees(it)} paid since the bill came", Modifier.padding(top = Spacing.md), maxLines = 2)
                     }
                     account.unbilled?.let {
-                        HorizontalDivider(Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        HorizontalDivider(Modifier.padding(vertical = Spacing.md), color = MaterialTheme.colorScheme.outlineVariant)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Unbilled so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
                             Text(DisplayFormatters.rupees(it), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -678,7 +707,7 @@ internal fun AccountSheet(
             }
 
             // Activity for this month, or for the cycle, with its totals.
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 PillSwitch(listOf("This month", cycleLabel), period, { period = it })
                 FintechCard {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -688,7 +717,7 @@ internal fun AccountSheet(
                     }
                     Caption(
                         "${dayFormat.format(periodStart)} – ${dayFormat.format(today)}",
-                        Modifier.padding(top = 10.dp)
+                        Modifier.padding(top = Spacing.md)
                     )
                 }
                 if (activity.messages.isEmpty()) {
@@ -749,7 +778,7 @@ internal fun AccountSheet(
             onDismissRequest = { removing = false },
             title = { Text("Remove ${account.title}?") },
             text = { Text("It will be left out of your accounts. Its messages stay in your inbox.") },
-            confirmButton = { AppButton("Remove", { removing = false; onRemove() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
+            confirmButton = { AppButton("Remove", { haptics.reject(); removing = false; onRemove() }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
             dismissButton = { AppButton("Cancel", { removing = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
         )
     }
@@ -773,13 +802,13 @@ internal fun CodesSheet(state: HomeContract.State, onCopy: (Long, String) -> Uni
     AdaptiveSheet("Codes", onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             if (codes.isEmpty()) {
-                Caption("A code shows up here the moment it arrives.", Modifier.padding(vertical = 16.dp), maxLines = 2)
+                Caption("A code shows up here the moment it arrives.", Modifier.padding(vertical = Spacing.lg), maxLines = 2)
             }
             codes.forEach { message ->
                 val otp = message.content as MessageContent.Otp
                 CodeCard(
                     message, now, onCopy = { onCopy(message.id, otp.code) },
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    modifier = Modifier.padding(vertical = Spacing.sm)
                 )
             }
         }
@@ -895,13 +924,13 @@ internal fun PullToRevealIndicator(progress: () -> Float, modifier: Modifier = M
     val p = progress()
     if (p <= 0f) return
     androidx.compose.material3.Surface(
-        modifier.padding(top = 8.dp).semantics { contentDescription = "Pull to reveal net worth, ${(p * 100).toInt()} percent" },
-        shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 2.dp
+        modifier.padding(top = Spacing.sm).semantics { contentDescription = "Pull to reveal net worth, ${(p * 100).toInt()} percent" },
+        shape = AppShapes.control, tonalElevation = 3.dp, shadowElevation = 2.dp
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally) {
             Caption(if (p >= 0.85f) "Almost there" else "Pull to reveal net worth")
             androidx.compose.material3.LinearProgressIndicator(
-                progress = { p }, modifier = Modifier.padding(top = 6.dp).width(160.dp),
+                progress = { p }, modifier = Modifier.padding(top = Spacing.sm).width(160.dp),
                 color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             )
         }
