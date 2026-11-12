@@ -322,7 +322,9 @@ internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifie
     com.zyke.message.presentation.common.PrivateAmount(
         modifier = modifier.widthIn(max = (screen.widthDp * AMOUNT_ROW_SHARE).dp),
         text = text,
-        textAlign = TextAlign.End,
+        // A fitted figure takes only the width of its digits. With an alignment set, FitText fills all the room it is given, so the
+        // amount's box grew to half the row and left the name beside it about 40 dp wide ("Googl…", "Bajaj / Finserv").
+        textAlign = if (fit) null else TextAlign.End,
         style = if (screen.isCompact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
         maxLines = if (screen.stackRows && !fit) 2 else if (fit) 1 else scaledLines(1),
         overflow = TextOverflow.Ellipsis,
