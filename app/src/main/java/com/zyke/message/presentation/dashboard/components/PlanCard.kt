@@ -48,6 +48,7 @@ import com.zyke.message.presentation.common.rememberGrowingState
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
+import com.zyke.message.presentation.theme.Spacing
 import java.math.BigDecimal
 import java.util.Locale
 
@@ -58,7 +59,7 @@ import java.util.Locale
 @Composable
 internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Unit, modifier: Modifier = Modifier) {
     if (insights == null) {
-        SectionCard("Your month's plan", modifier, startOpen = true) {
+        InsightCard("Your month's plan", modifier, startOpen = true) {
             Caption(
                 "Add your salary, regular outflows like parents or charity, investments and what you want to save, " +
                     "and this shows what is yours to spend each day.",
@@ -70,10 +71,10 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
     }
 
     val colors = limitColors()
-    SectionCard("Your month's plan", modifier) {
+    InsightCard("Your month's plan", modifier) {
         if (insights.income.signum() > 0) {
             SalarySplit(insights)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Spacing.md))
 
             // The headline: what is left to spend, in green, or how far over, in red.
             val over = insights.isOverPlan
@@ -92,7 +93,7 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
                 Caption("About ${DisplayFormatters.rupees(it)} a day for the next ${insights.daysLeft} days", maxLines = 2)
             }
             if (insights.spendable.signum() > 0) {
-                LimitStatus(LimitLine(LimitPeriod.MONTHLY, insights.spendable, insights.spentOnTheRest), Modifier.padding(top = 10.dp))
+                LimitStatus(LimitLine(LimitPeriod.MONTHLY, insights.spendable, insights.spentOnTheRest), Modifier.padding(top = Spacing.sm))
             } else {
                 Text(
                     "The plan uses more than the whole salary, so nothing is left to spend.",
@@ -106,7 +107,7 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
         insights.salaryStatus?.let { SalaryLine(plan, insights, it) }
 
         if (insights.items.isNotEmpty()) {
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(Modifier.padding(vertical = Spacing.md))
             insights.items.forEachIndexed { index, status ->
                 if (index > 0) Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -133,7 +134,7 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
         }
 
         if (insights.savingsGoal.signum() > 0) {
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(Modifier.padding(vertical = Spacing.md))
             val saved = insights.savedSoFar
             val behind = saved.signum() < 0
             RowTitle("Saving")
@@ -153,7 +154,7 @@ internal fun PlanCard(plan: MoneyPlan, insights: PlanInsights?, onEdit: () -> Un
             )
         }
 
-        AppButton("Edit plan in Settings", onEdit, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT, modifier = Modifier.padding(top = 14.dp))
+        AppButton("Edit plan in Settings", onEdit, style = ButtonStyle.TONAL, size = ButtonSize.COMPACT, modifier = Modifier.padding(top = Spacing.md))
     }
 }
 

@@ -35,13 +35,15 @@ class AccessibilityPolicyTest {
         "home/GoalsAndReminders.kt" to 1,                  // icon of a ShortcutTile, whose text is the label
         "home/AccountsUi.kt" to 1,                         // leading icon of a menu item, whose text is the label
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label
+        "messages/components/SwipeActions.kt" to 1,         // the icon beside its label behind a swiped row; the row offers the same actions to a screen reader
         "messages/components/OtpCard.kt" to 1,             // copy glyph on a card that is described and clickable as a whole
         "messages/components/MessageCommon.kt" to 2,       // airline logo (its box clears semantics; the card speaks) and the small icon in IconCaption beside its text
         "trains/TrainParts.kt" to 1,                       // the train glyph on its tile (the card speaks as a whole)
         "trains/ManualTrainUi.kt" to 1,                    // the flight or train icon in a trip-choice row, whose title and caption are read
         "messages/components/SpendSummaryRow.kt" to 1,     // chevron on a row that says what it opens
         "dashboard/components/DashboardSections.kt" to 2,  // chevrons on rows that say what they open
-        "dashboard/components/ReportCardSection.kt" to 1   // chevron on the report card row
+        "dashboard/components/ReportCardSection.kt" to 1,  // chevron on the report card row
+        "dashboard/components/InsightKit.kt" to 1          // the one Chevron of the Insights tab, at the end of a tile that says what it opens
     )
 
     @Test

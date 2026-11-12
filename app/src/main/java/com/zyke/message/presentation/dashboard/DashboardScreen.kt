@@ -9,7 +9,6 @@ import com.zyke.message.presentation.dashboard.components.DirectionSwitch
 import com.zyke.message.presentation.dashboard.components.DirectionHeader
 import com.zyke.message.presentation.dashboard.components.scopeCaption
 import com.zyke.message.presentation.dashboard.components.periodName
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import com.zyke.message.presentation.common.heading
@@ -39,9 +38,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.CrossfadeKeyed
+import com.zyke.message.presentation.motion.EnterGate
+import com.zyke.message.presentation.motion.enterOnce
+import com.zyke.message.presentation.motion.itemMotion
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.motion.rememberIsEntering
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.TypeRole
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.common.EmptyState
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.domain.chart.ChartSpeech
+import com.zyke.message.presentation.dashboard.components.Chevron
+import com.zyke.message.presentation.dashboard.components.InsightCard
+import com.zyke.message.presentation.dashboard.components.InsightsSkeleton
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -97,14 +111,12 @@ import com.zyke.message.presentation.dashboard.components.IncomeExpenseCard
 import com.zyke.message.presentation.dashboard.components.LocalSectionsAsSheets
 import com.zyke.message.presentation.dashboard.components.ReportCardSheet
 import com.zyke.message.presentation.dashboard.components.ReportCardSummary
-import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.dashboard.components.SourceRow
 import com.zyke.message.presentation.dashboard.components.TrendChart
 import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.presentation.dashboard.components.VendorRow
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.mutedColor
-import com.zyke.message.presentation.messages.components.MessageListSkeleton
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
@@ -145,6 +157,8 @@ fun DashboardScreen(
     onRequestPermission: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Above the loading state, so the entrance of the first cards plays once and not again when the data refreshes.
+    val gate = rememberEnterGate()
     Column(modifier.fillMaxSize()) {
         val dashboard = state.dashboard
         val stage = when {
@@ -154,7 +168,7 @@ fun DashboardScreen(
             else -> Stage.CONTENT
         }
         // The skeleton fades into the real content instead of being swapped for it.
-        Crossfade(stage, Modifier.weight(1f), animationSpec = tween(Motion.STANDARD_MS), label = "dashboard-stage") { shown ->
+        CrossfadeContent(stage, Modifier.weight(1f), label = "dashboard-stage") { shown ->
             when {
                 shown == Stage.PERMISSION -> PermissionGate(onGrant = onRequestPermission)
                 shown == Stage.ERROR -> ErrorState(
@@ -162,8 +176,8 @@ fun DashboardScreen(
                     hint = stringResource(R.string.error_hint),
                     onRetry = { onIntent(Intent.Retry) }
                 )
-                shown == Stage.CONTENT && dashboard != null -> DashboardContent(state, dashboard, onIntent)
-                else -> MessageListSkeleton()
+                shown == Stage.CONTENT && dashboard != null -> DashboardContent(state, dashboard, onIntent, gate)
+                else -> InsightsSkeleton()
             }
         }
     }
@@ -221,15 +235,15 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, modifier: Modifier = Modifier) {
+private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, gate: EnterGate, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     Column(modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalSectionsAsSheets provides true,
-                com.zyke.message.presentation.common.LocalContentInset provides 16.dp
+                com.zyke.message.presentation.common.LocalContentInset provides Spacing.lg
             ) {
-                DashboardList(state, dashboard, onIntent, listState)
+                DashboardList(state, dashboard, onIntent, listState, gate)
             }
         }
     }
@@ -250,7 +264,7 @@ private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: 
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState) {
+private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent) -> Unit, listState: LazyListState, gate: EnterGate) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
     val received = state.direction == FlowDirection.RECEIVED
     var showYear by remember { mutableStateOf(false) }
@@ -262,86 +276,100 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
+        // The position of each card, so the first eight enter one after another (once) and the rest simply appear.
+        var order = 0
         if (state.activeFilterCount > 0) {
             item(key = "active-filters") {
-                ActiveFilterBar(
-                    summary = listOfNotNull(
-                        (if (state.period == DashboardPeriod.CUSTOM) state.customRange?.let(::rangeLabel) else state.period.label).takeIf { state.period != DashboardPeriod.THIS_MONTH },
-                        state.category?.displayString,
-                        state.source.takeIf { it.isActive }?.let { sourceLabel(it, state.cards) }
-                    ).joinToString(" · "),
-                    resultCount = dashboard.count,
-                    onChange = { onIntent(Intent.OpenFilters) },
-                    onClear = { onIntent(Intent.ResetFilters) },
-                    horizontalInset = 0.dp
-                )
+                Box(itemMotion()) {
+                    ActiveFilterBar(
+                        summary = listOfNotNull(
+                            (if (state.period == DashboardPeriod.CUSTOM) state.customRange?.let(::rangeLabel) else state.period.label).takeIf { state.period != DashboardPeriod.THIS_MONTH },
+                            state.category?.displayString,
+                            state.source.takeIf { it.isActive }?.let { sourceLabel(it, state.cards) }
+                        ).joinToString(" · "),
+                        resultCount = dashboard.count,
+                        onChange = { onIntent(Intent.OpenFilters) },
+                        onClear = { onIntent(Intent.ResetFilters) },
+                        horizontalInset = 0.dp
+                    )
+                }
             }
         }
 
         if (dashboard.isEmpty) {
+            val at = order++
             item(key = "empty") {
-                SectionCard(
-                    stringResource(
-                        if (received) R.string.dashboard_empty_received else R.string.dashboard_empty
-                    ),
-                    startOpen = true
-                ) {
-                    Caption(stringResource(R.string.dashboard_empty_hint), maxLines = 3)
-                    DirectionSwitch(state.direction, { onIntent(Intent.SelectDirection(it)) }, Modifier.padding(top = 12.dp))
+                Column(cardMotion(gate, at), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    EmptyState(
+                        title = stringResource(if (received) R.string.dashboard_empty_received else R.string.dashboard_empty),
+                        body = stringResource(R.string.dashboard_empty_hint)
+                    )
+                    DirectionSwitch(state.direction, { onIntent(Intent.SelectDirection(it)) })
                 }
             }
         } else {
+            // The one hero of the page: this period's money out and in.
+            val at = order++
             item(key = "hero") {
-                FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_MONTH)) {
+                val entering = gate.rememberIsEntering(at)
+                FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_MONTH).then(cardMotion(gate, at)), level = Tonal.Hero) {
                     IncomeExpenseCard(
                         dashboard, state.expenseTrend, state.incomeTrend, state.period,
                         onShift = { onIntent(Intent.ShiftCycle(it)) },
-                        canGoForward = state.cycleOffset < 0 || state.period != DashboardPeriod.THIS_MONTH
+                        canGoForward = state.cycleOffset < 0 || state.period != DashboardPeriod.THIS_MONTH,
+                        countFromZero = entering
                     )
                 }
             }
         }
 
         if (reviewYear != null) {
+            val at = order++
             item(key = "year-in-review") {
-                com.zyke.message.presentation.review.YearEntryCard(reviewYear, onOpen = { showYear = true })
+                com.zyke.message.presentation.review.YearEntryCard(reviewYear, onOpen = { showYear = true }, modifier = cardMotion(gate, at))
             }
         }
 
         val reportCard = state.reportCard
         if (!dashboard.isEmpty && reportCard != null && !reportCard.isEmpty) {
-            item(key = "report-card") { ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }, modifier = Modifier.tourAnchor(TourAnchor.INSIGHTS_REPORT_CARD)) }
+            val at = order++
+            item(key = "report-card") {
+                ReportCardSummary(reportCard, onOpen = { onIntent(Intent.OpenReportCard) }, modifier = Modifier.tourAnchor(TourAnchor.INSIGHTS_REPORT_CARD).then(cardMotion(gate, at)))
+            }
         }
 
         state.monthlySummary?.takeIf { it.income.signum() > 0 || it.spent.signum() > 0 || it.changes.isNotEmpty() }?.let { summary ->
+            val at = order++
             item(key = "monthly-summary") {
-                com.zyke.message.presentation.dashboard.components.MonthlySummaryCard(summary) { onIntent(Intent.OpenCategory(it)) }
+                val entering = gate.rememberIsEntering(at)
+                Box(cardMotion(gate, at)) {
+                    com.zyke.message.presentation.dashboard.components.MonthlySummaryCard(summary, countFromZero = entering) { onIntent(Intent.OpenCategory(it)) }
+                }
             }
         }
 
         // Right under the headline numbers: where this is all heading is the first thing worth knowing.
         // The salary strip belongs to the forecast: inside its card when there is one, on its own when there is not.
         if (state.forecast != null || state.salaryRunway != null) {
+            val at = order++
             item(key = "forecast") {
-              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_FORECAST)) {
-                val forecast = state.forecast
-                if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway, summary = state.monthlySummary.takeIf { !state.source.isActive }, insights = state.planInsights)
-                else state.salaryRunway?.let { com.zyke.message.presentation.dashboard.components.SalaryStripCard(it) }
-              }
+                Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_FORECAST).then(cardMotion(gate, at))) {
+                    val forecast = state.forecast
+                    if (forecast != null) ForecastCard(forecast, runway = state.salaryRunway, summary = state.monthlySummary.takeIf { !state.source.isActive }, insights = state.planInsights)
+                    else state.salaryRunway?.let { com.zyke.message.presentation.dashboard.components.SalaryStripCard(it) }
+                }
             }
         }
-        item(key = "subscriptions-entry") {
-            val open = com.zyke.message.presentation.common.LocalOpenSubscriptions.current
-            com.zyke.message.presentation.common.FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_SUBSCRIPTIONS), onClick = open) {
-                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-                        com.zyke.message.presentation.messages.components.RowTitle("Subscriptions")
-                        com.zyke.message.presentation.messages.components.Caption("What repeats, what it costs a year, and how to stop it", maxLines = 2)
-                    }
-                    com.zyke.message.presentation.common.Text("\u203A", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.secondary)
+        run {
+            val at = order++
+            item(key = "subscriptions-entry") {
+                val open = com.zyke.message.presentation.common.LocalOpenSubscriptions.current
+                FintechCard(Modifier.tourAnchor(TourAnchor.INSIGHTS_SUBSCRIPTIONS).then(cardMotion(gate, at)), onClick = open) {
+                    CardHeader("Subscriptions", trailing = { Chevron() })
+                    Caption("What repeats, what it costs a year, and how to stop it", maxLines = 2)
                 }
             }
         }
@@ -360,38 +388,51 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
 
             // The figures fade from the old side to the new one, and each section reads the figures it is fading to.
+            val categoriesAt = order++
             item(key = "categories") {
-              androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_CATEGORIES)) {
-                FadeBetweenDirections(dashboard) { shown ->
-                    val shownTotal = shown.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
-                    SectionCard(
-                        stringResource(R.string.dashboard_by_category),
-                        summary = shown.categories.firstOrNull()?.let { "${it.category.displayString} ${DisplayFormatters.rupees(it.total)}" }
-                    ) {
-                        shown.categories.forEachIndexed { index, item ->
-                            if (index > 0) HorizontalDivider()
-                            CategoryRow(
-                                item = item,
-                                total = shownTotal,
-                                color = ChartColors.forRank(index),
-                                selected = false,
-                                // Limits are set in Settings; here they are only shown.
-                                canSetBudget = false,
-                                direction = shown.direction,
-                                onClick = { onIntent(Intent.OpenCategory(item.category)) },
-                                onEditBudget = { onIntent(Intent.EditBudget(item.category)) }
+                Box(Modifier.tourAnchor(TourAnchor.INSIGHTS_CATEGORIES).then(cardMotion(gate, categoriesAt))) {
+                    FadeBetweenDirections(dashboard) { shown ->
+                        val shownTotal = shown.categories.fold(BigDecimal.ZERO) { sum, c -> sum + c.total }
+                        // Whole percentages that add up to 100, and the spoken version of the same list.
+                        val percents = remember(shown) { ChartMath.percentages(shown.categories.map { it.total }) }
+                        val spoken = remember(shown, percents) {
+                            val side = if (shown.direction == FlowDirection.RECEIVED) "Income" else "Spending"
+                            ChartSpeech.shares(
+                                "$side by category",
+                                shown.categories.mapIndexed { i, c -> ChartSpeech.Slice(c.category.displayString, DisplayFormatters.rupees(c.total), percents.getOrElse(i) { 0 }) }
                             )
+                        }
+                        InsightCard(
+                            stringResource(R.string.dashboard_by_category),
+                            summary = shown.categories.firstOrNull()?.let { "${it.category.displayString} ${DisplayFormatters.rupees(it.total)}" },
+                            spoken = spoken
+                        ) {
+                            shown.categories.forEachIndexed { index, item ->
+                                if (index > 0) HorizontalDivider()
+                                CategoryRow(
+                                    item = item,
+                                    total = shownTotal,
+                                    color = ChartColors.forRank(index),
+                                    selected = false,
+                                    // Limits are set in Settings; here they are only shown.
+                                    canSetBudget = false,
+                                    direction = shown.direction,
+                                    onClick = { onIntent(Intent.OpenCategory(item.category)) },
+                                    onEditBudget = { onIntent(Intent.EditBudget(item.category)) },
+                                    percent = percents.getOrNull(index)
+                                )
+                            }
                         }
                     }
                 }
-              }
             }
 
+            val vendorsAt = order++
             item(key = "vendors") {
-                FadeBetweenDirections(dashboard) { shown ->
+                FadeBetweenDirections(dashboard, cardMotion(gate, vendorsAt)) { shown ->
                     val shownReceived = shown.direction == FlowDirection.RECEIVED
                     val vendors = if (state.showAllVendors) shown.vendors else shown.vendors.take(COLLAPSED_VENDORS)
-                    SectionCard(
+                    InsightCard(
                         stringResource(if (shownReceived) R.string.dashboard_by_vendor_received else R.string.dashboard_by_vendor),
                         summary = shown.vendors.firstOrNull()?.let { it.merchant.name },
                         // Both titles are the same section: it must not fold shut when the switch moves.
@@ -418,15 +459,14 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 }
             }
 
+            val trendAt = order++
             item(key = "trend") {
-                FadeBetweenDirections(dashboard) { shown ->
+                FadeBetweenDirections(dashboard, cardMotion(gate, trendAt)) { shown ->
                     val shownRanking = shown.categories.map { it.category }
-                    SectionCard(
-                        stringResource(if (shown.direction == FlowDirection.RECEIVED) R.string.dashboard_trend_received else R.string.dashboard_trend),
-                        stateKey = "trend"
-                    ) {
-                        TrendChart(shown.trend, shown.trendUnit, shownRanking)
-                        ChartLegend(shownRanking, Modifier.padding(top = 12.dp))
+                    val trendTitle = stringResource(if (shown.direction == FlowDirection.RECEIVED) R.string.dashboard_trend_received else R.string.dashboard_trend)
+                    InsightCard(trendTitle, stateKey = "trend") {
+                        TrendChart(shown.trend, shown.trendUnit, shownRanking, title = trendTitle)
+                        ChartLegend(shownRanking, Modifier.padding(top = Spacing.sm))
                     }
                 }
             }
@@ -434,20 +474,22 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
 
         // Planning is about spending whichever side is chosen above, and says so; this header also takes over from the switch.
         stickyHeader(key = "label-planning") {
-            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(top = 8.dp, bottom = 4.dp)) {
+            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(top = Spacing.sm, bottom = Spacing.xs)) {
                 GroupLabel("Planning")
-                Caption("Always about spending, whichever side is chosen above", Modifier.padding(start = 4.dp), maxLines = 2)
+                Caption("Always about spending, whichever side is chosen above", Modifier.padding(start = Spacing.xs), maxLines = 2)
             }
         }
 
+        val planAt = order++
         item(key = "plan") {
-            PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current)
+            PlanCard(state.plan, state.planInsights, onEdit = LocalOpenSettings.current, modifier = cardMotion(gate, planAt))
         }
 
+        val limitsAt = order++
         item(key = "limits") {
             val spendable = state.planInsights?.spendable
             val budgeted = state.budgets.values.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
-            LimitsCard(state.limits, onManage = LocalOpenSettings.current, unassigned = spendable?.takeIf { state.budgets.isNotEmpty() }?.subtract(budgeted))
+            LimitsCard(state.limits, onManage = LocalOpenSettings.current, modifier = cardMotion(gate, limitsAt), unassigned = spendable?.takeIf { state.budgets.isNotEmpty() }?.subtract(budgeted))
         }
     }
     if (showYear && reviewYear != null) {
@@ -461,14 +503,13 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
  * figures it is showing, so while it fades out it still shows the side it was drawn for.
  */
 @Composable
-private fun FadeBetweenDirections(dashboard: Dashboard, content: @Composable (Dashboard) -> Unit) {
-    androidx.compose.animation.AnimatedContent(
-        targetState = dashboard,
-        contentKey = { it.direction },
-        transitionSpec = { androidx.compose.animation.fadeIn(tween(Motion.STANDARD_MS)) togetherWith androidx.compose.animation.fadeOut(tween(Motion.STANDARD_MS)) },
-        label = "direction-figures"
-    ) { shown -> content(shown) }
+private fun FadeBetweenDirections(dashboard: Dashboard, modifier: Modifier = Modifier, content: @Composable (Dashboard) -> Unit) {
+    CrossfadeKeyed(dashboard, contentKey = { it.direction }, modifier = modifier, label = "direction-figures", content = content)
 }
+
+/** A card's entrance (the first eight, once) and its coming and going in the list, in one modifier. */
+@Composable
+private fun LazyItemScope.cardMotion(gate: EnterGate, index: Int): Modifier = itemMotion().enterOnce(gate, index)
 
 /** What went into one category: its total, then who the money went to (or came from), each opening to its payments. */
 @Composable
@@ -491,7 +532,7 @@ private fun CategorySheet(
                 color = MaterialTheme.colorScheme.primary
             )
             Caption(direction.countLabel(detail.count))
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Spacing.md))
             detail.vendors.forEachIndexed { index, vendor ->
                 if (index > 0) HorizontalDivider()
                 VendorRow(
@@ -510,11 +551,10 @@ private fun CategorySheet(
 @Composable
 private fun GroupLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
-        modifier.padding(start = 4.dp).heading(),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.secondary
+        text.uppercase(),
+        modifier.padding(start = Spacing.xs).heading(),
+        style = TypeRole.section,
+        color = mutedColor()
     )
 }
 

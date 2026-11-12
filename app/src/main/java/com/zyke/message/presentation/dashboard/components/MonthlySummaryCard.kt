@@ -1,8 +1,5 @@
 package com.zyke.message.presentation.dashboard.components
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -14,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -55,8 +53,14 @@ import com.zyke.message.domain.dashboard.MonthlySummary
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.presentation.common.LocalPrivacyMode
 import com.zyke.message.presentation.common.PrivateAmount
-import com.zyke.message.presentation.common.SegmentedTabs
-import com.zyke.message.presentation.common.rememberReduceMotion
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.presentation.common.Choice
+import com.zyke.message.presentation.motion.AnimatedAmount
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.ProgressReveal
+import com.zyke.message.presentation.motion.rememberProgressReveal
+import com.zyke.message.presentation.theme.Spacing
+import androidx.compose.ui.graphics.drawscope.clipRect
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.home.StatusPill
 import com.zyke.message.presentation.home.Tone
@@ -73,18 +77,17 @@ private const val COLLAPSED_CATEGORIES = 5
  * month-end projection), By day (the running-total chart you can scrub) and Categories (the biggest movers).
  */
 @Composable
-internal fun MonthlySummaryCard(summary: MonthlySummary, onOpenCategory: (MessageCategory) -> Unit) {
+internal fun MonthlySummaryCard(summary: MonthlySummary, countFromZero: Boolean = false, onOpenCategory: (MessageCategory) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val reduce = rememberReduceMotion()
-    SectionCard(
+    InsightCard(
         "This month vs last month",
         subtitle = "Compared with the same days of last month",
         summary = summary.spentDeltaPercent?.let { if (it > 0) "+$it%" else "$it%" }
     ) {
-        Hero(summary)
+        Hero(summary, countFromZero)
         CardBillLine(summary)
-        SegmentedTabs(TABS, tab, { tab = it }, Modifier.padding(top = 14.dp))
-        Crossfade(tab, Modifier.fillMaxWidth().padding(top = 14.dp), animationSpec = if (reduce) snap() else tween(180), label = "monthTab") { shown ->
+        SlidingSegments(TABS.mapIndexed { i, label -> Choice(i, label) }, tab, { tab = it }, Modifier.padding(top = Spacing.md), role = Role.Tab)
+        CrossfadeContent(tab, Modifier.fillMaxWidth().padding(top = Spacing.md), label = "monthTab") { shown ->
             Column(Modifier.fillMaxWidth()) {
                 when (shown) {
                     0 -> Overview(summary)
@@ -139,7 +142,7 @@ private fun CardBillLine(summary: MonthlySummary) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Hero(summary: MonthlySummary) {
+private fun Hero(summary: MonthlySummary, countFromZero: Boolean) {
     val percent = summary.spentDeltaPercent
     val tone = when {
         summary.spentDelta.signum() < 0 -> Tone.GOOD
@@ -157,12 +160,13 @@ private fun Hero(summary: MonthlySummary) {
         "Last month at this point: ${DisplayFormatters.rupees(summary.previousSpent)}."
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spoken }) {
         Caption("SPENT SO FAR")
-        FlowRow(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            PrivateAmount(
-                DisplayFormatters.rupees(summary.spent),
+        FlowRow(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            AnimatedAmount(
+                summary.spent,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1
+                fit = true,
+                fromZero = countFromZero
             )
             if (pill != null) StatusPill(pill, tone)
         }
@@ -180,8 +184,8 @@ private fun Overview(summary: MonthlySummary) {
         thisLabel = "This month",
         lastLabel = "Last month, same days"
     )
-    IncomeVersusSpend(summary, Modifier.padding(top = 18.dp))
-    ProjectionChip(summary, Modifier.padding(top = 16.dp))
+    IncomeVersusSpend(summary, Modifier.padding(top = Spacing.lg))
+    ProjectionChip(summary, Modifier.padding(top = Spacing.md))
 }
 
 @Composable
@@ -231,7 +235,7 @@ private fun PairedBars(
     thisColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val top = maxOf(thisValue, lastValue)
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         BarLine(thisLabel, thisValue, top, thisColor)
         BarLine(lastLabel, lastValue, top, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
     }
@@ -239,15 +243,14 @@ private fun PairedBars(
 
 @Composable
 private fun BarLine(label: String, value: BigDecimal, top: BigDecimal, color: Color) {
-    val fraction = if (top.signum() > 0) (value.toDouble() / top.toDouble()).toFloat().coerceIn(0f, 1f) else 0f
+    val fraction = ChartMath.barFraction(value, top, minVisible = 0.02f)
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption(label, Modifier.weight(1f))
-            PrivateAmount(DisplayFormatters.rupees(value), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            AnimatedAmount(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
         }
-        Box(Modifier.fillMaxWidth().padding(top = 2.dp).height(8.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(4.dp))) {
-            if (fraction > 0f) Box(Modifier.fillMaxWidth(fraction.coerceAtLeast(0.02f)).height(8.dp).background(color, RoundedCornerShape(4.dp)))
-        }
+        // Grows once when first shown, drawn without recomposing.
+        ProgressReveal(fraction, Modifier.padding(top = 2.dp), color = color, height = 8.dp)
     }
 }
 
@@ -301,6 +304,8 @@ private fun ByDay(summary: MonthlySummary) {
     }
     val hidden = LocalPrivacyMode.current.hidden
     var picked by remember(summary) { mutableIntStateOf(-1) }
+    val ticker = rememberChartTicker()
+    val reveal = rememberProgressReveal(1f)
     val day = if (picked in 0 until days) picked else (cur.size - 1).coerceAtLeast(0)
     val spoken = if (hidden) "Running total chart, amounts hidden." else buildString {
         append("Running total chart. This month ${DisplayFormatters.rupees(summary.spent)} after ${cur.size} days. ")
@@ -345,11 +350,10 @@ private fun ByDay(summary: MonthlySummary) {
                 }
             }
         }
+        ChartBox(aspect = 0.5f, minHeight = 130.dp, maxHeight = 200.dp, modifier = Modifier.padding(top = Spacing.sm)) {
         Box(
             Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp)
-                .height(160.dp)
+                .fillMaxSize()
                 .semantics {
                     contentDescription = spoken
                     customActions = listOf(
@@ -358,12 +362,16 @@ private fun ByDay(summary: MonthlySummary) {
                     )
                 }
                 .pointerInput(days) {
-                    detectTapGestures { o -> picked = ((o.x / size.width) * (days - 1)).let { Math.round(it) }.coerceIn(0, days - 1) }
+                    detectTapGestures { o ->
+                        picked = ChartMath.pointIndexAt(o.x, size.width.toFloat(), days)
+                        ticker.moved(picked)
+                    }
                 }
                 .pointerInput(days) {
-                    detectHorizontalDragGestures { change, _ ->
+                    detectHorizontalDragGestures(onDragEnd = { ticker.release() }, onDragCancel = { ticker.release() }) { change, _ ->
                         change.consume()
-                        picked = ((change.position.x / size.width) * (days - 1)).let { Math.round(it) }.coerceIn(0, days - 1)
+                        picked = ChartMath.pointIndexAt(change.position.x, size.width.toFloat(), days)
+                        ticker.moved(picked)
                     }
                 }
                 .drawWithCache {
@@ -387,12 +395,15 @@ private fun ByDay(summary: MonthlySummary) {
                         drawLine(gridColor, Offset(0f, h), Offset(w, h), 1.dp.toPx())
                         drawLine(gridColor, Offset(0f, h / 2f), Offset(w, h / 2f), 1.dp.toPx())
                         drawLine(gridColor, Offset(0f, 0f), Offset(w, 0f), 1.dp.toPx())
-                        prevPath?.let { drawPath(it, lastColor, style = dashed) }
-                        projPath?.let {
-                            drawPath(it, thisColor.copy(alpha = 0.6f), style = dotted)
-                            drawCircle(thisColor.copy(alpha = 0.6f), 5.dp.toPx(), Offset(x(days - 1), y(projected!!.toFloat())), style = Stroke(2.dp.toPx()))
+                        // The lines are uncovered from the left once, when the chart is first shown (read while drawing).
+                        clipRect(right = w * reveal.value) {
+                            prevPath?.let { drawPath(it, lastColor, style = dashed) }
+                            projPath?.let {
+                                drawPath(it, thisColor.copy(alpha = 0.6f), style = dotted)
+                                drawCircle(thisColor.copy(alpha = 0.6f), 5.dp.toPx(), Offset(x(days - 1), y(projected!!.toFloat())), style = Stroke(2.dp.toPx()))
+                            }
+                            curPath?.let { drawPath(it, thisColor, style = solid) }
                         }
-                        curPath?.let { drawPath(it, thisColor, style = solid) }
                         val sel = if (picked in 0 until days) picked else (cur.size - 1).coerceAtLeast(0)
                         drawLine(gridColor.copy(alpha = 0.35f), Offset(x(sel), 0f), Offset(x(sel), h), 1.5.dp.toPx())
                         prev.getOrNull(sel)?.let {
@@ -406,12 +417,13 @@ private fun ByDay(summary: MonthlySummary) {
                     }
                 }
         )
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        }
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption("Day 1")
             Caption("Tap or drag to inspect", maxLines = 1)
             Caption("Day $days")
         }
-        FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             LegendItem("This month", thisColor)
             LegendItem("Last month", lastColor)
             if (projected != null) LegendItem("Projected", thisColor.copy(alpha = 0.6f))

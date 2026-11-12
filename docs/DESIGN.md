@@ -144,9 +144,131 @@ One font family, Plus Jakarta Sans, from the theme; a screen never names a font.
 10. Touch targets 48 dp; every icon labelled or decorative (`AccessibilityPolicyTest`).
 11. Add the screen's tour anchor if the tour should point at it (`TourPolicyTest`).
 
+## Messages (wave B1)
+
+The Messages tab is the longest list in the app, so it is the calmest: one row anatomy, motion only where it explains a change.
+
+**The row** (`MessageRow`, every card type): gutters `Spacing.lg`, vertical padding `Spacing.md`, a 48 dp tile (`RowTile`), a title and a
+caption of one line each (an ellipsis, never a second line; large text may add one, as `scaledLines` does everywhere), and at the end
+the amount (`RowAmount`: one line, shrinks to fit its half of the row) or a status. The unread dot sits on the tile's corner. The
+"+N earlier" line under a group starts where the row's text starts (`RowTextInset`). Day headers are the section label role
+(`TypeRole.section`, capitals, muted) on the page colour so rows pass under them while they stick. The skeleton uses the same gutters,
+tile and line heights, so the list that replaces it does not move.
+
+**What animates**
+
+| Where | What | Token |
+|---|---|---|
+| a row held | dips to 0.98 and 0.92 opacity (`pressFeedback`; the one-time code keeps its long press) | snappy |
+| first showing of the inbox | the first eight rows fade in and rise, 40 ms apart, once (gate created in `MessagesScreen`, above loading) | STANDARD_MS |
+| a row archived, restored, or arriving | fades; the rows below close the gap (`itemMotion()`) | QUICK / STANDARD |
+| loading, list, empty, senders | crossfade (`CrossfadeContent`); the permission gate and the error appear at once | STANDARD |
+| the attention strip, the "hidden by filters" line | item motion; the strip's own rows use `AnimatedColumnItems` | STANDARD |
+| the clean-up bar, the active-filter bar | open and close (`AppearVisibility`) | STANDARD |
+| a group's earlier messages | open under the newest and close (`AppearVisibility`) | STANDARD |
+| the type tabs | the line slides to the chosen tab; a light tick when the choice changes | TAB_MS (200) |
+| Timeline / Senders | the pill and icon change colour; a light tick | QUICK_MS |
+| the detail sheet | a "Pinned" or "Archived" line opens under the title | STANDARD |
+
+**What does not animate:** anything on scroll; rows past the eighth on first load; amounts (they are `PrivateAmount`, static while
+hidden); the swipe's own reveal (it follows the finger: direct manipulation, not an animation); the empty and error states.
+
+**Swipe** (`SwipeActions`, `RowSwipe` in the domain, tested): right marks the row read (or unread again), left archives (or
+restores). Seven tenths of the width must be crossed; a light tick marks the line and the colour behind the row firms up there;
+letting go earlier does nothing. The icon and name come from the theme's container colours. An Undo snackbar follows (read, unread
+and archive). Under reduced motion the row returns at once instead of springing back. TalkBack gets the same actions, plus Pin or
+Unpin, as custom actions on the row. Pin has no swipe; it is in the detail sheet.
+
+- *Anchor only:* on a payment row that holds its repeats ("+2 related") and on the newest row of a group of codes, archive and
+  restore apply to that one message. Marking read covers the row as a whole (the anchor and its repeats, like opening it); unread
+  takes back only the anchor's own mark.
+- A message already read in the phone's own messaging app has no right swipe: that mark is not ours to take back.
+- No swiping while searching (archived matches are listed too, so the direction would be ambiguous). Long-press-and-drag to merge
+  payments is unchanged: the hold has to come first.
+
+**Detail sheet:** sections are `CardHeader` + `FintechCard` with `Spacing.lg` between them; the related-messages card has pressed rows
+of at least 48 dp; deleting a hand-made entry asks first and the confirming tap gives the firmer buzz (`haptics.reject()`).
+
+**Empty:** the shared `EmptyState`: a friendly line, why, and one action when there is one ("Clear search", "Show everything").
+
+## Accounts (Accounts, Cards, Investments)
+
+The Accounts tab has three sub-tabs, each with one hero: the **bank total** with its deck of accounts, the **deck of cards**,
+and the **investments total**. The heroes are header regions (`HeaderRegion`, a dark region in both themes with `Radius.hero`
+bottom corners); everything under them is `FintechCard` on `Tonal.Quiet` with `CardHeader` labels. `AccountsPolicyTest` keeps
+this page true.
+
+- **Figures.** The bank total, the investments total, the balance on a deck tile, a holding's value and an investment's page
+  figure are `AnimatedAmount`. A sub-tab's hero counts up from zero **once**, the first time that sub-tab is shown
+  (`heroGates` in `AccountsPage`, one `EnterGate` per sub-tab, spent by `heroEntering()`); a later visit is still, and a new
+  balance (a check by text, a message) counts to its figure. Hidden amounts never animate.
+- **The deck** (`StackedDeck`). Drag the front card; past 30 percent of the width or a 1,200 px/s flick in the drag's
+  direction it flies off (240 ms, `Motion.Emphasized`) and a light haptic tick fires; otherwise it springs back (`gentle()`),
+  silently. The rule is `DeckModel.commits` in the domain and is tested. The page dots widen and brighten in 160 ms. The name
+  and the "Credit card - 5580" line under the deck crossfade with the front card; the overflow menu stays put.
+- **Sub-tab switch.** The header is one lazy item whose content is a `CrossfadeContent` keyed by the sub-tab (its height eases);
+  the body slides 24 dp along the shared axis while it fades in (`Motion.TAB_MS`). The underline indicator is Material's own
+  slide. While the first read is going the header and body are still skeleton blocks (`HeaderSkeleton`, `BodySkeleton`),
+  then they crossfade to the real thing.
+- **Spent this month** (`SpendCard`). `CardHeader` label, the limit bar is a `ProgressReveal`, the segmented category bar is
+  revealed left to right once (`revealOnce()`), and the category rows rise in turn (`enterOnce`, first eight).
+- **Touch.** Every action circle dips while held and gives a light tick on a tap (a disabled one does neither); chips, tiles
+  and rows that are not cards use `Modifier.tappable` (`common/TouchAndReveal.kt`); cards use `FintechCard(onClick)`; a card
+  face dips too.
+- **Empty and loading.** "No cards yet - they appear when your bank texts you about a card" with an "Add a card" action, "No
+  accounts yet", and Investments' "No investments yet" are the shared `EmptyState`. Investments' three first-add tiles sit under it.
+- **Investments.** Holdings, closed rows, the allocation card and the matured cards use `itemMotion()` (an add, a delete with
+  Undo, a filter). A gain is green, a loss red, flat neutral, from `AppColors` and always with a sign; the allocation bar is
+  revealed once and its chips dip and tick.
+- **Balance check.** The "Check balance" button, the progress with "Checking..." and "Updated just now" swap in one slot
+  (`CrossfadeContent`, never shorter than 48 dp), and in an action circle the icon and the working ring swap inside the fixed circle.
+- **Sheets.** Edit account, Billing cycle, Monthly limit, Card details and the balance-check sheets use `Spacing` for their
+  rhythm and `ResponsiveRow` for button pairs; a confirmed save gives the light tick, and removing a limit, leaving an account
+  out, removing an account and deleting an investment give the firmer buzz (`haptics.reject()`).
+- **Not animated.** The provident fund tiles' stat rows, the contents of sheets, and anything on scroll.
+
+## Insights (the dashboard tab)
+
+Wave B3 applied the system to `presentation/dashboard/**` and the year in review. The tab's own pieces live in
+`dashboard/components/InsightKit.kt`; the arithmetic is in `domain/chart/` (`ChartMath`, `ChartSpeech`, tested).
+
+| Piece | What it does |
+|---|---|
+| `InsightCard(title, summary, spoken, level)` | the Insights card: `FintechCard` + `CardHeader`. On the page it is a tile (header, chevron, one-line summary) that opens its detail in a sheet; `startOpen` shows the content. The settings `SectionCard` is not used on this tab |
+| `Chevron()` | the one chevron, at the end of anything that opens |
+| `ChartBox(aspect, min, max)` | a chart's height follows the width it is given (`ChartMath.chartHeightDp`, a little taller at large text), never a fixed dp |
+| `rememberChartTicker()` | one light haptic each time a finger lands on a different bar, at most one every 60 ms |
+| `LegendChips` | the colour key: equal chips (swatch + name) in a `FlowRow`, no scrolling row |
+| `SlidingSegments` | the Spent / Received and the Overview / By day / Categories switch: the indicator slides (spring from the tokens, drawn while painting) and ticks once; 48 dp segments, capped at font scale 1.3 (`ChromeScale`) |
+| `InsightsSkeleton` | the still skeleton shown while the numbers are worked out (one "Loading insights" for a screen reader) |
+| `CrossfadeKeyed` (motion) | `CrossfadeContent` that fades only when a key changes (the Spent / Received side, the year); the old content keeps showing the state it was drawn for |
+
+Rules of the tab:
+
+- **One hero.** This period's money out and in (`IncomeExpenseCard`) is `Tonal.Hero`; every other card is `Quiet`. Gaps between
+  cards are `Spacing.md`; inside a card the vertical gaps are `Spacing.sm` to `Spacing.md`, never below 8 dp.
+- **Entrance.** The first eight cards use `cardMotion(gate, index)` (= `itemMotion()` + `enterOnce`); the gate lives above the
+  loading state, so the entrance plays once. The hero's totals and the month summary's figure count up from zero on that first
+  showing only (`AnimatedAmount(fromZero = ...)`, decided by `rememberIsEntering`).
+- **Charts grow once.** Bars (`TrendChart`), lines (`IncomeExpenseCard`, `ForecastChart`, `ByDay`, `LineTrend`) and meters
+  (`ProgressReveal`) approach their values from zero when first shown; the progress is read inside `Canvas` / `drawBehind`
+  lambdas, so nothing recomposes per frame. Touch a bar or drag across the chart to read it (a caption with the date and amount,
+  a tick for each new bar).
+- **Percentages add up.** Lists of shares use `ChartMath.percentages` (largest remainder), so a legend never says 99 % or 101 %.
+- **Every chart is spoken.** A chart carries a `contentDescription`, built with `ChartSpeech` ("Spending by category: Food
+  ₹8,200, 31%; ...") and passed through `privateSpeech`, so hidden amounts are dots for a screen reader too. Touch charts also
+  offer "Next" / "Previous" actions.
+- **Hide amounts.** Figures are `AnimatedAmount` / `PrivateAmount` / the money-aware `Text`; chart text is drawn by those, never
+  by hand on a canvas.
+- **Period and side switches** fade through `CrossfadeContent` / `CrossfadeKeyed` (200 ms-class, with a size transition); the
+  selection survives the swap. `MotionPolicyTest` scans every file under `dashboard/` (no loops, no raw `tween`/`spring`/`snap`,
+  no raw `Crossfade`/`AnimatedContent`, no fixed chart height of 100 dp or more, a text alternative for every chart).
+- **320 dp, large text.** Totals sit in a `FlowRow` (side by side, or one above the other), tabs wrap to two lines, legends wrap
+  as whole chips, charts scale with width.
+
 ## Status and what comes next
 
 Phase A (this page): tokens, the motion package, tab/page/sheet transitions, shared components on tokens, Home as the
-reference. Not verified on a device: no animation here has been seen running; the numbers are from the specification.
-See the wave plan in the pull-request notes: B1 Messages, B2 Accounts, Cards and Investments, B3 Insights, B4 Bills and
+reference. Wave B1: Messages (above). Not verified on a device: no animation here has been seen running; the numbers are from the specification.
+Accounts, Cards and Investments (B2) follow the Accounts section above. See the wave plan in the pull-request notes: B1 Messages, B3 Insights, B4 Bills and
 Calendar, B5 Search, Settings, onboarding and empty states.

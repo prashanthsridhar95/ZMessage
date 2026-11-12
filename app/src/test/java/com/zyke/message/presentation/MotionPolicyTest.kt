@@ -27,8 +27,23 @@ class MotionPolicyTest {
         "common/FintechCard.kt", "common/PageHost.kt", "common/SheetHost.kt", "common/AdaptiveSheet.kt", "common/AppSnackbar.kt",
         "common/Choices.kt", "common/Responsive.kt", "common/PillSwitch.kt", "common/EmptyState.kt", "common/CardHeader.kt",
         "common/Forms.kt", "common/ErrorState.kt", "AppRoot.kt", "home/HomeScreen.kt", "home/BudgetViews.kt",
-        "messages/components/Skeleton.kt", "messages/components/AttentionStrip.kt", "theme/Tokens.kt"
+        "messages/components/Skeleton.kt", "messages/components/AttentionStrip.kt", "theme/Tokens.kt",
+        // Messages (wave B1): the list, the row anatomy, the swipe, the bars and the detail sheet.
+        "messages/MessagesScreen.kt", "messages/components/MessageList.kt", "messages/components/MessageItem.kt",
+        "messages/components/MessageCommon.kt", "messages/components/SwipeActions.kt", "messages/components/TabIndicator.kt",
+        "messages/components/InboxModeBar.kt", "messages/components/MessagesFilters.kt", "messages/components/MessagesBars.kt",
+        "messages/components/MessageDetailSheet.kt", "messages/components/MergeUi.kt", "messages/components/MiscCards.kt",
+        "messages/components/OtpCard.kt", "messages/components/TransactionCards.kt", "messages/components/LifeCard.kt",
+        "messages/components/FastTagCard.kt", "messages/components/ScheduledPaymentCard.kt", "messages/components/SendersList.kt",
+        "messages/components/ThreadSheet.kt", "common/UnderlineTabs.kt"
     )
+
+    /** The Insights tab (every file under dashboard/) and the year in review, brought under the same rules in wave B3. */
+    private val insights: List<String> by lazy {
+        val root = presentationRoot()
+        File(root, "dashboard").walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .map { it.relativeTo(root).invariantSeparatorsPath }.toList() + "review/YearPage.kt"
+    }
 
     /** Files that may call tween/spring/snap themselves, and why. */
     private val rawSpecsAllowed = mapOf(
@@ -53,7 +68,7 @@ class MotionPolicyTest {
     @Test
     fun sharedComponentsDoNotLoopEither() {
         val root = presentationRoot()
-        val offenders = shared.filter { it !in rawSpecsAllowed }.flatMap { rel ->
+        val offenders = (shared + insights).filter { it !in rawSpecsAllowed }.flatMap { rel ->
             code(File(root, rel)).mapIndexedNotNull { i, line ->
                 if (!line.trimStart().startsWith("import ") && loop.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
             }
@@ -64,7 +79,7 @@ class MotionPolicyTest {
     @Test
     fun animationSpecsComeFromTheMotionTokens() {
         val root = presentationRoot()
-        val files = motionFiles().map { "motion/" + it.name to it } + shared.map { it to File(root, it) }
+        val files = motionFiles().map { "motion/" + it.name to it } + (shared + insights).map { it to File(root, it) }
         val offenders = files.filter { (rel, _) -> rel !in rawSpecsAllowed }.flatMap { (rel, file) ->
             code(file).mapIndexedNotNull { i, line ->
                 if (!line.trimStart().startsWith("import ") && rawSpec.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
@@ -75,6 +90,60 @@ class MotionPolicyTest {
                 offenders.joinToString("\n"),
             offenders.isEmpty()
         )
+    }
+
+    @Test
+    fun insightsSwapContentThroughTheMotionFunnel() {
+        val root = presentationRoot()
+        val rawSwap = Regex("""(?<![\w.])(Crossfade|AnimatedContent)\s*\(""")
+        val offenders = insights.flatMap { rel ->
+            code(File(root, rel)).mapIndexedNotNull { i, line ->
+                if (!line.trimStart().startsWith("import ") && rawSwap.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
+            }
+        }
+        assertTrue("Use CrossfadeContent / CrossfadeKeyed (motion package) instead of a raw Crossfade or AnimatedContent:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+    }
+
+    @Test
+    fun insightsCardsAreTonalCardsWithOneHeader() {
+        val root = presentationRoot()
+        val offenders = insights.filter { it != "dashboard/components/DashboardSections.kt" }.flatMap { rel ->
+            code(File(root, rel)).mapIndexedNotNull { i, line ->
+                if (Regex("""(?<![\w.])SectionCard\s*\(""").containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
+            }
+        }
+        assertTrue("Insights cards are InsightCard (FintechCard + CardHeader), not the settings SectionCard:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+        val kit = File(root, "dashboard/components/InsightKit.kt").readText()
+        assertTrue("InsightCard must start with a CardHeader", "CardHeader(title" in kit && "FintechCard(" in kit)
+    }
+
+    @Test
+    fun insightsChartsAreSizedFromTheirWidthNotAFixedHeight() {
+        val root = presentationRoot()
+        val fixed = Regex("""\.height\(\s*(\d{3})\.dp\s*\)""")
+        val offenders = insights.flatMap { rel ->
+            code(File(root, rel)).mapIndexedNotNull { i, line ->
+                // A date picker is a dialog's body, not a chart.
+                if (fixed.containsMatchIn(line) && "DateRangePicker" !in line) "$rel:${i + 1}: ${line.trim()}" else null
+            }
+        }
+        assertTrue("Size a chart with ChartBox (aspect of its width), not a fixed height of 100 dp or more:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+    }
+
+    @Test
+    fun everyInsightsChartHasATextAlternativeThatHonoursHiddenAmounts() {
+        val root = presentationRoot()
+        val offenders = insights.filter { rel ->
+            val text = code(File(root, rel)).joinToString("\n")
+            ("Canvas(" in text || "drawWithCache" in text) && "contentDescription" !in text
+        }
+        assertTrue("A chart needs a contentDescription (a spoken summary): $offenders", offenders.isEmpty())
+        val unmasked = insights.filter { rel ->
+            val text = code(File(root, rel)).joinToString("\n")
+            Regex("""contentDescription\s*=[^\n]*rupees\(""").containsMatchIn(text) &&
+                "privateSpeech" !in text && "maskSpoken" !in text && "hidden" !in text
+        }
+        assertTrue("Spoken amounts must be masked while hidden (privateSpeech / AmountMasker.maskSpoken): $unmasked", unmasked.isEmpty())
     }
 
     @Test
@@ -110,5 +179,31 @@ class MotionPolicyTest {
         assertTrue("the gate must survive rotation", "rememberSaveable" in text)
         val math = File(appRoot(), "../domain/src/main/kotlin/com/zyke/message/domain/motion/MotionMath.kt")
         assertTrue("the stagger is capped", "STAGGER_CAP = 8" in math.readText())
+    }
+
+    /**
+     * Messages (docs/DESIGN.md, Messages): rows dip on press and share one anatomy, the list animates through the tokens,
+     * the swipe ticks at its threshold, comes back at once when motion is reduced, and a screen reader gets its actions.
+     */
+    @Test
+    fun messageRowsAndSwipesFollowTheMessagesRules() {
+        val messages = File(presentationRoot(), "messages/components")
+        val row = File(messages, "MessageCommon.kt").readText()
+        assertTrue("every row dips on press", "pressFeedback(source)" in row && "val RowTile = 48.dp" in row)
+        assertTrue("a row carries the swipe's screen-reader actions", "LocalRowCustomActions" in row && "customActions" in row)
+        val swipe = File(messages, "SwipeActions.kt").readText()
+        assertTrue("the swipe ticks at its threshold", "haptics.tick()" in swipe && "snapshotFlow" in swipe)
+        assertTrue("the swipe returns at once when motion is reduced", "motion.reduced" in swipe && "snapTo(SwipeToDismissBoxValue.Settled)" in swipe)
+        assertTrue("the swipe offers the actions to TalkBack", "CustomAccessibilityAction" in swipe)
+        assertTrue("the swipe takes its colours from the theme", "primaryContainer" in swipe && "secondaryContainer" in swipe)
+        val list = File(messages, "MessageList.kt").readText()
+        assertTrue("rows move with the item motion", "itemMotion()" in list && "animateItem(" !in list)
+        assertTrue("the first rows enter once", "enterOnce(gate" in list)
+        assertTrue("no spring is left on the row", "animateContentSize" !in File(messages, "MessageItem.kt").readText())
+        val screen = File(presentationRoot(), "messages/MessagesScreen.kt").readText()
+        assertTrue("loading, list and empty crossfade", "CrossfadeContent(body" in screen && "rememberEnterGate()" in screen)
+        assertTrue("the Messages tabs slide their line with the tab token", "Motion.TAB_MS" in File(messages, "TabIndicator.kt").readText())
+        val detail = File(messages, "MessageDetailSheet.kt").readText()
+        assertTrue("deleting an entry asks first and gives the firmer buzz", "haptics.reject()" in detail && "AlertDialog(" in detail)
     }
 }

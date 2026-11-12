@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,8 +47,8 @@ internal fun dayWords(date: LocalDate): String {
 @Composable
 internal fun SalaryStripCard(runway: SalaryRunway, modifier: Modifier = Modifier) {
     FintechCard(modifier) {
-        Caption("YOUR PLAN'S MONEY")
-        SalaryStrip(runway, Modifier.padding(top = 8.dp))
+        CardHeader("Your plan's money")
+        SalaryStrip(runway, Modifier.padding(top = Spacing.sm))
     }
 }
 

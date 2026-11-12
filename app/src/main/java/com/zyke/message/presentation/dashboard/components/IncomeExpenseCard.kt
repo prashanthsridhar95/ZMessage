@@ -3,7 +3,15 @@ package com.zyke.message.presentation.dashboard.components
 import androidx.compose.runtime.ReadOnlyComposable
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.theme.AppColors
-import com.zyke.message.presentation.common.rememberReduceMotion
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.AnimatedAmount
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.motion.rememberProgressReveal
+import com.zyke.message.presentation.theme.Spacing
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.AppButton
@@ -14,11 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,7 +58,6 @@ import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.dashboard.DashboardPeriod
 import com.zyke.message.domain.dashboard.FlowDirection
 import com.zyke.message.domain.dashboard.TrendPoint
-import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.messages.components.Caption
 import java.math.BigDecimal
@@ -66,6 +70,7 @@ private val ExpenseColor: Color @Composable @ReadOnlyComposable get() = AppColor
  * The top of the Spend tab: money out and money in over the period as two lines. The two totals underneath are
  * also the switch for the lists below (spent or received).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun IncomeExpenseCard(
     dashboard: Dashboard,
@@ -75,7 +80,9 @@ internal fun IncomeExpenseCard(
     /** Moves to the pay cycle before (-1) or after (1); null where the chart cannot be moved. */
     onShift: ((Int) -> Unit)? = null,
     canGoForward: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** True on the screen's first showing, so the two totals count up from zero once. */
+    countFromZero: Boolean = false
 ) {
     val amountsHidden = com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden
     val dates = (expense.map { it.start } + income.map { it.start }).distinct().sorted()
@@ -96,12 +103,19 @@ internal fun IncomeExpenseCard(
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (onShift != null) AppButton("‹", { onShift(-1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            Caption(caption.uppercase(), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            CrossfadeContent(caption, Modifier.weight(1f), label = "period-caption") { shown ->
+                Caption(shown.uppercase(), Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
             if (onShift != null) AppButton("›", { onShift(1) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = canGoForward)
         }
-        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Total("Spent", dashboard.spentTotal, ExpenseColor)
-            Total("Received", dashboard.receivedTotal, IncomeColor)
+        // Side by side while they fit; one above the other on a narrow screen or at a large text size.
+        FlowRow(
+            Modifier.padding(top = Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            Total("Spent", dashboard.spentTotal, ExpenseColor, countFromZero)
+            Total("Received", dashboard.receivedTotal, IncomeColor, countFromZero)
         }
 
         if (dates.size >= 2) {
@@ -112,25 +126,16 @@ internal fun IncomeExpenseCard(
             val span = last / zoom
             val viewAt = view.coerceIn(0f, (last - span).coerceAtLeast(0f))
 
-            // The lines draw themselves in from the left each time the period or its data changes.
-            val reveal = remember { Animatable(0f) }
-            val reduceMotion = rememberReduceMotion()
-            LaunchedEffect(dates.first(), dates.size, spent.lastOrNull(), received.lastOrNull()) {
-                if (reduceMotion) {
-                    reveal.snapTo(1f)
-                } else {
-                    reveal.snapTo(0f)
-                    reveal.animateTo(1f, tween(REVEAL_MS))
-                }
-            }
-            val shownSpan by animateFloatAsState(span, tween(ZOOM_MS), label = "zoom-span")
-            val shownView by animateFloatAsState(viewAt, tween(ZOOM_MS), label = "zoom-view")
+            // The lines draw themselves in from the left once, when first shown; the progress is read while drawing.
+            val reveal = rememberProgressReveal(1f)
+            val motion = rememberMotion()
+            val shownSpan by animateFloatAsState(span, motion.tween(Motion.STANDARD_MS), label = "zoom-span")
+            val shownView by animateFloatAsState(viewAt, motion.tween(Motion.STANDARD_MS), label = "zoom-view")
 
+            ChartBox(aspect = 0.5f, minHeight = 120.dp, maxHeight = 200.dp, modifier = Modifier.padding(top = Spacing.lg)) {
             Canvas(
                 Modifier
-                    .padding(top = 20.dp)
-                    .fillMaxWidth()
-                    .height(150.dp)
+                    .fillMaxSize()
                     .pointerInput(dates.size) {
                         detectTransformGestures { _, pan, gestureZoom, _ ->
                             val newZoom = (zoom * gestureZoom).coerceIn(1f, maxZoom)
@@ -178,8 +183,9 @@ internal fun IncomeExpenseCard(
                 draw(received, incomeColor)
                 draw(spent, expenseColor)
             }
+            }
             val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Caption(dayFmt.format(dates[kotlin.math.round(viewAt).toInt().coerceIn(0, last)]), Modifier.weight(1f))
                 AppButton("−", { zoom = (zoom / ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom > 1f)
                 AppButton("+", { zoom = (zoom * ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom < maxZoom)
@@ -190,34 +196,33 @@ internal fun IncomeExpenseCard(
                 )
             }
         } else {
-            Caption("Not enough days yet", Modifier.padding(top = 16.dp))
+            Caption("Not enough days yet", Modifier.padding(top = Spacing.lg))
         }
     }
 }
 
 private const val MIN_VISIBLE_POINTS = 4
 private const val MIN_SPAN = 0.5f
-private const val REVEAL_MS = 900
-private const val ZOOM_MS = 220
 private const val ZOOM_STEP = 1.6f
 private const val DOT_SPAN = 14f
 private const val GRID_LINES = 3
 
 /** One of the two lines of the chart, named, coloured as it is drawn, with what it adds up to. */
 @Composable
-private fun Total(label: String, amount: BigDecimal, color: Color) {
+private fun Total(label: String, amount: BigDecimal, color: Color, countFromZero: Boolean) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).background(color, CircleShape))
             Spacer(Modifier.width(6.dp))
             Caption(label)
         }
-        Text(
-            text = rememberAnimatedRupees(amount),
+        AnimatedAmount(
+            amount,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1
+            fit = true,
+            fromZero = countFromZero
         )
     }
 }

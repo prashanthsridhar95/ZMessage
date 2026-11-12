@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.dashboard.components
 
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.common.PrivateAmount
@@ -92,42 +95,21 @@ private object GradeColors {
  */
 @Composable
 internal fun ReportCardSummary(card: ReportCard, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val accent = GradeColors.of(card.overall)
-    val shape = RoundedCornerShape(24.dp)
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.16f), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))))
-            .border(BorderStroke(1.dp, accent.copy(alpha = 0.28f)), shape)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Open report card", onClick = onOpen)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        GradeRing(card.overall, size = 60.dp, stroke = 5.dp, letterStyle = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                "REPORT CARD · ${DisplayFormatters.monthName(card.month).uppercase()}",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
-                color = accent
-            )
-            Text(
-                remarkText(card.remark),
-                Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 2
-            )
+    FintechCard(modifier, onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GradeRing(card.overall, size = 56.dp, stroke = 5.dp, letterStyle = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.width(Spacing.lg))
+            Column(Modifier.weight(1f)) {
+                CardHeader("Report card \u00B7 ${DisplayFormatters.monthName(card.month)}")
+                Text(
+                    remarkText(card.remark),
+                    style = TypeRole.body,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2
+                )
+            }
+            Chevron()
         }
-        Image(
-            modifier = Modifier.size(20.dp),
-            painter = painterResource(R.drawable.baseline_chevron_right_24),
-            colorFilter = ColorFilter.tint(mutedColor()),
-            contentDescription = null
-        )
     }
 }
 

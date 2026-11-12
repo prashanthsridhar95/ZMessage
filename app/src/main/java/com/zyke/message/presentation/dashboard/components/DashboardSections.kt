@@ -3,6 +3,19 @@ package com.zyke.message.presentation.dashboard.components
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.liveRegion
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.domain.chart.ChartSpeech
+import com.zyke.message.presentation.motion.rememberProgressReveal
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import com.zyke.message.presentation.format.FormatCache
@@ -459,78 +472,119 @@ private fun FlowTotal(
     }
 }
 
-/** One stacked bar per day (or month), split by category; tallest = 100%. */
+private class TrendBar(val fraction: Float, val segments: List<Pair<Float, Color>>)
+
+/**
+ * One stacked bar per day (or month), split by category; tallest = 100%. The bars grow once when first shown (the growth
+ * is read while drawing, so a frame repaints and nothing recomposes); touch or drag to read a bar, with a light tick for
+ * each new bar. The whole chart is one drawing, sized from the width it is given, with a spoken summary.
+ */
 @Composable
 internal fun TrendChart(
     points: List<TrendPoint>,
     unit: TrendUnit,
     ranking: List<MessageCategory>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "Trend"
 ) {
     if (points.isEmpty()) return
     val peak = points.maxBy { it.amount }
     val max = peak.amount
     val fmt = DateTimeFormatter.ofPattern(if (unit == TrendUnit.DAY) "d MMM" else "MMM yy", Locale.getDefault())
     val summary = if (max.signum() > 0) "Peak ${DisplayFormatters.rupees(max)} on ${fmt.format(peak.start)}" else "No activity"
+    val total = points.fold(BigDecimal.ZERO) { sum, point -> sum + point.amount }
+    val bars = remember(points, ranking) {
+        points.map { point ->
+            val weights = point.byCategory.filter { it.second.signum() > 0 }
+            val sum = weights.fold(0f) { acc, entry -> acc + entry.second.toFloat() }
+            val segments = if (sum > 0f) weights.map { (it.second.toFloat() / sum) to ChartColors.forCategory(it.first, ranking) }
+            else listOf(1f to ChartColors.other)
+            TrendBar(ChartMath.barFraction(point.amount, max, minVisible = 0.04f), segments)
+        }
+    }
+    val grow = rememberProgressReveal(1f)
+    var selected by remember(points) { mutableIntStateOf(-1) }
+    val ticker = rememberChartTicker()
+    val zeroColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val markColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val chartSpoken = com.zyke.message.presentation.common.privateSpeech(
+        ChartSpeech.trend(
+            title, points.size, if (unit == TrendUnit.DAY) "day" else "month", DisplayFormatters.rupees(total),
+            max.takeIf { it.signum() > 0 }?.let { DisplayFormatters.rupees(it) },
+            fmt.format(peak.start).takeIf { max.signum() > 0 }
+        )
+    )
+    val picked = points.getOrNull(selected)
+    val readout = if (picked != null) "${fmt.format(picked.start)} \u00B7 ${DisplayFormatters.rupees(picked.amount)}" else summary
 
-    val chartSpoken = com.zyke.message.presentation.common.privateSpeech("Chart. $summary")
     Column(modifier.fillMaxWidth()) {
-        Caption(summary, Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.secondary)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .semantics { contentDescription = chartSpoken },
-            horizontalArrangement = Arrangement.spacedBy(if (points.size > 20) 2.dp else 4.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            points.forEach { point ->
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    if (point.amount.signum() <= 0) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+        Caption(
+            readout,
+            Modifier.padding(bottom = Spacing.sm).semantics { liveRegion = LiveRegionMode.Polite },
+            color = MaterialTheme.colorScheme.secondary
+        )
+        ChartBox(aspect = 0.4f, minHeight = 88.dp, maxHeight = 140.dp) {
+            Canvas(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(bars.size) {
+                        detectTapGestures { o ->
+                            val index = ChartMath.barIndexAt(o.x, size.width.toFloat(), bars.size)
+                            if (index == selected) {
+                                selected = -1
+                            } else {
+                                selected = index
+                                ticker.moved(index)
+                            }
+                        }
+                    }
+                    .pointerInput(bars.size) {
+                        detectHorizontalDragGestures(onDragEnd = { ticker.release() }, onDragCancel = { ticker.release() }) { change, _ ->
+                            change.consume()
+                            val index = ChartMath.barIndexAt(change.position.x, size.width.toFloat(), bars.size)
+                            selected = index
+                            ticker.moved(index)
+                        }
+                    }
+                    .semantics {
+                        contentDescription = chartSpoken
+                        customActions = listOf(
+                            CustomAccessibilityAction("Next bar") { selected = (selected + 1).coerceAtMost(bars.size - 1); true },
+                            CustomAccessibilityAction("Previous bar") { selected = if (selected <= 0) 0 else selected - 1; true }
                         )
+                    }
+            ) {
+                val count = bars.size
+                val gap = (if (count > 20) 2.dp else 4.dp).toPx()
+                val barWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
+                val corner = 3.dp.toPx()
+                val grown = grow.value
+                val chosen = selected
+                bars.forEachIndexed { i, bar ->
+                    val x = i * (barWidth + gap)
+                    if (i == chosen) drawRect(markColor, Offset(x - gap / 2f, 0f), androidx.compose.ui.geometry.Size(barWidth + gap, size.height))
+                    if (bar.fraction <= 0f) {
+                        drawRect(zeroColor, Offset(x, size.height - 2.dp.toPx()), androidx.compose.ui.geometry.Size(barWidth, 2.dp.toPx()))
                     } else {
-                        StackedBar(point, max, ranking)
+                        val height = size.height * bar.fraction * grown
+                        var y = size.height - height
+                        bar.segments.forEachIndexed { s, (share, color) ->
+                            val part = height * share
+                            if (s == 0) {
+                                drawRoundRect(color, Offset(x, y), androidx.compose.ui.geometry.Size(barWidth, part), CornerRadius(corner))
+                                if (part > corner) drawRect(color, Offset(x, y + corner), androidx.compose.ui.geometry.Size(barWidth, part - corner))
+                            } else {
+                                drawRect(color, Offset(x, y), androidx.compose.ui.geometry.Size(barWidth, part))
+                            }
+                            y += part
+                        }
                     }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption(fmt.format(points.first().start))
             Caption(fmt.format(points.last().start), textAlign = TextAlign.End)
-        }
-    }
-}
-
-@Composable
-private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<MessageCategory>) {
-    val target = point.amount.fractionOf(max).coerceAtLeast(0.04f)
-    val grown by rememberGrowingState(target)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(target)
-            // Grows from the baseline by scaling, which repaints; changing the height would measure 30 bars again every frame.
-            .graphicsLayer {
-                scaleY = (grown / target).coerceAtLeast(0.01f)
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-            }
-            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-    ) {
-        point.byCategory.forEach { (category, amount) ->
-            val weight = amount.toFloat()
-            if (weight > 0f) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .weight(weight)
-                        .background(ChartColors.forCategory(category, ranking))
-                )
-            }
         }
     }
 }
@@ -539,26 +593,13 @@ private fun StackedBar(point: TrendPoint, max: BigDecimal, ranking: List<Message
 @Composable
 internal fun ChartLegend(ranking: List<MessageCategory>, modifier: Modifier = Modifier) {
     if (ranking.isEmpty()) return
-    LazyRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(ranking.take(ChartColors.NAMED).distinctBy { it.name }, key = { it.name }, contentType = { "legend" }) { category ->
-            LegendItem(ChartColors.forCategory(category, ranking), category.displayString)
-        }
-        if (ranking.size > ChartColors.NAMED) {
-            item(key = "other", contentType = "legend") { LegendItem(ChartColors.other, "Other") }
+    val entries = remember(ranking) {
+        buildList {
+            ranking.take(ChartColors.NAMED).distinctBy { it.name }.forEach { add(LegendEntry(ChartColors.forCategory(it, ranking), it.displayString)) }
+            if (ranking.size > ChartColors.NAMED) add(LegendEntry(ChartColors.other, "Other"))
         }
     }
-}
-
-@Composable
-private fun LegendItem(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Caption(label)
-    }
+    LegendChips(entries, modifier)
 }
 
 @Composable
@@ -571,14 +612,16 @@ internal fun CategoryRow(
     direction: FlowDirection,
     onClick: () -> Unit,
     onEditBudget: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** The share of the whole, in whole percent, worked out with the others so they add up to 100; null works it out here. */
+    percent: Int? = null
 ) {
     val budget = item.budget
     Column(
         modifier
             .fillMaxWidth()
             .fullWidthClickable(onClickLabel = "Show ${item.category.displayString} payments", onClick = onClick)
-            .padding(vertical = 10.dp)
+            .padding(vertical = Spacing.sm)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).background(color, CircleShape))
@@ -600,7 +643,7 @@ internal fun CategoryRow(
                 }
                 Caption(
                     if (item.count == 0) "Nothing yet"
-                    else "${direction.countLabel(item.count)} · ${(item.total.fractionOf(total) * 100).roundToInt()}%"
+                    else "${direction.countLabel(item.count)} · ${percent ?: (item.total.fractionOf(total) * 100).roundToInt()}%"
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -685,12 +728,13 @@ internal fun VendorRow(
     modifier: Modifier = Modifier
 ) {
     val last = Instant.ofEpochMilli(vendor.lastEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+    val motion = com.zyke.message.presentation.motion.rememberMotion()
     Column(
         modifier
             .fillMaxWidth()
-            .animateContentSize()
+            .animateContentSize(motion.gentle())
             .fullWidthClickable(onClickLabel = if (expanded) "Hide payments" else "Show payments", onClick = onClick)
-            .padding(vertical = 10.dp)
+            .padding(vertical = Spacing.sm)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(vendor.merchant.logo, imageKey = vendor.merchant.imageKey, name = vendor.merchant.name, description = vendor.merchant.name, size = 44.dp)
@@ -879,22 +923,23 @@ internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel:
     val max = amounts.maxOf { it }.coerceAtLeast(BigDecimal.ONE)
     val values = amounts.map { it.fractionOf(max) }
     val spokenDescription = com.zyke.message.presentation.common.privateSpeech(description)
-    val rise by rememberGrowingState(1f)
+    val rise = rememberGrowingState(1f)
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
 
     Column(modifier) {
+        ChartBox(aspect = 0.36f, minHeight = 96.dp, maxHeight = 150.dp) {
         Canvas(
             Modifier
-                .fillMaxWidth()
-                .height(120.dp)
+                .fillMaxSize()
                 .semantics { contentDescription = spokenDescription }
         ) {
+            val grown = rise.value
             val pad = 6.dp.toPx()
             val usableHeight = size.height - 2 * pad
             val step = if (values.size > 1) (size.width - 2 * pad) / (values.size - 1) else 0f
             val points = values.mapIndexed { i, v ->
-                Offset(pad + step * i, size.height - pad - usableHeight * v.coerceIn(0f, 1f) * rise)
+                Offset(pad + step * i, size.height - pad - usableHeight * v.coerceIn(0f, 1f) * grown)
             }
 
             drawLine(gridColor, Offset(0f, size.height - pad), Offset(size.width, size.height - pad), strokeWidth = 1.dp.toPx())
@@ -914,7 +959,8 @@ internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel:
                 drawCircle(lineColor, radius = if (i == points.lastIndex) 5.dp.toPx() else 3.dp.toPx(), center = p)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        }
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption(firstLabel)
             Caption(lastLabel, textAlign = TextAlign.End)
         }
@@ -939,7 +985,7 @@ private fun statementDate(bill: BillEntry): LocalDate =
 /** Each card or account as a row with this cycle's spending; tapping one opens its trend, as the card bills do. */
 @Composable
 internal fun CardCyclesSection(cards: List<CardCycles>, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
-    SectionCard(
+    InsightCard(
         title = "Cards & accounts",
         modifier = modifier,
         summary = DisplayFormatters.count(cards.size, "card or account", "cards and accounts")
@@ -1066,7 +1112,7 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
  */
 @Composable
 internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modifier: Modifier = Modifier, unassigned: java.math.BigDecimal? = null) {
-    SectionCard(title = "Budgets", modifier = modifier) {
+    InsightCard(title = "Budgets", modifier = modifier) {
         if (limits.isEmpty()) {
             Caption("No budgets set")
         } else {
@@ -1074,18 +1120,18 @@ internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modi
                 Caption(
                     if (unassigned.signum() < 0) "${DisplayFormatters.rupees(unassigned.abs())} over-assigned against what your plan leaves to spend"
                     else "${DisplayFormatters.rupees(unassigned)} not yet assigned",
-                    Modifier.padding(bottom = 10.dp)
+                    Modifier.padding(bottom = Spacing.sm)
                 )
             }
             limits.take(MAX_LIMITS_SHOWN).forEachIndexed { index, entry ->
-                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                if (index > 0) HorizontalDivider(Modifier.padding(vertical = Spacing.sm))
                 RowTitle(entry.category.displayString)
                 entry.daily?.let { LimitStatus(it, Modifier.padding(top = 4.dp)) }
                 entry.monthly?.let { LimitStatus(it, Modifier.padding(top = 8.dp)) }
                 carryNote(entry)?.let { Caption(it, Modifier.padding(top = 4.dp), maxLines = 2) }
             }
             if (limits.size > MAX_LIMITS_SHOWN) {
-                Caption("${limits.size - MAX_LIMITS_SHOWN} more in Settings", Modifier.padding(top = 10.dp))
+                Caption("${limits.size - MAX_LIMITS_SHOWN} more in Settings", Modifier.padding(top = Spacing.sm))
             }
         }
         AppButton(
@@ -1093,7 +1139,7 @@ internal fun LimitsCard(limits: List<CategoryLimits>, onManage: () -> Unit, modi
             onClick = onManage,
             style = ButtonStyle.TONAL,
             size = ButtonSize.COMPACT,
-            modifier = Modifier.padding(top = 12.dp)
+            modifier = Modifier.padding(top = Spacing.md)
         )
     }
 }

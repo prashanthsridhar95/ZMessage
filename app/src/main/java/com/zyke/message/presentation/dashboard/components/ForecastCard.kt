@@ -12,7 +12,12 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.drawscope.clipRect
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.motion.rememberProgressReveal
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -89,20 +94,15 @@ internal fun ForecastCard(
     val story = remember(forecast, runway, insights, summary) { ForecastStories.build(forecast, runway, insights, summary) }
 
     FintechCard(modifier, onClick = { open = true }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Caption("WHERE THIS IS HEADING")
-                Headline(story, forecast, runway, Modifier.padding(top = 4.dp))
-            }
-            Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.secondary)
-        }
+        CardHeader("Where this is heading", trailing = { Chevron() })
+        Headline(story, forecast, runway, Modifier.padding(top = Spacing.xs))
         // How long the plan's money lasts is a second way of reading the same pace, so it sits in this card.
-        if (runway != null) SalaryStrip(runway, Modifier.padding(top = 14.dp))
+        if (runway != null) SalaryStrip(runway, Modifier.padding(top = Spacing.md))
     }
 
     if (open) {
         AdaptiveSheet("Where this is heading", { open = false }, asPage = true) {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
                 Headline(story, forecast, runway, large = true)
                 ForecastChart(summary, story)
                 StatRow(story)
@@ -217,9 +217,11 @@ private fun ForecastChart(summary: MonthlySummary?, story: ForecastStory) {
         if (projected != null) append("At this pace ${DisplayFormatters.rupees(projected)} by the end of the cycle. ")
         if (limit != null) append("The plan's money is used up at ${DisplayFormatters.rupees(limit)}.")
     }
+    val reveal = rememberProgressReveal(1f)
     Column(Modifier.fillMaxWidth()) {
+        ChartBox(aspect = 0.5f, minHeight = 130.dp, maxHeight = 200.dp) {
         Box(
-            Modifier.fillMaxWidth().height(160.dp).semantics { contentDescription = spoken }
+            Modifier.fillMaxSize().semantics { contentDescription = spoken }
                 .drawWithCache {
                     val w = size.width
                     val h = size.height
@@ -243,19 +245,23 @@ private fun ForecastChart(summary: MonthlySummary?, story: ForecastStory) {
                         drawLine(gridColor, Offset(0f, h), Offset(w, h), 1.dp.toPx())
                         drawLine(gridColor, Offset(0f, h / 2f), Offset(w, h / 2f), 1.dp.toPx())
                         if (limit != null) drawLine(limitColor, Offset(0f, y(limit.toFloat())), Offset(w, y(limit.toFloat())), limitStroke.width, pathEffect = limitStroke.pathEffect)
-                        projPath?.let { drawPath(it, projectedColor, style = dotted) }
-                        drawPath(spentPath, spentColor, style = solid)
-                        drawCircle(spentColor, 5.dp.toPx(), Offset(lastX, y(last)))
-                        if (projPath != null) drawCircle(projectedColor, 5.dp.toPx(), Offset(x((days - 1).toFloat()), y(projected!!.toFloat())), style = Stroke(2.dp.toPx()))
-                        cross?.let { drawCircle(crossColor, 6.dp.toPx(), it) }
+                        // Uncovered from the left once, when first shown (read while drawing).
+                        clipRect(right = w * reveal.value) {
+                            projPath?.let { drawPath(it, projectedColor, style = dotted) }
+                            drawPath(spentPath, spentColor, style = solid)
+                            drawCircle(spentColor, 5.dp.toPx(), Offset(lastX, y(last)))
+                            if (projPath != null) drawCircle(projectedColor, 5.dp.toPx(), Offset(x((days - 1).toFloat()), y(projected!!.toFloat())), style = Stroke(2.dp.toPx()))
+                            cross?.let { drawCircle(crossColor, 6.dp.toPx(), it) }
+                        }
                     }
                 }
         )
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        }
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption("Day 1")
             Caption("Day $days")
         }
-        FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Swatch("Spent", spentColor, SwatchKind.SOLID)
             if (projected != null) Swatch("At this pace", projectedColor, SwatchKind.DOTTED)
             if (limit != null) Swatch("Plan limit", limitColor, SwatchKind.DASHED)

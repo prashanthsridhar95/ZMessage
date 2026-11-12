@@ -42,6 +42,9 @@ import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.review.YearInReview
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.AppPage
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.dashboard.components.Chevron
+import com.zyke.message.presentation.motion.CrossfadeKeyed
 import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.format.DisplayFormatters
@@ -90,7 +93,7 @@ internal fun yearToReview(messages: List<ClassifiedMessage>, today: LocalDate, z
 @Composable
 internal fun YearEntryCard(year: Int, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     FintechCard(modifier, onClick = onOpen) {
-        Caption("YOUR $year")
+        CardHeader("Your $year", trailing = { Chevron() })
         Text(
             "See your year in review",
             Modifier.padding(top = 4.dp),
@@ -125,10 +128,15 @@ internal fun YearPage(messages: List<ClassifiedMessage>, year: Int, onBack: () -
                 )
             }
             val r = review
-            if (r == null) {
-                Caption("Working out your year…", Modifier.padding(4.dp))
-            } else {
-                YearStory(r, today)
+            // Another year fades in over the one before instead of replacing it at once.
+            CrossfadeKeyed(r, contentKey = { it?.year }, label = "year") { shown ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GUTTER)) {
+                    if (shown == null) {
+                        Caption("Working out your year…", Modifier.padding(4.dp))
+                    } else {
+                        YearStory(shown, today)
+                    }
+                }
             }
         }
     }
