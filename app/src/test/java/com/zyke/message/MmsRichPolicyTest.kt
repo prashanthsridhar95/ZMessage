@@ -42,7 +42,7 @@ class MmsRichPolicyTest {
     @Test fun theListReadsOnlyTheMmsInbox_andTheScanTouchesNoPart() {
         val source = text("data/sms/MmsDataSource.kt")
         assertTrue(source.contains("content://mms/inbox"))
-        val stubs = source.substringAfter("fun stubs(").substringBefore("fun readWindow(")
+        val stubs = source.substringAfter("fun stubs(").substringBefore("fun newestRows(")
         assertFalse("the scan must not read parts", stubs.contains("PART") || stubs.contains("addr"))
     }
 
