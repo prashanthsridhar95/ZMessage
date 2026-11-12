@@ -1,6 +1,11 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.remember
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.layout.width
@@ -247,14 +252,17 @@ internal fun RelatedMessages(
 ) {
     if (related.isEmpty()) return
     FintechCard {
-        Caption("RELATED MESSAGES")
+        CardHeader("Related messages")
         related.forEach { message ->
             val sender = com.zyke.message.domain.conversation.SenderKey.displayAddress(message.message.sender)
+            val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .androidxClickable(onClickLabel = "Open this message") { onOpen(message.id) }
+                    .heightIn(min = 48.dp)
+                    .padding(top = Spacing.sm)
+                    .pressFeedback(source)
+                    .androidxClickable(source, onClickLabel = "Open this message") { onOpen(message.id) }
             ) {
                 Text("$sender · ${DisplayFormatters.time(message.message.date)}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -270,17 +278,22 @@ internal fun RelatedMessages(
     }
 }
 
-private fun Modifier.androidxClickable(onClickLabel: String, onClick: () -> Unit): Modifier =
-    this.clickable(onClickLabel = onClickLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+@Composable
+private fun Modifier.androidxClickable(
+    source: androidx.compose.foundation.interaction.MutableInteractionSource, onClickLabel: String, onClick: () -> Unit
+): Modifier = this.clickable(
+    interactionSource = source, indication = androidx.compose.foundation.LocalIndication.current,
+    onClickLabel = onClickLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick
+)
 
 /** The messages merged into this one, each with a way to take it out again. */
 @Composable
 internal fun MergedMessages(item: ClassifiedMessage, onUnmerge: (Long) -> Unit) {
     if (item.mergedMessages.isEmpty()) return
     FintechCard {
-        Caption("ALSO COUNTED HERE")
+        CardHeader("Also counted here")
         item.mergedMessages.forEach { merged ->
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(merged.sender, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
                     Caption(DateFormatters.detailTimestamp(merged.date))

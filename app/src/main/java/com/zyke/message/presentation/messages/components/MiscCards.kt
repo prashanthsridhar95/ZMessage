@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,9 +10,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.Radius
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
@@ -20,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,29 +51,26 @@ internal fun GenericCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Messages we couldn't place get room to explain themselves; recognised ones stay terse.
-    val unrecognised = item.category == MessageCategory.OTHERS
-
-    MessageRow(onClick, modifier, verticalAlignment = Alignment.Top) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = null, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+    MessageRow(onClick, modifier) {
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = null, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }), Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Spacing.sm))
                 SourceTag(item.message)
-                if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(6.dp))
+                if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(Spacing.xs + 2.dp))
                 Caption(time)
             }
             item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let {
-                Caption("Same payment as ${it.primaryLabel}", Modifier.padding(top = 2.dp), color = MaterialTheme.colorScheme.primary)
+                Caption("Same payment as ${it.primaryLabel}", color = MaterialTheme.colorScheme.primary)
             }
+            // One line, like every other row; the whole text is a tap away.
             Caption(
-                text = item.message.body,
-                modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),
-                color = MaterialTheme.colorScheme.secondary,
-                maxLines = if (unrecognised) 3 else 1
+                text = item.message.body.replace(Regex("\\s+"), " "),
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondary
             )
         }
     }
@@ -81,25 +86,26 @@ internal fun CourierCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }))
             Caption(time)
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Spacing.md))
         Text(
             text = when (content.status) {
-                CourierStatus.ARRIVING_TODAY -> "Arriving\nToday"
+                CourierStatus.ARRIVING_TODAY -> "Arriving today"
                 CourierStatus.DELIVERED -> "Delivered"
                 CourierStatus.UPDATE -> "Update"
             },
-            maxLines = 2,
+            modifier = Modifier.widthIn(max = 140.dp),
+            maxLines = 1,
             textAlign = TextAlign.End,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.secondary
         )
@@ -116,16 +122,16 @@ internal fun LoyaltyCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(item.merchant.displayName)
             Caption("Balance ${DisplayFormatters.rupees(content.balance)} · $time")
         }
 
-        Spacer(Modifier.width(12.dp))
-        AmountText(
+        Spacer(Modifier.width(Spacing.md))
+        RowAmount(
             text = "${if (content.isLoaded) "+" else "-"} ${DisplayFormatters.rupees(content.points)}",
             color = if (content.isLoaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
         )
@@ -139,28 +145,37 @@ internal fun DataUsageCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bottomShape = RoundedCornerShape(bottomEnd = 16.dp, bottomStart = 16.dp)
+    val bottomShape = RoundedCornerShape(bottomEnd = Radius.control, bottomStart = Radius.control)
 
     val spoken = LocalSpokenSummary.current
+    val swipeActions = LocalRowCustomActions.current
+    val source = remember { MutableInteractionSource() }
     Column(
         modifier
-            .padding(vertical = 8.dp)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick)
-            .semantics(mergeDescendants = true) { if (spoken != null) contentDescription = spoken }
+            .padding(vertical = Spacing.sm)
+            .pressFeedback(source)
+            .clickable(
+                interactionSource = source, indication = LocalIndication.current,
+                role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick
+            )
+            .semantics(mergeDescendants = true) {
+                if (spoken != null) contentDescription = spoken
+                if (swipeActions.isNotEmpty()) customActions = swipeActions
+            }
     ) {
         Row(
             Modifier
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = Spacing.lg)
                 .fillMaxWidth()
                 .background(
                     MaterialTheme.colorScheme.tertiaryContainer,
-                    RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                    RoundedCornerShape(topStart = Radius.control, topEnd = Radius.control)
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier.padding(vertical = Spacing.xs),
                 text = "${content.carrier.displayName} · $time",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.tertiary
@@ -169,8 +184,8 @@ internal fun DataUsageCard(
 
         Row(
             Modifier
-                .padding(horizontal = 16.dp)
-                .height(72.dp)
+                .padding(horizontal = Spacing.lg)
+                .heightIn(min = 72.dp)
                 .fillMaxWidth()
                 .clip(bottomShape)
                 .border(1.dp, MaterialTheme.colorScheme.secondaryContainer, bottomShape),
@@ -181,7 +196,7 @@ internal fun DataUsageCard(
                     .background(MaterialTheme.colorScheme.secondaryContainer)
                     .fillMaxHeight()
                     .fillMaxWidth(content.percentUsed.coerceIn(0, 100) / 100f)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = Spacing.lg),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End
             ) {

@@ -50,6 +50,7 @@ class MessagesViewModelTest {
         private val _state = MutableStateFlow(UserMessageState())
         override val state: StateFlow<UserMessageState> = _state
         override fun markRead(messageId: Long) { _state.value = _state.value.copy(readIds = _state.value.readIds + messageId) }
+        override fun markUnread(messageId: Long) { _state.value = _state.value.copy(readIds = _state.value.readIds - messageId) }
         override fun setArchived(messageId: Long, archived: Boolean) {
             val ids = _state.value.archivedIds
             _state.value = _state.value.copy(archivedIds = if (archived) ids + messageId else ids - messageId)
@@ -185,6 +186,29 @@ class MessagesViewModelTest {
         vm.onIntent(Intent.PermissionResult(true))
         vm.onIntent(Intent.OpenMessage(999))
         assertNull(vm.state.value.detail)
+    }
+
+    @Test
+    fun swipeRead_marksTheRowRead_offersUndo_andUndoPutsTheMarkBack() = runTest {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        vm.onIntent(Intent.SetRead(2, true))
+        assertEquals(Effect.ReadChanged(listOf(2L), nowRead = true), vm.effects.first())
+        assertTrue(2L in userState.state.value.readIds)
+
+        vm.onIntent(Intent.SetReadMany(listOf(2L), false))
+        assertFalse(2L in userState.state.value.readIds)
+    }
+
+    @Test
+    fun swipeUnread_onlyTakesBackAMarkMadeHere() {
+        val vm = viewModel(flow { emit(inbox) })
+        vm.onIntent(Intent.PermissionResult(true))
+
+        // Message 1 is read in the phone's own app: it has no mark of ours to take back.
+        vm.onIntent(Intent.SetRead(1, false))
+        assertFalse(vm.state.value.isUnread(vm.state.value.messages.first { it.id == 1L }))
     }
 
     @Test

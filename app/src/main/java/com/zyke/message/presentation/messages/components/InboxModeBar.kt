@@ -1,5 +1,20 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.IconSize
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.tonalFill
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +57,7 @@ fun InboxModeBar(
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { leading() }
-            Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.padding(horizontal = Spacing.md), contentAlignment = Alignment.Center) {
                 ViewModeToggle(mode, onMode)
             }
         }
@@ -55,7 +70,7 @@ fun InboxModeBar(
 private fun ViewModeToggle(mode: ViewMode, onMode: (ViewMode) -> Unit) {
     Row(
         Modifier
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .background(tonalFill(Tonal.Raised), AppShapes.chip)
             .padding(2.dp)
     ) {
         ModeIcon(R.drawable.baseline_list_24, "Timeline view", mode == ViewMode.TIMELINE) { onMode(ViewMode.TIMELINE) }
@@ -66,25 +81,35 @@ private fun ViewModeToggle(mode: ViewMode, onMode: (ViewMode) -> Unit) {
 @Composable
 private fun ModeIcon(icon: Int, description: String, selected: Boolean, onClick: () -> Unit) {
     // The pill is 36dp to look right; the tappable area around it is the full 48dp.
+    val motion = rememberMotion()
+    val haptics = rememberHaptics()
+    val pill by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, motion.tween(Motion.QUICK_MS), label = "mode-pill")
+    val ink by animateColorAsState(if (selected) MaterialTheme.colorScheme.onPrimary else mutedColor(), motion.tween(Motion.QUICK_MS), label = "mode-ink")
+    val source = remember { MutableInteractionSource() }
     Box(
         Modifier
             .size(48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Tab, onClickLabel = description, onClick = onClick)
+            .pressFeedback(source, pressedScale = Motion.PRESSED_SCALE)
+            .clip(AppShapes.chip)
+            .clickable(
+                interactionSource = source, indication = LocalIndication.current,
+                role = Role.Tab, onClickLabel = description,
+                onClick = { if (!selected) { haptics.tick(); onClick() } }
+            )
             .semantics { this.selected = selected },
         contentAlignment = Alignment.Center
     ) {
         Box(
             Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent),
+                .clip(RoundedCornerShape(Radius.chip - 2.dp))
+                .background(pill),
             contentAlignment = Alignment.Center
         ) {
             Image(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(IconSize.md),
                 painter = painterResource(icon),
-                colorFilter = ColorFilter.tint(if (selected) MaterialTheme.colorScheme.onPrimary else mutedColor()),
+                colorFilter = ColorFilter.tint(ink),
                 contentDescription = description
             )
         }

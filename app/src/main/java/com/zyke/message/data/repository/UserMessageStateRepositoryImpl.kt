@@ -21,6 +21,8 @@ class UserMessageStateRepositoryImpl(context: Context) : UserMessageStateReposit
 
     override fun markRead(messageId: Long) = change { copy(readIds = readIds + messageId) }
 
+    override fun markUnread(messageId: Long) = change { copy(readIds = readIds - messageId) }
+
     override fun setArchived(messageId: Long, archived: Boolean) = change {
         copy(archivedIds = if (archived) archivedIds + messageId else archivedIds - messageId)
     }

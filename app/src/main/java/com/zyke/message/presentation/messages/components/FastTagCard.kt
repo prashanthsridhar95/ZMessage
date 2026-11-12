@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -26,8 +27,8 @@ internal fun FastTagCard(
     val event = content.event
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = "FASTag", isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = "FASTag", isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             val title = when (event) {
@@ -39,17 +40,17 @@ internal fun FastTagCard(
             Caption(listOfNotNull(event.vehicleNumber.takeIf { title != it }, time).joinToString(" · "))
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Spacing.md))
         Column(horizontalAlignment = Alignment.End) {
             when (event) {
-                is FastTagEvent.Activated -> AmountText("Active", MaterialTheme.colorScheme.primary)
-                is FastTagEvent.RechargeNeeded -> AmountText("Recharge", MaterialTheme.colorScheme.error)
+                is FastTagEvent.Activated -> RowAmount("Active", MaterialTheme.colorScheme.primary)
+                is FastTagEvent.RechargeNeeded -> RowAmount("Recharge", MaterialTheme.colorScheme.error)
                 is FastTagEvent.ToppedUp -> {
-                    AmountText("+ ${DisplayFormatters.rupees(event.amount)}", MaterialTheme.colorScheme.primary)
+                    RowAmount("+ ${DisplayFormatters.rupees(event.amount)}", MaterialTheme.colorScheme.primary)
                     Caption("Balance ${DisplayFormatters.rupees(event.balance)}")
                 }
                 is FastTagEvent.TollPaid -> {
-                    AmountText("- ${DisplayFormatters.rupees(event.tollAmount)}", MaterialTheme.colorScheme.secondary)
+                    RowAmount("- ${DisplayFormatters.rupees(event.tollAmount)}", MaterialTheme.colorScheme.secondary)
                     Caption("Balance ${DisplayFormatters.rupees(event.balance)}")
                 }
             }

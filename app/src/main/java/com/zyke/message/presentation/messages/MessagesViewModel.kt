@@ -106,6 +106,8 @@ class MessagesViewModel(
                 emitEffect(Effect.MessageArchived(intent.messageId))
             }
             is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.SetRead -> setRead(intent.messageId, intent.read)
+            is Intent.SetReadMany -> intent.ids.forEach { if (intent.read) userStateRepository.markRead(it) else userStateRepository.markUnread(it) }
             is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
                 mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
             }
@@ -144,6 +146,26 @@ class MessagesViewModel(
             }
             is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
+        }
+    }
+
+    /**
+     * The swipe: reading marks the row as a whole (the payment and the repeats inside it, as opening it does); unread takes back
+     * only this message's own mark. Only what really changes is announced, so Undo restores exactly that.
+     */
+    private fun setRead(messageId: Long, read: Boolean) {
+        val state = currentState()
+        val anchor = state.messages.firstOrNull { it.id == messageId } ?: return
+        if (read) {
+            val repeats = com.zyke.message.domain.ledger.PaymentGroups.of(state.messages).followersOf(messageId)
+            val changed = (listOf(anchor) + repeats).filter { state.isUnread(it) }.map { it.id }
+            if (changed.isEmpty()) return
+            changed.forEach { userStateRepository.markRead(it) }
+            emitEffect(Effect.ReadChanged(changed, nowRead = true))
+        } else {
+            if (anchor.message.isRead || anchor.id !in state.userState.readIds) return
+            userStateRepository.markUnread(anchor.id)
+            emitEffect(Effect.ReadChanged(listOf(anchor.id), nowRead = false))
         }
     }
 

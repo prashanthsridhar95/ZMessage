@@ -13,6 +13,8 @@ data class FeedActions(
     val onArchive: (Long) -> Unit,
     val onUnarchive: (Long) -> Unit,
     val onTogglePin: (Long) -> Unit,
+    /** Swipe right: mark a row read (true) or unread (false). */
+    val onSetRead: (messageId: Long, read: Boolean) -> Unit = { _, _ -> },
     val onDismissAttention: (String) -> Unit,
     /** Settle a bill for good; unlike a dismissal, it does not come back as the due date nears. */
     val onMarkPaid: (String) -> Unit = {},

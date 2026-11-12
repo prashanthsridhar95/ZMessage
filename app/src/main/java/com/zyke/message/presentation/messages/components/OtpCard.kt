@@ -1,6 +1,8 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -60,29 +62,32 @@ internal fun OtpCard(
         onClick = onExpand,
         modifier = modifier.alpha(if (isExpired) 0.5f else 1f),
         verticalAlignment = Alignment.Top,
-        clickModifier = Modifier.combinedClickable(
+        clickModifier = { source ->
+            Modifier.combinedClickable(
+            interactionSource = source, indication = LocalIndication.current,
             onClickLabel = if (canCopy) "Copy code" else "Show message",
             onClick = { if (canCopy) onCopy(content.code) else onExpand() },
             onLongClickLabel = "Show message",
             onLongClick = onExpand
-        )
+            )
+        }
     ) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = content.senderName, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = content.senderName, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             OtpCode(content.code)
 
             if (content.code.isEmpty()) {
                 Caption(
-                    text = item.message.body,
-                    modifier = Modifier.padding(top = 4.dp).fillMaxWidth(),
+                    text = item.message.body.replace(Regex("\\s+"), " "),
+                    modifier = Modifier.padding(top = Spacing.xs).fillMaxWidth(),
                     color = MaterialTheme.colorScheme.secondary,
-                    maxLines = 2
+                    maxLines = 1
                 )
             }
 
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 SenderTitle(
                     rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }, content.senderName),
                     Modifier.weight(1f, fill = false), MaterialTheme.typography.bodySmall, mutedColor()

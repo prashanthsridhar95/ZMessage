@@ -106,6 +106,10 @@ object MessagesContract {
         data class CopyOtp(val messageId: Long, val code: String) : Intent
         data class Archive(val messageId: Long) : Intent
         data class Unarchive(val messageId: Long) : Intent
+        /** Swipe right on a row: mark it (and, for a payment, the repeats inside it) read or unread; Undo goes through [SetReadMany]. */
+        data class SetRead(val messageId: Long, val read: Boolean) : Intent
+        /** Puts the read marks of exactly these messages back (the Undo of [SetRead]). */
+        data class SetReadMany(val ids: List<Long>, val read: Boolean) : Intent
         data class TogglePin(val messageId: Long) : Intent
         /** Mute the sender of this message, or unmute it if it already is muted. */
         data class ToggleMute(val messageId: Long) : Intent
@@ -130,6 +134,8 @@ object MessagesContract {
         /** Offer to take back an archive. */
         data class MessageArchived(val messageId: Long) : Effect
         data class ManyArchived(val ids: List<Long>) : Effect
+        /** Offer to take back a read / unread swipe: [ids] are the messages whose mark changed, [nowRead] what they were set to. */
+        data class ReadChanged(val ids: List<Long>, val nowRead: Boolean) : Effect
         data class OpenLink(val url: String) : Effect
         /** Say what changed and offer to take it back: [previous] is null if it was automatic before. */
         data class CategoryChanged(

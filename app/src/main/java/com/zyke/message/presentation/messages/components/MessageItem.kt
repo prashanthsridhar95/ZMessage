@@ -1,12 +1,13 @@
 package com.zyke.message.presentation.messages.components
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.zyke.message.domain.feed.OtpPolicy
+import com.zyke.message.domain.feed.RowSwipe
+import com.zyke.message.domain.feed.SwipeAction
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.format.DisplayFormatters
@@ -15,7 +16,12 @@ import com.zyke.message.presentation.messages.MessagesContract.State
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** A message as one card, with swipe actions (archive / pin). Tapping it opens its detail sheet. */
+/**
+ * A message as one row, with swipe actions (right: mark read / unread, left: archive / restore, each with an Undo
+ * snackbar from the screen). Tapping it opens its detail sheet. [modifier] carries the lazy list's item motion.
+ *
+ * On a payment row with repeats and on the newest row of a group, the swipe belongs to this (anchor) message; see [SwipeActions].
+ */
 @Composable
 internal fun MessageItem(
     item: ClassifiedMessage,
@@ -28,21 +34,30 @@ internal fun MessageItem(
     val isPinned = item.id in state.userState.pinnedIds
     val isArchived = item.id in state.userState.archivedIds
     val card: @Composable () -> Unit = { MessageCard(item, state, actions, related = related) }
+    val isUnread = state.isUnread(item) || related.any { state.isUnread(it) }
+    val swipe = remember(isUnread, item.message.isRead, isArchived) { RowSwipe.of(isUnread, item.message.isRead, isArchived) }
 
     val mergeable = item.content is MessageContent.Transaction && !state.isSearching
     val drag = LocalMergeDrag.current
 
-    Box(Modifier.mergeDraggable(item.id, drag, mergeable) { primary, duplicate -> actions.onRequestMerge(primary, duplicate) }) {
+    Box(modifier.mergeDraggable(item.id, drag, mergeable) { primary, duplicate -> actions.onRequestMerge(primary, duplicate) }) {
         if (state.isSearching) {
             // No swiping while searching: archived matches are listed too, so the gesture would be ambiguous.
             card()
         } else {
             SwipeActions(
-                isArchived = isArchived,
+                swipe = swipe,
                 isPinned = isPinned,
-                onArchiveOrRestore = { if (isArchived) actions.onUnarchive(item.id) else actions.onArchive(item.id) },
+                canPin = !isArchived,
+                onAction = { action ->
+                    when (action) {
+                        SwipeAction.MARK_READ -> actions.onSetRead(item.id, true)
+                        SwipeAction.MARK_UNREAD -> actions.onSetRead(item.id, false)
+                        SwipeAction.ARCHIVE -> actions.onArchive(item.id)
+                        SwipeAction.RESTORE -> actions.onUnarchive(item.id)
+                    }
+                },
                 onTogglePin = { actions.onTogglePin(item.id) },
-                modifier = modifier.animateContentSize(),
                 content = card
             )
         }

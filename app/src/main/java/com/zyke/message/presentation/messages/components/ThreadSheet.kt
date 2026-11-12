@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.motion.itemMotion
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.common.AppBottomSheet
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
@@ -66,9 +68,9 @@ fun ThreadSheet(
 
     // A whole conversation is always big: it is a page, whose list scrolls by itself.
     com.zyke.message.presentation.common.AppPage(conversation.title(), onDismiss, scrollable = false) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
             MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = null, size = 44.dp)
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 SenderTitle(remember(conversation.key, conversation.merchant, conversation.newest.message.date) { conversation.senderLabel() })
                 Caption("${DisplayFormatters.count(conversation.messages.size, "message", "messages")} · ${conversation.address}")
@@ -90,7 +92,7 @@ fun ThreadSheet(
                     )
                 }
                 items(section.items.distinctBy { it.key }, key = { it.key }, contentType = { "message" }) { item ->
-                    MessageItem(item = item.newest, state = state, actions = actions, modifier = Modifier.animateItem(), related = (item as? com.zyke.message.domain.feed.FeedItem.Single)?.related ?: emptyList())
+                    MessageItem(item = item.newest, state = state, actions = actions, modifier = itemMotion(), related = (item as? com.zyke.message.domain.feed.FeedItem.Single)?.related ?: emptyList())
                 }
             }
         }

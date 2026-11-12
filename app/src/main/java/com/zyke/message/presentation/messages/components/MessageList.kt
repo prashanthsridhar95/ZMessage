@@ -15,7 +15,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.text.style.TextOverflow
+import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.motion.AppearVisibility
+import com.zyke.message.presentation.motion.EnterGate
+import com.zyke.message.presentation.motion.enterOnce
+import com.zyke.message.presentation.motion.itemMotion
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.TypeRole
+import com.zyke.message.presentation.theme.tonalFill
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.gestures.scrollBy
@@ -48,7 +63,9 @@ import java.time.ZoneId
 fun MessageList(
     state: State,
     actions: FeedActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Made above the loading state (see rememberEnterGate), so the first rows enter once and never again. */
+    gate: EnterGate = rememberEnterGate()
 ) {
     val feed = state.feed
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
@@ -81,7 +98,7 @@ fun MessageList(
             item(key = "attention", contentType = "attention") {
                 AttentionStrip(
                     feed.attention, today, actions,
-                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp).animateItem()
+                    Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm).then(itemMotion())
                 )
             }
         }
@@ -90,11 +107,13 @@ fun MessageList(
             item(key = "swipe-hint", contentType = "hint") {
                 SwipeHint(
                     onDismiss = { actions.onDismissAttention(SWIPE_HINT_KEY) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).animateItem()
+                    modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm).then(itemMotion())
                 )
             }
         }
 
+        // The first rows of the first showing enter one after the other (enterOnce); the index counts rows, not headers.
+        var rowsBefore = 0
         feed.sections.forEach { section ->
             stickyHeader(key = "section-${section.id}", contentType = "header") {
                 SectionHeader(
@@ -102,19 +121,24 @@ fun MessageList(
                         SectionId.Pinned -> "Pinned"
                         is SectionId.Day -> DateFormatters.dayHeader(id.date, today)
                     },
-                    Modifier.animateItem()
+                    itemMotion()
                 )
             }
 
-            items(section.items.distinctBy { it.key }, key = { it.key }, contentType = { it::class }) { feedItem ->
+            val rows = section.items.distinctBy { it.key }
+            val firstRow = rowsBefore
+            rowsBefore += rows.size
+            itemsIndexed(rows, key = { _, it -> it.key }, contentType = { _, it -> it::class }) { index, feedItem ->
+                // Item motion (rows that come and go, move up or fade out) and the entrance share one modifier chain.
+                val rowModifier = itemMotion().enterOnce(gate, firstRow + index)
                 when (feedItem) {
-                    is FeedItem.Single -> MessageItem(feedItem.message, state, actions, Modifier.animateItem(), related = feedItem.related)
+                    is FeedItem.Single -> MessageItem(feedItem.message, state, actions, rowModifier, related = feedItem.related)
                     is FeedItem.Group -> GroupedItem(
                         group = feedItem,
                         expanded = feedItem.key in state.expandedGroups,
                         state = state,
                         actions = actions,
-                        modifier = Modifier.animateItem()
+                        modifier = rowModifier
                     )
                 }
             }
@@ -123,7 +147,7 @@ fun MessageList(
         // Only when the filters in force leave something out of All: "3 hidden by filters · Show". Nothing is drawn otherwise.
         if (feed.hiddenByFilters > 0 && !state.isSearching) {
             item(key = "hidden-by-filters", contentType = "hidden-footer") {
-                HiddenByFilters(feed.hiddenByFilters, actions.onResetFilters, Modifier.animateItem())
+                HiddenByFilters(feed.hiddenByFilters, actions.onResetFilters, itemMotion())
             }
         }
     }
@@ -133,21 +157,26 @@ fun MessageList(
 /** One quiet line under the list: how many messages the filters hide, and a way to show them. */
 @Composable
 internal fun HiddenByFilters(count: Int, onShow: () -> Unit, modifier: Modifier = Modifier) {
+    val source = remember { MutableInteractionSource() }
     Row(
         modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear filters and show them", onClick = onShow)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .pressFeedback(source)
+            .clickable(
+                interactionSource = source, indication = LocalIndication.current,
+                role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear filters and show them", onClick = onShow
+            )
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "$count hidden by filters \u00B7 ",
-            style = MaterialTheme.typography.bodySmall,
+            style = TypeRole.caption,
             color = mutedColor(),
             maxLines = 1
         )
-        Text(text = "Show", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        Text(text = "Show", style = TypeRole.caption, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
     }
 }
 
@@ -160,14 +189,14 @@ private fun SwipeHint(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-            .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+            .background(tonalFill(Tonal.Quiet), AppShapes.chip)
+            .padding(start = Spacing.lg, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             modifier = Modifier.weight(1f),
-            text = "Tip: swipe a message right to archive, left to pin. Hold a payment and drop it on its twin to merge them.",
-            style = MaterialTheme.typography.bodySmall,
+            text = "Tip: swipe a message right to mark it read, left to archive. Hold a payment and drop it on its twin to merge them.",
+            style = TypeRole.caption,
             color = MaterialTheme.colorScheme.primary
         )
         AppButton("Got it", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
@@ -188,40 +217,50 @@ private fun GroupedItem(
         GroupKind.DATA_USAGE -> "alert"
     }
 
+    val source = remember { MutableInteractionSource() }
     Column(modifier) {
-        if (expanded) {
-            group.messages.forEach { MessageItem(it, state, actions) }
-        } else {
-            MessageItem(group.newest, state, actions)
+        // The newest message is always there; the earlier ones open beneath it and close again.
+        MessageItem(group.newest, state, actions)
+        AppearVisibility(expanded) {
+            Column {
+                group.messages.drop(1).forEach { MessageItem(it, state, actions) }
+            }
         }
 
         Text(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (expanded) "Show fewer" else "Show all") {
-                    actions.onToggleGroup(group.key)
-                }
-                .padding(start = 92.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                .heightIn(min = 48.dp)
+                .pressFeedback(source)
+                .clickable(
+                    interactionSource = source, indication = LocalIndication.current,
+                    role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (expanded) "Show fewer" else "Show all"
+                ) { actions.onToggleGroup(group.key) }
+                .padding(start = RowTextInset, end = Spacing.lg, top = Spacing.xs, bottom = Spacing.md),
             text = if (expanded) {
                 "Show less"
             } else {
                 "+${group.hiddenCount} earlier $noun${if (group.hiddenCount > 1) "s" else ""} today"
             },
-            style = MaterialTheme.typography.bodySmall,
+            style = TypeRole.caption,
             color = MaterialTheme.colorScheme.primary
         )
     }
 }
 
+/** A day's label above its rows: the spaced section label, on the page colour so rows slide under it while it sticks. */
 @Composable
 internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-        text = text,
-        color = MaterialTheme.colorScheme.tertiary,
-        fontWeight = FontWeight.Bold
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.lg, bottom = Spacing.xs)
+            .heading(),
+        text = text.uppercase(),
+        style = TypeRole.section,
+        color = mutedColor(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
     )
 }

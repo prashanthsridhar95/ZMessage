@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.background
 import com.zyke.message.presentation.format.FormatCache
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
@@ -35,10 +39,10 @@ internal fun LifeCard(
 ) {
     MessageRow(onClick, modifier) {
         MerchantChip(
-            item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name,
+            item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name,
             description = content.title, isUnread = isUnread
         )
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(content.title)
@@ -47,14 +51,15 @@ internal fun LifeCard(
             )
         }
 
-        Spacer(Modifier.width(12.dp))
-        Column(horizontalAlignment = Alignment.End) {
+        Spacer(Modifier.width(Spacing.md))
+        Column(Modifier.widthIn(max = 140.dp), horizontalAlignment = Alignment.End) {
             Text(
                 text = content.status,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = if (content.isDone) mutedColor() else MaterialTheme.colorScheme.primary,
-                maxLines = scaledLines(1)
+                maxLines = scaledLines(1),
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             content.date?.let { date ->
                 DatePill(whenLabel(date, content, today), urgent = !content.isDone && date >= today && date <= today.plusDays(2))
@@ -69,9 +74,9 @@ private fun DatePill(text: String, urgent: Boolean) {
     Text(
         text = text,
         modifier = Modifier
-            .padding(top = 4.dp)
-            .background(accent.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(top = Spacing.xs)
+            .background(accent.copy(alpha = 0.12f), RoundedCornerShape(Radius.chip - 4.dp))
+            .padding(horizontal = Spacing.sm, vertical = 2.dp),
         style = MaterialTheme.typography.labelMedium,
         color = accent,
         maxLines = 1

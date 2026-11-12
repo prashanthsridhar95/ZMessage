@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,22 +23,32 @@ import com.zyke.message.presentation.theme.Spacing
 /**
  * Placeholder rows shown while the inbox loads: still, rounded blocks that fade in once. There is no shimmer or pulse
  * (a loop would keep drawing for as long as the data is slow), so the placeholder costs nothing after its first frame.
+ *
+ * The geometry is the real row's (MessageRow): the same gutters and vertical padding, the 48 dp tile, a title and a
+ * caption line in the text's own heights, and an amount at the end, so the list that replaces it does not jump.
  */
 @Composable
-fun MessageListSkeleton(modifier: Modifier = Modifier, rows: Int = 7) {
+fun MessageListSkeleton(modifier: Modifier = Modifier, rows: Int = 8) {
     // One announcement instead of a screenful of empty boxes.
     Column(modifier.fadeInOnce().clearAndSetSemantics { contentDescription = "Loading messages" }) {
         repeat(rows) {
-            Row(Modifier.fillMaxWidth().padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
-                SkeletonBlock(Modifier.size(60.dp), corner = Radius.control)
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SkeletonBlock(Modifier.size(RowTile), corner = RowTile / 4)
                 Spacer(Modifier.width(Spacing.lg))
                 Column(Modifier.weight(1f)) {
-                    SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(14.dp), corner = 4.dp)
-                    Spacer(Modifier.height(Spacing.sm))
-                    SkeletonBlock(Modifier.fillMaxWidth(0.3f).height(10.dp), corner = 4.dp)
+                    // A title line is about 24 dp tall and a caption about 16: the blocks sit centred in boxes of those heights.
+                    Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.CenterStart) {
+                        SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(14.dp), corner = Radius.chip / 3)
+                    }
+                    Box(Modifier.fillMaxWidth().height(16.dp), contentAlignment = Alignment.CenterStart) {
+                        SkeletonBlock(Modifier.fillMaxWidth(0.3f).height(10.dp), corner = Radius.chip / 3)
+                    }
                 }
                 Spacer(Modifier.width(Spacing.md))
-                SkeletonBlock(Modifier.width(64.dp).height(18.dp), corner = 4.dp)
+                SkeletonBlock(Modifier.width(64.dp).height(18.dp), corner = Radius.chip / 3)
             }
         }
     }

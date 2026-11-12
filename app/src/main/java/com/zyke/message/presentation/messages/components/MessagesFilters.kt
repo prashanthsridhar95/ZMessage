@@ -1,5 +1,9 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.tonalFill
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -34,15 +38,19 @@ import com.zyke.message.presentation.common.UnderlineTabs
 @Composable
 fun QuickFilterTabs(feed: Feed, selected: SmartFilter, onSelect: (SmartFilter) -> Unit, modifier: Modifier = Modifier) {
     val types = feed.availableFilters
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
+    val current = types.indexOf(selected).coerceAtLeast(0)
     UnderlineTabs(
         labels = types.map { it.label },
         // No per-tab counts: they are numbers to read and none of them is something to act on.
         counts = types.map { null },
         icons = types.map { it.icon() },
-        selectedIndex = types.indexOf(selected).coerceAtLeast(0),
-        onSelect = { onSelect(types[it]) },
+        selectedIndex = current,
+        // A light tick when the choice really changes; tapping the tab already shown does nothing.
+        onSelect = { index -> if (index != current) { haptics.tick(); onSelect(types[index]) } },
         modifier = modifier,
-        showDivider = false
+        showDivider = false,
+        indicator = { positions -> SlidingTabIndicator(positions, current) }
     )
 }
 
@@ -66,14 +74,14 @@ fun ActiveFilterBar(
     onChange: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
-    horizontalInset: Dp = 16.dp
+    horizontalInset: Dp = Spacing.lg
 ) {
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = horizontalInset, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-            .padding(start = 16.dp, end = 4.dp),
+            .padding(horizontal = horizontalInset, vertical = Spacing.sm)
+            .background(tonalFill(Tonal.Quiet), AppShapes.chip)
+            .padding(start = Spacing.lg, end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

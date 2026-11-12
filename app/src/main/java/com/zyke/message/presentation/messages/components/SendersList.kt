@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.motion.itemMotion
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,7 +41,7 @@ fun SendersList(
 ) {
     LazyColumn(modifier) {
         items(conversations.distinctBy { it.key }, key = { it.key }, contentType = { "sender" }) { conversation ->
-            SenderRow(conversation, today) { onOpen(conversation.key) }
+            SenderRow(conversation, today, itemMotion()) { onOpen(conversation.key) }
         }
     }
 }
@@ -54,34 +56,33 @@ internal fun Conversation.senderLabel(): SenderLabel {
 }
 
 @Composable
-private fun SenderRow(conversation: Conversation, today: LocalDate, onClick: () -> Unit) {
+private fun SenderRow(conversation: Conversation, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val newest = conversation.newest.message
     val stamp = remember(newest.date, today) { DisplayFormatters.listStamp(newest.date, today = today) }
     val preview = remember(newest.body) { newest.body.replace(Regex("\\s+"), " ").trim() }
     val unread = conversation.unreadCount
 
-    MessageRow(onClick = onClick) {
-        MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = conversation.title(), isUnread = false)
-        Spacer(Modifier.width(16.dp))
+    MessageRow(onClick = onClick, modifier = modifier) {
+        MerchantChip(conversation.merchant.logo, size = RowTile, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = conversation.title(), isUnread = false)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SenderTitle(remember(conversation.key, conversation.merchant, newest.date) { conversation.senderLabel() }, Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Spacing.sm))
                 Caption(stamp, color = if (unread > 0) MaterialTheme.colorScheme.primary else mutedColor())
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Caption(
                     text = preview,
-                    modifier = Modifier.weight(1f).padding(top = 2.dp),
+                    modifier = Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.secondary
                 )
                 if (unread > 0) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Spacing.sm))
                     UnreadCount(unread)
                 }
             }
-            Caption(DisplayFormatters.count(conversation.messages.size, "message", "messages"), Modifier.padding(top = 2.dp))
         }
     }
 }

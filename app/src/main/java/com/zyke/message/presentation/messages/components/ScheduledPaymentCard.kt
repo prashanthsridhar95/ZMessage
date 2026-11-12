@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,8 +41,8 @@ internal fun ScheduledPaymentCard(
     val urgent = content.kind == ScheduledKind.UPCOMING_DEBIT && content.date?.let { DisplayFormatters.isUrgent(it, today) } == true
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(title.ifEmpty { "Auto-debit" })
@@ -51,7 +52,7 @@ internal fun ScheduledPaymentCard(
             )
         }
 
-        Spacer(Modifier.width(12.dp))
-        AmountText(DisplayFormatters.rupees(content.amount), MaterialTheme.colorScheme.secondary)
+        Spacer(Modifier.width(Spacing.md))
+        RowAmount(DisplayFormatters.rupees(content.amount), MaterialTheme.colorScheme.secondary)
     }
 }

@@ -75,6 +75,11 @@ import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.messages.components.MessageList
 import com.zyke.message.presentation.messages.components.MessageListSkeleton
+import com.zyke.message.presentation.common.EmptyState
+import com.zyke.message.presentation.motion.AppearVisibility
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.theme.Spacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -140,6 +145,15 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
                         viewModel.onIntent(Intent.SetCategory(effect.messageId, effect.previous, announce = false))
                     }
                 }
+                is Effect.ReadChanged -> scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = if (effect.nowRead) "Marked as read" else "Marked as unread",
+                        actionLabel = context.getString(R.string.undo),
+                        duration = SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) viewModel.onIntent(Intent.SetReadMany(effect.ids, !effect.nowRead))
+                }
                 is Effect.MessageArchived -> scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     val result = snackbarHostState.showSnackbar(
@@ -171,6 +185,8 @@ fun MessagesScreen(
     modifier: Modifier = Modifier
 ) {
     val actions = remember(onIntent) { onIntent.toFeedActions() }
+    // Above the loading state, so the first rows enter once when the inbox appears and never again (rotation, tab changes).
+    val enterGate = rememberEnterGate()
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -197,7 +213,8 @@ fun MessagesScreen(
                 val staleIds = remember(state.messages, state.userState, state.filter.smart, state.now) {
                     Cleanup.staleIds(state.messages, state.userState, state.now, state.filter.smart)
                 }
-                if (staleIds.isNotEmpty() && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
+                // Each of these opens and closes lightly instead of popping in and pushing the list down.
+                AppearVisibility(staleIds.isNotEmpty() && !state.isSearching && state.viewMode == ViewMode.TIMELINE) {
                     CleanupBar(
                         text = if (state.filter.smart == SmartFilter.PROMOS) {
                             "${staleIds.size} promotions older than 30 days"
@@ -208,9 +225,9 @@ fun MessagesScreen(
                     )
                 }
                 state.feed.searchNote?.takeIf { state.isSearching }?.let {
-                    Caption("Showing: $it", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), maxLines = 2)
+                    Caption("Showing: $it", Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs), maxLines = 2)
                 }
-                if (state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
+                AppearVisibility(state.viewMode == ViewMode.TIMELINE && !state.isSearching && state.filter.hasExtras) {
                     ActiveFilterBar(
                         summary = state.filter.extrasSummary(),
                         resultCount = state.feed.visibleCount,
@@ -220,30 +237,36 @@ fun MessagesScreen(
                 }
             }
 
-            Box(Modifier.fillMaxSize()) {
-                val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
-                when {
-                    state.permission == PermissionStatus.DENIED -> PermissionGate(
-                        onGrant = { onIntent(Intent.RequestPermission) }
-                    )
-                    state.hasError -> ErrorState(
-                        title = stringResource(R.string.messages_error),
-                        hint = stringResource(R.string.error_hint),
-                        onRetry = { onIntent(Intent.Retry) }
-                    )
-                    state.isLoading || state.permission == PermissionStatus.UNKNOWN -> MessageListSkeleton()
-                    state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) {
-                        EmptyState(state)
-                    } else {
-                        SendersList(
+            // Loading, the list, empty and error swap with a short crossfade (instant when motion is reduced); the
+            // permission gate and the error appear at once because they are not content arriving.
+            val body = when {
+                state.permission == PermissionStatus.DENIED -> Body.PERMISSION
+                state.hasError -> Body.ERROR
+                state.isLoading || state.permission == PermissionStatus.UNKNOWN -> Body.LOADING
+                state.viewMode == ViewMode.SENDERS -> if (state.conversations.isEmpty()) Body.EMPTY else Body.SENDERS
+                state.feed.visibleCount == 0 -> Body.EMPTY
+                else -> Body.LIST
+            }
+            CrossfadeContent(body, Modifier.fillMaxSize(), label = "messages-body") { shown ->
+                Box(Modifier.fillMaxSize()) {
+                    val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
+                    when (shown) {
+                        Body.PERMISSION -> PermissionGate(onGrant = { onIntent(Intent.RequestPermission) })
+                        Body.ERROR -> ErrorState(
+                            title = stringResource(R.string.messages_error),
+                            hint = stringResource(R.string.error_hint),
+                            onRetry = { onIntent(Intent.Retry) }
+                        )
+                        Body.LOADING -> MessageListSkeleton()
+                        Body.SENDERS -> SendersList(
                             conversations = state.conversations,
                             today = today,
                             onOpen = { onIntent(Intent.OpenSender(it)) },
                             modifier = Modifier.fillMaxSize()
                         )
+                        Body.EMPTY -> MessagesEmpty(state, onIntent)
+                        Body.LIST -> MessageList(state, actions, Modifier.fillMaxSize(), gate = enterGate)
                     }
-                    state.feed.visibleCount == 0 -> EmptyState(state)
-                    else -> MessageList(state, actions, Modifier.fillMaxSize())
                 }
             }
         }
@@ -312,6 +335,7 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onArchive = { this(Intent.Archive(it)) },
     onUnarchive = { this(Intent.Unarchive(it)) },
     onTogglePin = { this(Intent.TogglePin(it)) },
+    onSetRead = { id, read -> this(Intent.SetRead(id, read)) },
     onDismissAttention = { this(Intent.DismissAttention(it)) },
     onMarkPaid = { this(Intent.DismissAttention(it, forever = true)) },
     onOpenSummary = { this(Intent.OpenSummary) },
@@ -324,11 +348,14 @@ private fun ((Intent) -> Unit).toFeedActions() = FeedActions(
     onResetFilters = { this(Intent.ResetFilters) }
 )
 
+/** What the area under the bars shows; a change between two of them is a crossfade. */
+private enum class Body { PERMISSION, ERROR, LOADING, SENDERS, EMPTY, LIST }
+
 /** Offers to tidy away old promotions or codes in one tap; the snackbar that follows can undo it. */
 @Composable
 private fun CleanupBar(text: String, onArchive: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Caption(text, Modifier.weight(1f), maxLines = 2)
@@ -340,7 +367,7 @@ private fun CleanupBar(text: String, onArchive: () -> Unit) {
 @Composable
 private fun ModeSummary(text: String) {
     Text(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.lg),
         text = text,
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
@@ -349,27 +376,27 @@ private fun ModeSummary(text: String) {
     )
 }
 
+/**
+ * Nothing to list, said once in the shared empty state's voice: a friendly line for why, and when there is something to do
+ * about it, one action (clear the search, clear the filters).
+ */
 @Composable
-private fun EmptyState(state: State) {
-    when {
-        state.isSearching && state.query.isNotBlank() ->
-            CenteredMessage(stringResource(R.string.search_empty), stringResource(R.string.search_empty_hint))
-        state.viewMode == ViewMode.TIMELINE && state.filter.isActive ->
-            CenteredMessage(stringResource(R.string.filter_empty), stringResource(R.string.filter_empty_hint))
-        else -> CenteredMessage(stringResource(R.string.messages_empty), null)
+private fun MessagesEmpty(state: State, onIntent: (Intent) -> Unit) {
+    val (title, body, action) = when {
+        state.isSearching && state.query.isNotBlank() -> Triple(
+            stringResource(R.string.search_empty), stringResource(R.string.search_empty_hint),
+            "Clear search" to { onIntent(Intent.SetQuery("")) }
+        )
+        state.viewMode == ViewMode.TIMELINE && state.filter.isActive -> Triple(
+            stringResource(R.string.filter_empty), stringResource(R.string.filter_empty_hint),
+            "Show everything" to { onIntent(Intent.ResetFilters) }
+        )
+        else -> Triple(stringResource(R.string.messages_empty), "New messages show up here as they arrive.", null)
     }
-}
-
-@Composable
-private fun CenteredMessage(title: String, hint: String?) {
-    Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-        if (hint != null) {
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = mutedColor(), textAlign = TextAlign.Center)
-        }
+    Box(Modifier.fillMaxSize().padding(Spacing.lg), contentAlignment = Alignment.Center) {
+        EmptyState(
+            title = title, body = body, icon = R.drawable.baseline_message_24,
+            actionLabel = action?.first, onAction = action?.second
+        )
     }
 }

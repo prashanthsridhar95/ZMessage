@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabPosition
 import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,17 +33,13 @@ fun UnderlineTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     /** Off when the tabs share a row with something else and a full-width line is drawn underneath instead. */
-    showDivider: Boolean = true
+    showDivider: Boolean = true,
+    /** The selection line, when it should move in its own way (the Messages tabs slide it with the motion tokens); null is Material's. */
+    indicator: (@Composable (List<TabPosition>) -> Unit)? = null
 ) {
     if (labels.isEmpty()) return
     ChromeScale {
-    ScrollableTabRow(
-        selectedTabIndex = selectedIndex.coerceIn(0, labels.lastIndex),
-        modifier = modifier,
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        edgePadding = 8.dp,
-        divider = { if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
-    ) {
+    val tabs: @Composable () -> Unit = {
         labels.forEachIndexed { index, label ->
             val selected = index == selectedIndex
             Tab(
@@ -74,6 +71,19 @@ fun UnderlineTabs(
                 }
             )
         }
+    }
+    val divider: @Composable () -> Unit = { if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
+    val current = selectedIndex.coerceIn(0, labels.lastIndex)
+    if (indicator == null) {
+        ScrollableTabRow(
+            selectedTabIndex = current, modifier = modifier, containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            edgePadding = 8.dp, divider = divider, tabs = tabs
+        )
+    } else {
+        ScrollableTabRow(
+            selectedTabIndex = current, modifier = modifier, containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            edgePadding = 8.dp, indicator = indicator, divider = divider, tabs = tabs
+        )
     }
     }
 }

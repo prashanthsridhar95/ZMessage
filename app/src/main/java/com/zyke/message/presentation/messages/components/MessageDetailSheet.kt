@@ -1,6 +1,9 @@
 package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.motion.AppearVisibility
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.common.linksIn
 import com.zyke.message.presentation.common.LocalOpenLink
 import android.net.Uri
@@ -117,25 +120,31 @@ internal fun MessageDetailSheet(
     val thisHasPicture = thisMessageKey in pictureKeys
     // The same chooser, for this one payment rather than everything from its sender or receiver.
     val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, title) else null
+    var confirmDelete by remember { mutableStateOf(false) }
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
 
     AdaptiveSheet(title, onDismiss, asPage = true) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MerchantChip(
                     item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
                     modifier = if (pickPicture != null) Modifier.clip(RoundedCornerShape(13.dp)).clickable(role = Role.Button, onClickLabel = "Change picture", onClick = pickPicture) else Modifier
                 )
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(Spacing.md))
                 Column(Modifier.weight(1f)) {
                     // The sender, named alone with a check when its header is a registered one, above when it arrived.
                     if (senderLabel.verified || senderLabel.name != title) {
                         com.zyke.message.presentation.common.SenderTitle(senderLabel, style = MaterialTheme.typography.bodyMedium)
                     }
                     Caption("${DateFormatters.detailTimestamp(message.date)} · ${com.zyke.message.presentation.common.categoryText(item)}", maxLines = 1)
+                    // A state the person just changed below says so, opening and closing lightly.
+                    AppearVisibility(isPinned || isArchived) {
+                        Caption(if (isArchived) "Archived" else "Pinned", color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
 
@@ -143,9 +152,9 @@ internal fun MessageDetailSheet(
                 FintechCard {
                     facts.forEachIndexed { index, fact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                             Caption(fact.label, Modifier.weight(1f))
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(Spacing.md))
                             Text(
                                 text = fact.value,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -202,12 +211,12 @@ internal fun MessageDetailSheet(
                 SelectionContainer {
                     Text(
                         text = message.body,
-                        modifier = Modifier.padding(top = 6.dp),
+                        modifier = Modifier.padding(top = Spacing.sm),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )
                 }
-                if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = 8.dp))
+                if (item.isModelParsed) Caption("Read by on-device AI", Modifier.padding(top = Spacing.sm))
                 if (message.isChat() && !message.isMms) ChatNote()
             }
 
@@ -288,7 +297,19 @@ internal fun MessageDetailSheet(
                     }
                     if (!manual && item.setAside == null) { SamePaymentRows(item, ledger); OpenPaymentRow(item, actions.onOpenMessage) }
                     if (item.setAside == com.zyke.message.domain.ledger.SetAside.TRANSFER) GoalLinkRow(item)
-                    if (manual) DetailRow("Delete this entry", null) { ledger.deleteEntry(item.id); onDismiss() }
+                    if (manual) DetailRow("Delete this entry", null) { confirmDelete = true }
+                }
+                // Deleting a hand-made entry cannot be undone, so it asks first and the confirming tap is the firmer buzz.
+                if (confirmDelete) {
+                    AlertDialog(
+                        onDismissRequest = { confirmDelete = false },
+                        title = { Text("Delete this entry?") },
+                        text = { Text("It leaves your totals for good.") },
+                        confirmButton = {
+                            AppButton("Delete", { haptics.reject(); confirmDelete = false; ledger.deleteEntry(item.id); onDismiss() }, style = ButtonStyle.TEXT)
+                        },
+                        dismissButton = { AppButton("Keep it", { confirmDelete = false }, style = ButtonStyle.TEXT) }
+                    )
                 }
             } else if (item.samePayment != null) {
                 // A gateway's confirmation the app linked to a bank debit: it says so, and the person can undo it.
@@ -344,8 +365,8 @@ private fun OpenPaymentRow(item: ClassifiedMessage, onOpen: (Long) -> Unit) {
 /** A titled card of rows, for settings that belong together. */
 @Composable
 internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        CardHeader(title, Modifier.padding(start = Spacing.xs))
         FintechCard(content = content)
     }
 }
@@ -354,15 +375,15 @@ internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() ->
 @Composable
 private fun DetailRow(label: String, value: String?, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = label, onClick = onClick).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = label, onClick = onClick).padding(vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         if (value != null) {
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Spacing.md))
             Text(value, style = MaterialTheme.typography.bodyMedium, color = mutedColor(), maxLines = 1)
         }
-        Text("\u203A", Modifier.padding(start = 8.dp), color = mutedColor())
+        Text("\u203A", Modifier.padding(start = Spacing.sm), color = mutedColor())
     }
 }
 

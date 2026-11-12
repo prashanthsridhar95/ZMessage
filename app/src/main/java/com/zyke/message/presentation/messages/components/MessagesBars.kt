@@ -1,5 +1,11 @@
 package com.zyke.message.presentation.messages.components
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.IconSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,12 +52,14 @@ import com.zyke.message.domain.model.MessageCategory
 
 @Composable
 internal fun BarIcon(icon: Int, description: String, active: Boolean, badge: Int, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
+        Modifier.size(48.dp).pressFeedback(source, pressedScale = Motion.PRESSED_SCALE).clip(CircleShape)
+            .clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Image(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(IconSize.lg),
             painter = painterResource(icon),
             colorFilter = ColorFilter.tint(
                 if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary

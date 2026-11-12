@@ -4,7 +4,11 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -40,6 +44,7 @@ import com.zyke.message.presentation.common.LocalImageStore
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.zyke.message.presentation.common.scaledLines
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,22 +99,44 @@ internal fun mutedColor(): Color {
 /** Lets a card hand its one-sentence screen-reader description to the row that draws it. */
 internal val LocalSpokenSummary = compositionLocalOf<String?> { null }
 
-/** Standard tappable list row: 16dp padding, content laid out horizontally. */
+/** The leading tile of every message row: one size, so titles line up down the whole list. */
+internal val RowTile = 48.dp
+
+/** Where a row's text starts: gutter, tile, gap. The "+N earlier" line under a group lines up with it. */
+internal val RowTextInset = Spacing.lg + RowTile + Spacing.lg
+
+/**
+ * The one anatomy of a message row: a 48 dp tile, a title with a caption under it (one line each), and what sits at the end.
+ * Side gutters are [Spacing.lg], the vertical padding [Spacing.md]. A tap dips the row a little (pressFeedback) and keeps
+ * its ripple. [clickModifier] gets the shared interaction source, so a row with its own gestures (the one-time code's long
+ * press) still dips.
+ */
 @Composable
 internal fun MessageRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
-    clickModifier: Modifier = Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick),
+    clickModifier: @Composable (MutableInteractionSource) -> Modifier = { source ->
+        Modifier.clickable(
+            interactionSource = source, indication = LocalIndication.current,
+            role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show message", onClick = onClick
+        )
+    },
     content: @Composable RowScope.() -> Unit
 ) {
     val spoken = LocalSpokenSummary.current
+    val swipeActions = LocalRowCustomActions.current
+    val source = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(clickModifier)
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .semantics(mergeDescendants = true) { if (spoken != null) contentDescription = spoken }
+            .pressFeedback(source)
+            .then(clickModifier(source))
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+            .semantics(mergeDescendants = true) {
+                if (spoken != null) contentDescription = spoken
+                if (swipeActions.isNotEmpty()) customActions = swipeActions
+            }
     ) {
         // With a summary, the pieces are hidden from screen readers so it is not read twice.
         Row(
@@ -288,7 +315,7 @@ private const val AMOUNT_ROW_SHARE = 0.5f
 
 /** Big right-aligned figure such as "- ₹500". */
 @Composable
-internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifier) {
+internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifier, fit: Boolean = false) {
     // The amount may take at most half the row, so the name beside it never shrinks to nothing (the "bill row" bug on
     // a 320 to 360 dp phone); it steps down a size there and may use a second line at large text.
     val screen = com.zyke.message.presentation.common.LocalResponsive.current
@@ -297,11 +324,16 @@ internal fun AmountText(text: String, color: Color, modifier: Modifier = Modifie
         text = text,
         textAlign = TextAlign.End,
         style = if (screen.isCompact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
-        maxLines = if (screen.stackRows) 2 else scaledLines(1),
+        maxLines = if (screen.stackRows && !fit) 2 else if (fit) 1 else scaledLines(1),
         overflow = TextOverflow.Ellipsis,
-        color = color
+        color = color,
+        fit = fit
     )
 }
+
+/** The end of a message row: the figure on one line, shrinking to fit its half of the row instead of wrapping or cutting off. */
+@Composable
+internal fun RowAmount(text: String, color: Color, modifier: Modifier = Modifier) = AmountText(text, color, modifier, fit = true)
 
 /** Small right-aligned "icon + caption" line (balance, card number, account). */
 @Composable

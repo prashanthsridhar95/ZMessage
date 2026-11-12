@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -36,16 +37,16 @@ internal fun TransactionCard(
     val repeatOf = item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { "Same payment as ${it.primaryLabel}" }
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(item.merchant.displayName)
-            Caption(listOfNotNull(repeatOf ?: account, time, if (relatedCount > 0) (relatedLabel ?: "+$relatedCount related") else null).joinToString(" · "), maxLines = 2)
+            Caption(listOfNotNull(repeatOf ?: account, time, if (relatedCount > 0) (relatedLabel ?: "+$relatedCount related") else null).joinToString(" · "))
         }
 
-        Spacer(Modifier.width(12.dp))
-        AmountText(
+        Spacer(Modifier.width(Spacing.md))
+        RowAmount(
             text = "$sign ${DisplayFormatters.rupees(content.amount)}",
             color = when {
                 repeatOf != null -> mutedColor()
@@ -74,16 +75,16 @@ internal fun CardBillCard(
     val urgent = due != null && DisplayFormatters.isUrgent(due, today)
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = bank.displayString, isUnread = isUnread)
-        Spacer(Modifier.width(16.dp))
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = bank.displayString, isUnread = isUnread)
+        Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(title.trim())
             Caption(caption, color = if (urgent) MaterialTheme.colorScheme.error else mutedColor())
         }
 
-        Spacer(Modifier.width(12.dp))
-        AmountText(
+        Spacer(Modifier.width(Spacing.md))
+        RowAmount(
             text = DisplayFormatters.rupees(content.amount),
             color = MaterialTheme.colorScheme.secondary
         )

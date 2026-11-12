@@ -7,6 +7,10 @@ interface UserMessageStateRepository {
     val state: StateFlow<UserMessageState>
 
     fun markRead(messageId: Long)
+
+    /** Takes back a read mark made here (a message the phone's own messaging app shows as read stays read). */
+    fun markUnread(messageId: Long) = Unit
+
     fun setArchived(messageId: Long, archived: Boolean)
     fun setPinned(messageId: Long, pinned: Boolean)
     /**
