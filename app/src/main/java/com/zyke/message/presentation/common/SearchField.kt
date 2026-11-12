@@ -29,6 +29,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.messages.components.mutedColor
 import kotlinx.coroutines.delay
 
@@ -44,10 +46,13 @@ fun SearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Search messages, merchants, amounts",
     onSearch: (String) -> Unit = {},
-    focusDelayMs: Long = 0L
+    focusDelayMs: Long = 0L,
+    /** False for a field that sits among other content (Settings): it is then focused only when tapped. */
+    autoFocus: Boolean = true
 ) {
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
+        if (!autoFocus) return@LaunchedEffect
         if (focusDelayMs > 0) delay(focusDelayMs)
         // Focus can be refused while the window is still settling; the field is then simply tapped.
         runCatching { focusRequester.requestFocus() }
@@ -56,15 +61,15 @@ fun SearchField(
     Row(
         modifier
             .heightIn(min = 48.dp)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(24.dp))
-            .padding(start = 16.dp),
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), AppShapes.card)
+            .padding(start = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
             painterResource(R.drawable.ic_search_24), contentDescription = null, modifier = Modifier.size(20.dp),
             colorFilter = ColorFilter.tint(mutedColor())
         )
-        Box(Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+        Box(Modifier.weight(1f).padding(horizontal = Spacing.md), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) Text(placeholder, color = mutedColor(), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
             BasicTextField(
                 value = query,
@@ -88,7 +93,7 @@ fun SearchField(
                 )
             }
         } else {
-            Box(Modifier.size(width = 16.dp, height = 48.dp))
+            Box(Modifier.size(width = Spacing.lg, height = 48.dp))
         }
     }
 }

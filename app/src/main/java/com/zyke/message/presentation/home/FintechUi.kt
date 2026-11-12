@@ -308,6 +308,9 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
         // The header region follows the tab: the total and a deck of bank accounts; the deck of cards; what is invested. It is
         // one item, so its content crossfades (and its height eases) when the sub-tab changes, instead of the list being rebuilt.
+        // One anchor for the deck, shared by the two sub-tabs that have one: during the header crossfade both can exist for a
+        // moment, and the registry lets only the registered one clear or report it.
+        val deckAnchor = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
         item(key = "header") {
             com.zyke.message.presentation.common.HeaderRegion {
                 CrossfadeContent(if (loading) HEADER_LOADING else tab, label = "accounts header") { which ->
@@ -318,7 +321,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                                 cards, deckState, deckToday,
                                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
                                 onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
-                                deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                                deckModifier = deckAnchor
                             )
                             2 -> InvestmentsHeaderContent(
                                 invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0,
@@ -330,7 +333,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                                 onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
                                 onCheckBalance = { checkingKey = it.key }, onBalanceSettings = { settingsKey = it.key },
                                 entering = heroGates[0].heroEntering(),
-                                deckModifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
+                                deckModifier = deckAnchor
                             )
                         }
                     }

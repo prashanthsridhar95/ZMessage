@@ -69,7 +69,7 @@ private fun FriendsPage(state: State, onIntent: (Intent) -> Unit, onBack: () -> 
     AppPage("Friends", onBack) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (friends.isEmpty()) {
-                EmptyState("No friends yet", "Split a payment from its details and the people you share it with appear here.")
+                EmptyState("No friends yet", "Split a payment from its details and the people you share it with appear here.", icon = com.zyke.message.R.drawable.baseline_group_24)
             }
             friends.forEach { FriendCard(it, onSettle = { settle(it) }) }
         }

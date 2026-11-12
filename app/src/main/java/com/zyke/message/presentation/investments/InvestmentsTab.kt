@@ -203,8 +203,7 @@ internal fun LazyListScope.investmentItems(
             Column(itemModifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 EmptyState(
                     "No investments yet",
-                    "Type in fixed and recurring deposits, mutual funds, stocks and gold. A receipt is enough: no message needed. " +
-                        "Deposits remind you before they mature, and funds show how they have grown.",
+                    "Add a deposit, fund, stock or gold. A receipt is enough, no message needed.",
                     icon = com.zyke.message.R.drawable.ic_trending_24
                 )
                 // Three equal tiles in one row (one under another on a narrow screen or at large text), never 2 + 1.

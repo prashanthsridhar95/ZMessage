@@ -150,7 +150,8 @@ internal fun AutoBackupCard() {
         Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             ToggleRow(
                 title = "Back up to this phone's Android backup",
-                description = "Keeps one encrypted file that Android's own backup uploads by itself, about daily when the phone is idle, charging and on Wi-Fi, and brings back when you reinstall or set up a new phone. We cannot control when Android uploads it; we only choose how often the file on this phone is refreshed (below). Needs no sign-in.",
+                description = "One encrypted file Android uploads by itself",
+                learnMore = "Keeps one encrypted file that Android's own backup uploads by itself, about daily when the phone is idle, charging and on Wi-Fi, and brings back when you reinstall or set up a new phone. We cannot control when Android uploads it; we only choose how often the file on this phone is refreshed (below). Needs no sign-in.",
                 checked = view.localEnabled,
                 onCheckedChange = { on ->
                     note = null
@@ -167,7 +168,8 @@ internal fun AutoBackupCard() {
             )
             ToggleRow(
                 title = "Back up to Google Drive",
-                description = "Uploads one file, encrypted with your PIN, to a private folder in your own Google Drive that only this app can see. Nothing else is sent: no messages, no analytics. Keeps the last 7. Off until you switch it on and sign in.",
+                description = "A private folder in your own Drive",
+                learnMore = "Uploads one file, encrypted with your PIN, to a private folder in your own Google Drive that only this app can see. Nothing else is sent: no messages, no analytics. Keeps the last 7. Off until you switch it on and sign in.",
                 checked = view.driveEnabled,
                 onCheckedChange = { on ->
                     note = null
@@ -200,7 +202,8 @@ internal fun AutoBackupCard() {
         Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ToggleRow(
                 title = "Save a copy to a folder",
-                description = "Also saves a dated file each time into a folder you choose, and keeps the newest 7. Needs no sign-in and no network. The files are encrypted with your PIN. Copy them anywhere; you need the PIN to open them.",
+                description = "A dated file in a folder you choose",
+                learnMore = "Also saves a dated file each time into a folder you choose, and keeps the newest 7. Needs no sign-in and no network. The files are encrypted with your PIN. Copy them anywhere; you need the PIN to open them.",
                 checked = view.folderEnabled,
                 onCheckedChange = { on ->
                     note = null
@@ -265,7 +268,7 @@ internal fun AutoBackupCard() {
             }
             ToggleRow(
                 title = "Wi-Fi only",
-                description = "Google Drive backups wait for Wi-Fi so they never use mobile data.",
+                description = "Drive backups wait for Wi-Fi",
                 checked = view.wifiOnly,
                 onCheckedChange = { hub.prefs.setWifiOnly(it); changed() }
             )
@@ -431,7 +434,8 @@ private fun PinSheet(onDismiss: () -> Unit, onSaved: () -> Unit) {
         if (failed) Caption("The PIN could not be saved on this phone. Please try again.", color = MaterialTheme.colorScheme.error, maxLines = 2)
         ToggleRow(
             title = "Advanced: use a passphrase instead",
-            description = "Much stronger than 6 digits. A 6-digit PIN has only a million possibilities, so someone who gets the backup file could try them all offline.",
+            description = "Much stronger than 6 digits",
+            learnMore = "A 6-digit PIN has only a million possibilities, so someone who gets the backup file could try them all offline. A passphrase cannot be tried that way.",
             checked = passphrase,
             onCheckedChange = { passphrase = it; first = ""; second = "" }
         )

@@ -181,12 +181,13 @@ internal fun CardDialog(
     }
 
     if (confirmingRemove && onDelete != null) {
-        AlertDialog(
-            onDismissRequest = { confirmingRemove = false },
-            title = { Text("Remove this card or account?") },
-            text = { Text("Its messages stay in your inbox. They just stop being grouped under it.") },
-            confirmButton = { AppButton("Remove", onDelete, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-            dismissButton = { AppButton("Keep", { confirmingRemove = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        com.zyke.message.presentation.common.ConfirmDialog(
+            title = "Remove this card or account?",
+            body = "Its name, statement day and limit are lost. Its messages stay in your inbox; they just stop being grouped under it.",
+            confirmLabel = "Remove",
+            cancelLabel = "Keep",
+            onConfirm = onDelete,
+            onDismiss = { confirmingRemove = false }
         )
     }
 }

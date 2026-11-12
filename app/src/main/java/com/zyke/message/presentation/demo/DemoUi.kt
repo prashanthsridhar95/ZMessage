@@ -60,12 +60,14 @@ fun DemoBanner(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ExitDemoDialog(onDismiss: () -> Unit, onExit: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Exit demo mode?") },
-        text = { Text("Your own messages and figures come back. The sample data goes away. Your app lock, if you use one, asks as usual.") },
-        confirmButton = { AppButton("Exit demo mode", onExit, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-        dismissButton = { AppButton("Stay in demo", onDismiss, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+    com.zyke.message.presentation.common.ConfirmDialog(
+        title = "Exit demo mode?",
+        body = "Your own messages and figures come back. The sample data goes away. Your app lock, if you use one, asks as usual.",
+        confirmLabel = "Exit demo mode",
+        cancelLabel = "Stay in demo",
+        destructive = false,
+        onConfirm = onExit,
+        onDismiss = onDismiss
     )
 }
 
@@ -98,22 +100,14 @@ fun DemoModeSettings() {
         )
     }
     if (asking) {
-        AlertDialog(
-            onDismissRequest = { asking = false },
-            title = { Text(if (on) "Exit demo mode?" else "Start demo mode?", Modifier.semantics { heading() }) },
-            text = {
-                Text(
-                    if (on) "Your own messages and figures come back. The sample data goes away."
-                    else "The app restarts with sample data. Your own data stays exactly as it is, and comes back when you exit."
-                )
-            },
-            confirmButton = {
-                AppButton(
-                    if (on) "Exit" else "Start", { asking = false; if (on) DemoSwitch.exit(context) else DemoSwitch.enter(context) },
-                    style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
-                )
-            },
-            dismissButton = { AppButton("Cancel", { asking = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        com.zyke.message.presentation.common.ConfirmDialog(
+            title = if (on) "Exit demo mode?" else "Start demo mode?",
+            body = if (on) "Your own messages and figures come back. The sample data goes away."
+            else "The app restarts with sample data. Your own data stays exactly as it is, and comes back when you exit.",
+            confirmLabel = if (on) "Exit" else "Start",
+            destructive = false,
+            onConfirm = { asking = false; if (on) DemoSwitch.exit(context) else DemoSwitch.enter(context) },
+            onDismiss = { asking = false }
         )
     }
 }

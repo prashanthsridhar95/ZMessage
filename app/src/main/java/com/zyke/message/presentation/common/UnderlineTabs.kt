@@ -17,7 +17,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import com.zyke.message.presentation.messages.components.SlidingTabIndicator
 import com.zyke.message.presentation.messages.components.mutedColor
+import com.zyke.message.presentation.theme.Spacing
 
 /**
  * Quick filters as plain text tabs with a sliding underline: no boxes, no borders.
@@ -51,7 +53,7 @@ fun UnderlineTabs(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         icons.getOrNull(index)?.let { icon ->
                             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                         }
                         Text(
                             text = label,
@@ -60,7 +62,7 @@ fun UnderlineTabs(
                             maxLines = 1
                         )
                         counts.getOrNull(index)?.let { count ->
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                             Text(
                                 text = count.toString(),
                                 style = MaterialTheme.typography.labelSmall,
@@ -74,16 +76,11 @@ fun UnderlineTabs(
     }
     val divider: @Composable () -> Unit = { if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)) }
     val current = selectedIndex.coerceIn(0, labels.lastIndex)
-    if (indicator == null) {
-        ScrollableTabRow(
-            selectedTabIndex = current, modifier = modifier, containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            edgePadding = 8.dp, divider = divider, tabs = tabs
-        )
-    } else {
-        ScrollableTabRow(
-            selectedTabIndex = current, modifier = modifier, containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            edgePadding = 8.dp, indicator = indicator, divider = divider, tabs = tabs
-        )
-    }
+    // The line slides in Motion.TAB_MS on the tokens (instant when reduced or in Lite mode) unless the caller draws its own.
+    val line: @Composable (List<TabPosition>) -> Unit = indicator ?: { positions -> SlidingTabIndicator(positions, current) }
+    ScrollableTabRow(
+        selectedTabIndex = current, modifier = modifier, containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        edgePadding = Spacing.sm, indicator = line, divider = divider, tabs = tabs
+    )
     }
 }

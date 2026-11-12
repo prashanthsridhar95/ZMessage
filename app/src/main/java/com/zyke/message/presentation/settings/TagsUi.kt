@@ -67,7 +67,7 @@ internal fun TagsPage(onDismiss: () -> Unit) {
         AppPage("Tags", onDismiss) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (summaries.isEmpty()) {
-                    EmptyState("No tags yet", "Open a payment and add a tag in \"Note and tags\", for example trip or work.")
+                    EmptyState("No tags yet", "Add a tag on any payment, like trip or work.", icon = com.zyke.message.R.drawable.baseline_sell_24)
                 } else {
                     SectionHeader("Tags", summaries.size)
                     FintechCard {

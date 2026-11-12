@@ -106,6 +106,9 @@ object TypeRole {
     /** The one big figure of a card (a balance, today's budget). */
     val hero: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold)
 
+    /** The headline of a welcome, permission or onboarding page: one line of promise above the button. */
+    val headline: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+
     /** A card's or a page section's title. */
     val title: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.titleMedium
 

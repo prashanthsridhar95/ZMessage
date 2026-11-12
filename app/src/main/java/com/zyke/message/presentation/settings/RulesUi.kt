@@ -57,9 +57,10 @@ internal fun RulesSection() {
     val view = remember(messages, overrides, nicknames, pictures, words) { Rules.describe(messages, overrides, nicknames, pictures, words) }
     val suggestions = remember(overrides, words) { Rules.suggestTokenRules(overrides, words) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
 
     if (view.isEmpty && suggestions.isEmpty()) {
-        EmptyState("Nothing taught yet", "When you file a payment under a category or give a sender a name, it shows up here.")
+        EmptyState("Nothing taught yet", "Rules appear when you file a payment or name a sender.", icon = com.zyke.message.R.drawable.baseline_list_24)
         return
     }
     suggestions.forEach { s ->
@@ -71,6 +72,7 @@ internal fun RulesSection() {
     }
     if (view.rules.isNotEmpty()) SectionCard("Senders and receivers") {
         view.rules.forEach { rule -> RuleRow(rule, { editing = rule.key }, {
+            haptics.reject()
             val old = rule
             container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null)
             actions.withUndo("Rule forgotten") {
@@ -87,6 +89,7 @@ internal fun RulesSection() {
                     Caption("${row.category.displayString} · ${count(row.affects)}", maxLines = 2)
                 }
                 AppButton("Delete", {
+                    haptics.reject()
                     container.tokenRules.set(row.token, null)
                     actions.withUndo("Rule forgotten") { container.tokenRules.set(row.token, row.category) }
                 }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
@@ -95,6 +98,7 @@ internal fun RulesSection() {
     }
     if (view.singles.isNotEmpty()) SectionCard("Single payments") {
         view.singles.forEach { rule -> RuleRow(rule, { editing = rule.key }, {
+            haptics.reject()
             container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null)
             actions.withUndo("Rule forgotten") {
                 rule.category?.let { container.categoryOverrides.set(rule.key, it) }

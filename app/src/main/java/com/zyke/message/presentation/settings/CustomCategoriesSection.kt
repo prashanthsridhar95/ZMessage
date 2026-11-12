@@ -44,6 +44,7 @@ internal fun CustomCategoriesSection() {
     val repo = container.customCategories
     val state by repo.state.collectAsStateWithLifecycle()
     val actions = rememberLedgerActions()
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
 
@@ -59,6 +60,7 @@ internal fun CustomCategoriesSection() {
                 }
                 AppButton("Edit", { editing = category.id }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                 AppButton("Delete", {
+                    haptics.reject()
                     repo.delete(category.id)?.let { deleted ->
                         actions.withUndo("Deleted ${deleted.category.name}") { repo.restore(deleted) }
                     }

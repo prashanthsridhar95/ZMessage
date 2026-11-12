@@ -259,7 +259,7 @@ internal fun ReviewPage(
         androidx.activity.compose.BackHandler(enabled = picking) { endPicking() }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (review.isEmpty) {
-                com.zyke.message.presentation.common.EmptyState("All clear", "Nothing needs a look right now. Anything the app is unsure of will appear here.")
+                com.zyke.message.presentation.common.EmptyState("All clear", "Nothing needs a look right now. Anything the app is unsure of will appear here.", icon = com.zyke.message.R.drawable.baseline_check_24)
             }
             if (review.cardBills.isNotEmpty()) {
                 SectionHeader("Credit card bill payments?", review.cardBills.size)

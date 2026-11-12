@@ -42,7 +42,10 @@ enum class ButtonStyle {
     OUTLINE,
 
     /** The quietest: just the label. */
-    TEXT
+    TEXT,
+
+    /** The confirming button of something that cannot be undone: filled with the theme's error colour. */
+    DANGER
 }
 
 enum class ButtonSize { REGULAR, COMPACT }
@@ -109,6 +112,16 @@ fun AppButton(
             contentPadding = padding,
             interactionSource = source,
             border = BorderStroke(1.5.dp, if (enabled) scheme.primary.copy(alpha = 0.6f) else scheme.onSurface.copy(alpha = 0.12f))
+        ) { label() }
+
+        ButtonStyle.DANGER -> Button(
+            onClick = onClick,
+            modifier = sized,
+            enabled = enabled,
+            shape = shape,
+            contentPadding = padding,
+            interactionSource = source,
+            colors = ButtonDefaults.buttonColors(containerColor = scheme.error, contentColor = scheme.onError)
         ) { label() }
 
         ButtonStyle.TEXT -> TextButton(

@@ -76,12 +76,20 @@ fun Modifier.tourAnchor(id: TourAnchor): Modifier = composed {
         val requester = remember { BringIntoViewRequester() }
         DisposableEffect(id, registry) {
             registry.requesters[id] = requester
-            onDispose { registry.requesters.remove(id); registry.bounds.remove(id) }
+            // Two anchors with the same id can be on screen together for a moment (a header crossfading to the next one):
+            // the one leaving must not clear what the one arriving registered, so it only clears its own.
+            onDispose {
+                if (registry.requesters[id] === requester) {
+                    registry.requesters.remove(id)
+                    registry.bounds.remove(id)
+                }
+            }
         }
         Modifier.bringIntoViewRequester(requester).onGloballyPositioned { coordinates ->
             if (coordinates.isAttached) {
                 val rect = coordinates.boundsInWindow()
-                if (registry.bounds[id] != rect) registry.bounds[id] = rect
+                // Only the anchor that is registered reports its place; a leaving twin cannot overwrite the arriving one.
+                if (registry.requesters[id] === requester && registry.bounds[id] != rect) registry.bounds[id] = rect
             }
         }
     }

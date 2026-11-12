@@ -234,26 +234,20 @@ internal fun RestoreFlow(source: RestoreSource, onClose: () -> Unit, fileUri: an
             Caption("Your PIN is not stored anywhere, so only you can open this backup.", maxLines = 3)
             PasswordField("PIN or passphrase", pin, { pin = it; error = null }, error = error)
         }
-        is Step.Confirm -> AlertDialog(
-            onDismissRequest = onClose,
-            title = { Text("Replace what you have now?") },
-            text = {
-                Text(
-                    "This replaces your current plan, limits, cards, goals, reminders, events, entries and settings" +
-                        (if (s.prepared.pictureCount > 0) " and your chosen sender pictures" else "") +
-                        " with the backup. Your messages are not touched. The app will close and you open it again."
-                )
+        is Step.Confirm -> com.zyke.message.presentation.common.ConfirmDialog(
+            title = "Replace what you have now?",
+            body = "This replaces your current plan, limits, cards, goals, reminders, events, entries and settings" +
+                (if (s.prepared.pictureCount > 0) " and your chosen sender pictures" else "") +
+                " with the backup. Your messages are not touched. The app will close and you open it again.",
+            confirmLabel = "Replace my setup",
+            onConfirm = {
+                scope.launch {
+                    val ok = withContext(Dispatchers.Default) { runCatching { hub.restorer.apply(s.prepared) }.isSuccess }
+                    // A restored phone is not new here: the tour is not replayed.
+                    if (ok) { com.zyke.message.data.repository.TourSeenRepositoryImpl.markRestored(context); step = Step.Restored } else fail("The backup could not be restored.")
+                }
             },
-            confirmButton = {
-                AppButton("Replace my setup", {
-                    scope.launch {
-                        val ok = withContext(Dispatchers.Default) { runCatching { hub.restorer.apply(s.prepared) }.isSuccess }
-                        // A restored phone is not new here: the tour is not replayed.
-                        if (ok) { com.zyke.message.data.repository.TourSeenRepositoryImpl.markRestored(context); step = Step.Restored } else fail("The backup could not be restored.")
-                    }
-                }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            },
-            dismissButton = { AppButton("Cancel", onClose, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+            onDismiss = onClose
         )
         Step.Restored -> AlertDialog(
             onDismissRequest = {},

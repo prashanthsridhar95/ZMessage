@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +41,7 @@ import androidx.compose.material3.Switch
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.runWhenRevealed
 import androidx.compose.material3.TextButton
+import com.zyke.message.presentation.common.LearnMore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -98,7 +101,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, versionName: String, onDismiss: 
 }
 
 /** The pages Settings is made of; the hub lists them and each opens as a page of its own. */
-private enum class SettingsGroup(val title: String, val icon: Int) {
+internal enum class SettingsGroup(val title: String, val icon: Int) {
     MONEY("Money plan", R.drawable.ic_wallet_24),
     LIMITS("Budgets", R.drawable.ic_goal_24),
     CARDS("Cards and accounts", R.drawable.ic_card_24),
@@ -143,66 +146,45 @@ fun SettingsPage(
     val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
     val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
 
-    com.zyke.message.presentation.common.AppPage("Settings", onDismiss) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val todo = setupSteps(state)
-            if (todo.isNotEmpty()) {
-                com.zyke.message.presentation.common.FintechCard {
-                    Caption("FINISH SETTING UP")
-                    todo.forEachIndexed { index, step ->
-                        Row(
-                            Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = step.first) { openName = step.third.name }.padding(top = if (index == 0) 8.dp else 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                RowTitle(step.first)
-                                Caption(step.second, maxLines = 2)
-                            }
-                            Text("\u203A", color = com.zyke.message.presentation.messages.components.mutedColor())
-                        }
-                    }
-                }
-            }
-
-            SettingsList(
-                "Your money",
-                listOf(
-                    SettingsGroup.MONEY to moneySummary(state),
-                    SettingsGroup.LIMITS to limitsSummary(state),
-                    SettingsGroup.CARDS to cardsSummary(state)
-                )
-            ) { openName = it.name }
-            SettingsList(
-                "Your messages",
-                listOf(
-                    SettingsGroup.MESSAGES to messagesSummary(state),
-                    SettingsGroup.RULES to "What you taught the app",
-                    SettingsGroup.ALERTS to alertsSummary(state),
-                    SettingsGroup.MARKETS to if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off",
-                    SettingsGroup.FLIGHTS to when { flightsOn && trainsOn -> "Flights and trains on"; flightsOn -> "Flights on"; trainsOn -> "Trains on"; else -> "Off" }
-                )
-            ) { openName = it.name }
-            SettingsList(
-                "This app",
-                buildList {
-                    add(SettingsGroup.PRIVACY to if (state.settings.appLock) "App lock on" else "Private on this phone")
-                    add(SettingsGroup.APPEARANCE to state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else "")
-                    add(SettingsGroup.HELP to "Take the app tour")
-                    add(SettingsGroup.DEMO to if (com.zyke.message.data.demo.DemoMode.active) "On \u00B7 sample data" else "Show the app with sample data")
-                    add(SettingsGroup.ABOUT to "Version $versionName")
-                    add(SettingsGroup.LEGAL to "What is sent, permissions, terms")
-                    add(SettingsGroup.LICENCES to "Libraries, font and icons we use")
-                    if (developer) add(SettingsGroup.DEVELOPER to if (logging) "Writing a log file" else "Log is off")
-                }
-            ) { openName = it.name }
+    val demoOn = com.zyke.message.data.demo.DemoMode.active
+    val gate = com.zyke.message.presentation.motion.rememberEnterGate()
+    // A search result for a setting asks for its page by name.
+    LaunchedEffect(SettingsDeepLink.pending) {
+        SettingsDeepLink.pending?.let { openName = it; SettingsDeepLink.pending = null }
+    }
+    val summaryOf: (SettingsGroup) -> String = { group ->
+        when (group) {
+            SettingsGroup.MONEY -> moneySummary(state)
+            SettingsGroup.LIMITS -> limitsSummary(state)
+            SettingsGroup.CARDS -> cardsSummary(state)
+            SettingsGroup.MESSAGES -> messagesSummary(state)
+            SettingsGroup.RULES -> "What you taught the app"
+            SettingsGroup.ALERTS -> alertsSummary(state)
+            SettingsGroup.MARKETS -> if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off"
+            SettingsGroup.FLIGHTS -> when { flightsOn && trainsOn -> "Flights and trains on"; flightsOn -> "Flights on"; trainsOn -> "Trains on"; else -> "Off" }
+            SettingsGroup.PRIVACY -> if (state.settings.appLock) "App lock on" else "Private on this phone"
+            SettingsGroup.APPEARANCE -> state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else ""
+            SettingsGroup.HELP -> "Take the app tour"
+            SettingsGroup.DEMO -> if (demoOn) "On \u00B7 sample data" else "Show the app with sample data"
+            SettingsGroup.ABOUT -> "Backup, export and delete \u00B7 version $versionName"
+            SettingsGroup.LEGAL -> "What is sent, permissions, terms"
+            SettingsGroup.LICENCES -> "Libraries, font and icons we use"
+            SettingsGroup.DEVELOPER -> if (logging) "Writing a log file" else "Log is off"
         }
+    }
+
+    com.zyke.message.presentation.common.AppPage("Settings", onDismiss) {
+        SettingsHub(
+            developer = developer, demo = demoOn, summaryOf = summaryOf, todo = setupSteps(state), gate = gate,
+            onOpen = { openName = it.name }
+        )
     }
 
     open?.takeIf { it != SettingsGroup.DEVELOPER || developer }?.let { group ->
         com.zyke.message.presentation.common.AppPage(group.title, { openName = null }) {
             // This page is about one thing, so its sections show their contents instead of folding away.
             CompositionLocalProvider(com.zyke.message.presentation.dashboard.components.LocalSectionsInline provides true) {
-                Column(Modifier.fillMaxWidth().tourAnchor(TourAnchor.SETTINGS_GROUP_BODY), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().tourAnchor(TourAnchor.SETTINGS_GROUP_BODY), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     GroupContent(group, state, versionName, onIntent, onDeleteAll = { deleting = true }, onOpenGroup = { openName = it.name })
                 }
             }
@@ -212,12 +194,12 @@ fun SettingsPage(
     if (deleting) DeleteAllSheet(onDismiss = { deleting = false })
 
     if (state.confirmingReset) {
-        AlertDialog(
-            onDismissRequest = { onIntent(Intent.CancelReset) },
-            title = { Text("Reset marks and budgets?") },
-            text = { Text("This clears read, pinned and archived marks, dismissed tips and all budgets. It can't be undone.") },
-            confirmButton = { AppButton("Reset", { onIntent(Intent.ConfirmReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) },
-            dismissButton = { AppButton("Cancel", { onIntent(Intent.CancelReset) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT) }
+        com.zyke.message.presentation.common.ConfirmDialog(
+            title = "Reset marks and budgets?",
+            body = "This clears your read, pinned and archived marks, dismissed tips and every budget. Your messages are not touched. It can't be undone.",
+            confirmLabel = "Reset",
+            onConfirm = { onIntent(Intent.ConfirmReset) },
+            onDismiss = { onIntent(Intent.CancelReset) }
         )
     }
 }
@@ -226,6 +208,7 @@ fun SettingsPage(
 @Composable
 private fun DeleteAllSheet(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     var typed by rememberSaveable { mutableStateOf("") }
     com.zyke.message.presentation.common.FormSheet(
         title = "Delete all my data?",
@@ -235,6 +218,7 @@ private fun DeleteAllSheet(onDismiss: () -> Unit) {
         primaryEnabled = typed.trim().equals("DELETE", ignoreCase = false),
         hint = "Type DELETE to confirm",
         onPrimary = {
+            haptics.reject()
             com.zyke.message.data.DataWipe.wipe(context)
             // Closed at once, so nothing still in memory writes itself back.
             (context as? android.app.Activity)?.finishAndRemoveTask()
@@ -303,41 +287,6 @@ private fun alertsSummary(state: State): String = when {
     else -> "Off"
 }
 
-/** A titled card of rows: an icon, what it is, how it is set, and a chevron. */
-@Composable
-private fun SettingsList(title: String, rows: List<Pair<SettingsGroup, String>>, onOpen: (SettingsGroup) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        GroupLabel(title)
-        com.zyke.message.presentation.common.FintechCard {
-            rows.forEachIndexed { index, (group, summary) ->
-                if (index > 0) androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .fullWidthClickable(role = Role.Button, onClickLabel = "Open ${group.title}") { onOpen(group) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(group.icon), contentDescription = null, modifier = Modifier.size(22.dp),
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
-                        )
-                    }
-                    Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                        RowTitle(group.title)
-                        Caption(summary, maxLines = 2)
-                    }
-                    Text("\u203A", style = MaterialTheme.typography.titleLarge, color = com.zyke.message.presentation.messages.components.mutedColor())
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun GroupContent(
     group: SettingsGroup,
@@ -383,13 +332,14 @@ private fun GroupContent(
         }
         SettingsGroup.MESSAGES -> {
             SectionCard("Pictures") {
-                Caption("Tap the photo on any message sheet to change it", maxLines = 3)
+                Caption("Tap the photo on any message sheet to change it", maxLines = 2)
                 ToggleRow(
-                    title = "Fetch brand logos from the internet",
-                    description = "Looks up logos of well-known brands once each. Only the brand name is sent.",
+                    title = "Fetch brand logos",
+                    description = "Only the brand name is sent",
+                    learnMore = "Looks up logos of well-known brands from the internet, once each. Only the brand name is sent: never message text, amounts or numbers.",
                     checked = state.settings.fetchLogos,
                     onCheckedChange = { onIntent(Intent.SetFetchLogos(it)) },
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.padding(top = Spacing.md)
                 )
             }
             TagsEntry()
@@ -397,7 +347,7 @@ private fun GroupContent(
             SectionCard("Parsing health") {
                 val diagnostics = state.diagnostics
                 if (diagnostics == null) {
-                    Caption("Allow SMS access to see how well your messages are understood.", maxLines = 3)
+                    Caption("Allow SMS access to see how well your messages are understood.", maxLines = 2)
                 } else if (diagnostics.moneyMessages == 0) {
                     Caption("No money messages found yet.")
                 } else {
@@ -406,16 +356,16 @@ private fun GroupContent(
                     ShareBar(fraction)
                     Caption(
                         if (diagnostics.unrecognised == 0) "Everything was understood."
-                        else "${diagnostics.unrecognised} shown as plain text. Share a report as a file, with numbers, names and links masked, so they can be taught.",
-                        Modifier.padding(top = 8.dp),
-                        maxLines = 4
+                        else "${diagnostics.unrecognised} shown as plain text",
+                        Modifier.padding(top = Spacing.sm)
                     )
+                    if (diagnostics.unrecognised > 0) LearnMore("Share a report as a file, with numbers, names and links masked, so these messages can be taught.")
                     AppButton(
                         text = "Share report",
                         onClick = { onIntent(Intent.ShareDiagnostics) },
                         style = ButtonStyle.OUTLINE,
                         enabled = diagnostics.unrecognised > 0,
-                        modifier = Modifier.padding(top = 12.dp)
+                        modifier = Modifier.padding(top = Spacing.md)
                     )
                 }
             }
@@ -427,26 +377,27 @@ private fun GroupContent(
                 onTurnOn = { onIntent(Intent.SetLiveAlerts(true)) }, onResume = { onIntent(Intent.SetReadingPaused(false)) }
             )
             MorningDigestToggle(enabled = state.settings.morningDigest, onChange = { onIntent(Intent.SetMorningDigest(it)) })
-            LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = 12.dp))
-            Box(Modifier.padding(top = 12.dp)) {
+            LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = Spacing.md))
+            Box(Modifier.padding(top = Spacing.md)) {
                 MorningDigestToggle(
                     enabled = state.settings.weeklySummary, onChange = { onIntent(Intent.SetWeeklySummary(it)) },
                     title = "Weekly summary", description = "Sunday at about 9 AM: the week's spending and what is due next"
                 )
             }
-            Box(Modifier.padding(top = 12.dp)) {
+            Box(Modifier.padding(top = Spacing.md)) {
                 MorningDigestToggle(
                     enabled = state.settings.headsUp && state.settings.liveAlerts, onChange = { onIntent(Intent.SetHeadsUp(it)) },
-                    title = "Heads-up alerts", description = "A quiet note when a payment is far above usual or leaves an account low. Needs the buttons above"
+                    title = "Heads-up alerts", description = "Unusual payments and low balances",
+                    learnMore = "A quiet note when a payment is far above usual or leaves an account low. Needs the Copy-code and Pay buttons above to be on."
                 )
             }
             var floor by remember { mutableStateOf(state.settings.lowBalanceFloor?.toPlainString().orEmpty()) }
             com.zyke.message.presentation.common.FormField(
                 "Low balance floor", floor, { floor = it; onIntent(Intent.SetLowBalanceFloor(it)) },
-                modifier = Modifier.padding(top = 12.dp), placeholder = "None", prefix = "\u20b9",
+                modifier = Modifier.padding(top = Spacing.md), placeholder = "None", prefix = "\u20b9",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = androidx.compose.ui.text.input.ImeAction.Done
             )
-            Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = 12.dp), maxLines = 2)
+            Caption("A \"Your day\" widget is in the widget list", Modifier.padding(top = Spacing.md), maxLines = 2)
         }
         CodeSharingEntry()
         }
@@ -458,23 +409,25 @@ private fun GroupContent(
             if (developerOn) LiveStatusChecks()
         }
         SettingsGroup.PRIVACY -> SectionCard("Privacy") {
-            Caption("Messages stay on this phone", maxLines = 5)
+            Caption("Messages stay on this phone", maxLines = 2)
             val reveal = com.zyke.message.presentation.common.LocalAmountReveal.current
             val screenLock = LocalContext.current.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure == true
             ToggleRow(
                 title = "Hide amounts until tapped",
-                description = "Every money amount in the app shows as dots, including in messages and notifications. Tap one to show them for a short while.",
+                description = "Money shows as dots, everywhere",
+                learnMore = "Every money amount in the app shows as dots, including in messages and notifications. Tap one to show them for a short while.",
                 checked = state.settings.hideAmounts,
                 // Showing money for good needs the screen lock, like showing it for a minute does.
                 onCheckedChange = { on ->
                     if (on) onIntent(Intent.SetHideAmounts(true))
                     else reveal.runWhenRevealed { onIntent(Intent.SetHideAmounts(false)) }
                 },
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = Spacing.md)
             )
             ToggleRow(
-                title = "Ask for authentication to show amounts",
-                description = if (screenLock) "Your fingerprint, face, PIN, pattern or password is asked before hidden amounts are shown."
+                title = "Ask to unlock amounts",
+                description = if (screenLock) "Fingerprint, face or screen lock first" else "Needs a screen lock on the phone",
+                learnMore = if (screenLock) "Your fingerprint, face, PIN, pattern or password is asked before hidden amounts are shown."
                 else "Your phone has no screen lock, so a tap shows amounts for 5 seconds. Set a screen lock in the phone's settings to turn this on.",
                 checked = state.settings.authForAmounts && screenLock,
                 onCheckedChange = { on ->
@@ -482,42 +435,40 @@ private fun GroupContent(
                     if (on) onIntent(Intent.SetAuthForAmounts(true))
                     else reveal.runWhenRevealed { onIntent(Intent.SetAuthForAmounts(false)) }
                 },
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = Spacing.md)
             )
             if (state.settings.hideAmounts) {
-                Caption("HIDE AMOUNTS AGAIN", Modifier.padding(top = 16.dp))
+                Caption("HIDE AMOUNTS AGAIN", Modifier.padding(top = Spacing.lg))
                 com.zyke.message.presentation.common.ChoiceCards(
                     choices = com.zyke.message.domain.privacy.RevealDuration.entries.map {
                         com.zyke.message.presentation.common.Choice(it, it.label, it.description)
                     },
                     selected = state.settings.revealDuration,
                     onSelect = { onIntent(Intent.SetRevealDuration(it)) },
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = Spacing.sm)
                 )
-                Caption(
-                    "How long amounts stay shown after you unlock them. Without a screen lock a tap always shows them for 5 seconds.",
-                    Modifier.padding(top = 8.dp), maxLines = 3
-                )
+                LearnMore("How long amounts stay shown after you unlock them. Without a screen lock a tap always shows them for 5 seconds.")
             }
             ToggleRow(
                 title = "Block screenshots",
                 description = "Also hides the recent-apps view",
                 checked = state.settings.screenProtection,
                 onCheckedChange = { onIntent(Intent.SetScreenProtection(it)) },
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = Spacing.md)
             )
-            AppLockToggle(enabled = state.settings.appLock, onChange = { onIntent(Intent.SetAppLock(it)) }, modifier = Modifier.padding(top = 12.dp))
+            AppLockToggle(enabled = state.settings.appLock, onChange = { onIntent(Intent.SetAppLock(it)) }, modifier = Modifier.padding(top = Spacing.md))
             val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
             ToggleRow(
                 title = "Pause reading messages",
-                description = "Stops reading your messages and listening for new ones. What was already read stays, and you can carry on any time.",
+                description = "Stops reading until you carry on",
+                learnMore = "Stops reading your messages and listening for new ones. What was already read stays, and you can carry on any time.",
                 checked = state.settings.readingPaused,
                 onCheckedChange = { paused ->
                     onIntent(Intent.SetReadingPaused(paused))
                     // Carrying on: look at what arrived while paused.
                     if (!paused) container.smsRepository.refreshRecent()
                 },
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = Spacing.md)
             )
         }
         SettingsGroup.APPEARANCE -> { SectionCard("Theme") {
@@ -526,20 +477,20 @@ private fun GroupContent(
                 selected = state.settings.themeMode,
                 onSelect = { onIntent(Intent.SetThemeMode(it)) }
             )
-            Caption("Automatic follows your phone. True black is pure black, easy on OLED screens.", Modifier.padding(top = 8.dp), maxLines = 3)
-            Caption("COLOUR", Modifier.padding(top = 16.dp))
+            LearnMore("Automatic follows your phone. True black is pure black, easy on OLED screens.")
+            Caption("COLOUR", Modifier.padding(top = Spacing.lg))
             var picking by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
             val customSeed = state.settings.customAccent
             com.zyke.message.presentation.theme.AccentSwatches(
                 selected = state.settings.accent,
                 onSelect = { onIntent(Intent.SetAccent(it)) },
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = Spacing.sm),
                 customAccent = customSeed,
                 onCustom = { picking = true }
             )
-            Caption("Default uses your phone's wallpaper colours where it has them. The ring is your own colour.", Modifier.padding(top = 8.dp), maxLines = 3)
+            LearnMore("Default uses your phone's wallpaper colours where it has them. The ring is your own colour.")
             val demoOn = com.zyke.message.data.demo.DemoMode.active
-            if (!demoOn) Caption("APP ICON", Modifier.padding(top = 16.dp))
+            if (!demoOn) Caption("APP ICON", Modifier.padding(top = Spacing.lg))
             val context = LocalContext.current
             var pendingIcon by rememberSaveable { mutableStateOf<String?>(null) }
             // The launcher icon is the phone's, not the demo's: Demo mode leaves it alone.
@@ -547,24 +498,23 @@ private fun GroupContent(
                 com.zyke.message.presentation.theme.AppIconChoices(
                     selected = state.settings.appIcon,
                     onSelect = { if (it != state.settings.appIcon) pendingIcon = it.id },
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = Spacing.sm)
                 )
-                Caption("The colour of the icon on your home screen. Only these colours are possible: Android cannot recolour an icon freely.", Modifier.padding(top = 8.dp), maxLines = 3)
+                LearnMore("The colour of the icon on your home screen. Only these colours are possible: Android cannot recolour an icon freely.")
             }
             pendingIcon?.let { id ->
                 val icon = com.zyke.message.domain.model.AppIconChoice.fromStored(id)
-                AlertDialog(
-                    onDismissRequest = { pendingIcon = null },
-                    title = { Text("Change app icon to ${icon.label}?") },
-                    text = { Text("Your launcher may take a few seconds to update, and some launchers close the app or move the icon.") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            onIntent(Intent.SetAppIcon(icon))
-                            AppIconSwitcher.applyAsync(context, icon)
-                            pendingIcon = null
-                        }) { Text("Change icon") }
+                com.zyke.message.presentation.common.ConfirmDialog(
+                    title = "Change app icon to ${icon.label}?",
+                    body = "Your launcher may take a few seconds to update, and some launchers close the app or move the icon.",
+                    confirmLabel = "Change icon",
+                    destructive = false,
+                    onConfirm = {
+                        onIntent(Intent.SetAppIcon(icon))
+                        AppIconSwitcher.applyAsync(context, icon)
+                        pendingIcon = null
                     },
-                    dismissButton = { TextButton(onClick = { pendingIcon = null }) { Text("Cancel") } }
+                    onDismiss = { pendingIcon = null }
                 )
             }
             if (picking) {
@@ -579,7 +529,8 @@ private fun GroupContent(
         SectionCard("Feel") {
             ToggleRow(
                 title = "Haptic feedback",
-                description = "A light tick when you flip a switch or choose an option, and a firmer one when you confirm something that cannot be undone.",
+                description = "A light tick on switches, a firmer one on deletes",
+                learnMore = "A light tick when you flip a switch or choose an option, and a firmer one when you confirm something that cannot be undone.",
                 checked = state.settings.hapticFeedback,
                 onCheckedChange = { onIntent(Intent.SetHapticFeedback(it)) }
             )
@@ -593,21 +544,21 @@ private fun GroupContent(
         SettingsGroup.LICENCES -> LicencesContent()
         SettingsGroup.ABOUT -> {
             SectionCard("Take your data with you") {
-                Caption("Nothing leaves the phone unless you share the file yourself.", maxLines = 3)
+                Caption("Nothing leaves the phone unless you share the file yourself.", maxLines = 2)
                 AppButton(
                     text = "Export transactions (spreadsheet)",
                     onClick = { onIntent(Intent.ExportTransactions) },
                     style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)
                 )
-                Caption("The transactions read so far. Message text is not included.", Modifier.padding(top = 4.dp), maxLines = 2)
+                Caption("The transactions read so far. Message text is not included.", Modifier.padding(top = Spacing.xs), maxLines = 2)
                 AppButton(
                     text = "Export my setup",
                     onClick = { onIntent(Intent.ExportSetup) },
                     style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)
                 )
-                Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = 4.dp), maxLines = 2)
+                Caption("Plan, limits, cards, goals, reminders, events and entries you added.", Modifier.padding(top = Spacing.xs), maxLines = 2)
             }
             val demo = com.zyke.message.data.demo.DemoMode.active
             androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.SETTINGS_BACKUP)) {
@@ -615,26 +566,26 @@ private fun GroupContent(
             }
             if (!demo) BackupCard()
             SectionCard("Clear data") {
-                Caption("Resetting clears marks and budgets, never your messages. Deleting removes everything this app has saved.", maxLines = 4)
+                Caption("Reset keeps your messages. Delete removes everything saved here.", maxLines = 2)
                 AppButton(
                     text = "Reset marks and budgets",
                     onClick = { onIntent(Intent.AskReset) },
                     style = ButtonStyle.OUTLINE,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)
                 )
                 if (!demo) {
                     AppButton(
                         text = "Delete all my data",
                         onClick = onDeleteAll,
                         style = ButtonStyle.OUTLINE,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)
                     )
                 }
             }
             SectionCard("About") {
                 VersionRow(versionName)
                 if (!demo) ShareLogsLink()
-                Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = 4.dp))
+                Caption("Plus Jakarta Sans, SIL Open Font License 1.1", Modifier.padding(top = Spacing.xs))
                 TextButton(onClick = { onOpenGroup(SettingsGroup.LEGAL) }) { Text("Privacy and terms") }
                 TextButton(onClick = { onOpenGroup(SettingsGroup.LICENCES) }) { Text("Open-source licences") }
             }
@@ -660,14 +611,14 @@ private fun CardsSection(
     if (accounts.isEmpty()) {
         com.zyke.message.presentation.common.EmptyState(
             "No cards or accounts yet",
-            "They appear here as soon as a message mentions one, or you can add one by its last four digits.",
+            "They appear when a message mentions one, or add one by its last four digits.",
             icon = R.drawable.ic_card_24,
             actionLabel = "Add a card or account",
             onAction = { adding = true }
         )
     } else {
         SectionCard("Found and added") {
-            Caption("Messages are matched to these by their last four digits", maxLines = 3)
+            Caption("Messages are matched to these by their last four digits", maxLines = 2)
             val editAccount = { account: com.zyke.message.domain.accounts.AccountSummary ->
                 val own = account.userCard
                 editingIsNew = own == null
@@ -682,14 +633,14 @@ private fun CardsSection(
                     deckCards.map { com.zyke.message.presentation.common.DeckCard(it.key, it.faceCard()) },
                     deckState,
                     onOpen = { entry -> deckCards.firstOrNull { it.key == entry.key }?.let(editAccount) },
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.padding(top = Spacing.md)
                 )
             }
             accounts.forEach { account ->
                 val own = account.userCard
                 val edit = { editAccount(account) }
                 Row(
-                    Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${account.title}", onClick = edit).padding(top = 14.dp),
+                    Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Edit ${account.title}", onClick = edit).padding(top = Spacing.md),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -712,7 +663,7 @@ private fun CardsSection(
                 text = "Add a card or account",
                 onClick = { adding = true },
                 style = ButtonStyle.OUTLINE,
-                modifier = Modifier.padding(top = 14.dp)
+                modifier = Modifier.padding(top = Spacing.md)
             )
         }
     }
@@ -756,13 +707,15 @@ private fun MorningDigestToggle(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
     title: String = "Morning digest",
-    description: String = "A short summary at about 8 AM"
+    description: String = "A short summary at about 8 AM",
+    learnMore: String? = null
 ) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
     ToggleRow(
         title = title,
         description = description,
+        learnMore = learnMore,
         checked = enabled,
         onCheckedChange = { wanted ->
             val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -831,7 +784,7 @@ private fun CodeAlertStatus(switchedOn: Boolean, readingPaused: Boolean, onTurnO
     when (problem) {
         null -> { title = "Code alerts are on"; detail = "A one-time code is announced with a Copy code button the moment it arrives."; action = null; run = {} }
         com.zyke.message.domain.device.CodeAlertProblem.SWITCHED_OFF -> {
-            title = "Code alerts are off"; detail = "Turn on the Copy-code and Pay buttons below to be told when a one-time code arrives."
+            title = "Code alerts are off"; detail = "Turn on the buttons below to hear about codes."
             action = "Turn on"; run = {
                 val allowed = allPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
                 if (allowed) onTurnOn() else asker.launch(allPermissions)
@@ -864,10 +817,10 @@ private fun CodeAlertStatus(switchedOn: Boolean, readingPaused: Boolean, onTurnO
             }
         }
     }
-    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         RowTitle(title, color = if (problem == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
-        Caption(detail, maxLines = 3)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Caption(detail, maxLines = 2)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             if (action != null) AppButton(action, run, Modifier.weight(1f))
             // A test only means something when it can arrive.
             if (problem == null || problem == com.zyke.message.domain.device.CodeAlertProblem.SWITCHED_OFF) {
@@ -925,12 +878,9 @@ private fun RcsSection() {
         Caption(
             (if (enabled) "Notification access is on" else "Notification access is off") +
                 " · $topUps UPI Lite top-up${if (topUps == 1) "" else "s"} caught from Google Pay",
-            maxLines = 3
+            maxLines = 2
         )
-        Caption(
-            "Adds new chats from Google and Samsung Messages, and UPI Lite top-ups from Google Pay so they count as spending",
-            maxLines = 5
-        )
+        LearnMore("Adds new chats from Google and Samsung Messages, and UPI Lite top-ups from Google Pay so they count as spending.")
         AppButton(
             text = "Notification access",
             onClick = {
@@ -942,44 +892,41 @@ private fun RcsSection() {
                 }
             },
             style = ButtonStyle.OUTLINE,
-            modifier = Modifier.padding(top = 12.dp)
+            modifier = Modifier.padding(top = Spacing.md)
         )
     }
 }
 
+/**
+ * A switch as a row: a title, one line saying what it does and the switch; the whole row toggles and gives the light tick.
+ * Anything longer than a line goes in [learnMore], a "Learn more" line under the row that opens it.
+ */
 @Composable
 internal fun ToggleRow(
     title: String,
     description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    learnMore: String? = null
 ) {
     val tick = com.zyke.message.presentation.common.rememberTick()
-    Row(
-        modifier
-            .fillMaxWidth()
-            .toggleable(value = checked, onValueChange = { tick(); onCheckedChange(it) }, role = Role.Switch),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            RowTitle(title)
-            Caption(description, maxLines = 6)
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(value = checked, onValueChange = { tick(); onCheckedChange(it) }, role = Role.Switch),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                RowTitle(title)
+                Caption(description, maxLines = 2)
+            }
+            Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = Spacing.md))
         }
-        Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 12.dp))
+        if (learnMore != null) com.zyke.message.presentation.common.LearnMore(learnMore)
     }
-}
-
-/** A small heading over a group of settings tiles. */
-@Composable
-private fun GroupLabel(text: String) {
-    Text(
-        text,
-        Modifier.padding(start = 4.dp, top = 12.dp).heading(),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.secondary
-    )
 }
 
 /** The same sharing the launcher icon's "Share logs" shortcut does, for anyone: say what it holds, then open the share sheet. */
@@ -996,10 +943,8 @@ private fun shareLogs(context: android.content.Context) {
 private fun ShareLogsLink() {
     val context = LocalContext.current
     TextButton(onClick = { shareLogs(context) }) { Text("Share logs") }
-    Caption(
-        "A small text file of start-up steps and crash details (screen and function names, line numbers, how earlier runs ended). Never message text, amounts or names. It goes nowhere unless you pick an app to send it with. If the app crashes on launch, long-press its icon and choose Share logs.",
-        maxLines = 6
-    )
+    Caption("A small file of start-up steps. Never message text.", maxLines = 2)
+    LearnMore("A small text file of start-up steps and crash details (screen and function names, line numbers, how earlier runs ended). Never message text, amounts or names. It goes nowhere unless you pick an app to send it with. If the app crashes on launch, long-press its icon and choose Share logs.")
 }
 
 /** The version, which also unlocks developer options when tapped seven times, as on Android itself. */
@@ -1023,7 +968,7 @@ private fun VersionRow(versionName: String) {
                     taps >= TAPS_TO_UNLOCK - 3 -> Toast.makeText(context, "${TAPS_TO_UNLOCK - taps} more taps to become a developer", Toast.LENGTH_SHORT).show()
                 }
             }
-        }.padding(vertical = 4.dp)
+        }.padding(vertical = Spacing.xs)
     ) {
         Caption("Version $versionName")
     }
@@ -1050,31 +995,33 @@ private fun DeveloperContent() {
     SectionCard("Log file") {
         ToggleRow(
             title = "Write a log file",
-            description = "Records what the app does while you use it: when things happen, counts and ids. Never message text, amounts, account numbers or names.",
+            description = "Counts and ids only, never message text",
+            learnMore = "Records what the app does while you use it: when things happen, counts and ids. Never message text, amounts, account numbers or names.",
             checked = logging,
             onCheckedChange = { com.zyke.message.data.diag.DevLog.setLogging(context, it); refresh += 1 }
         )
-        Caption("Log size: $sizeKb KB", Modifier.padding(top = 8.dp))
+        Caption("Log size: $sizeKb KB", Modifier.padding(top = Spacing.sm))
         AppButton(
             "Share logs",
             { shareLogs(context) },
-            Modifier.fillMaxWidth().padding(top = 8.dp)
+            Modifier.fillMaxWidth().padding(top = Spacing.sm)
         )
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             AppButton("Refresh", { refresh += 1 }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
             AppButton("Clear", { com.zyke.message.data.diag.DevLog.clear(); refresh += 1 }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
         }
     }
 
     SectionCard("Checks") {
-        Caption("Run these, then share the log. The second sets a test name and category on one message, checks they show up, and puts everything back.", maxLines = 4)
+        Caption("Run these, then share the log.", maxLines = 2)
+        LearnMore("The second check sets a test name and category on one message, looks that they show up, and puts everything back.")
         AppButton(
             if (running) "Running\u2026" else "Log a snapshot",
             {
                 running = true
                 scope.launch { results = com.zyke.message.data.diag.DevTools.snapshot(container); running = false; refresh += 1 }
             },
-            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && logging
+            Modifier.fillMaxWidth().padding(top = Spacing.sm), style = ButtonStyle.OUTLINE, enabled = !running && logging
         )
         AppButton(
             if (running) "Running\u2026" else "Test rename and category",
@@ -1082,11 +1029,11 @@ private fun DeveloperContent() {
                 running = true
                 scope.launch { results = com.zyke.message.data.diag.DevTools.selfTest(container); running = false; refresh += 1 }
             },
-            Modifier.fillMaxWidth().padding(top = 8.dp), style = ButtonStyle.OUTLINE, enabled = !running && logging
+            Modifier.fillMaxWidth().padding(top = Spacing.sm), style = ButtonStyle.OUTLINE, enabled = !running && logging
         )
-        if (!logging) Caption("Turn the log file on to run the checks.", Modifier.padding(top = 8.dp))
+        if (!logging) Caption("Turn the log file on to run the checks.", Modifier.padding(top = Spacing.sm))
         results.forEach { line ->
-            Text(line, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
     }
 
@@ -1112,7 +1059,7 @@ private fun DeveloperContent() {
             { com.zyke.message.data.diag.DevLog.setDeveloperMode(context, false) },
             Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE
         )
-        Caption("This stops the log and hides this page. Tap the version seven times to bring it back.", Modifier.padding(top = 8.dp), maxLines = 3)
+        Caption("Stops the log and hides this page. Tap the version seven times to bring it back.", Modifier.padding(top = Spacing.sm), maxLines = 2)
     }
 }
 

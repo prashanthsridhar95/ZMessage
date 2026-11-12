@@ -30,6 +30,10 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.Text
+import com.zyke.message.R
+import com.zyke.message.presentation.motion.enterOnce
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
 import com.zyke.message.presentation.messages.components.Caption
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -74,15 +78,19 @@ internal fun WelcomeBack(onFinished: () -> Unit) {
 
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().navigationBarsPadding()
-            .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xxl, vertical = Spacing.xxxl),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
+        // The same hero as the permission pages: an icon tile, the headline, one line of promise; it rises in once.
+        val gate = com.zyke.message.presentation.motion.rememberEnterGate()
+        com.zyke.message.presentation.common.StateIcon(R.drawable.ic_wallet_24, Modifier.enterOnce(gate, 0))
         Text(
             "Welcome back?",
-            Modifier.semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
+            Modifier.semantics { heading() }.enterOnce(gate, 1),
+            style = TypeRole.headline, color = MaterialTheme.colorScheme.primary
         )
-        Caption("If you used Zyke Message before, you can bring your setup back: plan, limits, cards, goals, reminders, events, names and settings. Your messages stay on the phone and are read again by themselves.", maxLines = 6)
+        Caption("Bring your setup back, if you used Zyke Message before. Your messages stay on the phone.", Modifier.enterOnce(gate, 2), maxLines = 3)
+        com.zyke.message.presentation.common.LearnMore("Your plan, limits, cards, goals, reminders, events, names and settings come back. Your messages are read again by themselves.")
         val made = phoneFileMade
         if (hub != null && made != null) {
             val whenMade = if (made > 0) " made " + DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()).format(java.time.Instant.ofEpochMilli(made).atZone(ZoneId.systemDefault())) else ""

@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,19 +12,32 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import com.zyke.message.R
 import com.zyke.message.presentation.messages.components.Caption
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
 
-/** What went wrong, in plain words, and a way to try again: errors should never be a dead end. */
+/**
+ * What went wrong, in plain words, and a way to try again: errors are never a dead end. Same tile and rhythm as the
+ * empty state; it appears at once (a crossfade at most) and is announced politely to a screen reader.
+ */
 @Composable
-fun ErrorState(title: String, hint: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun ErrorState(
+    title: String,
+    hint: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: Int = R.drawable.ic_info_24,
+    retryLabel: String = "Try again"
+) {
     Column(
-        modifier.fillMaxSize().padding(32.dp).semantics { liveRegion = LiveRegionMode.Polite },
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        modifier.fillMaxSize().padding(Spacing.xxxl).semantics { liveRegion = LiveRegionMode.Polite },
+        verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(title, Modifier.heading(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
+        StateIcon(icon)
+        Text(title, Modifier.heading(), style = TypeRole.title, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
         Caption(hint, maxLines = 3, textAlign = TextAlign.Center)
-        AppButton("Try again", onRetry)
+        AppButton(retryLabel, onRetry)
     }
 }

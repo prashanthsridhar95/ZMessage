@@ -41,6 +41,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,7 +112,7 @@ private const val SWIPE_DP = 72
 fun TourHost(controller: TourController, registry: TourRegistry) {
     val step = controller.currentStep ?: return
     val progress = controller.progress ?: return
-    val reduceMotion = rememberReduceMotion()
+    val motion = com.zyke.message.presentation.motion.rememberMotion()
     val lite = com.zyke.message.presentation.common.LocalLite.current
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
     var confirmLeave by remember { mutableStateOf(false) }
@@ -135,7 +137,8 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
     val scrimColor = MaterialTheme.colorScheme.scrim
     val ringColor = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
-    val spec = if (reduceMotion) snap<Rect>() else spring(stiffness = Spring.StiffnessMediumLow)
+    // The spotlight finds its place with the soft spring of the motion tokens (instant when reduced or in Lite mode).
+    val spec = motion.gentle<Rect>()
 
     Box(
         Modifier
@@ -163,7 +166,7 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
         val animated by animateRectAsState(cutout ?: collapsed, spec, label = "tour-spot")
         val scrimAlpha by animateFloatAsState(
             if (tall) SCRIM_ALPHA_SOFT else SCRIM_ALPHA,
-            if (reduceMotion) snap() else tween(200), label = "tour-scrim"
+            motion.tween(com.zyke.message.presentation.motion.Motion.TAB_MS), label = "tour-scrim"
         )
         val radius = with(density) { SPOT_RADIUS.toPx() }
         val ringWidth = with(density) { 2.dp.toPx() }
@@ -201,7 +204,7 @@ fun TourHost(controller: TourController, registry: TourRegistry) {
         }
 
         BoxWithConstraints(
-            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 12.dp)
+            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = Spacing.lg, vertical = Spacing.md)
         ) {
             val roomForCard = maxHeight
             val below = local != null && !tall && local.center.y < height / 2f
@@ -289,13 +292,13 @@ private fun CoachCard(
                         onDragCancel = { drag = 0f }
                     ) { _, amount -> drag += amount }
                 },
-            shape = RoundedCornerShape(24.dp),
+            shape = AppShapes.card,
             color = cardColor,
             tonalElevation = 6.dp,
             shadowElevation = 12.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            Column(Modifier.heightIn(max = maxCardHeight).padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Column(Modifier.heightIn(max = maxCardHeight).padding(horizontal = Spacing.xl, vertical = Spacing.lg)) {
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -306,7 +309,7 @@ private fun CoachCard(
                         )
                         Text(step.group.chapter, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    GroupBar(steps, progress.index, Modifier.padding(top = 8.dp, bottom = 12.dp))
+                    GroupBar(steps, progress.index, Modifier.padding(top = Spacing.sm, bottom = Spacing.md))
                     Text(
                         step.title,
                         Modifier.focusRequester(focus).focusable().semantics { heading() },
@@ -319,31 +322,31 @@ private fun CoachCard(
                     )
                     step.tip?.let {
                         Text(
-                            "Tip: $it", Modifier.padding(top = 8.dp),
+                            "Tip: $it", Modifier.padding(top = Spacing.sm),
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     step.actionLabel?.let {
                         Text(
-                            it, Modifier.padding(top = 8.dp),
+                            it, Modifier.padding(top = Spacing.sm),
                             style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
                         )
                     }
                     val missing = !controller.preparing && controller.target.anchor == null && step.anchor != null
                     if (missing && step.preview == null) {
                         Text(
-                            step.spotlightHint ?: "This shows up here once there is something to show.", Modifier.padding(top = 8.dp),
+                            step.spotlightHint ?: "This shows up here once there is something to show.", Modifier.padding(top = Spacing.sm),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     val preview = step.preview
                     if (preview != null && controller.target.placeholder && !controller.preparing) {
-                        TourPreview(preview, Modifier.padding(top = 12.dp))
+                        TourPreview(preview, Modifier.padding(top = Spacing.md))
                     }
                 }
                 FlowRow(
-                    Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     AppButton(
@@ -382,7 +385,7 @@ private fun CoachCard(
                         )
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     AppButton(
                         "Back", controller::back,
                         Modifier.weight(1f).semantics { contentDescription = "Back, to step ${(number - 1).coerceAtLeast(1)} of $total" },

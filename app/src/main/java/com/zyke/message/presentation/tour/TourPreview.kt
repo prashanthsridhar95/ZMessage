@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.tour
 
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,16 +34,16 @@ import com.zyke.message.presentation.home.Tone
  */
 @Composable
 fun TourPreview(kind: TourPreviewKind, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = AppShapes.control
     Column(
         modifier
             .fillMaxWidth()
             .clip(shape)
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-            .padding(12.dp)
+            .padding(Spacing.md)
             // One plain sentence for a screen reader instead of the pieces.
             .semantics(mergeDescendants = true) { contentDescription = "Example of this feature, with made-up numbers" },
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         Text(
             "EXAMPLE · SAMPLE NUMBERS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
@@ -147,7 +149,7 @@ private fun Sub(text: String) {
 
 @Composable
 private fun Bar(share: Float, caption: String?) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f))) {
             Box(Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).height(6.dp).background(MaterialTheme.colorScheme.primary))
         }
@@ -158,7 +160,7 @@ private fun Bar(share: Float, caption: String?) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Pills(vararg items: Pair<String, Tone>) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         items.forEach { (text, tone) -> StatusPill(text, tone) }
     }
 }

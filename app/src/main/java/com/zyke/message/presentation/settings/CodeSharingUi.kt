@@ -164,6 +164,9 @@ private fun CodeSharingContent() {
     }
 
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    // 1: clearing the list of codes seen, 2: clearing the log of codes passed on.
+    var clearing by rememberSaveable { mutableStateOf(0) }
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     var testing by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingTest by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingCode by rememberSaveable { mutableStateOf(false) }
@@ -459,7 +462,7 @@ private fun CodeSharingContent() {
                 }
             }
             AppButton(
-                "Clear this list", { repository.clearSeen() },
+                "Clear this list", { clearing = 1 },
                 Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
             )
         }
@@ -473,7 +476,7 @@ private fun CodeSharingContent() {
                     androidx.compose.runtime.key(serviceId + token) {
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("$token \u2192 $label", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                            AppButton("Remove", { repository.forgetHeader(serviceId, token) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                            AppButton("Remove", { haptics.reject(); repository.forgetHeader(serviceId, token) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
                         }
                     }
                 }
@@ -485,7 +488,7 @@ private fun CodeSharingContent() {
     Text("Recent", Modifier.padding(start = 4.dp, top = 8.dp).heading(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
     FintechCard {
         if (log.isEmpty()) {
-            Caption("Nothing sent yet. Each code you pass on is listed here with the service, the person and the time, never the code.", maxLines = 4)
+            Caption("Nothing sent yet. Each code you pass on is listed here, never the code itself.", maxLines = 2)
         } else {
             log.take(MAX_LOG_SHOWN).forEachIndexed { index, entry ->
                 androidx.compose.runtime.key(entry.id) {
@@ -501,13 +504,24 @@ private fun CodeSharingContent() {
                 }
             }
             AppButton(
-                "Clear the log", { repository.clearLog() },
+                "Clear the log", { clearing = 2 },
                 Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
             )
         }
     }
 
     // ---- sheets and dialogs
+    if (clearing != 0) {
+        val seenList = clearing == 1
+        com.zyke.message.presentation.common.ConfirmDialog(
+            title = if (seenList) "Clear the list of texts seen?" else "Clear the log of codes passed on?",
+            body = if (seenList) "The senders listed here are forgotten, and with them the way to teach one. Senders you already taught stay."
+            else "Every line of what was passed on, to whom and when, is removed. Nothing is sent again.",
+            confirmLabel = "Clear",
+            onConfirm = { if (seenList) repository.clearSeen() else repository.clearLog(); clearing = 0 },
+            onDismiss = { clearing = 0 }
+        )
+    }
     editing?.let { id ->
         val initial = rules.contacts.firstOrNull { it.id == id }
         if (id == NEW || initial != null) {

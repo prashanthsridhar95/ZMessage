@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.messages.components.Caption
 
 /**
@@ -71,21 +73,23 @@ fun FormSheet(
     asPage: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     AdaptiveSheet(
         title = title,
         onDismiss = onDismiss,
         asPage = asPage,
         subtitle = subtitle,
-        contentSpacing = 22.dp,
+        contentSpacing = Spacing.xl,
         footer = {
             if (!primaryEnabled && hint != null) {
-                Caption(hint, Modifier.fillMaxWidth().padding(bottom = 4.dp), maxLines = 2, textAlign = TextAlign.Center)
+                Caption(hint, Modifier.fillMaxWidth().padding(bottom = Spacing.xs), maxLines = 2, textAlign = TextAlign.Center)
             }
             AppButton(primaryLabel, onPrimary, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = primaryEnabled)
             if (secondaryLabel != null && onSecondary != null) {
                 val destructive = secondaryLabel.startsWith("Delete", ignoreCase = true) || secondaryLabel.startsWith("Remove", ignoreCase = true)
                 TextButton(
-                    onClick = onSecondary,
+                    // A removal gives the firmer buzz as it goes through (most come with an Undo or their own confirmation).
+                    onClick = { if (destructive) haptics.reject(); onSecondary() },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     colors = ButtonDefaults.textButtonColors(contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                 ) { Text(secondaryLabel, fontWeight = FontWeight.SemiBold) }
@@ -118,7 +122,7 @@ fun FormField(
     /** Puts the cursor in this field when it appears; for a sheet whose one job is to type here. */
     autoFocus: Boolean = false
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
         val quiet = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
         var focused by remember { mutableStateOf(false) }
@@ -147,7 +151,7 @@ fun FormField(
             // A field that grows to several lines keeps Enter for a new line.
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = if (singleLine) imeAction else ImeAction.Default, capitalization = capitalization),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() }),
-            shape = RoundedCornerShape(16.dp),
+            shape = AppShapes.control,
             // Filled and borderless until it is the one being typed in, then ringed in the brand colour.
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedContainerColor = quiet,
@@ -175,16 +179,16 @@ private const val MAX_SUGGESTIONS = 6
 /** Small tappable completions under a field, in one scrolling line so they never push the form down. */
 @Composable
 fun SuggestionRow(options: List<String>, onPick: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         options.forEach { option ->
             Text(
                 option,
                 Modifier
                     .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AppShapes.chip)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
                     .clickable(role = Role.Button, onClickLabel = "Use $option", onClick = { onPick(option) })
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
@@ -204,7 +208,7 @@ fun AmountField(
     supporting: String? = null,
     quickAdds: List<Int> = emptyList()
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         FormField(
             label, value, { onChange(it.filter { c -> c.isDigit() || c == '.' }) },
             prefix = "₹", keyboardType = KeyboardType.Decimal, supporting = supporting, large = true
@@ -224,9 +228,9 @@ data class ChipOption(val label: String, val selected: Boolean)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Chips(options: List<ChipOption>, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         options.forEachIndexed { index, option ->
-            val shape = RoundedCornerShape(12.dp)
+            val shape = AppShapes.chip
             val fill = if (option.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
             val ink = if (option.selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
             Row(
@@ -235,7 +239,7 @@ fun Chips(options: List<ChipOption>, onSelect: (Int) -> Unit, modifier: Modifier
                     .clip(shape)
                     .background(fill)
                     .selectable(selected = option.selected, role = Role.RadioButton, onClick = { onSelect(index) })
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = Spacing.lg),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (option.selected) Text("\u2713 ", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = ink)
@@ -248,11 +252,11 @@ fun Chips(options: List<ChipOption>, onSelect: (Int) -> Unit, modifier: Modifier
 /** A label above a group of choices. */
 @Composable
 fun FormGroup(label: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
         content()
     }
 }
 
 @Composable
-fun FormSpacer() = Spacer(Modifier.height(4.dp))
+fun FormSpacer() = Spacer(Modifier.height(Spacing.xs))

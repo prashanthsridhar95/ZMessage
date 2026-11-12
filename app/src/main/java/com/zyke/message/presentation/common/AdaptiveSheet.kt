@@ -108,12 +108,12 @@ fun AdaptiveSheet(
         }
         Column(Modifier.fillMaxWidth().onSizeChanged { columnHeight = it.height }) {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
+                Column(Modifier.weight(1f).padding(vertical = Spacing.xs)) {
                     Text(
                         title, Modifier.heading(), style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
                     )
-                    if (subtitle != null) Caption(subtitle, Modifier.padding(top = 2.dp), maxLines = 2)
+                    if (subtitle != null) Caption(subtitle, Modifier.padding(top = Spacing.xs / 2), maxLines = 2)
                 }
                 Box(
                     Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Close", onClick = onDismiss),

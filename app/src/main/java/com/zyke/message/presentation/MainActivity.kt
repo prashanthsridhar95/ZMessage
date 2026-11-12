@@ -460,6 +460,13 @@ class MainActivity : ComponentActivity() {
                                     com.zyke.message.domain.search.SearchKind.REMINDER -> home(HomeContract.Intent.OpenReminders)
                                     com.zyke.message.domain.search.SearchKind.EVENT -> home(HomeContract.Intent.OpenAgenda)
                                     com.zyke.message.domain.search.SearchKind.STOCK -> Unit
+                                    // A setting: Settings opens on the page that holds it.
+                                    com.zyke.message.domain.search.SearchKind.SETTING -> {
+                                        val page = com.zyke.message.domain.settings.SettingsIndex.all.firstOrNull { it.id == hit.id }?.page
+                                        onDismiss()
+                                        com.zyke.message.presentation.settings.SettingsDeepLink.pending = page?.name
+                                        openSettings()
+                                    }
                                     com.zyke.message.domain.search.SearchKind.PAGE -> when (hit.id) {
                                         com.zyke.message.domain.search.SearchPages.ACCOUNTS -> { onDismiss(); navigate(AppTab.ACCOUNTS) }
                                         com.zyke.message.domain.search.SearchPages.INVESTMENTS -> {
