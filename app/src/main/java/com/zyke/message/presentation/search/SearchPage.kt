@@ -80,6 +80,16 @@ import com.zyke.message.presentation.home.HomeContract
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.theme.AppColors
+import com.zyke.message.presentation.theme.IconSize
+import com.zyke.message.presentation.theme.Radius
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.TypeRole
+import com.zyke.message.presentation.common.ErrorState
+import com.zyke.message.presentation.common.LoadingState
+import com.zyke.message.presentation.common.tappable
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.itemMotion
+import androidx.compose.foundation.layout.widthIn
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -107,14 +117,18 @@ fun SearchRoute(
 ) {
     val state by home.collectAsStateWithLifecycle()
     val watch by watchlist.watch.collectAsStateWithLifecycle()
-    val sources = remember(state.messages, state.goalList, state.reminderList, state.events, state.accounts, watch) {
+    val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
+    val demo = com.zyke.message.data.demo.DemoMode.active
+    val sources = remember(state.messages, state.goalList, state.reminderList, state.events, state.accounts, watch, developer, demo) {
         SearchSources(
             messages = state.messages,
             goals = state.goalList,
             reminders = state.reminderList,
             events = state.events,
             accounts = state.accounts.accounts,
-            watched = watch.symbols
+            watched = watch.symbols,
+            developerMode = developer,
+            demoMode = demo
         )
     }
     SearchPage(sources, recents, onOpen, onDismiss)
@@ -129,8 +143,8 @@ private sealed interface Item {
         override val key get() = "title-$id"
         override val type get() = 0
     }
-    data class Recent(val query: String) : Item {
-        override val key get() = "recent-$query"
+    data class Recents(val queries: List<String>) : Item {
+        override val key get() = "recents"
         override val type get() = 1
     }
     data object Suggestions : Item {
@@ -159,6 +173,11 @@ private sealed interface Item {
     }
 }
 
+/** Which of the page's five states is showing; they crossfade into one another. */
+private enum class Stage { IDLE, LOADING, RESULTS, EMPTY, ERROR }
+
+private const val SLOW_MS = 250L
+
 private val TIPS = listOf("swiggy last month", "food this month", ">5000", "salary under 2k", "5000", "settings")
 
 @Composable
@@ -175,18 +194,44 @@ fun SearchPage(sources: SearchSources, recents: RecentSearchStore, onOpen: (Sear
     var results by remember { mutableStateOf(SearchResults.EMPTY) }
     // The query the results on show were found for, so "no matches" is never claimed for a query still being searched.
     var resultsFor by remember { mutableStateOf("") }
+    var failed by remember { mutableStateOf(false) }
+    var retry by remember { mutableStateOf(0) }
 
     // Waits for a pause in typing, then searches off the main thread; a newer keystroke cancels the older search.
-    LaunchedEffect(query, scope, sources) {
+    LaunchedEffect(query, scope, sources, retry) {
         if (query.isBlank()) {
             results = SearchResults.EMPTY
             resultsFor = query
+            failed = false
             return@LaunchedEffect
         }
         if (query != resultsFor) delay(DEBOUNCE_MS)
         val typed = query
-        results = withContext(Dispatchers.Default) { GlobalSearch.search(typed, sources, FETCH_LIMIT, scope, today, zone) }
+        val found = withContext(Dispatchers.Default) {
+            runCatching { GlobalSearch.search(typed, sources, FETCH_LIMIT, scope, today, zone) }.getOrNull()
+        }
+        failed = found == null
+        results = found ?: SearchResults.EMPTY
         resultsFor = typed
+    }
+
+    // The skeleton only appears when a search is slow; a quick one never flashes it.
+    val pending = query.isNotBlank() && resultsFor != query
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(pending, query) {
+        slow = false
+        if (pending) {
+            delay(SLOW_MS)
+            slow = true
+        }
+    }
+    val stage = when {
+        query.isBlank() -> Stage.IDLE
+        failed && !pending -> Stage.ERROR
+        pending && slow && results.isEmpty -> Stage.LOADING
+        results.isEmpty && !pending -> Stage.EMPTY
+        results.isEmpty -> Stage.IDLE
+        else -> Stage.RESULTS
     }
 
     val parsed = remember(query) { SearchQueryParser.parse(query, today) }
@@ -217,6 +262,8 @@ fun SearchPage(sources: SearchSources, recents: RecentSearchStore, onOpen: (Sear
                 parsed = parsed,
                 words = words,
                 items = items,
+                stage = stage,
+                onRetry = { retry += 1 },
                 today = today,
                 zone = zone,
                 onSearch = { commit(it) },
@@ -254,7 +301,7 @@ private fun buildItems(
     if (query.isBlank()) {
         if (recents.isNotEmpty()) {
             add(Item.Title("recent", "Recent", action = "Clear all"))
-            recents.forEach { add(Item.Recent(it)) }
+            add(Item.Recents(recents))
         }
         add(Item.Title("try", "Try"))
         add(Item.Suggestions)
@@ -289,6 +336,8 @@ private fun SearchScreen(
     parsed: com.zyke.message.domain.search.ParsedSearch,
     words: List<String>,
     items: List<Item>,
+    stage: Stage,
+    onRetry: () -> Unit,
     today: LocalDate,
     zone: ZoneId,
     onSearch: (String) -> Unit,
@@ -307,7 +356,7 @@ private fun SearchScreen(
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).statusBarsPadding().imePadding()
     ) {
-        Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(end = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(56.dp).clickable(role = Role.Button, onClickLabel = "Back", onClick = onBack), contentAlignment = Alignment.Center) {
                 Image(
                     painterResource(R.drawable.baseline_arrow_back_24), contentDescription = "Back",
@@ -320,40 +369,51 @@ private fun SearchScreen(
             )
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             SearchScope.entries.forEach { s -> QuickChip(s.label, selected = s == scope, onClick = { onScope(s) }) }
         }
         if (parsed.hasFilters) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 parsed.chips.forEach { chip ->
                     QuickChip(chip.label, selected = false, removable = true, onClick = { onQuery(parsed.without(chip)) })
                 }
             }
         }
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)
-        ) {
-            items(items.distinctBy { it.key }, key = { it.key }, contentType = { it.type }) { item ->
-                when (item) {
-                    is Item.Title -> SectionTitle(item, onClearRecents)
-                    is Item.Recent -> RecentRow(item.query, { onRunQuery(item.query) }, { onRemoveRecent(item.query) })
-                    Item.Suggestions -> FlowChips(
-                        SearchSuggestions.all.map { it.label to it.query }, onRunQuery
-                    )
-                    Item.Jump -> JumpTiles(onJump)
-                    is Item.Hit -> HitRow(item.hit, words, highlight, today, zone) { onHit(item.hit) }
-                    is Item.More -> MoreRow(item, onToggle)
-                    is Item.Empty -> EmptyState(
-                        "No matches", "Nothing found for “${item.query}”. Check the spelling, or try fewer words.",
-                        Modifier.padding(top = 16.dp, bottom = 8.dp), icon = R.drawable.ic_search_24
-                    )
-                    is Item.Tip -> TipRow(item.text) { onRunQuery(item.text) }
+        CrossfadeContent(stage, Modifier.weight(1f).fillMaxWidth(), label = "search-stage") { shown ->
+            when (shown) {
+                Stage.LOADING -> LoadingState(Modifier.padding(top = Spacing.md), "Searching")
+                Stage.ERROR -> ErrorState(
+                    title = "Search did not finish", hint = "Nothing was lost. Try again.", onRetry = onRetry,
+                    icon = R.drawable.ic_search_24
+                )
+                else -> LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.xs, bottom = Spacing.xxl)
+                ) {
+                    items(items.distinctBy { it.key }, key = { it.key }, contentType = { it.type }) { item ->
+                        Box(itemMotion()) {
+                            when (item) {
+                                is Item.Title -> SectionTitle(item, onClearRecents)
+                                is Item.Recents -> RecentChips(item.queries, onRunQuery, onRemoveRecent)
+                                Item.Suggestions -> FlowChips(
+                                    SearchSuggestions.all.map { it.label to it.query }, onRunQuery
+                                )
+                                Item.Jump -> JumpTiles(onJump)
+                                is Item.Hit -> HitRow(item.hit, words, highlight, today, zone) { onHit(item.hit) }
+                                is Item.More -> MoreRow(item, onToggle)
+                                is Item.Empty -> EmptyState(
+                                    "No matches for \u201C${item.query}\u201D", "Try fewer words, or another spelling.",
+                                    Modifier.padding(top = Spacing.lg, bottom = Spacing.sm), icon = R.drawable.ic_search_24
+                                )
+                                is Item.Tip -> TipRow(item.text) { onRunQuery(item.text) }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -363,23 +423,21 @@ private fun SearchScreen(
 
 @Composable
 private fun SectionTitle(item: Item.Title, onAction: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
         Text(
             item.text.uppercase(),
             Modifier.heading(),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = androidx.compose.ui.unit.TextUnit(1.2f, androidx.compose.ui.unit.TextUnitType.Sp),
+            style = TypeRole.section,
             color = mutedColor()
         )
         if (item.count != null) {
-            Spacer(Modifier.width(8.dp))
-            Text(item.count.toString(), style = MaterialTheme.typography.labelMedium, color = mutedColor())
+            Spacer(Modifier.width(Spacing.sm))
+            Text(item.count.toString(), style = TypeRole.section, color = mutedColor())
         }
         Spacer(Modifier.weight(1f))
         if (item.action != null) {
             Box(
-                Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 8.dp),
+                Modifier.heightIn(min = 48.dp).tappable(onClick = onAction, onClickLabel = item.action).padding(horizontal = Spacing.sm),
                 contentAlignment = Alignment.Center
             ) {
                 Text(item.action, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
@@ -396,18 +454,18 @@ private fun QuickChip(label: String, selected: Boolean, onClick: () -> Unit, rem
     Box(
         Modifier.heightIn(min = 48.dp)
             .semantics { if (removable) contentDescription = "$label filter, remove" }
-            .clickable(role = if (removable) Role.Button else Role.Tab, onClickLabel = if (removable) "Remove filter" else null, onClick = onClick),
+            .tappable(onClick = onClick, role = if (removable) Role.Button else Role.Tab, onClickLabel = if (removable) "Remove filter" else null, tick = !removable),
         contentAlignment = Alignment.Center
     ) {
         Row(
-            Modifier.background(fill, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+            Modifier.background(fill, RoundedCornerShape(Radius.control)).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, color = ink, maxLines = 1)
             if (removable) {
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Spacing.xs))
                 Image(
-                    painterResource(R.drawable.baseline_close_24), contentDescription = null, modifier = Modifier.size(14.dp),
+                    painterResource(R.drawable.baseline_close_24), contentDescription = null, modifier = Modifier.size(IconSize.sm),
                     colorFilter = ColorFilter.tint(ink)
                 )
             }
@@ -418,57 +476,67 @@ private fun QuickChip(label: String, selected: Boolean, onClick: () -> Unit, rem
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowChips(options: List<Pair<String, String>>, onPick: (String) -> Unit) {
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         options.forEach { (label, query) -> QuickChip(label, selected = false, onClick = { onPick(query) }) }
     }
 }
 
+/**
+ * The recent searches as chips that wrap: a tap searches again, the small cross takes one away. Every chip is one line and
+ * 48 dp tall, so a row of them is level; "Clear all" sits in the header above.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RecentRow(query: String, onClick: () -> Unit, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        Row(
-            Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "Search again", onClick = onClick),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painterResource(R.drawable.ic_search_24), contentDescription = null, modifier = Modifier.size(18.dp),
-                colorFilter = ColorFilter.tint(mutedColor())
-            )
-            Spacer(Modifier.width(14.dp))
-            Text(query, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(
-            Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "Remove from recent searches", onClick = onRemove),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painterResource(R.drawable.baseline_close_24), contentDescription = "Remove $query", modifier = Modifier.size(18.dp),
-                colorFilter = ColorFilter.tint(mutedColor())
-            )
+private fun RecentChips(queries: List<String>, onRun: (String) -> Unit, onRemove: (String) -> Unit) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        queries.forEach { q ->
+            Row(
+                Modifier.heightIn(min = 48.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(Radius.control)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.heightIn(min = 48.dp).widthIn(max = 220.dp)
+                        .tappable(onClick = { onRun(q) }, onClickLabel = "Search again for $q")
+                        .padding(start = Spacing.lg, end = Spacing.xs),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(q, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Box(
+                    Modifier.size(width = 40.dp, height = 48.dp)
+                        .tappable(onClick = { onRemove(q) }, onClickLabel = "Remove $q from recent searches"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painterResource(R.drawable.baseline_close_24), contentDescription = "Remove $q", modifier = Modifier.size(IconSize.sm),
+                        colorFilter = ColorFilter.tint(mutedColor())
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun JumpTiles(onJump: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         SearchPages.shortcuts.chunked(3).forEach { rowTiles ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 rowTiles.forEach { page ->
                     Column(
                         Modifier.weight(1f).heightIn(min = 76.dp)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
-                            .clickable(role = Role.Button, onClickLabel = "Open ${page.title}") { onJump(page.key) }
-                            .padding(vertical = 12.dp),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(Radius.control))
+                            .tappable(onClick = { onJump(page.key) }, onClickLabel = "Open ${page.title}")
+                            .padding(vertical = Spacing.md),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Image(
-                            painterResource(pageIcon(page.key)), contentDescription = null, modifier = Modifier.size(24.dp),
+                            painterResource(pageIcon(page.key)), contentDescription = null, modifier = Modifier.size(IconSize.lg),
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                         )
                         Text(
-                            page.title, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium,
+                            page.title, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary, maxLines = 1
                         )
                     }
@@ -483,13 +551,13 @@ private fun JumpTiles(onJump: (String) -> Unit) {
 @Composable
 private fun TipRow(text: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "Try this search", onClick = onClick),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).tappable(onClick = onClick, onClickLabel = "Try this search"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("Try", style = MaterialTheme.typography.bodySmall, color = mutedColor())
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Spacing.md))
         Text(
-            text, Modifier.border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+            text, Modifier.border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(Radius.chip / 2)).padding(horizontal = Spacing.sm, vertical = Spacing.xs / 2),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary
         )
     }
@@ -499,7 +567,7 @@ private fun TipRow(text: String, onClick: () -> Unit) {
 private fun MoreRow(item: Item.More, onToggle: (SearchKind) -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            .clickable(role = Role.Button, onClickLabel = if (item.expanded) "Show fewer" else "Show all ${item.total}") { onToggle(item.kind) },
+            .tappable(onClick = { onToggle(item.kind) }, onClickLabel = if (item.expanded) "Show fewer" else "Show all ${item.total}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -531,18 +599,18 @@ private fun HitRow(hit: SearchHit, words: List<String>, highlight: SpanStyle, to
     }
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp)
-            .then(if (open) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(vertical = 10.dp)
+            .then(if (open) Modifier.tappable(onClick = onClick) else Modifier)
+            .padding(vertical = Spacing.md)
             .semantics(mergeDescendants = true) { contentDescription = spoken },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(Modifier.weight(1f).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
             if (payment) {
-                MerchantChip(hit.logo ?: com.zyke.message.domain.model.MerchantLogo.PERSON, size = 44.dp, imageKey = hit.imageKey, name = hit.title)
+                MerchantChip(hit.logo ?: com.zyke.message.domain.model.MerchantLogo.PERSON, size = 48.dp, imageKey = hit.imageKey, name = hit.title)
             } else {
                 KindTile(hit)
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Spacing.lg))
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (payment) {
@@ -550,11 +618,11 @@ private fun HitRow(hit: SearchHit, words: List<String>, highlight: SpanStyle, to
                         if (dateText != null) Text(dateText, style = MaterialTheme.typography.bodySmall, color = mutedColor(), maxLines = 1)
                         val category = hit.category
                         if (!category.isNullOrBlank()) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(Spacing.sm))
                             Text(
                                 category,
-                                Modifier.border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 6.dp),
+                                Modifier.border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(Radius.chip / 2))
+                                    .padding(horizontal = Spacing.xs),
                                 style = MaterialTheme.typography.labelSmall, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -567,7 +635,7 @@ private fun HitRow(hit: SearchHit, words: List<String>, highlight: SpanStyle, to
                 }
             }
             if (payment && amountText != null) {
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(Spacing.md))
                 PrivateAmount(
                     amountText,
                     style = MaterialTheme.typography.titleMedium,
@@ -577,7 +645,7 @@ private fun HitRow(hit: SearchHit, words: List<String>, highlight: SpanStyle, to
                 )
             } else if (open && !payment) {
                 Image(
-                    painterResource(R.drawable.baseline_chevron_right_24), contentDescription = null, modifier = Modifier.size(20.dp),
+                    painterResource(R.drawable.baseline_chevron_right_24), contentDescription = null, modifier = Modifier.size(IconSize.md),
                     colorFilter = ColorFilter.tint(mutedColor())
                 )
             }
@@ -588,7 +656,7 @@ private fun HitRow(hit: SearchHit, words: List<String>, highlight: SpanStyle, to
 @Composable
 private fun KindTile(hit: SearchHit) {
     Box(
-        Modifier.size(44.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(12.dp)),
+        Modifier.size(48.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(Radius.chip)),
         contentAlignment = Alignment.Center
     ) {
         val icon = when (hit.kind) {
@@ -597,11 +665,12 @@ private fun KindTile(hit: SearchHit) {
             SearchKind.GOAL -> R.drawable.ic_goal_24
             SearchKind.EVENT -> R.drawable.baseline_event_24
             SearchKind.STOCK -> R.drawable.ic_trending_24
+            SearchKind.SETTING -> R.drawable.baseline_settings_24
             SearchKind.PAGE -> pageIcon(hit.id)
             else -> null
         }
         if (icon != null) {
-            Image(painterResource(icon), contentDescription = null, modifier = Modifier.size(22.dp), colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary))
+            Image(painterResource(icon), contentDescription = null, modifier = Modifier.size(IconSize.md), colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary))
         } else {
             Text("#", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }

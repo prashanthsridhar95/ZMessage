@@ -4,33 +4,22 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import com.zyke.message.domain.search.TextHighlight
 
 /**
- * [text] with every place one of [words] appears drawn in [style]. Plain `indexOf`, no regular expression; callers keep
- * the result in `remember(text, words)` so it is built once per row, not on every recomposition.
+ * [text] with every place one of [words] appears drawn in [style]. The places come from the domain
+ * (`TextHighlight.ranges`, tested); callers keep the result in `remember(text, words)` so it is built once per row.
  */
 internal fun highlighted(text: String, words: List<String>, style: SpanStyle): AnnotatedString {
-    if (words.isEmpty() || text.isEmpty()) return AnnotatedString(text)
-    // Marks which characters to draw; overlapping words merge.
-    val marked = BooleanArray(text.length)
-    var any = false
-    for (word in words) {
-        if (word.isEmpty()) continue
-        var at = text.indexOf(word, 0, ignoreCase = true)
-        while (at >= 0) {
-            for (i in at until at + word.length) marked[i] = true
-            any = true
-            at = text.indexOf(word, at + word.length, ignoreCase = true)
-        }
-    }
-    if (!any) return AnnotatedString(text)
+    val ranges = TextHighlight.ranges(text, words)
+    if (ranges.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
-        var i = 0
-        while (i < text.length) {
-            var j = i
-            while (j < text.length && marked[j] == marked[i]) j++
-            if (marked[i]) withStyle(style) { append(text, i, j) } else append(text, i, j)
-            i = j
+        var at = 0
+        for (range in ranges) {
+            if (range.first > at) append(text, at, range.first)
+            withStyle(style) { append(text, range.first, range.last + 1) }
+            at = range.last + 1
         }
+        if (at < text.length) append(text, at, text.length)
     }
 }

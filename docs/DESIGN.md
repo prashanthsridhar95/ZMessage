@@ -106,6 +106,7 @@ The app is flat: no shadows, blur or render effects (`LowEndPolicyTest`). Depth 
 | Type role (`TypeRole`) | Style | Use |
 |---|---|---|
 | `hero` | displayMedium, bold | the one big figure of a card |
+| `headline` | headlineMedium, bold | the headline of a welcome or permission page (`OnboardingHero`) |
 | `title` | titleMedium | a card or section title |
 | `section` | labelMedium, medium, 0.8 sp tracking | the spaced label above a card (`CardHeader`) |
 | `body` | bodyLarge | rows and running text |
@@ -124,7 +125,12 @@ One font family, Plus Jakarta Sans, from the theme; a screen never names a font.
 | A big figure on one line | `AnimatedAmount(fit = true)` or `PrivateAmount(fit = true)`, never a bare `Text` |
 | A row with actions | `PlanRow` (actions wrap as equal-width buttons, never squeezed) |
 | An empty screen | `EmptyState(icon, title, body, action)` |
-| An error | `ErrorState` |
+| An error | `ErrorState(title, hint, onRetry)` (same tile as the empty state) |
+| Loading with no skeleton of its own | `LoadingState()` inside a `CrossfadeContent` |
+| A long explanation | `LearnMore(text)` under a one-line summary, never a caption of three lines or more |
+| Something that cannot be undone | `ConfirmDialog(title, body naming what is lost, confirmLabel)`: equal-width Cancel and Confirm, `haptics.reject()` on confirm |
+| A welcome or permission page | `OnboardingHero(icon, headline, promise, primary, secondary)`; `PermissionGate` for the SMS ask |
+| A row that opens a page | `SettingsRow(icon, title, summary)` inside a `FintechCard`; a switch is `ToggleRow(title, summary, learnMore)` |
 | Entering data | `FormSheet` / `AdaptiveSheet` (a page when tall); a bare `AppBottomSheet` only for compact pickers |
 | A page | `AppPage` |
 | A message to the person | `LocalAppSnackbar` (amounts masked while hidden), with Undo for anything reversible |
@@ -326,9 +332,101 @@ tap gives the firmer buzz (`haptics.reject()`), then the snackbar still offers U
 `MotionPolicyTest` scans these files (no loops, no raw specs, no raw swaps outside the motion package, one-off spacing numbers
 banned) and checks the rules above.
 
+## Settings (wave B5)
+
+Settings is a short list of **groups**, not a stack of cards. The first screen (`settings/SettingsHub.kt`) is a search field, an
+optional "Finish setting up" card, and one `FintechCard` per group under a `CardHeader`. A row is an icon tile (40 dp, accent at
+10 %), a one-line title, a one-line summary of **how it is set now**, and a chevron; the whole row opens the existing page and dips
+while held. The first groups rise in once (`enterOnce`). The page keeps its `AppPage` header and back arrow, so the host's
+transition does the rest.
+
+| Group | Pages (rows) |
+|---|---|
+| Appearance and feel | Appearance (theme, colour, app icon, haptics, performance) |
+| Notifications and alerts | Reminders and alerts (morning digest, code buttons, weekly summary, heads-up, low balance floor, share codes) |
+| Money and budgets | Money plan, Budgets, Market watch |
+| Accounts and cards | Cards and accounts |
+| Messages and senders | Messages and pictures (logos, tags, RCS, parsing health), Your rules |
+| Travel | Flights and trains |
+| Backup and data | Your data and about (automatic backup, backup and restore, exports, reset, delete all, version, share logs) |
+| Privacy and security | Privacy and security |
+| Help and about | Help and tour, Demo mode, Privacy and terms, Open-source licences |
+| Developer | Developer options (only while developer mode is on) |
+
+**Nothing was dropped.** `domain/settings/SettingsIndex` lists every setting as data: `(id, title, summary, keywords, group, page,
+developerOnly, hiddenInDemo)`. It drives the search field, the Settings results of the global search, and
+`SettingsIndexTest.noSettingHasDisappeared`, which holds the list of ids that existed before the regrouping. Add a line to the index
+whenever a setting is added (and its id to that test). `SettingsLayout` says which pages each group lists and
+`SettingsSearchOnboardingPolicyTest` checks that the domain's `SettingsPageId` and the app's `SettingsGroup` are the same pages.
+
+- **Search in settings.** Matches title, summary and keywords (every typed word must match); best first (title starts with the word,
+  a word of the title, a keyword, the summary). Results sit under their group, the typed words in bold on a 14 % accent wash, with
+  "N settings found" announced politely. No match: the shared empty state, "No matches for "x"", with "Clear search".
+- **Rows.** A switch is `ToggleRow`: title, a summary of at most two lines, the switch, the whole row toggles with a light tick.
+  Anything longer is `learnMore = "..."`, a "Learn more" line (48 dp) that opens the text under the row. A caption of three lines or
+  more in Settings is a test failure.
+- **Destructive confirms** are `ConfirmDialog`: the title asks, the body names what will be lost, Cancel and the confirming button are
+  the same width (stacked at 320 dp or large text), the confirming button is the theme's error colour, and the tap gives the firmer
+  buzz. Used for Reset marks and budgets, Remove a card or account, Replace my setup (restore), and clearing the code lists. "Delete
+  all my data" keeps its type-DELETE sheet and buzzes as it wipes. A sheet's "Remove"/"Delete" button buzzes (`FormSheet`); deletions
+  with an Undo (rules, categories, taught senders) buzz and show the Undo.
+- **Deep link.** A search result for a setting sets `SettingsDeepLink.pending` to its page and opens Settings; the page opens on it.
+- **Demo and developer.** Developer options are listed and searchable only while developer mode is on; settings that would act on the
+  real phone in demo (app icon, backup, delete all, share logs) are neither listed nor found there.
+
+## Search (wave B5)
+
+`search/SearchPage.kt` moves between five states with one `CrossfadeContent` (the motion funnel): **idle** (recent searches,
+suggestions, jump-to tiles), **loading** (the shared `LoadingState` skeleton, only if a search takes longer than 250 ms, so a quick
+one never flashes it), **results**, **empty** and **error** (`ErrorState` with "Try again"). Results are grouped under section headers
+with counts (Payments and messages, Accounts and cards, Bills and reminders, Goals, Calendar, Tags, Stocks, **Settings** from
+`SettingsIndex`, Jump to); payments carry the merchant, so merchants are found inside Payments. Rows follow the Messages anatomy (48 dp
+tile, one-line title, caption, amount) and dip on press (`tappable`); rows that come and go use `itemMotion()`.
+
+- **Recent searches** are equal 48 dp chips in a `FlowRow` (a tap searches again, the small cross removes one) with "Clear all" in
+  the header. **Typed words** are bold on the accent wash; the ranges come from `TextHighlight.ranges` in the domain (tested).
+- **Empty:** "No matches for "x"" with "Try fewer words, or another spelling", then search tips. The keyboard's action is Search.
+- Settings results are searched only for two letters or more, so one letter is not a list of settings.
+
+## Onboarding (wave B5)
+
+One layout for every welcome and permission page (`common/OnboardingHero`): an icon tile (`StateIcon`), the headline
+(`TypeRole.headline`), one line of promise, a full-width primary button, a quiet secondary text button and a small footnote. The four
+parts rise in once, 40 ms apart, the first time the page is shown. Progress is a row of **step dots** (`StepDotsRow`: done and
+current in the accent, upcoming muted, the current one wider, eased in `QUICK_MS`, spoken as "Step 2 of 3"; nothing loops; hidden for
+a single step). The steps are `PermissionStep` in the domain: SMS read (the only required one, the page that `PermissionGate` shows),
+notifications, notification access (optional) and SMS send (only when code sharing is switched on); each page asks for **one**
+thing and an optional one has "Not now". `StepDots` is a function of the step, tested.
+
+- The SMS page's secondary button is "How it stays private", which opens the three promises under the buttons.
+- "Welcome back?" (restore on first run) uses the same tile and headline and keeps "By continuing you agree to the Terms and
+  Privacy." with the link to read them.
+- **Tour.** The coach card is on tokens (`AppShapes.card`, `Spacing`), its spotlight finds its place with `gentle()` and its scrim fades
+  in `TAB_MS`, both instant when reduced. Anchors register through the modifier; two anchors with one id can coexist for a moment (the
+  Accounts header crossfading from one sub-tab to the next), so an anchor only clears or reports itself if it is still the registered
+  one. The deck anchor is created once and shared by both sub-tabs.
+
+## Empty, error and loading voice
+
+One voice for the three states of "there is nothing to show yet". `EmptyState`, `ErrorState`, `PermissionGate`, `LoadingState` and
+`ConfirmDialog` are on `Spacing`, `Radius`, `TypeRole` and `IconSize` (no raw dp for spacing or corners; `SettingsSearchOnboardingPolicyTest`
+checks). Empty and error pages share one 64 dp tile (`StateIcon`) from the existing icon set.
+
+| | Do | Don't |
+|---|---|---|
+| Empty title | "No cards yet", "All clear", "Nothing taught yet": what is missing, or the good news | "Error", "Nothing found!", a full stop, more than 40 characters |
+| Empty body | One line of why or what will appear: "They appear when your bank texts you about a card." | Two sentences, instructions in three steps, jargon ("no records") |
+| Empty action | One verb phrase, only if the person can do something: "Add a card", "Clear search" | Two buttons, "OK", an action that only explains |
+| Error | Say what happened and what to do: "Couldn't read your messages" / "Check that SMS access is allowed, then try again." with "Try again" | Blame ("You did not..."), codes, stack traces, a dead end |
+| Loading | The still skeleton (`LoadingState`, or the screen's own), one spoken "Loading ..." | A spinner that spins, a shimmer, "Please wait..." |
+| Search miss | "No matches for "x"" / "Try fewer words, or another spelling" | "0 results" |
+
+A body longer than 100 characters in an `EmptyState` is a test failure (`home/SubscriptionsPage.kt`, `home/PaidBillsPage.kt` and
+`home/BillsPage.kt` belong to the Bills wave and are exempt until it lands).
+
 ## Status and what comes next
 
 Phase A (this page): tokens, the motion package, tab/page/sheet transitions, shared components on tokens, Home as the
-reference. Wave B1: Messages (above). Not verified on a device: no animation here has been seen running; the numbers are from the specification.
+reference. Wave B1: Messages (above). Wave B5 (Settings, Search, onboarding and the empty/error/loading voice) is described above; it is the last wave. Not verified on a device: no animation here has been seen running; the numbers are from the specification.
 Accounts, Cards and Investments (B2) follow the Accounts section above. See the wave plan in the pull-request notes: B1 Messages, B3 Insights, B4 Bills and
-Calendar, B5 Search, Settings, onboarding and empty states.
+Calendar, B5 Search, Settings, onboarding and empty states (done).

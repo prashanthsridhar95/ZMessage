@@ -35,7 +35,11 @@ class MotionPolicyTest {
         "messages/components/MessageDetailSheet.kt", "messages/components/MergeUi.kt", "messages/components/MiscCards.kt",
         "messages/components/OtpCard.kt", "messages/components/TransactionCards.kt", "messages/components/LifeCard.kt",
         "messages/components/FastTagCard.kt", "messages/components/ScheduledPaymentCard.kt", "messages/components/SendersList.kt",
-        "messages/components/ThreadSheet.kt", "common/UnderlineTabs.kt"
+        "messages/components/ThreadSheet.kt", "common/UnderlineTabs.kt",
+        // Settings, Search, onboarding and the empty / error / loading pages (wave B5).
+        "settings/SettingsHub.kt", "settings/SettingsScreen.kt", "search/SearchPage.kt", "search/Highlight.kt", "common/SearchField.kt",
+        "common/LoadingState.kt", "common/ConfirmDialog.kt", "common/LearnMore.kt", "common/OnboardingHero.kt", "common/PermissionGate.kt",
+        "backup/WelcomeBack.kt", "tour/TourHost.kt", "tour/TourPreview.kt", "tour/TourRegistry.kt"
     )
 
     /** The Insights tab (every file under dashboard/) and the year in review, brought under the same rules in wave B3. */

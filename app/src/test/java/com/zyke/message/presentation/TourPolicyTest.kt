@@ -54,7 +54,7 @@ class TourPolicyTest {
 
     @Test fun settingsPagesMapToRealSettingsGroups() {
         val screen = File(root(), "presentation/settings/SettingsScreen.kt").readText()
-        val enumBody = screen.substringAfter("private enum class SettingsGroup").substringBefore("\n}")
+        val enumBody = screen.substringAfter("enum class SettingsGroup").substringBefore("\n}")
         val groups = Regex("""^\s*([A-Z_]+)\(""", RegexOption.MULTILINE).findAll(enumBody).map { it.groupValues[1] }.toSet()
         TourPage.entries.mapNotNull { it.settingsGroup }.forEach { assertTrue("Settings has no group $it", it in groups) }
     }

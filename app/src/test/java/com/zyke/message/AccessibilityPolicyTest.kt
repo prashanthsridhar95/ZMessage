@@ -22,7 +22,7 @@ class AccessibilityPolicyTest {
      * is what a screen reader announces. Counts are per file; going over one needs a new line here with its reason.
      */
     private val decorative = mapOf(
-        "search/SearchPage.kt" to 5,                       // close glyph in a chip that describes itself; search glyph, page icon, chevron and result icon inside labelled rows
+        "search/SearchPage.kt" to 4,                       // close glyph in a chip that describes itself; search glyph, page icon, chevron and result icon inside labelled rows
         "common/FormInputs.kt" to 1,                       // calendar glyph beside the field's own label
         "common/UnderlineTabs.kt" to 1,                    // tab icon beside the tab's text
         "common/EmptyState.kt" to 1,                       // illustration above the title
@@ -31,7 +31,7 @@ class AccessibilityPolicyTest {
         "common/HeaderRegion.kt" to 1,                     // the icon in an ActionCircleRow circle; the label under it (or the action's description) is what is read
         "common/Buttons.kt" to 1,                          // chevron inside LinkButton, whose text is the label
         "common/SearchField.kt" to 1,                      // magnifier inside the search field
-        "settings/SettingsScreen.kt" to 1,                 // icon of a settings row, whose title and summary are read
+        "settings/SettingsHub.kt" to 2,                    // the icon tile and the chevron of a settings row, whose title and summary are read
         "home/GoalsAndReminders.kt" to 1,                  // icon of a ShortcutTile, whose text is the label
         "home/AccountsUi.kt" to 1,                         // leading icon of a menu item, whose text is the label
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label
