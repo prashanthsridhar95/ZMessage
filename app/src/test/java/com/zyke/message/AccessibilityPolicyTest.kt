@@ -28,6 +28,7 @@ class AccessibilityPolicyTest {
         "common/EmptyState.kt" to 1,                       // illustration above the title
         "common/PermissionGate.kt" to 1,                   // bullet icon beside its sentence
         "common/CardFace.kt" to 1,                         // the network's mark; the card is one button with one spoken sentence (bank, network, kind, last four) and clears its pieces
+        "common/HeaderRegion.kt" to 1,                     // the icon in an ActionCircleRow circle; the label under it (or the action's description) is what is read
         "common/Buttons.kt" to 1,                          // chevron inside LinkButton, whose text is the label
         "common/SearchField.kt" to 1,                      // magnifier inside the search field
         "settings/SettingsScreen.kt" to 1,                 // icon of a settings row, whose title and summary are read
