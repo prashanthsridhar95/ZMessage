@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Visa mark, drawn as simple shapes (not the owner's artwork). Trademark of its owner, shown for identification only; see docs/LEGAL_NOTES.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="58dp"
+    android:height="24dp"
+    android:viewportWidth="58"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6.2,2L11.1,2L10.84,15.6L16.3,2L21.2,2L11.9,22L7.1,22Z"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M23.4,2L28,2L23.8,22L19.2,22Z"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M42.15,6.6C41.37,4.6 39.46,4.2 37.46,4.2C34.46,4.2 32.56,5.6 32.14,7.6C31.66,9.9 33.69,10.7 35.9,11.6C38.31,12.5 40.51,13.5 39.9,16.4C39.37,18.9 36.96,19.9 34.16,19.9C31.56,19.9 29.73,19.1 28.81,16.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.2"/>
+    <path
+        android:pathData="M41.4,22L51.2,2L55.8,2L57.2,22L52.5,22L52.48,17.8L47.88,17.8L46.1,22ZM52.32,7.6L52.3,14.4L49.5,14.4Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

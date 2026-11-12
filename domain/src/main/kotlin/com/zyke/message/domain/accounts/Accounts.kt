@@ -8,6 +8,8 @@ import com.zyke.message.domain.model.BankName
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.cards.CardCatalog
+import com.zyke.message.domain.cards.CardNetwork
+import com.zyke.message.domain.cards.CardNetworks
 import com.zyke.message.domain.diag.DiagLog
 import com.zyke.message.domain.home.BillPayments
 import com.zyke.message.domain.model.MessageContent
@@ -90,7 +92,11 @@ data class AccountSummary(
     /** The reading is the one the person typed, not one a message stated. */
     val balanceByYou: Boolean = false,
     /** How many payments of this account the messages show; with no balance this is what could not be added up. */
-    val paymentCount: Int = 0
+    val paymentCount: Int = 0,
+    /** The card's payment network to draw: the person's choice, else what the messages and the product name say; null for none (and always for a bank account). */
+    val network: CardNetwork? = null,
+    /** What the messages and product name say, whatever the person chose; the Edit sheet shows it as "Detected". */
+    val detectedNetwork: CardNetwork? = null
 ) {
     /** Payments counted since the reading. */
     val movementCount: Int get() = movementCredits + movementDebits
@@ -281,6 +287,12 @@ object Accounts {
             if (kind == AccountKind.BANK_ACCOUNT) {
                 audit(key, worked, paymentCount, now, rows.sumOf { it.message.mergedMessages.size })
             }
+            // Newest messages only: the network is the same on all of them, and this runs on every rebuild.
+            val fromMessages = if (kind == AccountKind.BANK_ACCOUNT) null else
+                CardNetworks.fromMessages(rows.sortedByDescending { it.message.message.date }.asSequence().take(NETWORK_SAMPLE).map { it.message.message.body })
+            val product = card?.variant.orEmpty()
+            val detectedNetwork = if (kind == AccountKind.BANK_ACCOUNT) null else CardNetworks.resolve(card?.network, fromMessages, bankLabel, product)
+            val network = if (kind == AccountKind.BANK_ACCOUNT) null else CardNetworks.resolve(picked?.network ?: card?.network, fromMessages, bankLabel, product)
             AccountSummary(
                 key = key,
                 kind = kind,
@@ -298,6 +310,8 @@ object Accounts {
                 balanceAt = worked?.reading?.at ?: 0L,
                 balanceByYou = worked?.byYou == true,
                 paymentCount = paymentCount,
+                network = network,
+                detectedNetwork = detectedNetwork,
                 spent = spent,
                 received = received,
                 activityCount = count,
@@ -342,7 +356,9 @@ object Accounts {
                     spent = BigDecimal.ZERO, received = BigDecimal.ZERO, activityCount = 0, lastActivity = 0L,
                     dueAmount = null, dueDate = null, minimumDue = null, paymentLink = null, sampleMessageId = 0L, userCard = shown(card, picked),
                     isProvidentFund = key in providentFunds,
-                    bankLabel = bankLabel, detectedBank = BankName.OTHERS, detectedKind = detectedKind, override = picked
+                    bankLabel = bankLabel, detectedBank = BankName.OTHERS, detectedKind = detectedKind, override = picked,
+                    network = if (kind == AccountKind.BANK_ACCOUNT) null else CardNetworks.resolve(picked?.network ?: card.network, null, bankLabel, card.variant),
+                    detectedNetwork = if (kind == AccountKind.BANK_ACCOUNT) null else CardNetworks.resolve(card.network, null, bankLabel, card.variant)
                 )
             }
         }.let { all -> if (all.any { it.isProvidentFund && !it.fromPassbook }) all.filter { !it.fromPassbook } else all }
@@ -424,4 +440,5 @@ object Accounts {
     }
 
     private const val LAST_DIGITS = 4
+    private const val NETWORK_SAMPLE = 30
 }

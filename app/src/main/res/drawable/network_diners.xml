@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Diners Club mark, drawn as simple shapes (not the owner's artwork). Trademark of its owner, shown for identification only; see docs/LEGAL_NOTES.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:pathData="M26.6,14C26.6,20.96 20.96,26.6 14,26.6C7.04,26.6 1.4,20.96 1.4,14C1.4,7.04 7.04,1.4 14,1.4C20.96,1.4 26.6,7.04 26.6,14Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.9"/>
+    <path
+        android:pathData="M12.4,6.4C8.6,6.8 5.8,10 5.8,14C5.8,18 8.6,21.2 12.4,21.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"/>
+    <path
+        android:pathData="M15.6,6.4C19.4,6.8 22.2,10 22.2,14C22.2,18 19.4,21.2 15.6,21.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"/>
+    <path
+        android:pathData="M14,6.2L14,21.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"/>
+</vector>

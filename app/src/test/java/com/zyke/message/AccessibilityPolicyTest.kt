@@ -27,6 +27,7 @@ class AccessibilityPolicyTest {
         "common/UnderlineTabs.kt" to 1,                    // tab icon beside the tab's text
         "common/EmptyState.kt" to 1,                       // illustration above the title
         "common/PermissionGate.kt" to 1,                   // bullet icon beside its sentence
+        "common/CardFace.kt" to 1,                         // the network's mark; the card is one button with one spoken sentence (bank, network, kind, last four) and clears its pieces
         "common/Buttons.kt" to 1,                          // chevron inside LinkButton, whose text is the label
         "common/SearchField.kt" to 1,                      // magnifier inside the search field
         "settings/SettingsScreen.kt" to 1,                 // icon of a settings row, whose title and summary are read
@@ -123,6 +124,15 @@ class AccessibilityPolicyTest {
         assertTrue("Modifier.heading()" in pages && "paneTitle" in pages)
         assertTrue("Key.Escape" in pages && "Key.Escape" in File(presentation, "common/SheetHost.kt").readText())
         assertTrue("heading()" in File(presentation, "dashboard/components/DashboardSections.kt").readText())
+    }
+
+    @Test
+    fun theCardFaceIsOneSpokenSentence_andItsLogosAreDecoration() {
+        val face = File(presentation, "common/CardFace.kt").readText()
+        // The bank tile and the network mark sit inside a face that clears its pieces and speaks the card's own sentence.
+        assertTrue("clearAndSetSemantics {" in face && "contentDescription = description" in face && "card.spokenDescription" in face)
+        assertTrue("the bank tile is decorative here (description = null)", "description = null, plate = true" in face)
+        assertEquals("one unlabelled network mark, no other", 1, Regex("contentDescription = null").findAll(face).count())
     }
 
     @Test

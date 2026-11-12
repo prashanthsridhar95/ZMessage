@@ -110,15 +110,5 @@ object CardCatalog {
     }
 
     /** The network a card most likely runs on, from its bank and name; null when it cannot be told. */
-    fun guessNetwork(bank: String, variant: String): CardNetwork? {
-        val v = variant.lowercase()
-        return when {
-            "rupay" in v -> CardNetwork.RUPAY
-            "diners" in v -> CardNetwork.DINERS
-            "amex" in v || bank(bank) == BankName.AMERICAN_EXPRESS -> CardNetwork.AMEX
-            "mastercard" in v -> CardNetwork.MASTERCARD
-            "visa" in v -> CardNetwork.VISA
-            else -> null
-        }
-    }
+    fun guessNetwork(bank: String, variant: String): CardNetwork? = CardNetworks.fromProduct(bank, variant)
 }

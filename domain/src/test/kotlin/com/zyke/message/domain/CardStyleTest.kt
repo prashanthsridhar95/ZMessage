@@ -75,7 +75,7 @@ class CardStyleTest {
     @Test
     fun spokenDescription() {
         val c = UserCard("i", CardType.CREDIT, "1234", "", bankName = "HDFC", network = CardNetwork.VISA, variant = "Regalia")
-        assertEquals("HDFC credit card ending 1234, Visa, Regalia", c.spokenDescription)
+        assertEquals("HDFC Visa credit card ending 1234, Regalia", c.spokenDescription)
         assertEquals("ending 5678", UserCard("i", CardType.CREDIT, "5678", "x").spokenDescription.replace("credit card ", ""))
     }
 }

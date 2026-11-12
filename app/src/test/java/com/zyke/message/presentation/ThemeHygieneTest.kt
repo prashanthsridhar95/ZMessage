@@ -13,6 +13,7 @@ class ThemeHygieneTest {
     /** Files that may use literal colours, and why. Everything else must use MaterialTheme / AppColors tokens. */
     private val allowed = mapOf(
         "review/YearCardImage.kt" to "shareable PNG drawn with its own fixed palette, independent of the theme",
+        "common/CardFace.kt" to "a card is drawn white-on-gradient in both themes: white ink, a gold chip and a dark scrim behind the footer",
         "common/SheetHost.kt" to "Color.Black scrim behind a sheet, a dimmer in both modes",
         "home/JourneyUi.kt" to "illustrations: lit windows and aircraft dots are drawn art",
         "messages/components/MessageCommon.kt" to "white tile behind brand logos; white letter on deep monogram fills",

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RuPay mark, drawn as simple shapes (not the owner's artwork). Trademark of its owner, shown for identification only; see docs/LEGAL_NOTES.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="80dp"
+    android:height="26dp"
+    android:viewportWidth="80"
+    android:viewportHeight="26">
+    <path
+        android:pathData="M7.7,2L4.1,20"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M7.36,3.7L12.86,3.7C17.06,3.7 15.36,12.2 11.16,12.2L5.66,12.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M10.52,12.4L13.8,20"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M21.96,8.2L20.72,14.4C20.08,17.6 21.64,19.3 24.24,19.3C26.84,19.3 29.08,17.6 29.72,14.4L30.96,8.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M30,13L28.4,21"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M37.7,2L34.1,20"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M37.36,3.7L42.86,3.7C47.06,3.7 45.36,12.2 41.16,12.2L35.66,12.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M57.3,14C56.85,16.26 54.64,18.1 52.38,18.1C50.12,18.1 48.65,16.26 49.1,14C49.55,11.74 51.76,9.9 54.02,9.9C56.28,9.9 57.75,11.74 57.3,14Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M58.46,8.2L55.9,21"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M62.36,8.2L64.6,17"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M70.76,8.2L62.32,22.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"/>
+    <path
+        android:pathData="M70,5L77.2,5L72.8,11.6Z"
+        android:fillColor="#F58220"/>
+    <path
+        android:pathData="M69.2,14L77.2,14L71.8,21.4Z"
+        android:fillColor="#1E9B4B"/>
+</vector>

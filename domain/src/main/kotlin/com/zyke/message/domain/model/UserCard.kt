@@ -41,13 +41,14 @@ data class UserCard(
     /** The bank as it should read on the card face. */
     val bankLabel: String get() = bankName.ifBlank { CardCatalog.bank(name)?.displayString.orEmpty() }
 
-    /** What a screen reader says for the card, e.g. "HDFC credit card ending 1234, Visa, Regalia". */
+    /** What a screen reader says for the card, e.g. "HDFC Visa credit card ending 1234, Regalia". */
     val spokenDescription: String
-        get() = listOfNotNull(
-            listOf(bankLabel, type.label.lowercase().replace("bank account", "account")).filter { it.isNotBlank() }.joinToString(" ") + " ending $last4",
-            network?.label,
-            variant.takeIf { it.isNotBlank() }
-        ).joinToString(", ")
+        get() {
+            val kind = type.label.lowercase().replace("bank account", "account")
+            val shownNetwork = network?.takeIf { it != CardNetwork.OTHER && type.isCard }?.label
+            val head = listOfNotNull(bankLabel.takeIf { it.isNotBlank() }, shownNetwork, kind).joinToString(" ") + " ending $last4"
+            return listOfNotNull(head, variant.takeIf { it.isNotBlank() }).joinToString(", ")
+        }
 
     val label: String
         get() {

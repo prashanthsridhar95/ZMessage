@@ -1,6 +1,8 @@
 package com.zyke.message.presentation.common
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +25,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,21 +39,24 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zyke.message.R
 import com.zyke.message.domain.accounts.AccountKind
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.domain.cards.CardNetwork
+import com.zyke.message.domain.classification.MerchantResolver
 import com.zyke.message.domain.model.CardType
 import com.zyke.message.domain.model.UserCard
+import com.zyke.message.presentation.messages.components.MerchantChip
 
 private val CardInk = Color(0xFFFFFFFF)
 private val CardInkSoft = Color(0xFFFFFFFF).copy(alpha = 0.86f)
 private const val CARD_RATIO = 1.586f
 private const val CARD_MAX_FONT_SCALE = 1.15f
+private val BANK_TILE = 30.dp
 
 /**
  * A payment card drawn as a card: gradient from its colour theme, bank at the top, a chip, the masked number, the
@@ -79,12 +89,19 @@ fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = nu
             drawCircle(ring, radius = size.height * 0.5f, center = Offset(size.width * 0.9f, size.height * 0.95f))
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            // Top: the bank's logo on its white tile and its name, the kind of card at the far end.
+            val bank = card.bankLabel
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (bank.isNotBlank()) {
+                    BankLogoTile(bank)
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(
-                    card.bankLabel.ifBlank { card.type.label }, Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = CardInk, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    bank.ifBlank { card.type.label }, Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = CardInk, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                Text(typeTag(card.type), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = CardInkSoft, letterSpacing = 1.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(typeTag(card.type), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = CardInkSoft, letterSpacing = 1.sp, maxLines = 1)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 ChipGlyph()
@@ -98,25 +115,30 @@ fun CardFace(card: UserCard, modifier: Modifier = Modifier, footer: String? = nu
                     )
                 }
             }
-            // Shrinks rather than wraps, so the last four digits are never the part that is cut off on a narrow phone.
-            FitText(
-                "••••  ••••  ••••  ${card.last4.padEnd(4, '•')}",
-                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 1.sp), fontWeight = FontWeight.Medium, color = CardInk, minScale = 0.6f
-            )
+            // Bottom: the card's model and the last four digits on the left, the network's mark on the right.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
-                    if (card.variant.isNotBlank()) {
-                        Text(card.variant, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = CardInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val model = card.variant.ifBlank { card.name }
+                    if (model.isNotBlank()) {
+                        Text(model, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = CardInkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    if (card.name.isNotBlank() && card.name != card.variant) {
-                        Text(card.name.uppercase(), style = MaterialTheme.typography.labelSmall, color = CardInkSoft, letterSpacing = 0.8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                    Text(
+                        "\u2022\u2022\u2022\u2022 ${card.last4.padEnd(4, '\u2022')}",
+                        style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 1.5.sp), fontWeight = FontWeight.Medium, color = CardInk, maxLines = 1
+                    )
                 }
-                NetworkMark(card.network)
+                NetworkMark(card.network.takeIf { card.type.isCard })
             }
         }
     }
     }
+}
+
+/** The bank's logo from the same pipeline as the Accounts tab (the person's own logo setting, the cache, the built-in marks), on a white tile so it reads on any gradient; a lettered tile when there is none. */
+@Composable
+private fun BankLogoTile(bank: String) {
+    val resolved = remember(bank) { MerchantResolver().resolve(bank) }
+    MerchantChip(resolved.logo, size = BANK_TILE, name = resolved.name, description = null, plate = true)
 }
 
 private fun typeTag(type: CardType): String = when (type) {
@@ -143,38 +165,49 @@ private fun ChipGlyph() {
     }
 }
 
-/** The network's wordmark, drawn rather than shipped as an image. */
+/** A network's mark: the vector drawable, its box (as in the file) and how tall it is drawn. Null for no network. */
+private class MarkSpec(@DrawableRes val res: Int, val width: Int, val height: Int, val drawnHeight: Dp)
+
+private fun CardNetwork?.markSpec(): MarkSpec? = when (this) {
+    null, CardNetwork.OTHER -> null
+    CardNetwork.VISA -> MarkSpec(R.drawable.network_visa, 58, 24, 24.dp)
+    CardNetwork.MASTERCARD -> MarkSpec(R.drawable.network_mastercard, 40, 24, 28.dp)
+    CardNetwork.AMEX -> MarkSpec(R.drawable.network_amex, 28, 28, 34.dp)
+    CardNetwork.RUPAY -> MarkSpec(R.drawable.network_rupay, 80, 26, 26.dp)
+    CardNetwork.DINERS -> MarkSpec(R.drawable.network_diners, 28, 28, 28.dp)
+}
+
+/**
+ * The network's mark, drawn from a vector (white on the card, the brand colours where the mark has them), never fetched. It is
+ * decoration: the card's own description names the network.
+ */
 @Composable
 private fun NetworkMark(network: CardNetwork?) {
-    when (network) {
-        null, CardNetwork.OTHER -> Unit
-        CardNetwork.MASTERCARD -> Box(Modifier.size(width = 44.dp, height = 28.dp)) {
-            Box(Modifier.size(28.dp).align(Alignment.CenterStart).clip(CircleShape).background(Color(0xFFEB001B)))
-            Box(Modifier.size(28.dp).align(Alignment.CenterEnd).clip(CircleShape).background(Color(0xFFF79E1B).copy(alpha = 0.9f)))
-        }
-        CardNetwork.VISA -> Text("VISA", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, color = CardInk, letterSpacing = 1.sp)
-        CardNetwork.RUPAY -> Text("RuPay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic, color = CardInk)
-        CardNetwork.AMEX -> Text(
-            "AMEX", Modifier.border(1.5.dp, CardInk, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = CardInk, letterSpacing = 1.sp
-        )
-        CardNetwork.DINERS -> Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(22.dp).border(2.dp, CardInk, CircleShape))
-            Text(" Diners", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = CardInk)
-        }
-    }
+    val spec = network.markSpec() ?: return
+    Image(
+        painter = painterResource(spec.res),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.padding(start = 10.dp).height(spec.drawnHeight).aspectRatio(spec.width.toFloat() / spec.height)
+    )
 }
 
 /** The card an account is drawn as: the person's own card with its details, else one made from what the messages show. */
-fun AccountSummary.faceCard(): UserCard = userCard?.let { if (bankLabel.isNotBlank() && it.bankName != bankLabel && override?.bank?.isNotBlank() == true) it.copy(bankName = bankLabel) else it } ?: UserCard(
-    id = key,
-    type = when (kind) {
-        AccountKind.CREDIT_CARD -> CardType.CREDIT
-        AccountKind.DEBIT_CARD -> CardType.DEBIT
-        AccountKind.BANK_ACCOUNT -> CardType.ACCOUNT
-    },
-    last4 = last4, name = "", bankName = bankLabel
-)
+fun AccountSummary.faceCard(): UserCard {
+    val own = userCard
+    val base = own?.let { if (bankLabel.isNotBlank() && it.bankName != bankLabel && override?.bank?.isNotBlank() == true) it.copy(bankName = bankLabel) else it } ?: UserCard(
+        id = key,
+        type = when (kind) {
+            AccountKind.CREDIT_CARD -> CardType.CREDIT
+            AccountKind.DEBIT_CARD -> CardType.DEBIT
+            AccountKind.BANK_ACCOUNT -> CardType.ACCOUNT
+        },
+        last4 = last4, name = "", bankName = bankLabel
+    )
+    // The network was settled with the account (your choice, else the messages, else the product), so the face never disagrees with it.
+    val shown = network
+    return if (base.network == shown) base else base.copy(network = shown)
+}
 
 /** One entry in a [CardDeck]. */
 data class DeckCard(val key: String, val card: UserCard, val footer: String? = null)

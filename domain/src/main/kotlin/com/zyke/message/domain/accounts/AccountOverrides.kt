@@ -1,5 +1,6 @@
 package com.zyke.message.domain.accounts
 
+import com.zyke.message.domain.cards.CardNetwork
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -12,9 +13,11 @@ data class AccountOverride(
     val bank: String = "",
     val kind: AccountKind? = null,
     /** What the person says the account holds, and when they said so; payments after that move it like a stated balance. */
-    val manual: ManualBalance? = null
+    val manual: ManualBalance? = null,
+    /** The card's payment network as the person chose it; [CardNetwork.OTHER] means "no mark", null leaves it to the messages. */
+    val network: CardNetwork? = null
 ) {
-    val isEmpty: Boolean get() = bank.isBlank() && kind == null && manual == null
+    val isEmpty: Boolean get() = bank.isBlank() && kind == null && manual == null && network == null
 }
 
 /** A balance the person typed for an account that states none (or states it wrongly), as of [atMillis]. */

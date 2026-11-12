@@ -10,6 +10,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.zyke.message.domain.accounts.AccountKind
 import com.zyke.message.domain.accounts.AccountSummary
 import com.zyke.message.domain.cards.CardCatalog
+import com.zyke.message.domain.cards.CardNetwork
 import com.zyke.message.presentation.common.ChipOption
 import com.zyke.message.presentation.common.Chips
 import com.zyke.message.presentation.common.FormField
@@ -27,13 +28,19 @@ private const val MAX_AMOUNT = 14
 @Composable
 internal fun EditAccountSheet(
     account: AccountSummary,
-    onSave: (name: String, bank: String, kind: AccountKind?, balance: BigDecimal?) -> Unit,
+    onSave: (name: String, bank: String, kind: AccountKind?, balance: BigDecimal?, network: CardNetwork?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val key = account.key
     var name by rememberSaveable(key) { mutableStateOf(account.userCard?.name.orEmpty()) }
     var bank by rememberSaveable(key) { mutableStateOf(account.bankLabel) }
     var kind by rememberSaveable(key) { mutableStateOf(account.kind) }
+    // null = whatever the messages say; CardNetwork.OTHER = no mark. Saved by name so it survives rotation.
+    var networkName by rememberSaveable(key) { mutableStateOf(account.override?.network?.name) }
+    val network = networkName?.let { n -> CardNetwork.entries.firstOrNull { it.name == n } }
+    val networkChoices = listOf(CardNetwork.VISA, CardNetwork.MASTERCARD, CardNetwork.AMEX, CardNetwork.RUPAY, CardNetwork.DINERS, CardNetwork.OTHER)
+    // Local copy: this comes from another module, so it cannot be smart-cast after a null check.
+    val detectedNetwork = account.detectedNetwork
     // Local copies: these come from another module, so they cannot be smart-cast after a null check.
     val shownBalance = account.balance
     val shownAdjustment = account.balanceAdjustment
@@ -45,7 +52,7 @@ internal fun EditAccountSheet(
     val kinds = AccountKind.entries
     // Local copies: these come from another module, so they cannot be smart-cast after a null check.
     val detected = account.detectedBank.displayString
-    val changed = account.override != null || account.bankLabel != detected || account.kind != account.detectedKind
+    val changed = account.override != null || network != null || account.bankLabel != detected || account.kind != account.detectedKind
     FormSheet(
         title = "Edit account",
         onDismiss = onDismiss,
@@ -54,8 +61,8 @@ internal fun EditAccountSheet(
         hint = "Pick or type a bank",
         asPage = true,
         secondaryLabel = if (changed) "Reset to detected" else null,
-        onSecondary = if (changed) ({ onSave(name, "", null, null) }) else null,
-        onPrimary = { onSave(name, bank, kind.takeIf { it != account.detectedKind }, balanceValue.takeIf { kind == AccountKind.BANK_ACCOUNT }) }
+        onSecondary = if (changed) ({ onSave(name, "", null, null, null) }) else null,
+        onPrimary = { onSave(name, bank, kind.takeIf { it != account.detectedKind }, balanceValue.takeIf { kind == AccountKind.BANK_ACCOUNT }, network.takeIf { kind != AccountKind.BANK_ACCOUNT }) }
     ) {
         FormField(
             "Name", name, { name = it.take(MAX_TEXT) }, placeholder = "e.g. Salary account",
@@ -72,6 +79,15 @@ internal fun EditAccountSheet(
         )
         FormGroup("Type") {
             Chips(kinds.map { ChipOption(it.label, kind == it) }, onSelect = { kind = kinds[it] })
+        }
+        if (kind != AccountKind.BANK_ACCOUNT) {
+            FormGroup("Card network") {
+                val autoLabel = detectedNetwork?.let { "Auto (${it.label})" } ?: "Auto"
+                Chips(
+                    listOf(ChipOption(autoLabel, network == null)) + networkChoices.map { ChipOption(if (it == CardNetwork.OTHER) "None" else it.label, network == it) },
+                    onSelect = { networkName = if (it == 0) null else networkChoices[it - 1].name }
+                )
+            }
         }
         if (kind == AccountKind.BANK_ACCOUNT) {
             FormField(

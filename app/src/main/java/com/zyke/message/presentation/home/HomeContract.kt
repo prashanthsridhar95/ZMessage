@@ -204,7 +204,9 @@ object HomeContract {
         data class EditAccount(
             val key: String, val name: String, val bank: String, val kind: com.zyke.message.domain.accounts.AccountKind?,
             /** What the person says the account holds now; null when they gave none. */
-            val balance: java.math.BigDecimal? = null
+            val balance: java.math.BigDecimal? = null,
+            /** The card's network as the person chose it ([com.zyke.message.domain.cards.CardNetwork.OTHER] = no mark); null leaves it to the messages. */
+            val network: com.zyke.message.domain.cards.CardNetwork? = null
         ) : Intent
         data class SetStatementDay(val key: String, val day: Int?) : Intent
         data class SetProvidentFund(val key: String, val on: Boolean) : Intent

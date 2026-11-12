@@ -59,6 +59,7 @@ object OpenSourceNotices {
         Notice("Android Gradle Plugin and detekt", "Build and code checks", APACHE, "https://detekt.dev", NoticeKind.BUILD),
         Notice("Plus Jakarta Sans", "The app's typeface, by the Plus Jakarta Sans Project Authors; the licence text is in third_party/fonts", OFL, "https://github.com/tokotype/PlusJakartaSans", NoticeKind.ASSET),
         Notice("Material Icons", "Many of the app's small icons (Google)", APACHE, "https://fonts.google.com/icons", NoticeKind.ASSET),
+        Notice("Card network and bank marks", "Visa, Mastercard, American Express, RuPay and Diners Club marks on a card's picture are simple drawings, and bank logos are the banks' own; all are trademarks of their owners, shown only to tell which card is which, with no affiliation or endorsement.", "Owned by each company", "https://www.wipo.int/trademarks/en/", NoticeKind.ASSET),
         Notice("Brand logos", "Bank, airline and other brand logos are fetched from public icon services only to identify a sender. They belong to their owners and are not part of this software.", "Owned by each brand", "https://www.google.com/s2/favicons", NoticeKind.SERVICE),
         Notice("Google Favicon service, DuckDuckGo icons", "Where logos are fetched from", "Their own terms of service", "https://duckduckgo.com/duckduckgo-help-pages/privacy/", NoticeKind.SERVICE),
         Notice("Yahoo Finance", "Market prices and stock-name suggestions (opt-in)", "Yahoo's own terms of service", "https://legal.yahoo.com/", NoticeKind.SERVICE),

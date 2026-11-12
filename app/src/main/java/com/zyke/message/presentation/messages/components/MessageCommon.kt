@@ -132,7 +132,9 @@ internal fun MerchantChip(
     /** The person's own picture for this sender / receiver, if they chose one. */
     imageKey: String? = null,
     /** Used to look up a brand logo, for names the app has no built-in icon for. */
-    name: String? = null
+    name: String? = null,
+    /** Sit on a white plate with a quiet hairline, so any logo reads over a coloured surface such as a card's gradient. */
+    plate: Boolean = false
 ) {
     val shape = RoundedCornerShape(size / 4)
     val picture = rememberSenderPicture(imageKey, name, wantsLogo = logo.isTinted)
@@ -140,7 +142,7 @@ internal fun MerchantChip(
     val isBrandLogo = picture != null && imageKey == null
     val monogram = if (picture == null && logo == MerchantLogo.PERSON) monogramFor(name) else null
     val tileColor = when {
-        isBrandLogo -> Color.White
+        isBrandLogo || (plate && monogram == null) -> Color.White
         monogram != null -> monogram.second
         else -> MaterialTheme.colorScheme.tertiary
     }
@@ -149,7 +151,7 @@ internal fun MerchantChip(
         Box(
             Modifier
                 .matchParentSize()
-                .border(0.5.dp, MaterialTheme.colorScheme.tertiary, shape)
+                .border(0.5.dp, if (plate) Color.White.copy(alpha = 0.4f) else MaterialTheme.colorScheme.tertiary, shape)
                 .background(tileColor, shape)
                 .clip(shape),
             contentAlignment = Alignment.Center
@@ -170,8 +172,9 @@ internal fun MerchantChip(
                 )
                 else -> Image(
                     painter = painterResource(logo.drawableRes()),
-                    colorFilter = if (logo.isTinted) ColorFilter.tint(MaterialTheme.colorScheme.onTertiary) else null,
+                    colorFilter = if (logo.isTinted) ColorFilter.tint(if (plate) PLATE_INK else MaterialTheme.colorScheme.onTertiary) else null,
                     contentScale = ContentScale.Fit,
+                    modifier = if (plate) Modifier.padding(size / 6) else Modifier,
                     contentDescription = description
                 )
             }
@@ -354,6 +357,9 @@ private fun rememberSenderPicture(imageKey: String?, name: String?, wantsLogo: B
 
 
 private const val MONOGRAM_SCALE = 0.42f
+
+/** The ink of a glyph drawn on the white plate. */
+private val PLATE_INK = Color(0xFF3C4150)
 
 /** Deep, evenly weighted colours that keep white letters readable. */
 private val MONOGRAM_COLORS = listOf(

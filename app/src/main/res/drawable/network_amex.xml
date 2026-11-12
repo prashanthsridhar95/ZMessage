@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American Express mark, drawn as simple shapes (not the owner's artwork). Trademark of its owner, shown for identification only; see docs/LEGAL_NOTES.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:pathData="M4,0H24C26.2,0 28,1.8 28,4V24C28,26.2 26.2,28 24,28H4C1.8,28 0,26.2 0,24V4C0,1.8 1.8,0 4,0Z"
+        android:fillColor="#016FD0"/>
+    <path
+        android:pathData="M2.6,17.6L4.9,10.4L7.2,17.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M3.5,15.2L6.3,15.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M9,17.6L9,10.4L11.7,14.6L14.4,10.4L14.4,17.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M20.6,10.5L16.7,10.5L16.7,17.5L20.6,17.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M16.7,14L20,14"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M21.9,10.4L26,17.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+    <path
+        android:pathData="M26,10.4L21.9,17.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.7"/>
+</vector>

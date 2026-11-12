@@ -336,10 +336,10 @@ class HomeViewModel(
             before != null && before.amount.compareTo(edit.balance) == 0 -> before
             else -> com.zyke.message.domain.accounts.ManualBalance(edit.key, edit.balance, System.currentTimeMillis())
         }
-        val chosen = com.zyke.message.domain.accounts.AccountOverride(bank = bank, kind = kind, manual = manual)
+        val chosen = com.zyke.message.domain.accounts.AccountOverride(bank = bank, kind = kind, manual = manual, network = edit.network)
         if (chosen.isEmpty) accountOverrides.clear(edit.key) else accountOverrides.set(edit.key, chosen)
         com.zyke.message.data.diag.DevLog.d("accounts") {
-            "edit account key=${com.zyke.message.domain.diag.DiagLog.key(edit.key)} bankChosen=${bank.isNotEmpty()} kindChosen=${kind != null} balanceSet=${manual != null} nameLength=${edit.name.trim().length}"
+            "edit account key=${com.zyke.message.domain.diag.DiagLog.key(edit.key)} bankChosen=${bank.isNotEmpty()} kindChosen=${kind != null} networkChosen=${edit.network != null} balanceSet=${manual != null} nameLength=${edit.name.trim().length}"
         }
         val existing = account.userCard
         if (existing != null || edit.name.isNotBlank()) {
