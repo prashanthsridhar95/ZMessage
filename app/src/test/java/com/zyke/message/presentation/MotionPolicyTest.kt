@@ -45,6 +45,12 @@ class MotionPolicyTest {
             .map { it.relativeTo(root).invariantSeparatorsPath }.toList() + "review/YearPage.kt"
     }
 
+    /** The Bills tab and the pages beside it (reminders, goals, calendar, budget calendar), brought under the same rules in wave B4. */
+    private val bills = listOf(
+        "home/BillsPage.kt", "home/BillsKit.kt", "home/PlanItemActions.kt", "home/PlanUi.kt", "home/PlanPages.kt",
+        "home/GoalsAndReminders.kt", "home/PaidBillsPage.kt", "home/CalendarUi.kt", "home/GroupUi.kt", "motion/SlideSwap.kt"
+    )
+
     /** Files that may call tween/spring/snap themselves, and why. */
     private val rawSpecsAllowed = mapOf(
         "motion/Motion.kt" to "the funnel: the only place a spec is built, and it returns instant ones when reduced",
@@ -68,7 +74,7 @@ class MotionPolicyTest {
     @Test
     fun sharedComponentsDoNotLoopEither() {
         val root = presentationRoot()
-        val offenders = (shared + insights).filter { it !in rawSpecsAllowed }.flatMap { rel ->
+        val offenders = (shared + insights + bills).filter { it !in rawSpecsAllowed }.flatMap { rel ->
             code(File(root, rel)).mapIndexedNotNull { i, line ->
                 if (!line.trimStart().startsWith("import ") && loop.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
             }
@@ -79,7 +85,7 @@ class MotionPolicyTest {
     @Test
     fun animationSpecsComeFromTheMotionTokens() {
         val root = presentationRoot()
-        val files = motionFiles().map { "motion/" + it.name to it } + (shared + insights).map { it to File(root, it) }
+        val files = motionFiles().map { "motion/" + it.name to it } + (shared + insights + bills).filter { !it.startsWith("motion/") }.map { it to File(root, it) }
         val offenders = files.filter { (rel, _) -> rel !in rawSpecsAllowed }.flatMap { (rel, file) ->
             code(file).mapIndexedNotNull { i, line ->
                 if (!line.trimStart().startsWith("import ") && rawSpec.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
@@ -96,7 +102,7 @@ class MotionPolicyTest {
     fun insightsSwapContentThroughTheMotionFunnel() {
         val root = presentationRoot()
         val rawSwap = Regex("""(?<![\w.])(Crossfade|AnimatedContent)\s*\(""")
-        val offenders = insights.flatMap { rel ->
+        val offenders = (insights + bills.filter { !it.startsWith("motion/") }).flatMap { rel ->
             code(File(root, rel)).mapIndexedNotNull { i, line ->
                 if (!line.trimStart().startsWith("import ") && rawSwap.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
             }
@@ -205,5 +211,56 @@ class MotionPolicyTest {
         assertTrue("the Messages tabs slide their line with the tab token", "Motion.TAB_MS" in File(messages, "TabIndicator.kt").readText())
         val detail = File(messages, "MessageDetailSheet.kt").readText()
         assertTrue("deleting an entry asks first and gives the firmer buzz", "haptics.reject()" in detail && "AlertDialog(" in detail)
+    }
+
+    /**
+     * Bills and Calendar (docs/DESIGN.md, Bills and Calendar): one hero, rows on the shared anatomy with equal-width actions,
+     * the mark-paid beat and its Paid group, a collapsible chevron that turns once, the calendar's direction-aware paging, day
+     * cells that dip and speak, and destructive deletes that ask first and buzz.
+     */
+    @Test
+    fun billsAndCalendarFollowTheBillsRules() {
+        val home = File(presentationRoot(), "home")
+        val page = File(home, "BillsPage.kt").readText()
+        assertTrue("the hero is first and only", "BillsHero(" in page && page.indexOf("BillsHero(") < page.indexOf("\"reminders\""))
+        assertTrue("the first cards enter once", "enterOnce(gate" in page && "itemMotion()" in page)
+        assertTrue("rows that come and go use the column animation", "AnimatedColumnItems(open" in page && "AnimatedColumnItems(paidLines" in page)
+        assertTrue("a paid bill gets a beat then moves", "settling" in page && "haptics.tick()" in page && "markPaid(item)" in page)
+        assertTrue("one empty voice", "No bills due" in page && "EmptyState(" in page)
+        val kit = File(home, "BillsKit.kt").readText()
+        assertTrue("the hero is the tonal hero with a count-up and a revealed bar", "Tonal.Hero" in kit && "AnimatedAmount(" in kit && "ProgressReveal(" in kit)
+        assertTrue("the status chip crossfades and the check scales in once", "CrossfadeKeyed(" in kit && "scaleIn(" in kit)
+        assertTrue("the chevron turns with a token spec", "rotationZ" in kit && "Motion.QUICK_MS" in kit)
+        assertTrue("a row dips on press and keeps its role", "pressFeedback(source)" in kit && "Role.Button" in kit)
+        assertTrue("a delete asks first and gives the firmer buzz", "haptics.reject()" in kit && "AlertDialog(" in kit)
+        assertTrue("a bill row is the shared PlanRow with a logo tile and a fitted amount", "PlanRow(" in kit && "MerchantChip(" in kit && "RowAmount(" in kit)
+        val actions = File(home, "PlanItemActions.kt").readText()
+        assertTrue("actions are equal-width cells that stack when narrow", "ResponsiveRow(" in actions && ".cell()" in actions && "FlowRow(" !in actions)
+        val group = File(home, "GroupUi.kt").readText()
+        assertTrue("a group opens through AppearVisibility and its chevron turns", "AppearVisibility(expanded)" in group && "ChevronTurn(expanded)" in group && "AnimatedVisibility(" !in group)
+        val calendar = File(home, "CalendarUi.kt").readText()
+        assertTrue("the month grid slides in the direction of time", "SlideSwap(" in calendar && "CalendarPaging.direction" in calendar)
+        assertTrue("the title crossfades by month", "CrossfadeKeyed(month" in calendar)
+        assertTrue("paging ticks", "haptics.tick()" in calendar)
+        assertTrue("a swipe turns the page past a threshold, horizontally only", "detectHorizontalDragGestures" in calendar && "CalendarPaging.swipe(" in calendar)
+        assertTrue("a day cell dips, fades its fill and speaks", "pressFeedback(source)" in calendar && "animateColorAsState" in calendar && "CalendarPaging.spoken(" in calendar && "Role.Button" in calendar)
+        assertTrue("the dots are capped", "CalendarPaging.dots(" in calendar)
+        assertTrue("an empty day is the shared empty state", "EmptyState(\"A free day\"" in calendar)
+        val dialogs = File(home, "GoalsAndReminders.kt").readText() + calendar
+        assertTrue("goals, reminders and events confirm before deleting", Regex("ConfirmDelete\\(").findAll(dialogs).count() >= 3)
+        val slide = File(presentationRoot(), "motion/SlideSwap.kt").readText()
+        assertTrue("the slide asks the funnel and is instant when reduced", "rememberMotion()" in slide && "motion.reduced" in slide)
+    }
+
+    @Test
+    fun billsAndCalendarUseTokensNotOneOffSpacing() {
+        val root = presentationRoot()
+        val oneOff = Regex("""(?:padding|spacedBy|RoundedCornerShape|width|size)\((?:[a-z]+ = )?(?:10|13|14|18|22)\.dp""")
+        val offenders = listOf("home/BillsPage.kt", "home/BillsKit.kt", "home/PlanUi.kt", "home/PlanPages.kt", "home/CalendarUi.kt").flatMap { rel ->
+            code(File(root, rel)).mapIndexedNotNull { i, line ->
+                if (oneOff.containsMatchIn(line)) "$rel:${i + 1}: ${line.trim()}" else null
+            }
+        }
+        assertTrue("Use Spacing / Radius tokens instead of 10, 13, 14, 18 or 22 dp one-offs:\n" + offenders.joinToString("\n"), offenders.isEmpty())
     }
 }

@@ -266,6 +266,66 @@ Rules of the tab:
 - **320 dp, large text.** Totals sit in a `FlowRow` (side by side, or one above the other), tabs wrap to two lines, legends wrap
   as whole chips, charts scale with width.
 
+## Bills and Calendar (wave B4)
+
+The Bills tab (`home/BillsPage.kt`, `BillsKit.kt`), the pages beside it (Goals, Reminders, Marked as paid) and the calendars
+(`CalendarUi.kt`, the budget calendar in `BudgetViews.kt`). The arithmetic is in the domain and tested: `BillsMath` (due
+captions and tones, ordering, this month's progress, part payments) and `CalendarPaging` (page direction, swipe threshold,
+slide distance, day dots, the spoken day).
+
+**The Bills tab.** One hero, `BillsHero` (`Tonal.Hero`): this month's money still to pay (counts up from zero on the first
+showing), a `ProgressReveal` bar for how much of the month is paid, and "Paid so far" with "2 of 5 paid". "This month" means
+due by the end of this month (overdue included); money already put towards a part-paid bill moves the bar without making the
+bill "paid". Under it, every card is `BillsSection` (`FintechCard` + `CardHeader`) with `Spacing.md` between them; the first
+cards enter once (`enterOnce`, gate from `HomeScreen`). With nothing due the hero gives way to the shared `EmptyState`
+("No bills due — you're clear").
+
+**One row anatomy** (`UpcomingRow`, refund, owed and repeating rows): `PlanRow` with a 48 dp logo tile (`MerchantChip`,
+`RowTile`), the title, a caption, the amount (`RowAmount`, fitted, never wrapped), the status chip, and the actions on their
+own line. The due caption says the distance in words and takes its colour from a theme token (`BillsMath.tone`: overdue is
+danger, today and soon are warning, later is muted), so colour is never the only signal. Rows dip on press (`rowTap` =
+`pressFeedback` + `clickable` with a role and click label).
+
+| State | Chip | Caption |
+|---|---|---|
+| overdue | "Overdue" (danger tone) | "Overdue by 2 days" |
+| due soon | none | "Due today" / "Due tomorrow" / "Due in 3 days" (warning) |
+| later | none | "Due 25 Nov" (muted) |
+| part paid | "Part paid", a bar for the share and "Part paid ₹250 · ₹750 left" | as above |
+| paid | "Paid" with a check mark | "Bill · paid today" |
+
+**Actions** (`ActionButtons`): equal widths always. Up to three sit side by side, more are two to a line, and a narrow phone or
+large text (`ResponsiveRow`) stacks them one under the other; a last button alone keeps the others' width. The revealed
+Open / Done / Snooze / Dismiss line uses the same buttons and opens with `AppearVisibility`.
+
+**Mark as paid.** The tap gives a light tick and the row reads as paid at once: the chip crossfades (`CrossfadeKeyed`) to
+"Paid" and its check mark fades and scales in once (`AnimatedVisibility` with the tokens). After one `STANDARD_MS` beat (none
+when motion is reduced) the bill is recorded; the row leaves the Due list and a row opens in the Paid group
+(`AnimatedColumnItems` in both), the hero's figure counts to its new value and its bar eases forward. Undo in the snackbar
+reverses all of it with the same motion. The Paid group is a collapsible header (the chevron turns half a circle once,
+`QUICK_MS`) whose open state is remembered; each of its rows can be restored.
+
+**Groups** under "Repeats monthly" (`GroupHeaderRow`, `GroupMembers`): the header dips on press, the chevron turns once, the
+members open through `AppearVisibility`; the open state is remembered per group.
+
+**Calendar.** The arrows, a sideways drag on the grid and the Today button all page the same way and give one tick. The grid
+is a `SlideSwap` keyed by month: it slides at most 24 dp (30 % of its width on a very small one) in the direction of time (next
+month comes from the right) while fading, `TAB_MS`; the title crossfades; the day detail crossfades by day; entries of the day
+open and close one by one. Instant under reduced motion or Lite. A swipe must travel 18 % of the width (48 dp at least) and is a
+horizontal drag only, so scrolling the page is unaffected. A leaving page keeps drawing its own month (entries are looked up
+per month, not read from the current one).
+
+**Day cells** (`DayCell`): at least 48 dp, dip on press, a fill that fades in and out when chosen (`QUICK_MS`, read while
+drawing), a ring for today, at most three dots (`CalendarPaging.dots`) and a "+" for more. Each is one button with a spoken
+description, "Tuesday 12 November, today, 2 bills due, 1 other item", and the selected state. The budget calendar's cells do the
+same with "within budget, spent ₹…"; spend is shown as a mark under the date, not as a tonal ramp.
+
+**Forms.** Goals, reminders and events open as `FormSheet`; deleting any of them asks first (`ConfirmDelete`) and the confirming
+tap gives the firmer buzz (`haptics.reject()`), then the snackbar still offers Undo.
+
+`MotionPolicyTest` scans these files (no loops, no raw specs, no raw swaps outside the motion package, one-off spacing numbers
+banned) and checks the rules above.
+
 ## Status and what comes next
 
 Phase A (this page): tokens, the motion package, tab/page/sheet transitions, shared components on tokens, Home as the
