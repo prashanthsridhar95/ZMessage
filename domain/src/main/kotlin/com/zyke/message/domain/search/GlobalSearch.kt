@@ -16,6 +16,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import com.zyke.message.domain.reminders.Reminder
+import com.zyke.message.domain.settings.SettingsIndex
 import java.math.BigDecimal
 
 /** Which chip along the top narrows to a kind of result. */
@@ -33,6 +34,7 @@ enum class SearchKind(val label: String, val scope: SearchScope?) {
     EVENT("Calendar", SearchScope.BILLS),
     TAG("Tags & notes", SearchScope.TAGS),
     STOCK("Stocks you watch", null),
+    SETTING("Settings", null),
     PAGE("Jump to", null)
 }
 
@@ -72,7 +74,11 @@ data class SearchSources(
     val reminders: List<Reminder> = emptyList(),
     val events: List<CalendarEvent> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
-    val watched: List<WatchSymbol> = emptyList()
+    val watched: List<WatchSymbol> = emptyList(),
+    /** Developer options are on: their settings can be found too. */
+    val developerMode: Boolean = false,
+    /** Demo mode is on: settings that are hidden there cannot be found either. */
+    val demoMode: Boolean = false
 )
 
 /**
@@ -125,6 +131,7 @@ object GlobalSearch {
             if (wanted(SearchKind.EVENT)) groups += group(SearchKind.EVENT, eventHits(needle, sources.events), limit)
             if (wanted(SearchKind.TAG)) groups += group(SearchKind.TAG, tagHits(needle, sources.messages), limit)
             if (wanted(SearchKind.STOCK)) groups += group(SearchKind.STOCK, stockHits(needle, sources.watched), limit)
+            if (wanted(SearchKind.SETTING)) groups += group(SearchKind.SETTING, settingHits(needle, sources), limit)
             if (wanted(SearchKind.PAGE)) groups += group(SearchKind.PAGE, SearchPages.hits(needle), limit)
         }
         // A page the person named ("settings") comes first; any other page match is a footnote.
@@ -273,6 +280,12 @@ object GlobalSearch {
             SearchHit(SearchKind.EVENT, e.id, e.title, e.date.toString(), rank = rank)
         }
 
+    /** A setting is found by its title, summary or a keyword; the hit's id is the setting's id, which names its page. */
+    private fun settingHits(needle: String, sources: SearchSources): List<SearchHit> =
+        if (needle.trim().length < MIN_SETTING_QUERY) emptyList() else SettingsIndex.search(needle, sources.developerMode, sources.demoMode).map { m ->
+            SearchHit(SearchKind.SETTING, m.entry.id, m.entry.title, m.entry.group.title + " · " + m.entry.summary, rank = m.rank)
+        }
+
     private fun stockHits(needle: String, watched: List<WatchSymbol>): List<SearchHit> =
         watched.mapNotNull { w ->
             val name = StockDirectory.search(w.symbol.substringBefore('.'), 1).firstOrNull { it.symbol == w.symbol }?.name
@@ -284,4 +297,5 @@ object GlobalSearch {
     private const val CATEGORY_PENALTY = 1
     private const val NOTE_PENALTY = 1
     private const val MIN_AMOUNT_CONTAINS = 3
+    private const val MIN_SETTING_QUERY = 2
 }

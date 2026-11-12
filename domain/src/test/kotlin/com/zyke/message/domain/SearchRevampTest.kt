@@ -132,7 +132,9 @@ class SearchRevampTest {
         assertEquals(SearchKind.PAGE, r.groups.first().kind)
         assertEquals("settings", r.groups.first().hits.first().id)
         val dark = GlobalSearch.search("dark", SearchSources(), 5, today = today, zone = zone)
-        assertEquals("settings", dark.groups.single().hits.single().id)
+        // The Settings page, and the setting itself (the index of settings is searched too).
+        assertEquals("settings", dark.groups.single { it.kind == SearchKind.PAGE }.hits.single().id)
+        assertEquals("appearance.theme", dark.groups.single { it.kind == SearchKind.SETTING }.hits.first().id)
     }
 
     @Test fun billsScopeIncludesReminders() {
