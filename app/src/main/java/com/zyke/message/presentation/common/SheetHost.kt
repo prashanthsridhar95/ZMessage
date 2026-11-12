@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.common
 
+import androidx.compose.ui.draw.drawBehind
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.motion.Motion
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -90,8 +93,6 @@ val LocalSheetHost = staticCompositionLocalOf<SheetHost?> { null }
 val LocalSheetWindowHeight = staticCompositionLocalOf { 0 }
 
 private const val SCRIM_ALPHA = 0.32f
-private const val ENTER_MS = 260
-private const val EXIT_MS = 200
 private const val DISMISS_FRACTION = 0.3f
 private const val PARTIAL_HEIGHT = 0.62f
 private val CORNER = 28.dp
@@ -110,20 +111,21 @@ private fun SheetLayer(entry: SheetEntry) {
     val scope = rememberCoroutineScope()
     // 1 is fully below the screen, 0 is fully open.
     val hidden = remember { Animatable(1f) }
+    val motion = rememberMotion()
     var sheetHeight by remember { mutableIntStateOf(0) }
     val topInset = WindowInsets.statusBars.union(WindowInsets.displayCutout).asPaddingValues().calculateTopPadding()
 
-    androidx.compose.runtime.LaunchedEffect(entry.ready) { if (entry.ready) hidden.animateTo(0f, tween(ENTER_MS)) }
+    androidx.compose.runtime.LaunchedEffect(entry.ready) { if (entry.ready) hidden.animateTo(0f, motion.tween(Motion.STANDARD_MS, Motion.Standard)) }
 
     fun dismiss() {
         scope.launch {
-            hidden.animateTo(1f, tween(EXIT_MS))
+            hidden.animateTo(1f, motion.exit(Motion.STANDARD_MS))
             entry.onDismiss()
         }
     }
 
     fun settle() {
-        scope.launch { if (hidden.value > DISMISS_FRACTION) dismiss() else hidden.animateTo(0f, tween(EXIT_MS)) }
+        scope.launch { if (hidden.value > DISMISS_FRACTION) dismiss() else hidden.animateTo(0f, motion.tween(Motion.QUICK_MS, Motion.Standard)) }
     }
 
     BackHandler { dismiss() }
@@ -160,7 +162,8 @@ private fun SheetLayer(entry: SheetEntry) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = SCRIM_ALPHA * (1f - hidden.value)))
+                // The scrim fades in with the sheet and out with it; read while drawing, so a frame repaints it and does not recompose.
+                .drawBehind { drawRect(Color.Black, alpha = SCRIM_ALPHA * (1f - hidden.value)) }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = ::dismiss)
         )
 

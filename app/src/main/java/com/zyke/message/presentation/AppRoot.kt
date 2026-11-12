@@ -1,5 +1,7 @@
 package com.zyke.message.presentation
 
+import com.zyke.message.presentation.motion.rememberMotion
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.remember
@@ -25,7 +27,7 @@ import com.zyke.message.presentation.common.LocalOpenLink
 import com.zyke.message.presentation.common.LocalOpenSettings
 import com.zyke.message.presentation.common.isWebLink
 import com.zyke.message.presentation.common.openExternally
-import com.zyke.message.presentation.common.Motion
+import com.zyke.message.presentation.motion.Motion
 import com.zyke.message.presentation.common.rememberReduceMotion
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -74,7 +76,6 @@ import com.zyke.message.presentation.tour.toApp
 import com.zyke.message.presentation.tour.toTour
 import com.zyke.message.presentation.tour.tourAnchor
 
-private const val TAB_SLIDE_DIVISOR = 12
 
 /** Five places, money first: how things stand, the accounts, the insights, what is due, and the messages behind it all. */
 enum class AppTab(val label: String, val icon: Int, val outline: Int) {
@@ -119,7 +120,8 @@ fun AppRoot(
     val web = remember { WebSession(context) }
     androidx.compose.runtime.DisposableEffect(web) { onDispose { web.close() } }
     val stateHolder = rememberSaveableStateHolder()
-    val reduceMotion = rememberReduceMotion()
+    val motion = rememberMotion()
+    val slidePx = with(androidx.compose.ui.platform.LocalDensity.current) { Motion.TAB_SLIDE_DP.dp.roundToPx() }
 
     BackHandler(enabled = tab != StartTab) { tab = StartTab }
 
@@ -191,14 +193,19 @@ fun AppRoot(
         if (com.zyke.message.data.demo.DemoMode.active) com.zyke.message.presentation.demo.DemoBanner()
         topNote()
         Box(Modifier.weight(1f)) {
-        // Tabs slide the way you moved along the bar, so where you are in the app is felt, not just read.
+        // Tabs move on a shared horizontal axis the way you moved along the bar: the new one slides in a short
+        // way (24 dp at most) while it fades in, the old one slides out and fades. Instant when motion is reduced.
         AnimatedContent(
             targetState = tab,
             transitionSpec = {
-                if (reduceMotion) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
+                if (motion.reduced) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
                 val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                (fadeIn(tween(Motion.STANDARD_MS)) + slideInHorizontally(tween(Motion.STANDARD_MS)) { direction * it / TAB_SLIDE_DIVISOR })
-                    .togetherWith(fadeOut(tween(Motion.QUICK_MS)))
+                (fadeIn(motion.tween(Motion.TAB_MS, delayMs = Motion.INSTANT_MS)) +
+                    slideInHorizontally(motion.tween(Motion.TAB_MS, Motion.Standard)) { direction * slidePx })
+                    .togetherWith(
+                        fadeOut(motion.exit(Motion.INSTANT_MS)) +
+                            slideOutHorizontally(motion.exit(Motion.TAB_MS)) { -direction * slidePx }
+                    )
             },
             label = "tab"
         ) { shown ->
@@ -256,10 +263,10 @@ fun AppBottomBar(selected: AppTab, inboxBadge: Int, onSelect: (AppTab) -> Unit, 
  */
 @Composable
 private fun AnimatedTabIcon(tab: AppTab, selected: Boolean, badge: Int) {
-    val reduceMotion = rememberReduceMotion()
+    val motion = rememberMotion()
     val fill by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(if (reduceMotion) 0 else FILL_MS),
+        animationSpec = motion.tween(Motion.STANDARD_MS),
         label = "tab-fill"
     )
     val icon: @Composable () -> Unit = {
@@ -283,5 +290,4 @@ private fun AnimatedTabIcon(tab: AppTab, selected: Boolean, badge: Int) {
     }
 }
 
-private const val FILL_MS = 260
 private const val FILL_FROM_SCALE = 0.7f

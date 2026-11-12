@@ -89,19 +89,21 @@ private val ACCOUNTS_HERO_MIN_HEIGHT = 176.dp
 
 /** What the accounts hold in all, as the one big number on Home. */
 @Composable
-internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    FintechCard(modifier, onClick = onOpen) {
-        Caption("TOTAL BALANCE")
+internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifier, intro: Boolean = false, onOpen: () -> Unit) {
+    // The one hero of Home: tinted with the accent, larger corners, the figure counts up when the screen first appears.
+    FintechCard(modifier, onClick = onOpen, level = com.zyke.message.presentation.theme.Tonal.Hero) {
+        com.zyke.message.presentation.common.CardHeader("Total balance")
         val total = overview.totalBalance
         if (total != null) {
-            com.zyke.message.presentation.common.PrivateAmount(
-                rememberAnimatedRupees(total),
-                Modifier.padding(top = 6.dp),
+            com.zyke.message.presentation.motion.AnimatedAmount(
+                total,
+                Modifier.padding(top = 2.dp),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
-                fit = true
+                fit = true,
+                fromZero = intro
             )
             Caption(
                 DisplayFormatters.count(overview.countedBalances, "bank account", "bank accounts"),

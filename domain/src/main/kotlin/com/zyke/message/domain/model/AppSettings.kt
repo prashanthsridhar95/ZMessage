@@ -32,5 +32,7 @@ data class AppSettings(
     /** Which launcher icon colour is enabled (see [AppIconChoice]); the manifest state follows this. */
     val appIcon: AppIconChoice = AppIconChoice.DEFAULT,
     /** How much motion and polish the app spends; Automatic goes lite on phones with little memory (see [LiteMode]). */
-    val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC
+    val performanceMode: PerformanceMode = PerformanceMode.AUTOMATIC,
+    /** A light tick on switches, choices and confirmations (a firmer one for destructive confirmations). On unless turned off. */
+    val hapticFeedback: Boolean = true
 )

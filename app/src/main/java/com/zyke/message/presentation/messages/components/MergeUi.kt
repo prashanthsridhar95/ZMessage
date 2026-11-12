@@ -117,7 +117,7 @@ fun Modifier.mergeDraggable(
     onDrop: (primaryId: Long, duplicateId: Long) -> Unit
 ): Modifier = composed {
     if (state == null || !enabled) return@composed Modifier
-    val haptics = LocalHapticFeedback.current
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     val held = state.draggingId == id
     val over = state.draggingId != null && state.hoverId == id
     DisposableEffect(id) { onDispose { state.forget(id) } }
@@ -127,7 +127,7 @@ fun Modifier.mergeDraggable(
         .pointerInput(id) {
             detectDragGesturesAfterLongPress(
                 onDragStart = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    haptics.longPress()
                     state.start(id, it)
                 },
                 onDrag = { change, delta ->

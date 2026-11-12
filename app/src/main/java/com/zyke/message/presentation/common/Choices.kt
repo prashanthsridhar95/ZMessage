@@ -1,5 +1,14 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.tonalFill
+import com.zyke.message.presentation.theme.Tonal
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.motion.Motion
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -31,19 +40,24 @@ data class Choice<T>(val value: T, val title: String, val description: String? =
  */
 @Composable
 fun <T> ChoiceCards(choices: List<Choice<T>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val motion = rememberMotion()
+    val tick = rememberTick()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         choices.forEach { choice ->
             val chosen = choice.value == selected
-            val shape = RoundedCornerShape(16.dp)
+            val shape = AppShapes.control
+            val idle = tonalFill(Tonal.Quiet)
+            val on = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            val fill by animateColorAsState(if (chosen) on else idle, motion.tween(Motion.QUICK_MS), label = "choice")
             Row(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
                     .clip(shape)
-                    .background(if (chosen) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                    .drawBehind { drawRect(fill) }
                     .border(if (chosen) 2.dp else 0.dp, if (chosen) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent, shape)
-                    .selectable(selected = chosen, role = Role.RadioButton, onClick = { onSelect(choice.value) })
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .selectable(selected = chosen, role = Role.RadioButton, onClick = { if (!chosen) tick(); onSelect(choice.value) })
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
@@ -62,10 +76,11 @@ fun <T> ChoiceCards(choices: List<Choice<T>>, selected: T, onSelect: (T) -> Unit
 /** Two to four short options side by side, like Light, Dark and Automatic; the chosen one is filled. */
 @Composable
 fun <T> SegmentedChoice(choices: List<Choice<T>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = AppShapes.control
+    val tick = rememberTick()
     Row(
-        modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)).padding(Spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
     ) {
         choices.forEach { choice ->
             val chosen = choice.value == selected
@@ -74,10 +89,10 @@ fun <T> SegmentedChoice(choices: List<Choice<T>>, selected: T, onSelect: (T) -> 
                 Modifier
                     .weight(1f)
                     .heightIn(min = 44.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .clip(AppShapes.chip)
                     .background(if (chosen) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
-                    .selectable(selected = chosen, role = Role.RadioButton, onClick = { onSelect(choice.value) })
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                    .selectable(selected = chosen, role = Role.RadioButton, onClick = { if (!chosen) tick(); onSelect(choice.value) })
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.md),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (chosen) FontWeight.Bold else FontWeight.Medium,
                 color = if (chosen) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,

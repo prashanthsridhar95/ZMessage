@@ -1,10 +1,10 @@
 package com.zyke.message.presentation.common
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -19,95 +19,54 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.hypot
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.State
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.pressFeedback
+import com.zyke.message.presentation.motion.rememberCountUpText
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberProgressReveal
 import androidx.compose.ui.graphics.graphicsLayer
-import com.zyke.message.presentation.format.DisplayFormatters
 import java.math.BigDecimal
-import java.math.RoundingMode
 
-/**
- * The app's motion in one place. Movement is short and always says something: a number that changes
- * counts to its new value, a bar grows to its share, a tab slides the way you moved, a pressed button
- * dips. Durations are brief so nothing ever makes the user wait.
+/*
+ * Legacy entry points kept for the many callers that use them; they now delegate to the motion package
+ * (presentation/motion), where the tokens and the reduce-motion switch live. See docs/DESIGN.md.
  */
-object Motion {
-    const val QUICK_MS = 150
-    const val STANDARD_MS = 250
-    const val COUNT_MS = 600
-    const val GROW_MS = 500
-    const val PRESSED_SCALE = 0.96f
-    const val CARD_PRESSED_SCALE = 0.98f
-}
 
 /**
- * The rupee text for [target], counting from the value on screen to the new one when it changes.
- * The first time it shows it simply appears (no animation is started at all), so scrolling a list or
- * redrawing an item never replays it. While counting it keeps the target's decimal places, so the
- * precision does not jump when the count ends.
+ * The rupee text for [target], counting from the value on screen to the new one when it changes. The first time it shows
+ * it simply appears, so scrolling a list or redrawing an item never replays it; while amounts are hidden or motion is
+ * reduced it never animates. Prefer [com.zyke.message.presentation.motion.AnimatedAmount] in new code.
  */
 @Composable
-fun rememberAnimatedRupees(target: BigDecimal): String {
-    if (rememberReduceMotion()) return DisplayFormatters.rupees(target)
-    val goal = target.toFloat()
-    val progress = remember { Animatable(goal) }
-    LaunchedEffect(goal) {
-        if (progress.targetValue != goal) {
-            progress.animateTo(goal, tween(Motion.COUNT_MS, easing = FastOutSlowInEasing))
-        }
-    }
-    return if (progress.isRunning) {
-        val digits = if (target.stripTrailingZeros().scale() > 0) 2 else 0
-        DisplayFormatters.rupeesFixed(BigDecimal(progress.value.toDouble()).setScale(digits, RoundingMode.HALF_UP), digits)
-    } else {
-        DisplayFormatters.rupees(target)
-    }
-}
+fun rememberAnimatedRupees(target: BigDecimal): String = rememberCountUpText(target)
 
 /** [target] approached from zero when first shown, then eased to any new value; for bars that grow into place. */
 @Composable
-fun rememberGrowingFraction(target: Float): Float = rememberGrowingState(target).value
+fun rememberGrowingFraction(target: Float): Float = rememberProgressReveal(target).value
 
 /**
  * [rememberGrowingFraction] as a [State]. Read it only while drawing (inside drawBehind, graphicsLayer or a Canvas),
  * so each animation frame repaints a bar instead of recomposing and re-measuring it and everything beside it.
  */
 @Composable
-fun rememberGrowingState(target: Float): State<Float> {
-    if (rememberReduceMotion()) return rememberUpdatedState(target)
-    val grown = remember { Animatable(0f) }
-    LaunchedEffect(target) { grown.animateTo(target, tween(Motion.GROW_MS, easing = FastOutSlowInEasing)) }
-    return grown.asState()
-}
+fun rememberGrowingState(target: Float): State<Float> = rememberProgressReveal(target)
 
-/** A light tick under the finger for a switch, an undo or a mark-as-paid. Works on every Android version. */
+/** A light tick under the finger for a switch, an undo or a mark-as-paid. Follows the Haptic feedback setting. */
 @Composable
 fun rememberTick(): () -> Unit {
-    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-    return remember(haptics) { { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) } }
+    val haptics = rememberHaptics()
+    return remember(haptics) { { haptics.tick() } }
 }
 
-/** A small dip while pressed, so a tap is felt before anything else changes. Cards use a gentler [pressed] size than buttons. */
+/** A small dip while pressed, so a tap is felt before anything else changes. Buttons use this; cards use [pressFeedback] with its gentler defaults. */
 @Composable
-fun Modifier.pressScale(source: InteractionSource, pressed: Float = Motion.PRESSED_SCALE): Modifier {
-    val isPressed by source.collectIsPressedAsState()
-    val reduce = rememberReduceMotion()
-    val scale by animateFloatAsState(if (isPressed && !reduce) pressed else 1f, tween(Motion.QUICK_MS), label = "press")
-    return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }
-}
+fun Modifier.pressScale(source: InteractionSource, pressed: Float = Motion.PRESSED_SCALE): Modifier =
+    pressFeedback(source, pressedScale = pressed, pressedAlpha = 1f)
 
 private const val BORDER_SWEEP_MS = 3500
 private const val BORDER_BASE_ALPHA = 0.25f

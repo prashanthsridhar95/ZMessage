@@ -576,6 +576,14 @@ private fun GroupContent(
                 )
             }
         }
+        SectionCard("Feel") {
+            ToggleRow(
+                title = "Haptic feedback",
+                description = "A light tick when you flip a switch or choose an option, and a firmer one when you confirm something that cannot be undone.",
+                checked = state.settings.hapticFeedback,
+                onCheckedChange = { onIntent(Intent.SetHapticFeedback(it)) }
+            )
+        }
         PerformanceCard(state.settings.performanceMode) { onIntent(Intent.SetPerformanceMode(it)) }
         }
         SettingsGroup.HELP -> com.zyke.message.presentation.tour.TourHelpSection()

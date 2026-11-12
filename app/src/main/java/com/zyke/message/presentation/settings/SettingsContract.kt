@@ -50,6 +50,7 @@ object SettingsContract {
         data class SetThemeMode(val mode: ThemeMode) : Intent
         data class SetCustomAccent(val argb: Long) : Intent
         data class SetAppIcon(val icon: com.zyke.message.domain.model.AppIconChoice) : Intent
+        data class SetHapticFeedback(val enabled: Boolean) : Intent
         data class SetPerformanceMode(val mode: com.zyke.message.domain.model.PerformanceMode) : Intent
         data class SetAccent(val accent: com.zyke.message.domain.model.AccentColor) : Intent
         data class SetHideAmounts(val enabled: Boolean) : Intent

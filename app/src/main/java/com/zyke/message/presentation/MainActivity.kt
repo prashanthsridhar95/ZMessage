@@ -330,6 +330,7 @@ class MainActivity : ComponentActivity() {
             val amountsRevealed by amountReveal.revealed.collectAsStateWithLifecycle()
             CompositionLocalProvider(
                 com.zyke.message.presentation.common.LocalLite provides lite,
+                com.zyke.message.presentation.motion.LocalHapticsEnabled provides appSettings.hapticFeedback,
                 LocalImageStore provides container.imageStore,
                 com.zyke.message.presentation.backup.LocalBackupHost provides backupHost,
                 com.zyke.message.presentation.common.LocalAmountReveal provides amountReveal,

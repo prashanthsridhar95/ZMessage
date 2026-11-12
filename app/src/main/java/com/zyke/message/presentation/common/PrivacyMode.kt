@@ -40,7 +40,9 @@ fun PrivateAmount(
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
     /** One line that shrinks (down to about half the size) to fit the room, for the big figures; see [FitText]. */
-    fit: Boolean = false
+    fit: Boolean = false,
+    /** With [fit]: size the text for this one (the final figure of a count) instead of [text]. */
+    sizeAgainst: String? = null
 ) {
     val privacy = LocalPrivacyMode.current
     if (privacy.hidden) {
@@ -52,7 +54,7 @@ fun PrivateAmount(
             color = color, style = style, fontWeight = fontWeight, textAlign = textAlign, maxLines = 1
         )
     } else {
-        if (fit && maxLines == 1) FitText(text, modifier, style = style, color = color, fontWeight = fontWeight, textAlign = textAlign)
+        if (fit && maxLines == 1) FitText(text, modifier, style = style, color = color, fontWeight = fontWeight, textAlign = textAlign, sizeAgainst = sizeAgainst)
         else Text(text, modifier, color = color, style = style, fontWeight = fontWeight, textAlign = textAlign, maxLines = maxLines, overflow = overflow)
     }
 }

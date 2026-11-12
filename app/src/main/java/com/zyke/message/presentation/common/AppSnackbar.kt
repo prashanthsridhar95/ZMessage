@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.AppShapes
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDuration
@@ -29,5 +32,8 @@ private class MaskedSnackbarData(private val data: SnackbarData) : SnackbarData 
 @Composable
 fun PrivateSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
     val hidden = LocalPrivacyMode.current.hidden
-    SnackbarHost(state, modifier) { data -> Snackbar(if (hidden) MaskedSnackbarData(data) else data) }
+    // One shape for every message: the control radius, with the gutter around it.
+    SnackbarHost(state, modifier.padding(horizontal = Spacing.lg)) { data ->
+        Snackbar(if (hidden) MaskedSnackbarData(data) else data, shape = AppShapes.control)
+    }
 }

@@ -1,6 +1,14 @@
 package com.zyke.message.presentation.home
 
 import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.presentation.common.CardHeader
+import com.zyke.message.presentation.motion.CrossfadeContent
+import com.zyke.message.presentation.motion.EnterGate
+import com.zyke.message.presentation.motion.enterOnce
+import com.zyke.message.presentation.motion.itemMotion
+import com.zyke.message.presentation.motion.rememberEnterGate
+import com.zyke.message.presentation.motion.rememberIsEntering
+import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.domain.tour.TourTab
 import com.zyke.message.presentation.tour.TourScroll
 import com.zyke.message.presentation.tour.tourAnchor
@@ -41,7 +49,7 @@ import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import com.zyke.message.presentation.common.Motion
+import com.zyke.message.presentation.motion.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -158,6 +166,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     page: HomePage = HomePage.HOME
 ) {
+    // Remembers that the first entrance has played, across the loading states below, rotation and tab switches.
+    val gate = rememberEnterGate()
     Column(modifier.fillMaxSize()) {
         val stage = when {
             state.permissionMissing -> 0
@@ -166,7 +176,7 @@ fun HomeScreen(
             else -> 3
         }
         // The skeleton fades into the real content instead of being swapped for it.
-        Crossfade(stage, animationSpec = tween(Motion.STANDARD_MS), label = "home-stage") { shown ->
+        CrossfadeContent(stage, Modifier.fillMaxSize(), label = "home-stage") { shown ->
             when (shown) {
                 0 -> PermissionGate(onGrant = onRequestPermission)
                 1 -> ErrorState(
@@ -175,7 +185,7 @@ fun HomeScreen(
                     onRetry = { onIntent(Intent.Retry) }
                 )
                 2 -> MessageListSkeleton()
-                else -> HomeContent(state, page, onIntent, onNavigate)
+                else -> HomeContent(state, page, onIntent, onNavigate, gate)
             }
         }
     }
@@ -185,7 +195,7 @@ fun HomeScreen(
 enum class HomePage { HOME, ACCOUNTS, BILLS }
 
 @Composable
-private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit) {
+private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate) {
     val today = LocalDate.ofInstant(state.now, ZoneId.systemDefault())
     val actions = remember(onIntent) {
         FeedActions.None.copy(
@@ -224,7 +234,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when (page) {
-            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true })
+            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true })
             HomePage.BILLS -> BillsPage(state, today, onIntent)
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
@@ -298,7 +308,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
  */
 @Composable
 private fun SummaryPage(
-    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, onOpenMarkets: () -> Unit,
+    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate, onOpenMarkets: () -> Unit,
     onOpenReview: () -> Unit
 ) {
     val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
@@ -382,53 +392,81 @@ private fun SummaryPage(
     LazyColumn(
         Modifier.fillMaxSize(),
         state = summaryList,
-        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(start = Spacing.lg, top = Spacing.lg, end = Spacing.lg, bottom = 96.dp),
+        // One rhythm: 12 dp between cards, 16 dp gutters. The first eight cards enter in a stagger, once (see enterOnce);
+        // a card that comes or goes later fades and the rest close the gap (itemMotion).
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
+        var slot = 0
         if (tourBanner) {
-            item(key = "tour-banner") { com.zyke.message.presentation.tour.TourBanner() }
+            val at = slot++
+            item(key = "tour-banner") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.tour.TourBanner() } }
         }
         if (showMarkets) {
-            item(key = "market") { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) }
+            val at = slot++
+            item(key = "market") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) } }
         }
         if (flightsToday.flights.isNotEmpty()) {
+            val at = slot++
             item(key = "flights") {
+              Box(itemMotion().enterOnce(gate, at)) {
                 com.zyke.message.presentation.flights.FlightCard(
                     flightsToday, onOpen = { flightOpen = it },
                     onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
                     onAdd = { tripChoice = true }
                 )
+              }
             }
         }
         if (trainsToday.trains.isNotEmpty()) {
+            val at = slot++
             item(key = "trains") {
+              Box(itemMotion().enterOnce(gate, at)) {
                 com.zyke.message.presentation.trains.TrainCard(
                     trainsToday, onOpen = { trainOpen = it },
                     onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
                     onAdd = { tripChoice = true }
                 )
+              }
             }
         }
 
         if (state.isBlank) {
+            // Nothing to show yet: say so gently, and what will appear.
+            val at = slot++
             item(key = "blank") {
                 com.zyke.message.presentation.common.EmptyState(
                     "Nothing here yet",
-                    "Your balances, bills and spending appear here as messages from your bank arrive."
+                    "Your balances, bills and spending appear here as messages from your bank arrive.",
+                    itemMotion().enterOnce(gate, at),
+                    icon = R.drawable.ic_wallet_24
                 )
             }
         }
 
-        item(key = "balance") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.HOME_BALANCE)) { BalanceHero(state.accounts) { onNavigate(AppTab.ACCOUNTS) } } }
+        run {
+            val at = slot++
+            item(key = "balance") {
+                val intro = gate.rememberIsEntering(at)
+                Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BALANCE)) { BalanceHero(state.accounts, intro = intro) { onNavigate(AppTab.ACCOUNTS) } }
+            }
+        }
 
         val todayBudget = state.daily
         if (todayBudget != null) {
-            item(key = "today") { FintechCard(Modifier.tourAnchor(TourAnchor.HOME_BUDGET), onClick = { onIntent(Intent.OpenCalendar) }) { TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }) } }
+            val at = slot++
+            item(key = "today") {
+                val intro = gate.rememberIsEntering(at)
+                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BUDGET), onClick = { onIntent(Intent.OpenCalendar) }) {
+                    TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }, intro = intro)
+                }
+            }
         } else if (!state.isBlank) {
             // Never just vanish: say what the card needs, and let the person type one.
+            val at = slot++
             item(key = "today") {
-                FintechCard(onClick = { onIntent(Intent.OpenAdjustDaily) }) {
-                    Caption("TODAY'S BUDGET")
+                FintechCard(itemMotion().enterOnce(gate, at), onClick = { onIntent(Intent.OpenAdjustDaily) }) {
+                    CardHeader("Today's budget")
                     Text("Not enough to suggest one yet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
                     Caption(
                         "Needs about a month of spending to suggest a budget; or set one.",
@@ -441,8 +479,9 @@ private fun SummaryPage(
 
         // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
         if (codes.isNotEmpty() || attention.isNotEmpty()) {
+            val at = slot++
             item(key = "priority") {
-                FintechCard(Modifier.tourAnchor(TourAnchor.HOME_CODES), movingOutline = true) {
+                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_CODES), movingOutline = true) {
                     if (codes.isNotEmpty()) {
                         CodePagerContent(
                             codes, now.value,
@@ -459,21 +498,24 @@ private fun SummaryPage(
         }
 
         if (state.review.count > 0) {
-            item(key = "review") { androidx.compose.foundation.layout.Box(Modifier.tourAnchor(TourAnchor.HOME_REVIEW)) { ReviewCard(state.review.count, onOpenReview) } }
+            val at = slot++
+            item(key = "review") { Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_REVIEW)) { ReviewCard(state.review.count, onOpenReview) } }
         }
 
         if (focus != null) {
+            val at = slot++
             item(key = "focus") {
-                FintechCard(onClick = focus.messageId?.let { id -> { onIntent(Intent.OpenMessage(id)) } }) {
+                FintechCard(itemMotion().enterOnce(gate, at), onClick = focus.messageId?.let { id -> { onIntent(Intent.OpenMessage(id)) } }) {
                     FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE)
                 }
             }
         }
 
         if (next != null) {
+            val at = slot++
             item(key = "next") {
-                FintechCard(Modifier.tourAnchor(TourAnchor.HOME_NEXT_DUE)) {
-                    Caption("NEXT DUE")
+                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_NEXT_DUE)) {
+                    CardHeader("Next due")
                     val nextRow: @Composable (@Composable () -> Unit) -> Unit = { more ->
                         UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
                     }
@@ -485,28 +527,32 @@ private fun SummaryPage(
             }
         }
 
-        item(key = "plan-tiles") {
+        run {
+          val at = slot++
+          item(key = "plan-tiles") {
             // Four shortcuts in two rows of two, each a page of its own.
-            Column(Modifier.tourAnchor(TourAnchor.HOME_SHORTCUTS), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_SHORTCUTS), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
                     ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
                     ShortcutTile("Can I afford it?", R.drawable.ic_afford_24, Modifier.weight(1f)) { affordOpen = true }
                 }
             }
+          }
         }
 
         if (state.recent.isNotEmpty()) {
+            val at = slot++
             item(key = "activity") {
-                FintechCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RowTitle("Recent activity", Modifier.weight(1f))
-                        state.thisMonth?.takeIf { !it.isEmpty }?.let { month ->
-                            Caption("Spent ${DisplayFormatters.rupees(month.total)} · ${periodName(month.range)}")
-                        }
+                FintechCard(itemMotion().enterOnce(gate, at)) {
+                    val month = state.thisMonth?.takeIf { !it.isEmpty }
+                    if (month != null) {
+                        CardHeader("Recent activity", trailing = { Caption("Spent ${DisplayFormatters.rupees(month.total)} · ${periodName(month.range)}") })
+                    } else {
+                        CardHeader("Recent activity")
                     }
                     state.recent.take(MAX_RECENT_ACTIVITY).forEachIndexed { index, message ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
@@ -518,9 +564,10 @@ private fun SummaryPage(
         }
 
         if (state.planAgenda.isNotEmpty() || maturities.isNotEmpty()) {
+            val at = slot++
             item(key = "plans") {
-                FintechCard {
-                    RowTitle("Plans")
+                FintechCard(itemMotion().enterOnce(gate, at)) {
+                    CardHeader("Plans")
                     maturities.forEachIndexed { index, maturity ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         val open = { com.zyke.message.presentation.investments.InvestmentRequests.pending.value = com.zyke.message.presentation.investments.InvestmentRequest(maturity.holding.id) }
@@ -550,7 +597,8 @@ private fun SummaryPage(
         }
 
         if (state.quickAdds.isNotEmpty()) {
-            item(key = "quickadds") { FintechCard { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } } }
+            val at = slot++
+            item(key = "quickadds") { FintechCard(itemMotion().enterOnce(gate, at)) { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } } }
         }
     }
     }

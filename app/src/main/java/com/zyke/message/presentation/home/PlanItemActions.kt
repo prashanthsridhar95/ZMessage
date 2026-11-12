@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.home
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -225,24 +226,24 @@ internal fun PlanRow(
     /** Under the top line and above the buttons, across the full width: pills, notes. */
     below: (@Composable ColumnScope.() -> Unit)? = null
 ) {
-    Column(modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Row(verticalAlignment = Alignment.Top) {
             if (leading != null) {
                 Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) { leading() }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(Spacing.md))
             }
             Column(Modifier.weight(1f).heightIn(min = 48.dp), verticalArrangement = Arrangement.Center) {
                 RowTitle(title)
                 caption?.invoke()
             }
             if (amount != null) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Spacing.sm))
                 Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.CenterEnd) { amount() }
             }
-            if (more != null) more() else Spacer(Modifier.width(8.dp))
+            if (more != null) more() else Spacer(Modifier.width(Spacing.sm))
         }
         below?.invoke(this)
-        if (actions.isNotEmpty()) ActionButtons(actions, Modifier.padding(top = 6.dp, bottom = 4.dp))
+        if (actions.isNotEmpty()) ActionButtons(actions, Modifier.padding(top = Spacing.sm, bottom = Spacing.xs))
     }
 }
 
@@ -252,8 +253,8 @@ internal fun PlanRow(
 internal fun ActionButtons(actions: List<RowAction>, modifier: Modifier = Modifier) {
     FlowRow(
         modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         actions.forEach { action ->
             AppButton(

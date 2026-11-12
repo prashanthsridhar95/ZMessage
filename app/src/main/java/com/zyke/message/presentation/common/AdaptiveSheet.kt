@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,7 +88,7 @@ fun AdaptiveSheet(
     }
     if (decision == AS_PAGE) {
         AppPage(title, onDismiss, footer = footer) {
-            if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = 12.dp), maxLines = 3)
+            if (subtitle != null) Caption(subtitle, Modifier.padding(bottom = Spacing.md), maxLines = 3)
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(contentSpacing)) { content() }
         }
         return
@@ -106,7 +107,7 @@ fun AdaptiveSheet(
             }
         }
         Column(Modifier.fillMaxWidth().onSizeChanged { columnHeight = it.height }) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
                     Text(
                         title, Modifier.heading(), style = MaterialTheme.typography.headlineSmall,
@@ -123,7 +124,7 @@ fun AdaptiveSheet(
             }
             Column(
                 Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(scroll)
-                    .padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 20.dp),
+                    .padding(horizontal = Spacing.xl).padding(top = Spacing.md, bottom = Spacing.xl),
                 verticalArrangement = Arrangement.spacedBy(contentSpacing)
             ) {
                 content()
@@ -132,8 +133,8 @@ fun AdaptiveSheet(
                 // The footer does not scroll away: the way to save is always where the thumb expects it.
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.xl).padding(top = Spacing.md, bottom = Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) { footer() }
             }
         }

@@ -41,7 +41,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import com.zyke.message.presentation.common.Motion
+import com.zyke.message.presentation.motion.Motion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically

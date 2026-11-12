@@ -1,5 +1,6 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -126,7 +127,7 @@ data class CompactSpacing(val gutter: Dp, val card: Dp, val gap: Dp)
 @Composable
 fun rememberCompactSpacing(): CompactSpacing {
     val compact = LocalResponsive.current.isCompact
-    return remember(compact) { if (compact) CompactSpacing(12.dp, 14.dp, 8.dp) else CompactSpacing(16.dp, 20.dp, 12.dp) }
+    return remember(compact) { if (compact) CompactSpacing(Spacing.md, 14.dp, Spacing.sm) else CompactSpacing(Spacing.lg, Spacing.xl, Spacing.md) }
 }
 
 /** What a cell of a [ResponsiveRow] asks for: a share of the row, or the full width once stacked. */
@@ -142,7 +143,7 @@ interface ResponsiveRowScope {
 @Composable
 fun ResponsiveRow(
     modifier: Modifier = Modifier,
-    spacing: Dp = 12.dp,
+    spacing: Dp = Spacing.md,
     content: @Composable ResponsiveRowScope.() -> Unit
 ) {
     if (LocalResponsive.current.stackRows) {
@@ -183,12 +184,14 @@ fun FitText(
     color: Color = Color.Unspecified,
     fontWeight: FontWeight? = null,
     textAlign: TextAlign? = null,
-    minScale: Float = DEFAULT_MIN_SCALE
+    minScale: Float = DEFAULT_MIN_SCALE,
+    /** Size to fit this text instead of [text] (a counting figure is sized for its final value, so it does not breathe). */
+    sizeAgainst: String? = null
 ) {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    val shown = privateText(text)
+    val shown = privateText(sizeAgainst ?: text)
     val base = if (fontWeight != null) style.copy(fontWeight = fontWeight) else style
     BoxWithConstraints(modifier) {
         val bounded = constraints.hasBoundedWidth

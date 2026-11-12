@@ -42,4 +42,6 @@ interface SettingsRepository {
     fun setAppIcon(icon: com.zyke.message.domain.model.AppIconChoice) = Unit
 
     fun setPerformanceMode(mode: com.zyke.message.domain.model.PerformanceMode) = Unit
+
+    fun setHapticFeedback(enabled: Boolean) = Unit
 }

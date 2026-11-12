@@ -651,7 +651,8 @@ internal fun ShareBar(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
-    val shown by rememberGrowingState(fraction.coerceIn(0.01f, 1f))
+    // Held as State and read only while drawing: a frame repaints the bar, it does not recompose it.
+    val shown = rememberGrowingState(fraction.coerceIn(0.01f, 1f))
     Box(
         modifier
             .padding(top = 6.dp)
@@ -665,7 +666,7 @@ internal fun ShareBar(
                 .drawBehind {
                     drawRoundRect(
                         color,
-                        size = androidx.compose.ui.geometry.Size(size.width * shown.coerceAtLeast(0.01f), size.height),
+                        size = androidx.compose.ui.geometry.Size(size.width * shown.value.coerceAtLeast(0.01f), size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
                     )
                 }

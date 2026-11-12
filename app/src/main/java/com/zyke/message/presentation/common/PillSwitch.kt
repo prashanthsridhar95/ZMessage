@@ -21,13 +21,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.zyke.message.presentation.motion.Motion
+import com.zyke.message.presentation.motion.rememberMotion
 import androidx.compose.foundation.horizontalScroll
 
 /** Chooses one of a few options; the chosen one is filled, as in the Money tab's Spent / Received switch. */
 @Composable
 fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
-    val reduce = rememberReduceMotion()
+    val motion = rememberMotion()
     val tick = rememberTick()
     // Padding tightens on a narrow phone, and what still does not fit scrolls sideways instead of running off the screen.
     val side = if (LocalResponsive.current.isCompact) 11.dp else 16.dp
@@ -40,7 +42,7 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
             val on = index == selected
             val fill by animateColorAsState(
                 if (on) MaterialTheme.colorScheme.primary else Color.Transparent,
-                tween(if (reduce) 0 else Motion.QUICK_MS), label = "pill"
+                motion.tween(Motion.QUICK_MS), label = "pill"
             )
             Text(
                 label,
@@ -63,7 +65,7 @@ fun PillSwitch(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
 @Composable
 fun IconPillSwitch(glyphs: List<String>, descriptions: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
-    val reduce = rememberReduceMotion()
+    val motion = rememberMotion()
     val tick = rememberTick()
     Row(
         modifier.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)).padding(3.dp),
@@ -73,7 +75,7 @@ fun IconPillSwitch(glyphs: List<String>, descriptions: List<String>, selected: I
             val on = index == selected
             val fill by animateColorAsState(
                 if (on) MaterialTheme.colorScheme.primary else Color.Transparent,
-                tween(if (reduce) 0 else Motion.QUICK_MS), label = "pill"
+                motion.tween(Motion.QUICK_MS), label = "pill"
             )
             Text(
                 glyph,

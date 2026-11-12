@@ -1,5 +1,8 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.motion.rememberMotion
+import com.zyke.message.presentation.motion.Motion
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
@@ -78,11 +81,9 @@ class PageHost {
 
 val LocalPageHost = staticCompositionLocalOf<PageHost?> { null }
 
-private const val SLIDE_MS = 240
-
 /**
  * A page of its own, over the whole app: a title with a back arrow, and the content scrolling beneath. It slides in
- * from the side. Sheets opened from it are drawn above it, and Back leaves it.
+ * from the side (a third of the width) while it fades in, and leaves the same way backwards. Sheets opened from it are drawn above it, and Back leaves it.
  */
 @Composable
 fun AppPage(
@@ -119,22 +120,27 @@ fun PageHostLayer(host: PageHost) {
 @Composable
 private fun PageLayer(entry: PageEntry) {
     val scope = rememberCoroutineScope()
-    // 1 is fully off to the right, 0 is in place.
+    val motion = rememberMotion()
+    // 1 is away (a third of the width to the right, transparent), 0 is in place.
     val away = remember { Animatable(1f) }
-    LaunchedEffect(Unit) { away.animateTo(0f, tween(SLIDE_MS)) }
+    LaunchedEffect(Unit) { away.animateTo(0f, motion.tween(Motion.STANDARD_MS, Motion.Standard)) }
 
     fun leave() {
         scope.launch {
-            away.animateTo(1f, tween(SLIDE_MS))
+            away.animateTo(1f, motion.exit(Motion.STANDARD_MS))
             entry.onBack()
         }
     }
     BackHandler { leave() }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val width = constraints.maxWidth
-        // The page and anything floating over it slide in together.
-        Box(Modifier.fillMaxSize().offset { IntOffset((away.value * width).roundToInt(), 0) }) {
+        // The page and anything floating over it move and fade together. Read inside graphicsLayer: a frame redraws, it does not recompose.
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                translationX = away.value * size.width * Motion.PAGE_SLIDE_FRACTION
+                alpha = 1f - away.value
+            }
+        ) {
         // The page paints its own surface, so it must also say what text on it looks like: without this Text falls back to
         // Compose's default content colour, black, which vanishes on a dark page.
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
@@ -173,8 +179,8 @@ private fun PageLayer(entry: PageEntry) {
             val footer = entry.footer
             Column(
                 if (entry.scrollable) {
-                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
-                        .then(if (footer == null) Modifier.navigationBarsPadding() else Modifier).padding(bottom = 24.dp)
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg)
+                        .then(if (footer == null) Modifier.navigationBarsPadding() else Modifier).padding(bottom = Spacing.xxl)
                 } else {
                     Modifier.weight(1f).fillMaxWidth().then(if (footer == null) Modifier.navigationBarsPadding() else Modifier)
                 }
@@ -184,8 +190,8 @@ private fun PageLayer(entry: PageEntry) {
             if (footer != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 12.dp).navigationBarsPadding().padding(bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.lg).padding(top = Spacing.md).navigationBarsPadding().padding(bottom = Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) { footer() }
             }
         }

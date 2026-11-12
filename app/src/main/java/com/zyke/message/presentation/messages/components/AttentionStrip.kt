@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.messages.components
 
+import com.zyke.message.presentation.motion.AnimatedColumnItems
+import com.zyke.message.presentation.common.CardHeader
 import com.zyke.message.presentation.common.fullWidthClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -64,15 +66,13 @@ internal fun AttentionStrip(
     Column(
         modifier.fillMaxWidth().then(if (bordered) Modifier.movingBorder(MaterialTheme.colorScheme.primary) else Modifier).padding(vertical = if (bordered) 12.dp else 0.dp)
     ) {
-        Text(
-            modifier = Modifier.padding(horizontal = inset, vertical = 2.dp),
-            text = "Needs your attention",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        items.forEachIndexed { index, item ->
-            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = inset), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-            AttentionRow(item, today, actions, inset)
+        CardHeader("Needs your attention", Modifier.padding(horizontal = inset, vertical = 2.dp))
+        // A row that is dismissed (or marked paid) fades and closes; one that comes back (Undo) opens again.
+        AnimatedColumnItems(items, itemKey = { it.key }) { item, index ->
+            Column {
+                if (index > 0) HorizontalDivider(Modifier.padding(horizontal = inset), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                AttentionRow(item, today, actions, inset)
+            }
         }
     }
 }

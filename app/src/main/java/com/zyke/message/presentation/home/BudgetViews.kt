@@ -77,21 +77,23 @@ private val OverColor: Color @Composable @ReadOnlyComposable get() = AppColors.d
 
 /** Today's share of what is spendable, how much of it is left, and the run of days kept within it. Tap for the calendar. */
 @Composable
-internal fun TodayBudget(daily: DailyBudgetStatus, onAdjust: () -> Unit = {}) {
+internal fun TodayBudget(daily: DailyBudgetStatus, onAdjust: () -> Unit = {}, intro: Boolean = false) {
     val over = daily.isOver
     val color = if (over) OverColor else UnderColor
-    val used = if (daily.allowance.signum() > 0) (daily.spentToday.toFloat() / daily.allowance.toFloat()) else 1f
+    val used = com.zyke.message.domain.motion.MotionMath.share(daily.spentToday, daily.allowance)
 
     Column(Modifier.fillMaxWidth()) {
-        Caption("TODAY'S BUDGET")
-        com.zyke.message.presentation.common.PrivateAmount(
-            DisplayFormatters.rupees(if (over) daily.leftToday.negate() else daily.leftToday),
-            Modifier.padding(top = 4.dp),
+        com.zyke.message.presentation.common.CardHeader("Today's budget")
+        // Counts to a new figure when what is left changes, and up from zero the first time Home appears.
+        com.zyke.message.presentation.motion.AnimatedAmount(
+            if (over) daily.leftToday.negate() else daily.leftToday,
+            Modifier.padding(top = 2.dp),
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Bold,
             color = color,
             maxLines = 1,
-            fit = true
+            fit = true,
+            fromZero = intro
         )
         Caption(
             if (over) "over today's ${DisplayFormatters.rupees(daily.allowance)}"

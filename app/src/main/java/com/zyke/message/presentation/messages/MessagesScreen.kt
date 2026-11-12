@@ -84,7 +84,7 @@ private const val TICK_MILLIS = 30_000L
 @Composable
 fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val haptics = LocalHapticFeedback.current
+    val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     val scope = rememberCoroutineScope()
     val snackbarHostState = com.zyke.message.presentation.common.LocalAppSnackbar.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -116,7 +116,7 @@ fun MessagesRoute(viewModel: MessagesViewModel, modifier: Modifier = Modifier) {
                 is Effect.CopyToClipboard -> {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText(effect.label, effect.text))
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    haptics.longPress()
                     Toast.makeText(context, R.string.otp_copied, Toast.LENGTH_SHORT).show()
                 }
                 is Effect.OpenLink -> openLink(effect.url)

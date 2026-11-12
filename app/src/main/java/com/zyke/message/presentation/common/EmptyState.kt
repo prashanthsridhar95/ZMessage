@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.common
 
+import com.zyke.message.presentation.theme.Spacing
+import com.zyke.message.presentation.theme.IconSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,23 +36,23 @@ fun EmptyState(
     onAction: (() -> Unit)? = null
 ) {
     FintechCard(modifier) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(vertical = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
             if (icon != null) {
                 Box(
-                    Modifier.size(64.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                    Modifier.size(IconSize.disc).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(icon), contentDescription = null, modifier = Modifier.size(30.dp),
+                        painter = painterResource(icon), contentDescription = null, modifier = Modifier.size(IconSize.feature),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                     )
                 }
             }
             Text(
-                title, Modifier.padding(top = if (icon != null) 14.dp else 0.dp), style = MaterialTheme.typography.titleMedium,
+                title, Modifier.padding(top = if (icon != null) Spacing.lg else 0.dp), style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center
             )
-            Caption(body, Modifier.padding(top = 4.dp, bottom = if (actionLabel != null) 16.dp else 0.dp), maxLines = 5, textAlign = TextAlign.Center)
+            Caption(body, Modifier.padding(top = Spacing.xs, bottom = if (actionLabel != null) Spacing.lg else 0.dp), maxLines = 5, textAlign = TextAlign.Center)
             if (actionLabel != null && onAction != null) AppButton(actionLabel, onAction)
         }
     }
