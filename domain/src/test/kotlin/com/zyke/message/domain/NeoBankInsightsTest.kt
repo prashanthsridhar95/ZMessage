@@ -89,7 +89,8 @@ class NeoBankInsightsTest {
 
     @Test
     fun refund_isArrivedWhenAMatchingCreditShowsUp() {
-        val notice = sms("Your refund of Rs.1,299.00 for order 4021 has been initiated and will be credited in 3-5 days.", today.minusDays(3), "AX-AMAZON")
+        // Processed, so a credit of exactly that amount that nothing else explains is its arrival (an initiated refund waits for more evidence).
+        val notice = sms("Your refund of Rs.1,299.00 for order 4021 has been processed and will be credited in 3-5 days.", today.minusDays(3), "AX-AMAZON")
         val credit = sms("Rs.1299.00 credited to HDFC Bank A/c XX5765 on ${today.format(DateTimeFormatter.ofPattern("dd-MM-yy"))} by UPI Ref 998877", today)
         assertTrue(credit.content.toString(), (credit.content as? MessageContent.Transaction)?.isReceived == true)
 

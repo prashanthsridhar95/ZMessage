@@ -57,7 +57,7 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             c.date?.let { com.zyke.message.presentation.messages.components.whenLabel(it, c, today) },
             c.reference?.let { "reference $it" }
         ).joinToString(". ")
-        is MessageContent.Notice -> "${c.kind.label}${c.amount?.let { ": ${DisplayFormatters.rupees(it)}" }.orEmpty()}"
+        is MessageContent.Notice -> "${com.zyke.message.domain.insights.RefundTracker.typeLabel(this) ?: c.kind.label}${c.amount?.let { ": ${DisplayFormatters.rupees(it)}" }.orEmpty()}"
         MessageContent.Generic -> "Message from ${senderSpoken()}: ${message.body.replace(Regex("\\s+"), " ").take(160)}"
     }
     return listOfNotNull(if (isUnread) "Unread" else null, body, time).joinToString(". ")

@@ -144,6 +144,7 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository by lazy { com.zyke.message.data.repository.RecurringMergeRepositoryImpl(context) }
     val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository by lazy { com.zyke.message.data.repository.RecurringGroupRepositoryImpl(context) }
     val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository by lazy { com.zyke.message.data.repository.CancelledSubscriptionRepositoryImpl(context) }
+    val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository by lazy { com.zyke.message.data.repository.ReceivedRefundRepositoryImpl(context) }
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a

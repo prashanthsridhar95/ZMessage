@@ -87,6 +87,8 @@ object HomeContract {
         val recurringStates: Map<String, com.zyke.message.domain.repository.RecurringState> = emptyMap(),
         /** Subscriptions the person marked as cancelled, by [Subscription.key], with the day. */
         val cancelledSubs: Map<String, java.time.LocalDate> = emptyMap(),
+        /** Refunds the person said arrived, by [RefundItem.key], with the day; applied by the refund tracker. */
+        val receivedRefunds: Map<String, java.time.LocalDate> = emptyMap(),
         /** The merges of repeating payments reported under several names; already applied to [subscriptions]. */
         val recurringMerges: List<com.zyke.message.domain.insights.RecurringMerge> = emptyList(),
         /** Merge suggestions the person turned down. */
@@ -226,6 +228,9 @@ object HomeContract {
         /** Says the subscription was cancelled, on [on]; [RestoreSubscription] takes it back. */
         data class CancelSubscription(val key: String, val on: java.time.LocalDate) : Intent
         data class RestoreSubscription(val key: String) : Intent
+        /** Says the refund [key] arrived on [on] when no bank credit could be matched; [UnmarkRefundReceived] takes it back. */
+        data class MarkRefundReceived(val key: String, val on: java.time.LocalDate) : Intent
+        data class UnmarkRefundReceived(val key: String) : Intent
         /** Writes every merge of repeating payments at once (a merge, an unmerge, a rename or an Undo is one write). */
         data class SetRecurringMerges(val merges: List<com.zyke.message.domain.insights.RecurringMerge>) : Intent
         /** Writes every group of repeating payments at once (create, add, remove, rename, ungroup or Undo is one write). */

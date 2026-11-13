@@ -264,7 +264,14 @@ internal fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Uni
                     BillsSection("Refunds", itemMotion().enterOnce(gate, at)) {
                         state.refunds.forEachIndexed { index, refund ->
                             if (index > 0) RowDivider()
-                            RefundRow(refund) { onIntent(Intent.OpenMessage(refund.message.id)) }
+                            RefundRow(
+                                refund,
+                                onReceived = {
+                                    onIntent(Intent.MarkRefundReceived(refund.key, today))
+                                    planHandler.announce("Marked ${refund.from} refund as received") { onIntent(Intent.UnmarkRefundReceived(refund.key)) }
+                                },
+                                onNotReceived = { onIntent(Intent.UnmarkRefundReceived(refund.key)) }
+                            ) { onIntent(Intent.OpenMessage(refund.message.id)) }
                         }
                     }
                 }
@@ -320,17 +327,23 @@ internal fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Uni
 }
 
 @Composable
-private fun RefundRow(item: RefundItem, onOpen: () -> Unit) {
+private fun RefundRow(item: RefundItem, onReceived: () -> Unit, onNotReceived: () -> Unit, onOpen: () -> Unit) {
     val dayMonth = remember { FormatCache.pattern("d MMM", Locale.getDefault()) }
-    val arrived = item.arrivedOn
-    val status = if (arrived == null) "On the way since " + dayMonth.format(item.startedOn) else "Arrived " + dayMonth.format(arrived)
+    val status = item.statusLine { dayMonth.format(it) }
     val merchant = item.message.merchant
+    // A refund no bank credit could be matched to can be marked by hand; one marked by hand can be unmarked.
+    val actions = when {
+        item.isPending -> listOf(RowAction("Mark as received", ButtonStyle.OUTLINE, "Mark the ${item.from} refund of ${DisplayFormatters.rupees(item.amount)} as received") { onReceived() })
+        item.markedReceived -> listOf(RowAction("Not received", ButtonStyle.OUTLINE, "Mark the ${item.from} refund as not received yet") { onNotReceived() })
+        else -> emptyList()
+    }
     PlanRow(
         title = item.from,
         modifier = Modifier.rowTap("Open details", onOpen),
         leading = { MerchantChip(merchant.logo, imageKey = merchant.imageKey, name = merchant.name, description = item.from, size = RowTile) },
         caption = { Caption(status, color = if (item.isPending) mutedColor() else MaterialTheme.colorScheme.primary, maxLines = 2) },
-        amount = { RowAmount(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary) }
+        amount = { RowAmount(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary) },
+        actions = actions
     )
 }
 

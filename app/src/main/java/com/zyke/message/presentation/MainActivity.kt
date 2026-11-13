@@ -76,7 +76,8 @@ class MainActivity : ComponentActivity() {
             container.wishlist, container.splits, container.nicknames, container.moneyPlan, container.cards,
             container.goals, container.reminders, container.hiddenAccounts, container.providentFundAccounts,
             container.calendarEvents, container.setAsides, container.manualEntries, container.merges, container.recurringPayments, container.loans, container.planActions, container.dailyBudgetOverride,
-            container.cancelledSubscriptions, container.accountOverrides, container.recurringMerges, container.recurringGroups
+            container.cancelledSubscriptions, container.accountOverrides, container.recurringMerges, container.recurringGroups,
+            container.receivedRefunds
         )
     }
 

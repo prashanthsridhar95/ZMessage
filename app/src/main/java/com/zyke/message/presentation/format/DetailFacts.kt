@@ -35,7 +35,7 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
             c.reference?.let { DetailFact("Reference", it) }
         )
         is MessageContent.Notice -> listOfNotNull(
-            DetailFact("Type", c.kind.label),
+            DetailFact("Type", com.zyke.message.domain.insights.RefundTracker.typeLabel(this) ?: c.kind.label),
             c.amount?.let { DetailFact("Amount", DisplayFormatters.rupees(it)) },
             c.detail?.let { DetailFact("Reason", it) }
         )

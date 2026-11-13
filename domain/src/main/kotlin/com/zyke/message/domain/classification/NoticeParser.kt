@@ -73,7 +73,7 @@ object NoticeParser {
         Regex("(?i)\\bManage (?:INR|Rs\\.?) ?[\\d,.]+ spend at\\b.*\\bEMIs?\\b") to NoticeKind.ADVISORY,
         Regex("(?i)\\bInvoice generated for\\b") to NoticeKind.ADVISORY,
         Regex("(?i)\\bAutopay Failed") to NoticeKind.AUTOPAY_FAILED,
-        Regex("(?i)\\brefund\\b.*\\b(?:initiated|processed|approved|will be credited|being processed|in process|raised|issued)\\b") to NoticeKind.REFUND_PENDING,
+        com.zyke.message.domain.insights.RefundTracker.STARTED_PATTERN to NoticeKind.REFUND_PENDING,
         Regex("(?i)\\bRedeem your .*?(?:Miles|Points|Reward)") to NoticeKind.REWARD_REDEMPTION,
         Regex("(?i)\\bIPO\\b.*?\\ballotted") to NoticeKind.IPO_ALLOTMENT,
         Regex("(?i)\\bTotal TDS by\\b") to NoticeKind.TAX_DEDUCTED,
