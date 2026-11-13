@@ -149,4 +149,14 @@ class AccessibilityPolicyTest {
         val forms = File(presentation, "common/Forms.kt").readText()
         assertTrue("imeAction: ImeAction = ImeAction.Next" in forms && "onDone" in forms)
     }
+
+    @Test
+    fun aGestureHasAnAlternative_pullToRevealNetWorthIsAlsoAnActionAndAButton() {
+        val overview = File(presentation, "home/OverviewTab.kt").readText()
+        assertTrue("a custom action for TalkBack", "CustomAccessibilityAction(\"Show net worth\")" in overview)
+        assertTrue("a visible button when a pull is not available", "AppButton(\"Show net worth\"" in overview)
+        assertTrue("a screen reader is detected", "fun rememberScreenReaderOn" in File(presentation, "common/Accessibility.kt").readText())
+        val strip = File(presentation, "home/NetWorthPull.kt").readText().substringAfter("fun NetWorthPullStrip")
+        assertTrue("the pull strip is decoration, not a second thing to focus", "clearAndSetSemantics" in strip)
+    }
 }

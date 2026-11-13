@@ -68,6 +68,7 @@ import com.zyke.message.presentation.home.StatusPill
 import com.zyke.message.presentation.home.Tone
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
+import com.zyke.message.presentation.theme.Spacing
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
@@ -89,51 +90,68 @@ private fun sourceText(line: NetWorthLine): String {
     }
 }
 
-/**
- * The Accounts tab's net-worth card: the figure itself (assets minus liabilities), a bar of how the two compare, and a
- * tap that opens the full page. It reads the same sources as [NetWorthPage] so the two always agree.
- */
+/** The net worth report for [accounts], from the same sources as [NetWorthPage], so the panel on Overview and the page always agree. */
 @Composable
-internal fun NetWorthCard(accounts: List<AccountSummary>, messages: List<ClassifiedMessage>, onOpen: () -> Unit) {
+internal fun rememberNetWorthReport(accounts: List<AccountSummary>, messages: List<ClassifiedMessage>): com.zyke.message.domain.networth.NetWorthReport {
     val container = (LocalContext.current.applicationContext as ZykeMessagesApplication).container
     val items by container.netWorth.items.collectAsState()
     val loans by container.loans.loans.collectAsState()
     val invested by container.investments.state.collectAsState()
     val today = remember { LocalDate.now() }
     val debits = remember(messages) { Loans.debitsFrom(messages, ZoneId.systemDefault()) }
-    val report = remember(items, accounts, loans, debits, today, invested) {
+    return remember(items, accounts, loans, debits, today, invested) {
         NetWorth.build(items, accounts, Loans.statuses(loans, today, debits), today, invested.holdings, invested.migratedItemIds)
     }
-    val assets = report.totalAssets
-    val liabilities = report.totalLiabilities
-    val total = assets + liabilities
-    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current.hidden
-    val figure = DisplayFormatters.rupees(report.netWorth)
-    val summary = if (privacy) "Net worth, amount hidden. Opens details." else
-        "Net worth $figure. Assets ${DisplayFormatters.rupees(assets)}, liabilities ${DisplayFormatters.rupees(liabilities)}. Opens details."
-    FintechCard(Modifier.semantics { contentDescription = summary }, onClick = onOpen) {
-        Caption("NET WORTH")
-        com.zyke.message.presentation.common.PrivateAmount(
-            figure, Modifier.padding(top = 4.dp),
+}
+
+/**
+ * The panel the Overview tab opens when the person pulls down (or asks for it with the button): the figure (assets minus
+ * liabilities), a short breakdown that adds up to it, and a way to the full page. It is never shown unless asked for; the caller
+ * decides when (and passes the screen-lock check first when amounts are hidden).
+ */
+@Composable
+internal fun NetWorthPanel(
+    accounts: List<AccountSummary>,
+    messages: List<ClassifiedMessage>,
+    onOpen: () -> Unit,
+    onHide: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    NetWorthPanelBody(rememberNetWorthReport(accounts, messages), onOpen, onHide, modifier)
+}
+
+@Composable
+private fun NetWorthPanelBody(
+    report: com.zyke.message.domain.networth.NetWorthReport,
+    onOpen: () -> Unit,
+    onHide: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val rows = remember(report) { com.zyke.message.domain.networth.NetWorthBreakdown.of(report) }
+    FintechCard(modifier) {
+        com.zyke.message.presentation.common.CardHeader("Net worth", trailing = {
+            AppButton("Hide", onHide, style = ButtonStyle.TEXT, size = com.zyke.message.presentation.common.ButtonSize.COMPACT)
+        })
+        com.zyke.message.presentation.motion.AnimatedAmount(
+            report.netWorth, Modifier.padding(top = Spacing.xs),
             style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold,
             color = if (report.netWorth.signum() < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            fit = true
+            maxLines = 1, fit = true, fromZero = true
         )
-        if (total.signum() > 0) {
-            val assetShare = assets.divide(total, 4, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0.02f, 0.98f)
-            Row(Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))) {
-                Box(Modifier.weight(assetShare).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
-                Box(Modifier.weight(1f - assetShare).fillMaxHeight().background(MaterialTheme.colorScheme.error))
+        Caption("What you own minus what you owe", Modifier.padding(top = Spacing.xs), maxLines = 2)
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+                RowTitle(row.label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.width(Spacing.md))
+                com.zyke.message.presentation.common.PrivateAmount(
+                    (if (row.isLiability) "\u2212" else "") + DisplayFormatters.rupees(row.amount),
+                    style = MaterialTheme.typography.bodyLarge, maxLines = 1,
+                    color = if (row.isLiability) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                )
             }
-            Row(Modifier.padding(top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Caption("Assets ${DisplayFormatters.rupees(assets)}".let { if (privacy) "Assets" else it })
-                Caption("Liabilities ${DisplayFormatters.rupees(liabilities)}".let { if (privacy) "Liabilities" else it })
-            }
-        } else {
-            Caption("Add deposits, funds, gold and loans for a fuller picture", Modifier.padding(top = 4.dp), maxLines = 2)
         }
-        if (report.staleCount > 0) StatusPill("Some values are out of date", Tone.WARN, Modifier.padding(top = 8.dp))
+        if (report.staleCount > 0) StatusPill("Some values are out of date", Tone.WARN, Modifier.padding(top = Spacing.md))
+        AppButton("Open net worth", onOpen, Modifier.padding(top = Spacing.md).fillMaxWidth(), style = ButtonStyle.TONAL)
     }
 }
 

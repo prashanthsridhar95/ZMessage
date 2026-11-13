@@ -197,13 +197,31 @@ of at least 48 dp; deleting a hand-made entry asks first and the confirming tap 
 
 **Empty:** the shared `EmptyState`: a friendly line, why, and one action when there is one ("Clear search", "Show everything").
 
-## Accounts (Accounts, Cards, Investments)
+## Accounts (Overview, Accounts, Cards, Investments)
 
-The Accounts tab has three sub-tabs, each with one hero: the **bank total** with its deck of accounts, the **deck of cards**,
-and the **investments total**. The heroes are header regions (`HeaderRegion`, a dark region in both themes with `Radius.hero`
+The Accounts tab has four sub-tabs, each with one hero: the **Overview** (the total balance, alone), the **bank total** with its
+deck of accounts, the **deck of cards**, and the **investments total**. Overview is the first and the one Accounts opens on. The heroes are header regions (`HeaderRegion`, a dark region in both themes with `Radius.hero`
 bottom corners); everything under them is `FintechCard` on `Tonal.Quiet` with `CardHeader` labels. `AccountsPolicyTest` keeps
 this page true.
 
+- **Overview** (`OverviewTab.kt`). The hero is the total balance (the same figure as Home), alone in its header region. Under it,
+  "Credit card dues": **Billed** (what is still owed on the latest statements, net of payments) and **Unbilled** (spent since each
+  card's statement date) side by side as equal tiles (`ResponsiveRow`: stacked on a narrow phone or at large text), then **Total
+  card dues** (billed plus unbilled) full width. A tile opens the per-card sheet (soonest bill first). A card whose statement day is
+  not known counts its month's spending as unbilled and the tiles say "Approx.". Then one "At a glance" card ("Left after card
+  dues" = balance minus billed minus unbilled; "Next bill due" = card, date, amount) and link chips to the other sub-tabs. Without
+  a card the dues are one `EmptyState`. The rules are `CardDues` / `AccountsOverviewModel` in the domain, tested; the figures are
+  `AnimatedAmount`, count once (`heroGates[0]`), and the cards rise in turn once (`overviewGate`).
+- **Net worth is not on Overview.** It is revealed only by **pulling down at the top of Overview** (`NetWorthPull`; no Material
+  pull-to-refresh). The list is drawn down with rubber-band resistance (`PullReveal.stretch`, threshold 96 dp of stretch, a light tick when
+  it arms, hysteresis so it does not flicker), a quiet "Pull down to see net worth" / "Release to see net worth" line is uncovered above
+  it, and letting go while armed opens the panel (`AppearVisibility`, Motion tokens) above the hero with the figure, a breakdown that
+  adds up to it (`NetWorthBreakdown`) and "Open net worth" (the only way to the Net worth page). It closes with **Hide**, on leaving
+  the tab, when the header scrolls away, when amounts are hidden again and when the app leaves the screen; it is never saved across
+  rotation. With amounts hidden every way in asks for the screen lock first (`requestNetWorth` -> `AmountReveal.requestReveal`). The
+  first time there is a "Pull down to see net worth" line under the header, gone after the first reveal (stored as the attention
+  dismissal `tip-networth-pull`). A pull cannot be done with TalkBack and the stretch is not wanted with reduced motion or Lite: the
+  header has a "Show net worth" custom action, and those two get a plain "Show net worth" button; it passes the same lock check.
 - **Figures.** The bank total, the investments total, the balance on a deck tile, a holding's value and an investment's page
   figure are `AnimatedAmount`. A sub-tab's hero counts up from zero **once**, the first time that sub-tab is shown
   (`heroGates` in `AccountsPage`, one `EnterGate` per sub-tab, spent by `heroEntering()`); a later visit is still, and a new

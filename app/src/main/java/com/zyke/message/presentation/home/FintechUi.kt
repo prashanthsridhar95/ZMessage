@@ -73,6 +73,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.accounts.AccountKind
@@ -174,7 +175,7 @@ internal fun rememberNowState(): androidx.compose.runtime.State<Long> {
 
 // ---- accounts
 
-/** The header's key while the first read is still going (a skeleton), apart from the three sub-tabs 0..2. */
+/** The header's key while the first read is still going (a skeleton), apart from the four sub-tabs 0..3 (Overview, Accounts, Cards, Investments). */
 private const val HEADER_LOADING = -1
 
 private const val PF_CHECK = "pf"
@@ -190,7 +191,9 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     // Nothing to show yet and still reading: a still skeleton, then a crossfade to the real thing.
     val loading = state.isLoading && overview.accounts.isEmpty()
     // Each sub-tab's hero counts up once, the first time that sub-tab is shown, and is still on every later visit.
-    val heroGates = listOf(rememberEnterGate(), rememberEnterGate(), rememberEnterGate())
+    val heroGates = listOf(rememberEnterGate(), rememberEnterGate(), rememberEnterGate(), rememberEnterGate())
+    // The Overview body's cards rise in turn once, the first time it is shown; created above the loading state.
+    val overviewGate = rememberEnterGate()
     val motion = rememberMotion()
     // Switching sub-tab: the body slides 24 dp along the shared axis while it fades in (the header crossfades by itself).
     var previousTab by remember { mutableStateOf(tab) }
@@ -209,8 +212,8 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     val bankDeck = com.zyke.message.presentation.common.rememberDeckState()
     val deckToday = remember(state.now) { java.time.LocalDate.ofInstant(state.now, ZoneId.systemDefault()) }
     val shown = when (tab) {
-        0 -> banks
-        1 -> cards
+        1 -> banks
+        2 -> cards
         else -> emptyList()
     }
     val pf = state.providentFund
@@ -222,8 +225,10 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
     }
     val invest = com.zyke.message.presentation.investments.rememberInvestmentsModel(pfTotal, deckToday)
     com.zyke.message.presentation.investments.MigrateNetWorthEntries()
-    com.zyke.message.presentation.investments.HandleInvestmentRequests(invest) { tab = 2 }
-    var showNetWorth by rememberSaveable { mutableStateOf(false) }
+    com.zyke.message.presentation.investments.HandleInvestmentRequests(invest) { tab = 3 }
+    // Net worth is never kept: not across rotation, not on returning to the tab, not after the app was away. Asked for each time.
+    var showNetWorth by remember { mutableStateOf(false) }
+    var duesOpen by rememberSaveable { mutableStateOf(false) }
     var renamingKey by rememberSaveable { mutableStateOf<String?>(null) }
     var leavingKey by rememberSaveable { mutableStateOf<String?>(null) }
     // "Check balance by SMS": an account's key, or PF_CHECK for the provident fund.
@@ -241,10 +246,32 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         com.zyke.message.presentation.networth.NetWorthPage(overview.accounts, state.messages, onBack = { showNetWorth = false })
     }
 
-    // Net worth stays put-away until it is asked for: pull down at the top. Kept per visit to this tab.
-    var netWorthShown by rememberSaveable { mutableStateOf(false) }
+    // Net worth stays put-away until it is asked for: pull down at the top of Overview (or the button / TalkBack action). It is the only
+    // way in to the Net worth page, so every way passes the same check: with amounts hidden, the screen lock comes first.
+    var netWorthShown by remember { mutableStateOf(false) }
     val reduceMotion = motion.reduced
-        val pull = rememberPullToReveal(enabled = !netWorthShown) { haptics.tick(); netWorthShown = true }
+    val screenReader = com.zyke.message.presentation.common.rememberScreenReaderOn()
+    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
+    val amountReveal = com.zyke.message.presentation.common.LocalAmountReveal.current
+    val pullTipSeen = NET_WORTH_PULL_TIP in state.userState.dismissedAttention
+    val openNetWorth = {
+        netWorthShown = true
+        if (!pullTipSeen) onIntent(HomeContract.Intent.DismissAttention(NET_WORTH_PULL_TIP, forever = true))
+    }
+    val requestNetWorth: () -> Unit = { if (privacy.hidden) amountReveal.requestReveal { openNetWorth() } else openNetWorth() }
+    // A pull cannot be done with a screen reader, and a stretch is not wanted with reduced motion: both get a plain button instead.
+    val pullAvailable = !reduceMotion && !screenReader
+    val pull = rememberNetWorthPull(enabled = tab == 0 && !loading && !netWorthShown && pullAvailable, onReveal = requestNetWorth)
+    // Put away again: leaving the tab, scrolling it out of view, hiding amounts again, or the app going out of sight.
+    LaunchedEffect(tab) { if (tab != 0) netWorthShown = false }
+    LaunchedEffect(privacy.hidden) { if (privacy.hidden) netWorthShown = false }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            try { kotlinx.coroutines.awaitCancellation() } finally { netWorthShown = false }
+        }
+    }
+    val overviewModel = remember(overview, deckToday) { com.zyke.message.domain.accounts.AccountsOverviewModel.build(overview, deckToday) }
 
     // The card and the bank account in front of their decks: what the actions and the spend card below speak about.
     val frontCard = cards.getOrNull(com.zyke.message.domain.cards.DeckModel.clamp(deckState.currentPage, cards.size))
@@ -260,7 +287,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
         }
     }
-    val cardModel = if (tab == 1 && frontCard != null) {
+    val cardModel = if (tab == 2 && frontCard != null) {
         val frontDue = frontCard.dueDate
         val handMarked = !state.isLoading && frontBill == null && !frontCard.billPaid && frontCard.billPartPaid == null && frontDue != null &&
             !frontDue.isBefore(today) && !frontDue.isAfter(today.plusDays(30))
@@ -269,37 +296,24 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
 
     val accountsList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.ACCOUNTS, accountsList)
-    Box(Modifier.fillMaxSize().then(pull.modifier)) {
+    // The panel is a part of the header item, so it is gone once that item has scrolled away.
+    LaunchedEffect(accountsList) {
+        androidx.compose.runtime.snapshotFlow { accountsList.firstVisibleItemIndex }.collect { if (it >= 2) netWorthShown = false }
+    }
+    Box(Modifier.fillMaxSize().clipToBounds().then(pull.modifier)) {
+    if (tab == 0) NetWorthPullStrip(pull, Modifier.align(Alignment.TopCenter))
     androidx.compose.foundation.lazy.LazyColumn(
-        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize().graphicsLayer { translationY = pull.stretchPx },
         state = accountsList,
         // No top padding: the header region starts at the top edge. The sides stay at the gutter; the region bleeds through them.
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.lg, end = Spacing.lg, top = 0.dp, bottom = Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
-        if (netWorthShown) {
-            item(key = "net-worth") {
-                val appear = remember { androidx.compose.animation.core.MutableTransitionState(reduceMotion).apply { targetState = true } }
-                androidx.compose.animation.AnimatedVisibility(
-                    appear,
-                    enter = motion.appear
-                ) {
-                    Column(Modifier.padding(top = Spacing.lg)) {
-                        com.zyke.message.presentation.networth.NetWorthCard(overview.accounts, state.messages, onOpen = { showNetWorth = true })
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            AppButton(
-                                "Hide net worth", { netWorthShown = false }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
-                            )
-                        }
-                    }
-                }
-            }
-        }
         item(key = "tabs") {
             UnderlineTabs(
                 modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_TABS),
-                labels = listOf("Accounts", "Cards", "Investments"),
-                counts = listOf(banks.size, cards.size, invest.summary.count + (if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0)),
+                labels = listOf("Overview", "Accounts", "Cards", "Investments"),
+                counts = listOf(null, banks.size, cards.size, invest.summary.count + (if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0)),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 showDivider = false
@@ -312,38 +326,67 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         // moment, and the registry lets only the registered one clear or report it.
         val deckAnchor = Modifier.tourAnchor(TourAnchor.ACCOUNTS_DECK)
         item(key = "header") {
+            Column(Modifier.fillMaxWidth()) {
+            // Net worth: only here, only when asked for. It opens above the hero and closes with Hide.
+            if (tab == 0 && !loading) {
+                com.zyke.message.presentation.motion.AppearVisibility(netWorthShown) {
+                    Column(Modifier.padding(bottom = Spacing.lg)) {
+                        com.zyke.message.presentation.networth.NetWorthPanel(
+                            overview.accounts, state.messages, onOpen = { showNetWorth = true }, onHide = { netWorthShown = false }
+                        )
+                    }
+                }
+            }
             com.zyke.message.presentation.common.HeaderRegion {
                 CrossfadeContent(if (loading) HEADER_LOADING else tab, label = "accounts header") { which ->
                     Column(Modifier.fillMaxWidth()) {
                         when (which) {
                             HEADER_LOADING -> HeaderSkeleton()
-                            1 -> CardsHeaderContent(
+                            0 -> OverviewHeaderContent(
+                                overviewModel, entering = heroGates[0].heroEntering(), onShowNetWorth = requestNetWorth,
+                                modifier = Modifier.tourAnchor(TourAnchor.ACCOUNTS_OVERVIEW)
+                            )
+                            2 -> CardsHeaderContent(
                                 cards, deckState, deckToday,
                                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
                                 onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
                                 deckModifier = deckAnchor
                             )
-                            2 -> InvestmentsHeaderContent(
+                            3 -> InvestmentsHeaderContent(
                                 invest.summary, if (funds.isNotEmpty()) funds.size else if (pf != null) 1 else 0,
-                                entering = heroGates[2].heroEntering()
+                                entering = heroGates[3].heroEntering()
                             )
                             else -> BanksHeaderContent(
                                 overview, banks, bankDeck, deckToday,
                                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(it.key)) },
                                 onRename = { renamingKey = it.key }, onLeaveOut = { leavingKey = it.key },
                                 onCheckBalance = { checkingKey = it.key }, onBalanceSettings = { settingsKey = it.key },
-                                entering = heroGates[0].heroEntering(),
+                                entering = heroGates[1].heroEntering(),
                                 deckModifier = deckAnchor
                             )
                         }
                     }
                 }
             }
+            }
         }
 
         if (loading) {
             item(key = "body-loading") { BodySkeleton(bodyIn) }
-        } else if (tab == 2) {
+        } else if (tab == 0) {
+            overviewBodyItems(
+                overviewModel, today, overviewGate,
+                hint = when {
+                    netWorthShown -> NetWorthHint.NONE
+                    !pullAvailable -> NetWorthHint.BUTTON
+                    !pullTipSeen -> NetWorthHint.PULL
+                    else -> NetWorthHint.NONE
+                },
+                bankCount = banks.size, cardCount = cards.size,
+                onShowNetWorth = requestNetWorth, onOpenDues = { duesOpen = true }, onGoTo = { tab = it },
+                itemModifier = bodyIn
+            )
+        } else if (tab == 3) {
             val pfActions = if (pf != null || funds.isNotEmpty()) listOf(
                 com.zyke.message.presentation.common.ActionSpec("Check PF balance", R.drawable.baseline_message_24, { checkingKey = PF_CHECK })
             ) else emptyList()
@@ -356,7 +399,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
             }
         } else if (shown.isEmpty()) {
             item(key = "empty-$tab") {
-                if (tab == 0) {
+                if (tab == 1) {
                     com.zyke.message.presentation.common.EmptyState(
                         "No accounts yet", "They appear when your bank texts you a balance.",
                         bodyIn, icon = R.drawable.ic_accounts_24
@@ -369,7 +412,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 }
             }
         }
-        if (tab == 1 && cardModel != null) {
+        if (tab == 2 && cardModel != null) {
             cardBodyItems(
                 cardModel,
                 onPay = { link -> onIntent(HomeContract.Intent.OpenLink(link)) },
@@ -378,7 +421,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                 onEditCards = openSettings,
                 itemModifier = bodyIn
             )
-        } else if (tab == 0 && !loading) {
+        } else if (tab == 1 && !loading) {
             if (frontBank != null) bankBodyItems(
                 frontBank, state.messages, today, zone,
                 onOpen = { onIntent(HomeContract.Intent.OpenAccount(frontBank.key)) },
@@ -389,10 +432,17 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
         }
 
     }
-    PullToRevealIndicator(pull.progress, Modifier.align(Alignment.TopCenter))
     }
 
     com.zyke.message.presentation.investments.InvestmentsDialogs(invest)
+
+    if (duesOpen) {
+        CardDuesSheet(
+            overviewModel.dues, today,
+            onOpenCard = { key -> duesOpen = false; onIntent(HomeContract.Intent.OpenAccount(key)) },
+            onDismiss = { duesOpen = false }
+        )
+    }
 
     checkingKey?.let { key ->
         val account = overview.accounts.firstOrNull { it.key == key }
@@ -873,69 +923,4 @@ private fun RemoveAccountPicture(account: AccountSummary) {
     val keys by store.keysWithImage.collectAsState()
     val key = ACCOUNT_PICTURE_PREFIX + account.key
     if (key in keys) AppButton("Remove picture", { store.removeChosen(key) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-}
-
-/** Where a pull-down at the top of a list has got to: [progress] runs 0 to 1, and reaching 1 fires the reveal once. */
-internal class PullToReveal(val modifier: Modifier, private val state: androidx.compose.runtime.State<Float>) {
-    val progress: () -> Float = { state.value }
-}
-
-/**
- * Pull-down-at-the-top as a determinate gesture. Whatever the list itself did not use of a downward drag (so it is at
- * the top) fills the progress; at full, [onReveal] runs and the pull resets. Letting go early just empties it.
- */
-@Composable
-internal fun rememberPullToReveal(enabled: Boolean, onReveal: () -> Unit): PullToReveal {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val full = remember(density) { with(density) { 140.dp.toPx() } }
-    val pulled = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val reveal = androidx.compose.runtime.rememberUpdatedState(onReveal)
-    val on = androidx.compose.runtime.rememberUpdatedState(enabled)
-    val fraction = remember(full) { androidx.compose.runtime.derivedStateOf { (pulled.floatValue / full).coerceIn(0f, 1f) } }
-    val connection = remember(full) {
-        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                // Pushing back up while a pull is under way takes the pull back first.
-                if (!on.value || pulled.floatValue <= 0f || available.y >= 0f) return androidx.compose.ui.geometry.Offset.Zero
-                val back = (-available.y).coerceAtMost(pulled.floatValue)
-                pulled.floatValue -= back
-                return androidx.compose.ui.geometry.Offset(0f, -back)
-            }
-
-            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (!on.value || available.y <= 0f || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
-                pulled.floatValue += available.y * 0.6f
-                if (pulled.floatValue >= full) {
-                    pulled.floatValue = 0f
-                    reveal.value()
-                }
-                return androidx.compose.ui.geometry.Offset(0f, available.y)
-            }
-
-            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                pulled.floatValue = 0f
-                return androidx.compose.ui.unit.Velocity.Zero
-            }
-        }
-    }
-    return remember(connection) { PullToReveal(Modifier.nestedScroll(connection), fraction) }
-}
-
-/** A slim determinate bar with a hint, drawn over the top of the list so nothing moves; invisible until a pull starts. */
-@Composable
-internal fun PullToRevealIndicator(progress: () -> Float, modifier: Modifier = Modifier) {
-    val p = progress()
-    if (p <= 0f) return
-    androidx.compose.material3.Surface(
-        modifier.padding(top = Spacing.sm).semantics { contentDescription = "Pull to reveal net worth, ${(p * 100).toInt()} percent" },
-        shape = AppShapes.control, tonalElevation = 3.dp, shadowElevation = 2.dp
-    ) {
-        Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally) {
-            Caption(if (p >= 0.85f) "Almost there" else "Pull to reveal net worth")
-            androidx.compose.material3.LinearProgressIndicator(
-                progress = { p }, modifier = Modifier.padding(top = Spacing.sm).width(160.dp),
-                color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-            )
-        }
-    }
 }

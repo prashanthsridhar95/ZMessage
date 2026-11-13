@@ -77,7 +77,7 @@ internal fun EnterGate.heroEntering(): Boolean {
 
 /** The small spaced label at the top of a header region ("TOTAL BALANCE"), in the region's own muted ink. */
 @Composable
-private fun HeaderLabel(text: String) {
+internal fun HeaderLabel(text: String) {
     Text(text.uppercase(), Modifier.heading(), style = TypeRole.section, color = headerMutedColor(), maxLines = 1)
 }
 

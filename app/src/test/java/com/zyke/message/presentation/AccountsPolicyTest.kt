@@ -23,6 +23,7 @@ class AccountsPolicyTest {
 
     private val screens = listOf(
         "home/AccountsUi.kt", "home/AccountsHeader.kt", "home/CardsTab.kt", "home/FintechUi.kt", "home/BalanceCheckUi.kt",
+        "home/OverviewTab.kt", "home/NetWorthPull.kt", "networth/NetWorthPages.kt",
         "investments/InvestmentsTab.kt", "investments/InvestmentUi.kt", "investments/InvestmentDetail.kt", "investments/InvestmentDialogs.kt",
         "common/HeaderRegion.kt", "common/SpendCard.kt", "common/CardFace.kt", "common/TouchAndReveal.kt"
     )
@@ -46,7 +47,7 @@ class AccountsPolicyTest {
     @Test
     fun spacingAndCornersComeFromTheTokens() {
         // CardFace is artwork (a real card's proportions and a drawn chip), so its own few numbers stay.
-        val files = screens - "common/CardFace.kt"
+        val files = screens - "common/CardFace.kt" - "networth/NetWorthPages.kt"
         val literal = Regex("""RoundedCornerShape\(\s*\d|spacedBy\(\s*\d+\.dp|contentSpacing = \d+\.dp|padding\(\s*(?:[a-z]+\s*=\s*)?[1-9]\d*\.dp""")
         val found = offenders(literal, files)
         assertTrue("use Spacing / Radius / AppShapes instead of a number:\n" + found.joinToString("\n"), found.isEmpty())
@@ -131,5 +132,63 @@ class AccountsPolicyTest {
         assertTrue("holdings, closed rows and the matured cards", Regex("""itemMotion\(\)""").findAll(tab).count() >= 5)
         assertTrue("the value in a row counts when it changes", "AnimatedAmount(" in tab)
         assertTrue("gain colours come from the theme", "AppColors.success" in text("investments/InvestmentUi.kt") && "AppColors.danger" in text("investments/InvestmentUi.kt"))
+    }
+
+    // ---- Overview (the first sub-tab) and net worth
+
+    private fun allPresentation(): List<Pair<String, String>> =
+        presentation().walkTopDown().filter { it.isFile && it.extension == "kt" }.map { it.name to it.readText() }.toList()
+
+    @Test
+    fun accountsHasFourSubTabsAndOpensOnOverview() {
+        val page = text("home/FintechUi.kt")
+        assertTrue("Overview comes first", """labels = listOf("Overview", "Accounts", "Cards", "Investments")""" in page)
+        assertTrue("it is the default sub-tab", Regex("""var tab by rememberSaveable \{ mutableStateOf\(0\) \}""").containsMatchIn(page))
+        assertEquals("one hero gate per sub-tab", 4, Regex("""rememberEnterGate\(\)""").findAll(page.substringAfter("val heroGates").substringBefore("\n")).count())
+        assertTrue("the Overview total counts up once", "fromZero = entering" in text("home/OverviewTab.kt"))
+        assertTrue("the empty state says what Overview is waiting for", "Billed and unbilled appear when your bank texts you about a card." in text("home/OverviewTab.kt"))
+    }
+
+    @Test
+    fun overviewShowsBilledUnbilledAndTotalAsTilesThatStackAndOpenTheBreakdown() {
+        val tab = text("home/OverviewTab.kt")
+        assertTrue("equal-width tiles through ResponsiveRow, which stacks at large text", "ResponsiveRow(" in tab && "Modifier.cell()" in tab)
+        listOf("\"Billed\"", "\"Unbilled\"", "\"Total card dues\"").forEach { assertTrue("$it tile", it in tab) }
+        assertTrue("each tile opens the per-card sheet", "onClick = onOpen" in tab && "fun CardDuesSheet" in tab)
+        assertTrue("every figure is private-aware", !Regex("""\bText\(\s*DisplayFormatters\.rupees""").containsMatchIn(tab))
+        assertTrue("rows enter in turn, once", "enterOnce(gate, 0)" in tab && "enterOnce(gate, 2)" in tab)
+        assertTrue("links wrap rather than squeeze", "FlowRow(" in tab)
+    }
+
+    @Test
+    fun netWorthIsOnlyRevealedByThePullOrItsAlternativesAndAlwaysPassesTheSameCheck() {
+        val page = text("home/FintechUi.kt")
+        val pull = text("home/NetWorthPull.kt")
+        assertTrue("pull only on Overview, never over the deck's gestures", "enabled = tab == 0" in page)
+        assertTrue("no Material pull-to-refresh", allPresentation().none { (_, t) -> "pullToRefresh" in t || "PullToRefresh" in t })
+        assertTrue("the stretch is read while drawing", "graphicsLayer { translationY = pull.stretchPx }" in page && "PullReveal.stretch(" in pull)
+        assertTrue("a tick at the threshold", "onArmed()" in pull && "tick.value.tick()" in pull)
+        assertTrue("one gate for the pull, the button and the TalkBack action", "val requestNetWorth" in page && "amountReveal.requestReveal" in page)
+        assertTrue("the pull, the button and the action all call the gate", page.contains("onReveal = requestNetWorth") && page.contains("onShowNetWorth = requestNetWorth"))
+        assertTrue("TalkBack gets an action", "CustomAccessibilityAction(\"Show net worth\")" in text("home/OverviewTab.kt"))
+        assertTrue("and reduced motion or a screen reader gets a button", "AppButton(\"Show net worth\"" in text("home/OverviewTab.kt") && "!reduceMotion && !screenReader" in page)
+        assertTrue("the hint is gone after the first reveal, from the settings store", "NET_WORTH_PULL_TIP" in page && "DismissAttention(NET_WORTH_PULL_TIP, forever = true)" in page)
+        assertTrue("the panel is never kept", "var netWorthShown by remember { mutableStateOf(false) }" in page && "var showNetWorth by remember { mutableStateOf(false) }" in page)
+        assertTrue("put away on leaving the tab, hiding amounts, and the app going out of sight",
+            "LaunchedEffect(tab) { if (tab != 0) netWorthShown = false }" in page && "LaunchedEffect(privacy.hidden)" in page && "repeatOnLifecycle" in page)
+    }
+
+    @Test
+    fun theNetWorthPageHasNoOtherDoorThanThePanel() {
+        val all = allPresentation()
+        val openers = all.filter { (name, t) -> "NetWorthPage(" in t && name != "NetWorthPages.kt" }.map { it.first }
+        assertEquals("only Accounts opens the page", listOf("FintechUi.kt"), openers)
+        val panel = all.filter { (name, t) -> "NetWorthPanel(" in t && name != "NetWorthPages.kt" }.map { it.first }
+        assertEquals("and only through the panel", listOf("FintechUi.kt"), panel)
+        assertTrue("the old card is gone", all.none { (_, t) -> "NetWorthCard" in t })
+        // Home's balance card and every header only navigate; none of them names Net worth.
+        listOf("home/HomeScreen.kt", "home/AccountsHeader.kt", "investments/InvestmentsTab.kt").forEach {
+            assertTrue("$it has no entry to Net worth", !Regex("""(?i)net worth""").containsMatchIn(code(it).joinToString("\n").replace(Regex("""counted in the same total as net worth does"""), "")))
+        }
     }
 }
