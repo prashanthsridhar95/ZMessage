@@ -17,8 +17,29 @@ object CategoryKey {
         else -> ""
     }
 
-    fun of(message: ClassifiedMessage): String? =
-        normalise(payee(message).ifBlank { message.message.sender }).ifEmpty { null }
+    fun of(message: ClassifiedMessage): String? {
+        val payee = payee(message)
+        // A payee is keyed by who it is ([PayeeKey]); a message with none by its sender.
+        if (payee.isNotBlank()) PayeeKey.of(payee)?.let { return it }
+        return normalise(payee.ifBlank { message.message.sender }).ifEmpty { null }
+    }
+
+    /**
+     * The key this message's payee was filed under before [PayeeKey] folded punctuation and company endings ("mr. diy"),
+     * when that differs from [of]; null otherwise. Choices saved under it still apply (see [find]).
+     */
+    fun legacyOf(message: ClassifiedMessage): String? {
+        val payee = payee(message)
+        if (payee.isBlank()) return null
+        val old = normalise(payee).ifEmpty { return null }
+        return old.takeIf { it != of(message) }
+    }
+
+    /** The value kept for this message's key, or else under its older spelling, or null. */
+    fun <V> find(map: Map<String, V>, message: ClassifiedMessage): V? {
+        if (map.isEmpty()) return null
+        return of(message)?.let(map::get) ?: legacyOf(message)?.let(map::get)
+    }
 
     /** The key for one message on its own, for a choice that should not spread to everything else from the same sender. */
     fun messageKey(id: Long): String = "msg:$id"
@@ -57,7 +78,7 @@ object CategoryKey {
         if (overrides.isEmpty() && tokenRules.isEmpty()) return message
         val key = of(message)
         val category = overrides[messageKey(message.id)]
-            ?: key?.let(overrides::get)
+            ?: find(overrides, message)
             ?: key?.let { Tokens.match(it, tokenRules) }
             ?: return message
         return message.copy(

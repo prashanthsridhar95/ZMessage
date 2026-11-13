@@ -70,6 +70,23 @@ remembered inside the content lambda restarts. `FormSheet` is built on it (`asPa
 that scrolls by itself (a lazy list or web view) uses `AppPage(scrollable = false)`. `SheetPolicyTest` keeps bare
 `AppBottomSheet` to the compact allow-list and forbids fixed sheet heights.
 
+## Category, name and picture: whose rule is it
+
+A payment is filed, named and pictured by **who it was with**. `CategoryKey.of(message)` is the payee named in a
+transaction (`PayeeKey.of`: lower-case, punctuation and spacing folded, "Private Limited" and "Pvt. Ltd." written one way, a
+UPI id such as `40-5@okhdfcbank` kept as its own key), and only a message that names nobody (a code, a notice) is keyed by its
+sender. Two people paid from one bank are two keys; a person paid by name and by UPI id are two keys (no guessing they are the
+same). The chain, applied by `ObserveMessagesUseCase` in this order (a later stage never overrides a higher one), is:
+this payment's own choice (`msg:<id>`), then the payee's choice, then a word rule (category only), then the app's own
+classification. Category, custom category, nickname and picture each follow it, and the result is written into
+`ClassifiedMessage.category` / `merchant`, which is the only thing budgets, spending limits, Insights, the spend summary,
+search and exports read, so a payee rule moves every total. Keys saved before `PayeeKey` folded punctuation (`CategoryKey.legacyOf`)
+still apply until the person sets the new key. `TransactionRules` (domain, tested) says where each value in the detail sheet
+comes from; the sheet shows it per row ("Mr Diy rule", "Only this transaction", "Automatic") with a scope choice (all payments
+or only this one) in the pickers. The sender's own flow (the sender thread, "Edit sender rules for HDFC Bank") is unchanged.
+No store was added: payee choices live in the existing `category_overrides`, `nicknames`, `custom_categories` and the image
+store, already in the backup.
+
 ## Flights on the day you fly
 
 A flight booked by SMS gets a card at the top of Home on the day of travel, and a bottom sheet with its full status.

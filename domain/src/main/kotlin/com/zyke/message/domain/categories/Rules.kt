@@ -13,7 +13,9 @@ data class TaughtRule(
     val hasPicture: Boolean,
     /** How many of the loaded messages it applies to now. */
     val affects: Int,
-    val single: Boolean
+    val single: Boolean,
+    /** The key is a person or shop named in payment messages (see [TransactionRules]), not a sender. */
+    val payee: Boolean = false
 )
 
 /** "Anything with [token] files under [category]". */
@@ -39,12 +41,14 @@ object Rules {
         tokenRules: Map<String, MessageCategory> = emptyMap()
     ): RulesOverview {
         val byKey = messages.groupBy { CategoryKey.of(it) }
+        // Choices saved before punctuation was folded out of payee names sit under the older spelling of the key.
+        val byOldKey = messages.mapNotNull { m -> CategoryKey.legacyOf(m)?.let { it to m } }.groupBy({ it.first }, { it.second })
         val byId = messages.associateBy { it.id }
         val keys = (categoryOverrides.keys + nicknames.keys).toSortedSet()
         val rows = keys.map { key ->
             val single = key.startsWith("msg:")
             val own = if (single) key.removePrefix("msg:").toLongOrNull()?.let(byId::get) else null
-            val group = if (single) listOfNotNull(own) else byKey[key].orEmpty()
+            val group = if (single) listOfNotNull(own) else (byKey[key].orEmpty() + byOldKey[key].orEmpty()).distinctBy { it.id }
             TaughtRule(
                 key = key,
                 label = group.firstOrNull()?.let(CategoryKey::label)?.ifBlank { null } ?: if (single) UNKNOWN_PAYMENT else UNKNOWN_PAYEE,
@@ -52,7 +56,8 @@ object Rules {
                 nickname = nicknames[key],
                 hasPicture = key in imageKeys,
                 affects = group.size,
-                single = single
+                single = single,
+                payee = !single && group.any { TransactionRules.payeeName(it) != null }
             )
         }.sortedBy { it.label.lowercase() }
         val words = tokenRules.map { (token, category) ->

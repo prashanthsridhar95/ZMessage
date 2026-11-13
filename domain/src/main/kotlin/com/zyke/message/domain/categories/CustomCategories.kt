@@ -78,7 +78,7 @@ object CustomCategories {
         return messages.map { message ->
             val own = state.assignments[CategoryKey.messageKey(message.id)]?.takeIf { it in known }
             val id = own
-                ?: message.takeIf { !it.categoryOwn }?.let { CategoryKey.of(it) }?.let(state.assignments::get)?.takeIf { it in known }
+                ?: message.takeIf { !it.categoryOwn }?.let { CategoryKey.find(state.assignments, it) }?.takeIf { it in known }
                 ?: return@map message
             message.copy(
                 category = MessageCategory.OTHERS,

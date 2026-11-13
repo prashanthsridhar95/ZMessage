@@ -131,6 +131,7 @@ object SettingsIndex {
         e("messages.rcs", "RCS chats and Google Pay top-ups", "Needs notification access", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "notification access", "rcs", "upi lite", "listener", "google messages", "samsung"),
         e("messages.health", "Parsing health", "How many money messages are understood", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "diagnostics", "report", "unrecognised", "share report", "accuracy"),
         e("rules.categories", "Your categories", "Make your own, then pick them when filing a payment", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "custom", "category"),
+        e("rules.payees", "Payee rules", "Category, name and picture for a person or shop you pay", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "payee", "person", "shop", "merchant", "upi", "nickname", "picture", "category"),
         e("rules.taught", "What you taught the app", "Sender names, word rules and single payments", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "rules", "sender", "receiver", "rename", "learn", "teach"),
         // Travel
         e("travel.flights", "Live flight status", "Follow the flights found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "airline", "plane", "pnr", "departure", "gate"),

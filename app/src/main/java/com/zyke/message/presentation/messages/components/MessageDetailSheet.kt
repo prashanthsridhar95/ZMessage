@@ -65,6 +65,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.categories.CategoryKey
+import com.zyke.message.domain.categories.RuleSource
+import com.zyke.message.domain.categories.TransactionRules
+import com.zyke.message.presentation.common.Choice
+import com.zyke.message.presentation.common.SegmentedChoice
 import com.zyke.message.domain.categories.CategoryOptions
 import com.zyke.message.domain.categories.CustomCategories
 import com.zyke.message.domain.model.CustomCategory
@@ -109,9 +113,15 @@ internal fun MessageDetailSheet(
     val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else if (senderLabel.verified) senderLabel.name else SenderKey.displayAddress(message.sender)
     val sender = SenderKey.displayAddress(message.sender)
     val canTag = content !is MessageContent.Otp && CategoryKey.of(item) != null
+    // A payment names who it was with. Its category, name and picture belong to that payee (a person or shop), not to the bank that sent the text.
+    val payeeName = TransactionRules.payeeName(item)
+    val payeeCase = canTag && content is MessageContent.Transaction && payeeName != null
+    val payeeTitle = if (payeeCase) item.merchant.displayName else title
+    val senderName = if (senderLabel.verified) senderLabel.name else sender
     // Which of the two the open sheet is for: this one transaction, or the sender or receiver it is with.
     var categoryScope by remember { mutableStateOf<Boolean?>(null) }
     var nameScope by remember { mutableStateOf<Boolean?>(null) }
+    var pictureScope by remember { mutableStateOf<Boolean?>(null) }
     val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, CategoryKey.label(item)) }
     val imageStore = LocalImageStore.current
     val pictureKeys by (imageStore?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
@@ -119,7 +129,7 @@ internal fun MessageDetailSheet(
     val senderHasPicture = CategoryKey.of(item)?.let { it in pictureKeys } == true
     val thisHasPicture = thisMessageKey in pictureKeys
     // The same chooser, for this one payment rather than everything from its sender or receiver.
-    val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, title) else null
+    val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, payeeTitle) else null
     var confirmDelete by remember { mutableStateOf(false) }
     val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
@@ -229,7 +239,16 @@ internal fun MessageDetailSheet(
 
             if (content !is MessageContent.Otp) {
                 // A payment can be filed and named on its own, apart from everything else paid to the same receiver.
-                if (canTag && content is MessageContent.Transaction) {
+                if (payeeCase) {
+                    val hiddenNow = item.merchant.name.trim().lowercase() in hiddenLogos
+                    val autoPicture = if (imageStore != null && imageStore.hasLogo(item.merchant.name) && !hiddenNow) "Brand logo" else "Default"
+                    PayeeRulesGroup(
+                        item = item, payeeTitle = payeeTitle, pictureKeys = pictureKeys, autoPicture = autoPicture,
+                        onCategory = { categoryScope = item.categoryOwn },
+                        onNickname = { nameScope = item.nicknameOwn },
+                        onPicture = if (pickPicture != null || pickThisPicture != null) ({ pictureScope = thisHasPicture }) else null
+                    )
+                } else if (canTag && content is MessageContent.Transaction) {
                     SettingsGroup("This transaction") {
                         DetailRow("Category", if (item.categoryOwn) com.zyke.message.presentation.common.categoryText(item) else "Same as $title") { categoryScope = true }
                         DetailRow("Nickname", if (item.nicknameOwn) item.merchant.name else "None") { nameScope = true }
@@ -240,8 +259,8 @@ internal fun MessageDetailSheet(
                     }
                 }
                 if (content is MessageContent.Transaction) PaymentNotesGroup(item)
-                SettingsGroup(if (content is MessageContent.Transaction) "Every payment to $title" else "About $title") {
-                    if (canTag) {
+                SettingsGroup(if (payeeCase) "Sender: $senderName" else if (content is MessageContent.Transaction) "Every payment to $title" else "About $title") {
+                    if (canTag && !payeeCase) {
                         DetailRow(
                             "Category",
                             when {
@@ -330,15 +349,22 @@ internal fun MessageDetailSheet(
             }
 
             if (!inConversation) {
-                LinkButton("More from $title", onMoreFromSender)
+                LinkButton(if (payeeCase) "Edit sender rules for $senderName" else "More from $title", onMoreFromSender)
             }
         }
     }
 
     val namingLedger = com.zyke.message.presentation.common.rememberLedgerActions()
     val namingScope = rememberCoroutineScope()
-    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger) { categoryScope = null } }
-    nameScope?.let { forTransaction -> NicknameSheet(item, title, forTransaction, namingLedger, namingScope) { nameScope = null } }
+    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger, payeeTitle.takeIf { payeeCase }) { categoryScope = null } }
+    nameScope?.let { forTransaction -> NicknameSheet(item, title, forTransaction, namingLedger, namingScope, payeeTitle.takeIf { payeeCase }) { nameScope = null } }
+    pictureScope?.let { onlyThis ->
+        PictureScopeSheet(
+            item = item, payeeTitle = payeeTitle, startOnlyThis = onlyThis, canPayee = pickPicture != null, canThis = pickThisPicture != null,
+            onChoose = { thisOnly -> pictureScope = null; if (thisOnly) pickThisPicture?.invoke() else pickPicture?.invoke() },
+            onDismiss = { pictureScope = null }
+        )
+    }
 }
 
 /**
@@ -416,9 +442,14 @@ internal val CATEGORY_GROUPS = listOf(
  */
 @Composable
 private fun CategorySheet(
-    item: ClassifiedMessage, actions: FeedActions, forTransaction: Boolean,
-    ledger: com.zyke.message.presentation.common.LedgerActions, onDismiss: () -> Unit
+    item: ClassifiedMessage, actions: FeedActions, startForTransaction: Boolean,
+    ledger: com.zyke.message.presentation.common.LedgerActions,
+    /** The payee's name when the person can pick between all payments to it and this one; null where the scope is fixed. */
+    scopePayee: String?,
+    onDismiss: () -> Unit
 ) {
+    // Which the choice is for: this one transaction, or everything with the same payee (or sender).
+    var forTransaction by rememberSaveable { mutableStateOf(startForTransaction) }
     // What is in effect for the thing being filed: this one transaction's own choice, or its sender's or receiver's.
     val chosenHere = if (forTransaction) item.categoryOwn else item.categoryOverridden && !item.categoryOwn
     val suggestion = item.suggestedCategory?.takeIf { !item.categoryOverridden && it != item.category }
@@ -478,18 +509,31 @@ private fun CategorySheet(
         com.zyke.message.data.diag.DevLog.d("ui") { "category sheet: chose $category id=${item.id} forTransaction=$forTransaction alreadyChosen=${chosenHere && item.category == category}" }
         // Choosing the one already chosen takes the choice away.
         val removing = chosenHere && customHere == null && item.category == category
+        val before = fileKey?.let { container.categoryOverrides.overrides.value[it] }
+        val beforeCustom = fileKey?.let { container.customCategories.state.value.assignments[it] }
         set(if (removing) null else category)
         if (!removing) fileSameName(com.zyke.message.domain.nickname.CategoryChoice.of(category))
+        val key = fileKey
+        if (key != null) {
+            ledger.withUndo(if (removing) "Category back to automatic" else "Filed under ${category.displayString}${if (forTransaction) " for this transaction" else ""}") {
+                container.categoryOverrides.set(key, before)
+                container.customCategories.assign(key, beforeCustom)
+            }
+        }
         onDismiss()
     }
 
     AdaptiveSheet(if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}", onDismiss, asPage = true) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column {
-                Caption(
-                    if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
-                    Modifier.padding(top = 2.dp), maxLines = 2
-                )
+            if (scopePayee != null) {
+                ScopeChoice(scopePayee, forTransaction, TransactionRules.othersWithSamePayee(item, messages).size) { forTransaction = it }
+            } else {
+                Column {
+                    Caption(
+                        if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
+                        Modifier.padding(top = 2.dp), maxLines = 2
+                    )
+                }
             }
 
             if (sameNameCount > 0 && nick != null) {
@@ -569,11 +613,14 @@ private fun CategorySheet(
 private fun NicknameSheet(
     item: ClassifiedMessage,
     shownName: String,
-    forTransaction: Boolean,
+    startForTransaction: Boolean,
     ledger: com.zyke.message.presentation.common.LedgerActions,
     appScope: kotlinx.coroutines.CoroutineScope,
+    /** The payee's name when the person can pick between all payments to it and this one; null where the scope is fixed. */
+    scopePayee: String?,
     onDismiss: () -> Unit
 ) {
+    var forTransaction by rememberSaveable { mutableStateOf(startForTransaction) }
     // A name for this transaction, or for the sender or receiver: each is kept and cleared on its own.
     val named = if (forTransaction) item.nicknameOwn else item.merchant.renamed && !item.nicknameOwn
     var name by rememberSaveable { mutableStateOf(if (named) shownName else "") }
@@ -616,7 +663,9 @@ private fun NicknameSheet(
                     ),
                     messages, pictureKeys, customs,
                     copyPicture = { from, to -> appScope.launch { container.imageStore.copyChosen(from, to) } },
-                    removePicture = { container.imageStore.removeChosen(it) }
+                    removePicture = { container.imageStore.removeChosen(it) },
+                    // The Undo says what was done; a name that brought its category along says that instead.
+                    summary = if (inheritedCategory != null && !keepCategory) null else "Called \"${name.trim()}\"${if (forTransaction) " for this transaction" else ""}"
                 )
             }
             onDismiss()
@@ -635,6 +684,7 @@ private fun NicknameSheet(
             onDismiss()
         }
     ) {
+        if (scopePayee != null) ScopeChoice(scopePayee, forTransaction, TransactionRules.othersWithSamePayee(item, messages).size) { forTransaction = it }
         FormField(
             "Name", name, { name = it }, placeholder = CategoryKey.label(item),
             supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears",
@@ -663,6 +713,125 @@ private fun NicknameSheet(
         }
         if (profile?.imageKey != null) {
             Caption("\"${name.trim()}\" is already in use: this will also take its picture.", maxLines = 3)
+        }
+    }
+}
+
+/** "Apply to: All payments / Only this one", with how many other payments the first one changes. */
+@Composable
+private fun ScopeChoice(payee: String, onlyThis: Boolean, others: Int, onChange: (Boolean) -> Unit) {
+    FormGroup("Apply to") {
+        SegmentedChoice(listOf(Choice(false, "All payments"), Choice(true, "Only this one")), onlyThis, onChange)
+        Caption(
+            if (onlyThis) "Other payments to $payee are not changed" else (TransactionRules.alsoChanges(others)?.let { "$it to $payee" } ?: "This is the only payment to $payee so far"),
+            maxLines = 2
+        )
+    }
+}
+
+/** Which a new picture is for, before the picker opens: every payment to the payee, or this one. */
+@Composable
+private fun PictureScopeSheet(
+    item: ClassifiedMessage, payeeTitle: String, startOnlyThis: Boolean, canPayee: Boolean, canThis: Boolean,
+    onChoose: (onlyThis: Boolean) -> Unit, onDismiss: () -> Unit
+) {
+    val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val messages by remember(container) { container.observeMessages() }.collectAsState(initial = emptyList())
+    var onlyThis by rememberSaveable { mutableStateOf(startOnlyThis && canThis || !canPayee) }
+    AdaptiveSheet("Picture for $payeeTitle", onDismiss) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+            if (canPayee && canThis) ScopeChoice(payeeTitle, onlyThis, TransactionRules.othersWithSamePayee(item, messages).size) { onlyThis = it }
+            AppButton("Choose a picture", { onChoose(onlyThis) }, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/** A setting with its current value on the right and, under it, where that value comes from. */
+@Composable
+private fun SourceRow(label: String, value: String, source: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = label, onClick = onClick).padding(vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        Spacer(Modifier.width(Spacing.md))
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = mutedColor(), maxLines = 1, textAlign = TextAlign.End)
+            Caption(source, textAlign = TextAlign.End)
+        }
+        Text("\u203A", Modifier.padding(start = Spacing.sm), color = mutedColor())
+    }
+}
+
+/**
+ * The rules for the person or shop a payment was with: category, name and picture, each showing what is in effect and
+ * where it comes from (this payment alone, the payee's rule, or automatic). A row opens the picker, which asks whether
+ * the choice is for all payments to the payee or only this one; "Reset" takes the rule at its source away, with Undo.
+ * The sender's own rules (the bank) are a separate thing, reached from "Edit sender rules".
+ */
+@Composable
+private fun PayeeRulesGroup(
+    item: ClassifiedMessage,
+    payeeTitle: String,
+    pictureKeys: Set<String>,
+    autoPicture: String,
+    onCategory: () -> Unit,
+    onNickname: () -> Unit,
+    onPicture: (() -> Unit)?
+) {
+    val container = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+    val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+    val overrides by container.categoryOverrides.overrides.collectAsState()
+    val messages by remember(container) { container.observeMessages() }.collectAsState(initial = emptyList())
+    val others = remember(messages, item.id, item.merchant.name) { TransactionRules.othersWithSamePayee(item, messages).size }
+    val categorySource = TransactionRules.categorySource(item, overrides)
+    val nameSource = TransactionRules.nicknameSource(item)
+    val pictureSource = TransactionRules.pictureSource(item, pictureKeys)
+    // The keys a rule at [source] may be kept under: this payment's own, or the payee's (and its older spelling).
+    fun keysFor(source: RuleSource): List<String> =
+        if (source == RuleSource.THIS_TRANSACTION) listOf(CategoryKey.messageKey(item.id)) else listOfNotNull(CategoryKey.of(item), CategoryKey.legacyOf(item))
+
+    SettingsGroup(payeeTitle) {
+        if (others > 0) Caption("$others other ${if (others == 1) "payment" else "payments"} with this payee", Modifier.padding(top = Spacing.sm), maxLines = 1)
+        SourceRow("Category", com.zyke.message.presentation.common.categoryText(item), TransactionRules.sourceText(categorySource, payeeTitle), onCategory)
+        if (categorySource == RuleSource.THIS_TRANSACTION || categorySource == RuleSource.PAYEE) {
+            DetailRow("Reset category to automatic", null) {
+                val keys = keysFor(categorySource)
+                val before = keys.associateWith { container.categoryOverrides.overrides.value[it] }
+                val beforeCustom = keys.associateWith { container.customCategories.state.value.assignments[it] }
+                keys.forEach { container.categoryOverrides.set(it, null); container.customCategories.assign(it, null) }
+                ledger.withUndo("Category back to automatic") {
+                    before.forEach { (k, v) -> container.categoryOverrides.set(k, v) }
+                    beforeCustom.forEach { (k, v) -> container.customCategories.assign(k, v) }
+                }
+            }
+        }
+        SourceRow(
+            "Nickname", if (nameSource == RuleSource.AUTOMATIC) "None" else item.merchant.name,
+            if (nameSource == RuleSource.AUTOMATIC) "Shown as in the message" else TransactionRules.sourceText(nameSource, payeeTitle), onNickname
+        )
+        if (nameSource == RuleSource.THIS_TRANSACTION || nameSource == RuleSource.PAYEE) {
+            DetailRow("Reset nickname", null) {
+                val keys = keysFor(nameSource)
+                val before = keys.associateWith { container.nicknames.nicknames.value[it] }
+                keys.forEach { container.nicknames.set(it, null) }
+                ledger.withUndo("Nickname removed") { before.forEach { (k, v) -> container.nicknames.set(k, v) } }
+            }
+        }
+        if (onPicture != null) {
+            SourceRow(
+                "Picture", if (pictureSource == RuleSource.AUTOMATIC) autoPicture else "Your picture",
+                TransactionRules.sourceText(pictureSource, payeeTitle), onPicture
+            )
+            if (pictureSource == RuleSource.THIS_TRANSACTION || pictureSource == RuleSource.PAYEE) {
+                DetailRow("Reset picture", null) { keysFor(pictureSource).forEach { container.imageStore.removeChosen(it) } }
+            } else {
+                RemovePictureRow(item, false)
+            }
+        }
+        // The original wording stays visible when a nickname replaces it.
+        if (nameSource != RuleSource.AUTOMATIC) {
+            TransactionRules.payeeName(item)?.let { Caption("In the message: $it", Modifier.padding(bottom = Spacing.sm), maxLines = 1) }
         }
     }
 }

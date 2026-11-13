@@ -159,9 +159,11 @@ class ObserveMessagesUseCase(
                     // A picture chosen for this one payment beats one chosen for everything from its sender or receiver.
                     val own = CategoryKey.messageKey(message.id)
                     val key = CategoryKey.of(message)
+                    val legacy = CategoryKey.legacyOf(message)
                     when {
                         own in keys -> message.copy(merchant = message.merchant.copy(imageKey = own))
                         key != null && key in keys -> message.copy(merchant = message.merchant.copy(imageKey = key))
+                        legacy != null && legacy in keys -> message.copy(merchant = message.merchant.copy(imageKey = legacy))
                         else -> message
                     }
                 }
@@ -179,7 +181,7 @@ class ObserveMessagesUseCase(
                 if (nicknames.isEmpty()) classified else classified.map { message ->
                     // A name given to this one transaction wins over one given to everything from the same sender or receiver.
                     val own = nicknames[CategoryKey.messageKey(message.id)]
-                    val nickname = own ?: CategoryKey.of(message)?.let(nicknames::get)
+                    val nickname = own ?: CategoryKey.find(nicknames, message)
                     if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true), nicknameOwn = own != null) else message
                 }
             }

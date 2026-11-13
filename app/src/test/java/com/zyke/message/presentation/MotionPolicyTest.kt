@@ -215,6 +215,7 @@ class MotionPolicyTest {
         assertTrue("the Messages tabs slide their line with the tab token", "Motion.TAB_MS" in File(messages, "TabIndicator.kt").readText())
         val detail = File(messages, "MessageDetailSheet.kt").readText()
         assertTrue("deleting an entry asks first and gives the firmer buzz", "haptics.reject()" in detail && "AlertDialog(" in detail)
+        assertTrue("a payment's rules are the payee's, with an equal-width scope choice", "PayeeRulesGroup(" in detail && "SegmentedChoice(" in detail && "TransactionRules." in detail)
     }
 
     /**

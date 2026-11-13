@@ -57,6 +57,8 @@ internal fun RulesSection() {
     val view = remember(messages, overrides, nicknames, pictures, words) { Rules.describe(messages, overrides, nicknames, pictures, words) }
     val suggestions = remember(overrides, words) { Rules.suggestTokenRules(overrides, words) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var confirmForget by remember { mutableStateOf<TaughtRule?>(null) }
     val haptics = com.zyke.message.presentation.motion.rememberHaptics()
 
     if (view.isEmpty && suggestions.isEmpty()) {
@@ -70,16 +72,30 @@ internal fun RulesSection() {
             AppButton("Add rule", { container.tokenRules.set(s.token, s.category) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
         }
     }
-    if (view.rules.isNotEmpty()) SectionCard("Senders and receivers") {
-        view.rules.forEach { rule -> RuleRow(rule, { editing = rule.key }, {
-            haptics.reject()
-            val old = rule
-            container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null)
-            actions.withUndo("Rule forgotten") {
-                old.category?.let { container.categoryOverrides.set(old.key, it) }
-                old.nickname?.let { container.nicknames.set(old.key, it) }
-            }
-        }) }
+    val payeeRules = view.rules.filter { it.payee }
+    val senderRules = view.rules.filter { !it.payee }
+    val forget: (TaughtRule) -> Unit = { rule ->
+        // The confirming tap in ConfirmDialog has already given the firmer buzz.
+        val custom = container.customCategories.state.value.assignments[rule.key]
+        container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null); container.customCategories.assign(rule.key, null)
+        actions.withUndo("Rule forgotten") {
+            rule.category?.let { container.categoryOverrides.set(rule.key, it) }
+            rule.nickname?.let { container.nicknames.set(rule.key, it) }
+            custom?.let { container.customCategories.assign(rule.key, it) }
+        }
+    }
+    if (payeeRules.isNotEmpty()) {
+        // What the person set for a person or shop they pay or are paid by; the sender's own rules are below.
+        val shown = if (query.isBlank()) payeeRules else payeeRules.filter { it.label.contains(query.trim(), ignoreCase = true) || it.nickname?.contains(query.trim(), ignoreCase = true) == true }
+        SectionCard("Payee rules") {
+            Caption("For a person or shop you pay or are paid by. Rules for a sender are below.", maxLines = 2)
+            if (payeeRules.size > SEARCH_FROM) FormField("Find a payee", query, { query = it }, placeholder = "Type a name")
+            if (shown.isEmpty()) Caption("No payee matches \"${query.trim()}\"", maxLines = 2)
+            shown.forEach { rule -> RuleRow(rule, { editing = rule.key }, { confirmForget = rule }) }
+        }
+    }
+    if (senderRules.isNotEmpty()) SectionCard("Senders") {
+        senderRules.forEach { rule -> RuleRow(rule, { editing = rule.key }, { confirmForget = rule }) }
     }
     if (view.tokenRules.isNotEmpty()) SectionCard("Word rules") {
         view.tokenRules.forEach { row ->
@@ -107,6 +123,15 @@ internal fun RulesSection() {
         }) }
     }
 
+    confirmForget?.let { rule ->
+        com.zyke.message.presentation.common.ConfirmDialog(
+            title = "Forget the rule for ${rule.label}?",
+            body = "The category and name you gave it are forgotten for ${count(rule.affects)}; the picture stays. You can undo this right after.",
+            confirmLabel = "Forget",
+            onConfirm = { confirmForget = null; forget(rule) },
+            onDismiss = { confirmForget = null }
+        )
+    }
     val open = (view.rules + view.singles).firstOrNull { it.key == editing }
     if (open != null) EditRuleSheet(
         rule = open,
@@ -132,6 +157,8 @@ internal fun RulesSection() {
         onDismiss = { editing = null }
     )
 }
+
+private const val SEARCH_FROM = 6
 
 private fun count(n: Int) = if (n == 1) "1 message" else "$n messages"
 

@@ -74,6 +74,7 @@ class SettingsSearchOnboardingPolicyTest {
         assertTrue("clearing the code lists asks first", "Clear the list of texts seen?" in text("settings/CodeSharingUi.kt"))
         assertTrue("a sheet's Remove / Delete gives the buzz", "haptics.reject()" in text("common/Forms.kt"))
         listOf("settings/RulesUi.kt", "settings/CustomCategoriesSection.kt").forEach { assertTrue("$it: deleting buzzes", "haptics.reject()" in text(it)) }
+        assertTrue("forgetting a payee rule asks first", "ConfirmDialog(" in text("settings/RulesUi.kt") && "Payee rules" in text("settings/RulesUi.kt"))
         assertTrue("no bare AlertDialog is left in Settings' own screen", "AlertDialog(" !in screen)
     }
 

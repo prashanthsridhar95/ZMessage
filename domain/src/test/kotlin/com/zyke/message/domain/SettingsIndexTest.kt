@@ -25,7 +25,7 @@ class SettingsIndexTest {
         "money.salary", "money.savings", "money.fixed", "money.cycle",
         "budgets.categories", "budgets.suggestions", "budgets.move", "budgets.card",
         "markets.watch", "markets.close", "cards.list", "cards.add",
-        "messages.logos", "messages.tags", "messages.rcs", "messages.health", "rules.categories", "rules.taught",
+        "messages.logos", "messages.tags", "messages.rcs", "messages.health", "rules.categories", "rules.payees", "rules.taught",
         "travel.flights", "travel.trains", "travel.checks",
         "data.auto", "data.backup", "data.export.transactions", "data.export.setup", "data.reset", "data.delete",
         "privacy.hide", "privacy.auth", "privacy.reveal", "privacy.screenshots", "privacy.lock", "privacy.pause",
