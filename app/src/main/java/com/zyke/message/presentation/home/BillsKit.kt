@@ -207,16 +207,24 @@ internal fun BillsHero(summary: BillsSummary, entering: Boolean, modifier: Modif
             Modifier.padding(top = Spacing.xs), maxLines = 2
         )
         ProgressReveal(summary.fraction, Modifier.padding(top = Spacing.lg).clearAndSetSemantics { }, height = Spacing.sm)
-        FlowRow(
-            Modifier.fillMaxWidth().padding(top = Spacing.md),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Caption("Paid so far", Modifier.padding(end = Spacing.sm))
-                AnimatedAmount(summary.paidTotal, style = MaterialTheme.typography.titleSmall, color = Good, fontWeight = FontWeight.SemiBold)
+        // Paid so far on the left, how many on the right; stacked on a narrow phone or at large text. A plain Row (not a wrapping
+        // one) so the label is never squeezed by the amount beside it.
+        val paidSoFar: @Composable () -> Unit = {
+            Caption("Paid so far", maxLines = 1)
+            Spacer(Modifier.width(Spacing.sm))
+            AnimatedAmount(summary.paidTotal, style = MaterialTheme.typography.titleSmall, color = Good, fontWeight = FontWeight.SemiBold)
+        }
+        if (com.zyke.message.presentation.common.LocalResponsive.current.stackRows) {
+            Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Row(verticalAlignment = Alignment.CenterVertically) { paidSoFar() }
+                Caption(BillsMath.progressCaption(summary), maxLines = 2)
             }
-            Caption(BillsMath.progressCaption(summary))
+        } else {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+                paidSoFar()
+                Spacer(Modifier.width(Spacing.md))
+                Caption(BillsMath.progressCaption(summary), Modifier.weight(1f), maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
         }
     }
 }
