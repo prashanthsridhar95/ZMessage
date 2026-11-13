@@ -355,6 +355,14 @@ passbook messages) and is added to the same totals as "Provident fund (from mess
   stocks, gold and retirement into holdings once (id `nw:<itemId>`, invested = current = the old amount) and records their ids in the
   same locked write, so an entry counts exactly once before and after. The originals stay in `net_worth`, hidden. The
   net-worth form no longer offers those kinds. Tested: totals match before and after.
+* **Accounts Overview and the Net worth door**: `AccountsOverviewModel.build` (domain) turns `AccountsOverview` into the total balance,
+  `CardDues.summarize` (billed = `NetWorth.billOwing` per credit card, unbilled = `AccountSummary.unbilled`, or the month's `spent`
+  flagged approximate when the cycle is unknown; per-card order, next bill due) and `leftAfterDues`. Billed and unbilled use the same
+  per-card rule as `NetWorth.cardOwed`, so card dues here equal the card lines of net worth (tested). Net worth is reached only through
+  the pull panel on Overview: `PullReveal` (pure, tested) decides the stretch, the armed phase and the release, `NetWorthBreakdown`
+  groups the report's lines for the panel, `NetWorthPull` feeds it from a `NestedScrollConnection`, and one `requestNetWorth` gate
+  (screen lock via `AmountReveal` when amounts are hidden) serves the pull, the button and the TalkBack action. Nothing keeps the
+  panel open. Search for "net worth" lands on Accounts, never on the page.
 * **UI**: `presentation/investments/` (hero, allocation bar, rows, detail page, form, value and close sheets). No network,
   no logo lookup (a drawn kind tile is used), receipts are a typed number only.
 

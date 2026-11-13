@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -162,6 +163,21 @@ class DemoDataTest {
         assertTrue("due in $days days", days in 1..10)
         assertEquals(BigDecimal("18430.00").compareTo(card.latest.amount), 0)
         assertTrue(card.earlier.size >= 2)
+    }
+
+    @Test
+    fun theOverviewShowsBelievableBilledAndUnbilledCardDues() {
+        val overview = Accounts.build(messages, data.cards, Instant.ofEpochMilli(now), zone)
+        val model = com.zyke.message.domain.accounts.AccountsOverviewModel.build(overview, today)
+        val dues = model.dues
+        // The statement is 18,430; the refund credited to the card since then (2,199) already comes off what is still owed.
+        assertEquals(BigDecimal("18430").compareTo(dues.cards.single().statementTotal), 0)
+        assertEquals(BigDecimal("16231").compareTo(dues.billed), 0)
+        assertTrue("some spend since the statement: ${dues.unbilled}", dues.unbilled.signum() > 0 && dues.unbilled < BigDecimal(60_000))
+        assertFalse("the demo card's statement day is known", dues.approx)
+        assertNotNull(dues.next)
+        val left = model.leftAfterDues
+        assertTrue("balance left after dues is positive: $left", left != null && left.signum() > 0)
     }
 
     @Test

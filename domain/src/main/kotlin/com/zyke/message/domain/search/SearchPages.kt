@@ -16,10 +16,10 @@ object SearchPages {
     const val INVESTMENTS = "investments"
 
     val all = listOf(
-        SearchPageEntry(ACCOUNTS, "Accounts", "Bank accounts and cards", listOf("bank", "card", "balance")),
+        SearchPageEntry(ACCOUNTS, "Accounts", "Bank accounts and cards", listOf("bank", "card", "balance", "overview", "billed", "unbilled", "card dues", "net worth")),
         SearchPageEntry(
             INVESTMENTS, "Investments", "Deposits, funds, stocks and gold, and how they have grown",
-            listOf("fd", "fixed deposit", "rd", "recurring deposit", "mutual fund", "sip", "stocks", "gold", "maturity", "returns", "receipt", "net worth")
+            listOf("fd", "fixed deposit", "rd", "recurring deposit", "mutual fund", "sip", "stocks", "gold", "maturity", "returns", "receipt")
         ),
         SearchPageEntry(BILLS, "Bills", "What is due and what you paid", listOf("due", "paid", "emi")),
         SearchPageEntry(INSIGHTS, "Insights", "Spending, income and trends", listOf("spend", "report", "chart", "budget")),

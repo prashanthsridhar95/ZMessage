@@ -112,8 +112,14 @@ object Tours {
 
         // ---- Accounts
         TourStep(
-            "accounts.tabs", G.ACCOUNTS, "Accounts, Cards, Investments",
-            "Switch between bank accounts, credit cards and investments. The dark region below follows the tab: your bank total and accounts, your cards, or what you have invested.",
+            "accounts.overview", G.ACCOUNTS, "Overview",
+            "Accounts opens on Overview: your total balance, what your credit cards have billed and what is not billed yet, and what is left once they are paid. Tap a card tile for each card.",
+            tab = T.ACCOUNTS, anchor = A.ACCOUNTS_OVERVIEW, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.BALANCE,
+            covers = setOf("accounts.overview", "accounts.card_dues")
+        ),
+        TourStep(
+            "accounts.tabs", G.ACCOUNTS, "Accounts tabs",
+            "Switch between the Overview, bank accounts, credit cards and investments. The dark region below follows the tab: your total, your accounts, your cards, or what you have invested.",
             tab = T.ACCOUNTS, anchor = A.ACCOUNTS_TABS, covers = setOf("accounts.tabs", "accounts.hero_number")
         ),
         TourStep(
@@ -124,9 +130,9 @@ object Tours {
         ),
         TourStep(
             "accounts.networth", G.ACCOUNTS, "Net worth",
-            "Pull down at the top of Accounts to reveal your net worth: what you own minus what you owe. Tap the card for the full page.",
+            "Pull down at the top of Overview to see your net worth: what you own minus what you owe. Release to open it, then Open net worth for the full page. With amounts hidden, your screen lock comes first.",
             tab = T.ACCOUNTS, fallbackAnchor = A.ACCOUNTS_TABS, needsData = true, preview = V.NET_WORTH,
-            tip = "It stays hidden until you ask for it. Try it after the tour.",
+            tip = "It stays hidden until you ask. With TalkBack or reduced motion, use the Show net worth button instead.",
             covers = setOf("accounts.net_worth")
         ),
 

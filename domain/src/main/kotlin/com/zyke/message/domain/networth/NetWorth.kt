@@ -81,16 +81,20 @@ object NetWorth {
 
     fun isStale(asOf: LocalDate?, today: LocalDate): Boolean = asOf != null && ChronoUnit.DAYS.between(asOf, today) > STALE_DAYS
 
+    /** What is still owed on a card's latest bill: nothing once it is paid in full, only the rest when part of it was paid. */
+    fun billOwing(account: AccountSummary): BigDecimal {
+        val bill = account.dueAmount
+        if (bill == null || account.billPaid) return BigDecimal.ZERO
+        val paid = listOfNotNull(account.paidSinceBill, account.billPartPaid).maxOrNull() ?: BigDecimal.ZERO
+        return (bill - paid).max(BigDecimal.ZERO)
+    }
+
     /** What a credit card owes: the unpaid part of its latest bill plus what was spent since it. Null when no message says. */
     fun cardOwed(account: AccountSummary): BigDecimal? {
         val bill = account.dueAmount
         val unbilled = account.unbilled
         if (bill == null && unbilled == null) return null
-        val billOwing = when {
-            bill == null || account.billPaid -> BigDecimal.ZERO
-            else -> (bill - (account.paidSinceBill ?: BigDecimal.ZERO)).max(BigDecimal.ZERO)
-        }
-        return billOwing + (unbilled ?: BigDecimal.ZERO)
+        return billOwing(account) + (unbilled ?: BigDecimal.ZERO)
     }
 
     fun build(
