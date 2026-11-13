@@ -252,6 +252,16 @@ class ParsingReportRegressionTest {
     }
 
     @Test
+    fun aTollMessageWithACutOffPlazaName_isATollNotAnActivation() {
+        val body = "INR 60 toll paid from IDFC FIRST Bank Tag 3XXXC4E0 for vehicle no. TN38DC3528 at IVRCL Chengapally Tollways Li on 08/11/2026 10:46. Avbl. Bal.: INR252.00."
+        val event = (classify(body) as MessageContent.FastTag).event as com.zyke.message.domain.model.FastTagEvent.TollPaid
+        assertEquals("IVRCL Chengapally", event.tollName)
+        assertEquals("60", event.tollAmount)
+        assertEquals("252.00", event.balance)
+        assertEquals("TN38DC3528", event.vehicleNumber)
+    }
+
+    @Test
     fun tollMessages_carryPlazaAmountAndVehicle() {
         val a = (classify("INR 65 toll paid from HDFC Bank Tag 1234 for vehicle no. KA01AB1234 at Hosur Toll on 12-Jan-25 10:30. Avbl. Bal.: INR435") as MessageContent.FastTag).event as com.zyke.message.domain.model.FastTagEvent.TollPaid
         assertEquals("Hosur", a.tollName)

@@ -15,7 +15,22 @@ class FastTagMessageParser {
 
     private fun tollPaid(message: String): FastTagEvent? {
         val g = TOLL_PAID.find(message)?.groupValues ?: return null
-        return FastTagEvent.TollPaid(vehicleNumber = g[4], balance = g[8], tollAmount = g[1], tollName = g[5].trim())
+        return FastTagEvent.TollPaid(
+            vehicleNumber = g[4].trim(),
+            balance = g[8].trimEnd('.').replace(",", ""),
+            tollAmount = g[1].trimEnd('.').replace(",", ""),
+            tollName = cleanPlace(g[5])
+        )
+    }
+
+    /**
+     * The plaza as a name: the SMS ends it with "Toll", "Tollways", "Plaza" or a company suffix, often cut off by the length limit
+     * ("IVRCL Chengapally Tollways Li"), so those trailing words are dropped and what names the place stays ("IVRCL Chengapally").
+     */
+    private fun cleanPlace(raw: String): String {
+        val words = raw.trim().split(Regex("\\s+")).toMutableList()
+        while (words.size > 1 && words.last().lowercase().trimEnd('.') in PLACE_SUFFIXES) words.removeAt(words.lastIndex)
+        return words.joinToString(" ")
     }
 
     private fun tollTransaction(message: String): FastTagEvent? {
@@ -52,14 +67,20 @@ class FastTagMessageParser {
 
     /** Expects [message] with periods already stripped (vehicle numbers may contain them). */
     private fun activated(message: String): FastTagEvent? {
+        // A toll, recharge or balance message names the vehicle too; "active" needs its own wording, not just "vehicle no".
+        if (Regex("(?i)toll paid|avbl\\.? ?bal|debited|credited").containsMatchIn(message)) return null
         val vehicle = ACTIVE_PATTERNS.firstNotNullOfOrNull { it.find(message) }
             ?.groupValues?.get(1)?.trim() ?: return null
         return FastTagEvent.Activated(vehicle)
     }
 
     private companion object {
+        /** "INR 60 toll paid from IDFC FIRST Bank Tag 3XXXC4E0 for vehicle no. TN38DC3528 at IVRCL Chengapally Tollways Li on 08/11/2026 10:46. Avbl. Bal.: INR252.00." */
         val TOLL_PAID =
-            "INR (\\d+) toll paid from (.*?) Tag (.*?) for vehicle no. (.*?) at (.*?) Toll on (.*?) (\\d{2}:\\d{2}). Avbl. Bal.: INR(\\d+)".toRegex()
+            ("(?is)INR\\s*([\\d,.]+) toll paid from (.*?) Tag (.*?) for vehicle no\\.?\\s*(.*?) at (.*?) on (\\S+)\\s+(\\d{1,2}:\\d{2})\\.?\\s*" +
+                "Avbl\\.?\\s*Bal\\.?:?\\s*INR\\s*([\\d,.]+)").toRegex()
+
+        val PLACE_SUFFIXES = setOf("toll", "tolls", "tollway", "tollways", "plaza", "li", "lim", "ltd", "limited", "pvt", "private", "llp", "l", "pl")
 
         /** "txn. of INR 95 using IDFC FIRST Bank FASTag on TN01AB1234 done at X on 10/10/2026 10:00. Avbl. Bal.: INR 505.5". */
         val TOLL_TXN =
