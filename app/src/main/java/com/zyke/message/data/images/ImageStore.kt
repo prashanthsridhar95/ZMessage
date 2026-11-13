@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.LruCache
 import com.zyke.message.data.logo.LogoFetcher
 import com.zyke.message.domain.classification.KnownEntityDomains
@@ -11,7 +13,10 @@ import com.zyke.message.domain.repository.SenderImageRepository
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +56,28 @@ class ImageStore(
     /** Bumped whenever a picture changes, so screens showing one reload it. */
     private val _version = MutableStateFlow(0)
     val version: StateFlow<Int> = _version.asStateFlow()
+
+    /**
+     * Saving outlives the screen that asked: the photo picker takes the person out of the app for a while, and a save
+     * started on a screen's own scope is dropped without a word if that screen has left the composition by the time the
+     * photo comes back. [onResult] is called on the main thread.
+     */
+    private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    fun saveChosenDetached(key: String, uri: Uri, onResult: (Boolean) -> Unit) {
+        saveScope.launch {
+            val saved = saveChosen(key, uri)
+            mainHandler.post { onResult(saved) }
+        }
+    }
+
+    fun saveChosenBitmapDetached(key: String, source: Bitmap, onResult: (Boolean) -> Unit) {
+        saveScope.launch {
+            val saved = saveChosenBitmap(key, source)
+            mainHandler.post { onResult(saved) }
+        }
+    }
 
     suspend fun saveChosen(key: String, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val bitmap = runCatching { decodeSquare(uri) }.getOrNull() ?: return@withContext false

@@ -13,7 +13,6 @@ import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -22,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
-import kotlinx.coroutines.launch
 
 /**
  * The one way to give something a picture, wherever a picture can be set (a sender, a receiver, an account): tapping
@@ -34,14 +32,14 @@ fun rememberPicturePicker(key: String, label: String): (() -> Unit)? {
     val store = LocalImageStore.current ?: return null
     // Demo mode: no photos from the gallery and no web search.
     if (com.zyke.message.data.demo.DemoMode.active) return null
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     // 0 nothing open, 1 choosing where from, 2 searching the web.
     var step by rememberSaveable { mutableIntStateOf(0) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            scope.launch {
-                if (!store.saveChosen(key, uri)) Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+            // Saved by the store, not on this screen's scope: it must finish even if the screen has gone by the time the photo comes back.
+            store.saveChosenDetached(key, uri) { saved ->
+                if (!saved) Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -62,8 +60,8 @@ fun rememberPicturePicker(key: String, label: String): (() -> Unit)? {
         ImageSearchSheet(
             query = label, store = store, onDismiss = { step = 0 },
             onUse = { bitmap ->
-                scope.launch {
-                    if (store.saveChosenBitmap(key, bitmap)) step = 0
+                store.saveChosenBitmapDetached(key, bitmap) { saved ->
+                    if (saved) step = 0
                     else Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
                 }
             }
