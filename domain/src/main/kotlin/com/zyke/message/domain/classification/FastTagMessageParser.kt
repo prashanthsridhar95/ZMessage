@@ -23,6 +23,9 @@ class FastTagMessageParser {
         )
     }
 
+    /** The vehicle number alone: a captured "no. TN38DC3528" or "no TN38DC3528" loses its "no." label. */
+    private fun cleanVehicle(raw: String): String = raw.trim().replace(Regex("(?i)^(?:vehicle\\s+)?no\\.?\\s*"), "").trim()
+
     /**
      * The plaza as a name: the SMS ends it with "Toll", "Tollways", "Plaza" or a company suffix, often cut off by the length limit
      * ("IVRCL Chengapally Tollways Li"), so those trailing words are dropped and what names the place stays ("IVRCL Chengapally").
@@ -61,7 +64,7 @@ class FastTagMessageParser {
 
     private fun rechargeNeeded(message: String): FastTagEvent? {
         val vehicle = LOW_BALANCE_PATTERNS.firstNotNullOfOrNull { it.find(message) }
-            ?.groupValues?.get(1) ?: return null
+            ?.groupValues?.get(1)?.let(::cleanVehicle)?.takeIf { it.isNotEmpty() } ?: return null
         return FastTagEvent.RechargeNeeded(vehicle)
     }
 
@@ -70,7 +73,7 @@ class FastTagMessageParser {
         // A toll, recharge or balance message names the vehicle too; "active" needs its own wording, not just "vehicle no".
         if (Regex("(?i)toll paid|avbl\\.? ?bal|debited|credited").containsMatchIn(message)) return null
         val vehicle = ACTIVE_PATTERNS.firstNotNullOfOrNull { it.find(message) }
-            ?.groupValues?.get(1)?.trim() ?: return null
+            ?.groupValues?.get(1)?.let(::cleanVehicle)?.takeIf { it.isNotEmpty() } ?: return null
         return FastTagEvent.Activated(vehicle)
     }
 
@@ -98,11 +101,11 @@ class FastTagMessageParser {
 
         val LOW_BALANCE_PATTERNS = listOf(
             "vehicle (\\w+) is low on balance",
-            "Vehicle no\\. (.*?) is low",
-            "Vehicle no\\. (.*?) will run out of balance soon",
+            "Vehicle no\\.? (.*?) is low",
+            "Vehicle no\\.? (.*?) will run out of balance soon",
             "vehicle (.*?) will run out of balance soon",
             "vehicle (.*?) has low balance"
-        ).map { it.toRegex() }
+        ).map { Regex(it, RegexOption.IGNORE_CASE) }
 
         val ACTIVE_PATTERNS = listOf(
             "vehicle no\\s+(.*?)(\\s+is now active|$)",

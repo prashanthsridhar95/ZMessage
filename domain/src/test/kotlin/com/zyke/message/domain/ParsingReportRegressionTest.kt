@@ -252,6 +252,19 @@ class ParsingReportRegressionTest {
     }
 
     @Test
+    fun aLowBalanceMessage_namesTheVehicleWithoutItsNoLabel() {
+        listOf(
+            "Dear customer, your FASTag linked to vehicle no. TN38DC3528 will run out of balance soon. Recharge now.",
+            "Dear customer, your FASTag Vehicle no TN38DC3528 will run out of balance soon. Recharge now.",
+            "Your FASTag for vehicle no. TN38DC3528 is low on balance. Recharge now."
+        ).forEach { body ->
+            val event = (classify(body) as MessageContent.FastTag).event
+            assertEquals(body, "TN38DC3528", event.vehicleNumber)
+            assertTrue(body, event is com.zyke.message.domain.model.FastTagEvent.RechargeNeeded)
+        }
+    }
+
+    @Test
     fun aTollMessageWithACutOffPlazaName_isATollNotAnActivation() {
         val body = "INR 60 toll paid from IDFC FIRST Bank Tag 3XXXC4E0 for vehicle no. TN38DC3528 at IVRCL Chengapally Tollways Li on 08/11/2026 10:46. Avbl. Bal.: INR252.00."
         val event = (classify(body) as MessageContent.FastTag).event as com.zyke.message.domain.model.FastTagEvent.TollPaid
