@@ -179,7 +179,7 @@ internal object LiveAlerts {
         ensureChannels(context)
         val accent = androidx.core.content.ContextCompat.getColor(context, R.color.zyke_accent)
         val builder = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(R.drawable.baseline_message_24)
+            .setSmallIcon(R.drawable.zyke_icon)
             .setColor(accent)
             .setContentTitle(NotificationPrivacy.text(context, title))
             .setContentText(NotificationPrivacy.text(context, text))
@@ -192,7 +192,7 @@ internal object LiveAlerts {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             // What the lock screen shows: the code or amount itself stays hidden.
             .setPublicVersion(
-                NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
+                NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.zyke_icon).setColor(accent)
                     .setContentTitle(publicTitle).setContentText(publicText).build()
             )
             .setTimeoutAfter(TIMEOUT_MS)

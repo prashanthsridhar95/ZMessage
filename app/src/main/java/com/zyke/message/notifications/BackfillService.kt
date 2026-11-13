@@ -114,7 +114,7 @@ class BackfillService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             return NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.baseline_message_24)
+                .setSmallIcon(R.drawable.zyke_icon)
                 .setContentTitle(if (progress.isFirstSync) "Getting your messages ready" else "Reading your messages")
                 .setContentText(describe(progress))
                 .setProgress(progress.monthsTotal.coerceAtLeast(1), progress.monthsLoaded, progress.monthsTotal == 0)

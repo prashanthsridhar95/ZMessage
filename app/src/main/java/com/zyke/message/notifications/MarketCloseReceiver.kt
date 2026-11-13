@@ -87,11 +87,11 @@ object MarketCloseNotifier {
         )
         // Index levels are public figures, not the person's money, so Hide amounts does not apply.
         val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.baseline_message_24)
+            .setSmallIcon(R.drawable.zyke_icon)
             .setColor(ContextCompat.getColor(context, R.color.zyke_accent))
             .setContentTitle(summary.title)
             .setContentText(summary.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(summary.body).setSummaryText("Zyke Message"))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(summary.body))
             .setContentIntent(open)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setPriority(NotificationCompat.PRIORITY_LOW)

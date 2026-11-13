@@ -49,7 +49,7 @@ internal object HeadsUpNotifier {
         )
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.baseline_message_24)
+            .setSmallIcon(R.drawable.zyke_icon)
             .setColor(accent)
             .setContentTitle(NotificationPrivacy.text(context, headsUp.title))
             .setContentText(NotificationPrivacy.text(context, headsUp.text))
@@ -62,7 +62,7 @@ internal object HeadsUpNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             // The amount stays off the lock screen.
             .setPublicVersion(
-                NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
+                NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.zyke_icon).setColor(accent)
                     .setContentTitle("Heads-up").setContentText("Unlock to see it").build()
             )
             .build()

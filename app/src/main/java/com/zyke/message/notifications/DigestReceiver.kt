@@ -89,12 +89,12 @@ object DigestNotifier {
             else -> "${items.size} things today" + if (urgent > 0) " · $urgent due now" else ""
         }
         val preview = items.firstOrNull()?.let { line(it, hide) } ?: "Nothing due or on today"
-        val style = NotificationCompat.InboxStyle().setSummaryText("Zyke Message")
+        val style = NotificationCompat.InboxStyle()
         if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it, hide)) }
 
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.baseline_message_24)
+            .setSmallIcon(R.drawable.zyke_icon)
             .setColor(accent)
             .setContentTitle("$headline · $day")
             .setContentText(preview)
@@ -109,7 +109,7 @@ object DigestNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL)
-                    .setSmallIcon(R.drawable.baseline_message_24)
+                    .setSmallIcon(R.drawable.zyke_icon)
                     .setColor(accent)
                     .setContentTitle("Your day")
                     .setContentText("Unlock to read your morning summary")

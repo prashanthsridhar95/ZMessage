@@ -249,7 +249,7 @@ internal object CodeSharer {
             manager.notify(
                 ("share:" + entry.id).hashCode(),
                 NotificationCompat.Builder(context, CHANNEL)
-                    .setSmallIcon(R.drawable.baseline_message_24)
+                    .setSmallIcon(R.drawable.zyke_icon)
                     .setColor(accent)
                     .setContentTitle(ShareLog.headline(entry))
                     .setContentText(if (failed) "Check that this phone can send texts" else "Shared by Zyke Message")
@@ -260,7 +260,7 @@ internal object CodeSharer {
                     .setPriority(NotificationCompat.PRIORITY_LOW)
                     .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                     .setPublicVersion(
-                        NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.baseline_message_24).setColor(accent)
+                        NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.zyke_icon).setColor(accent)
                             .setContentTitle("Code sharing").setContentText("Unlock to see").build()
                     )
                     .setTimeoutAfter(NOTIFICATION_TIMEOUT_MS)

@@ -100,10 +100,10 @@ internal object WeeklyNotifier {
             if (week.dueNext.isEmpty) "Nothing due next week" else "${DisplayFormatters.rupees(week.dueNext.total)} leaves next week"
         )
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
-        val style = NotificationCompat.InboxStyle().setSummaryText("Zyke Message")
+        val style = NotificationCompat.InboxStyle()
         lines.forEach { style.addLine(NotificationPrivacy.text(context, it)) }
         val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.baseline_message_24)
+            .setSmallIcon(R.drawable.zyke_icon)
             .setColor(accent)
             .setContentTitle(NotificationPrivacy.text(context, headline))
             .setContentText(NotificationPrivacy.text(context, lines.first()))
@@ -115,7 +115,7 @@ internal object WeeklyNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL)
-                    .setSmallIcon(R.drawable.baseline_message_24)
+                    .setSmallIcon(R.drawable.zyke_icon)
                     .setColor(accent)
                     .setContentTitle("Your week")
                     .setContentText("Unlock to read your weekly summary")
