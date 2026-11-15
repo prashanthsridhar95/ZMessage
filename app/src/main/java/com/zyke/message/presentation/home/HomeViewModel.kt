@@ -117,6 +117,20 @@ class HomeViewModel(
     /** Writes the person's choices to disk one after another, away from the main thread. */
     private val writes = kotlinx.coroutines.channels.Channel<() -> Unit>(kotlinx.coroutines.channels.Channel.UNLIMITED)
 
+    /** Category choices shown at once, until the inbox that comes back carries them (see [PendingCategories]). */
+    private val pending = com.zyke.message.domain.categories.PendingCategories()
+
+    /** The person filed a payment or a payee: the messages in the state show it in this same reduction, before the pipeline has the choice. */
+    private fun showCategoryNow(key: String, category: com.zyke.message.domain.model.MessageCategory?) {
+        val started = System.nanoTime()
+        pending.add(key, category)
+        reduceHome {
+            val shown = pending.overlay(messages)
+            if (shown === messages) this else copy(messages = shown)
+        }
+        com.zyke.message.domain.diag.DiagLog.d("category") { "change shown in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
+    }
+
     private fun io(write: () -> Unit) {
         writes.trySend(write)
     }
@@ -205,7 +219,9 @@ class HomeViewModel(
             }
             is Intent.SetMessageCategory -> {
                 com.zyke.message.data.diag.DevLog.d("category") { "home: this transaction id=${intent.messageId} -> ${intent.category}" }
-                io { categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category) }
+                val key = CategoryKey.messageKey(intent.messageId)
+                showCategoryNow(key, intent.category)
+                io { categoryOverrides.set(key, intent.category) }
             }
             is Intent.SetCategory -> {
                 val message = currentState().messages.firstOrNull { it.id == intent.messageId }
@@ -213,7 +229,10 @@ class HomeViewModel(
                 com.zyke.message.data.diag.DevLog.d("category") {
                     "home: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(key)} messagesInState=${currentState().messages.size}"
                 }
-                key?.let { io { categoryOverrides.set(it, intent.category) } }
+                key?.let {
+                    showCategoryNow(it, intent.category)
+                    io { categoryOverrides.set(it, intent.category) }
+                }
             }
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.OpenAdjustDaily -> reduce { copy(adjustingDaily = true) }
@@ -380,7 +399,7 @@ class HomeViewModel(
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceHome {
-                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = inbox, now = clock.instant())
+                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = pending.settle(inbox), now = clock.instant())
                     }
                 }
         }

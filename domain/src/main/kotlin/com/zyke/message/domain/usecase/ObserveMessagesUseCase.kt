@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 
 /** Newest-first, de-duplicated (same text on the same day), classified inbox with the user's categories applied. */
 class ObserveMessagesUseCase(
@@ -120,7 +121,8 @@ class ObserveMessagesUseCase(
     fun calm(minGapMs: () -> Long): Flow<List<ClassifiedMessage>> = kotlinx.coroutines.flow.flow {
         var last = 0L
         invoke().conflate().collect { list ->
-            if (last != 0L && !progress.value.isDone) {
+            // A change the person just made is never held back: the gap is only for the bulk re-reads of a big inbox.
+            if (last != 0L && !progress.value.isDone && !urgent.getAndSet(false)) {
                 val wait = minGapMs() - (System.currentTimeMillis() - last)
                 if (wait > 0) kotlinx.coroutines.delay(wait)
             }
@@ -129,8 +131,29 @@ class ObserveMessagesUseCase(
         }
     }
 
-    private fun pipeline(): Flow<List<ClassifiedMessage>> =
-        (progressive?.messages() ?: whole())
+    /** Set when the person changed a category, a word rule, a name or a picture: the next list goes out at once, see [calm]. */
+    private val urgent = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** When the last change the person made reached the pipeline (nanoTime), or 0; used for the "applied in N ms" line. */
+    @Volatile private var changeStartedAt = 0L
+
+    private fun userChanged() {
+        urgent.set(true)
+        changeStartedAt = System.nanoTime()
+    }
+
+    private fun pipeline(): Flow<List<ClassifiedMessage>> {
+        // What the heavy stages made of their input last time, so a category change patches them instead of re-running them over the whole inbox.
+        val cardBillMemo = CategoryOnlyMemo(com.zyke.message.domain.ledger.CardBillPayments::categorySensitivity)
+        val setAsideMemo = CategoryOnlyMemo()
+        val mergeMemo = CategoryOnlyMemo()
+        val samePaymentMemo = CategoryOnlyMemo()
+        var lastOverrides: Map<String, com.zyke.message.domain.model.MessageCategory>? = null
+        var lastWords: Map<String, com.zyke.message.domain.model.MessageCategory>? = null
+        var lastCustom: Any? = null
+        var lastNicknames: Any? = null
+        var lastImages: Any? = null
+        return (progressive?.messages() ?: whole())
             .combine(manualEntries.entries) { classified, entries ->
                 if (entries.isEmpty()) {
                     classified
@@ -141,6 +164,9 @@ class ObserveMessagesUseCase(
             }
             .combine(learnedTemplates.templates) { classified, templates -> applyLearned(classified, templates) }
             .combine(categoryOverrides.overrides.combine(tokenRules.rules) { o, t -> o to t }) { classified, (overrides, words) ->
+                if (lastOverrides != null && (overrides != lastOverrides || words != lastWords)) userChanged()
+                lastOverrides = overrides
+                lastWords = words
                 val applied = classified.map { CategoryKey.apply(it, overrides, words) }
                 DiagLog.d("pipeline") {
                     "category overrides: ${overrides.size} set, ${applied.count { it.categoryOverridden }} of ${applied.size} messages carry one, ${applied.count { it.categoryOwn }} their own"
@@ -148,6 +174,8 @@ class ObserveMessagesUseCase(
                 applied
             }
             .combine(customCategories.state) { classified, custom ->
+                if (lastCustom != null && custom != lastCustom) userChanged()
+                lastCustom = custom
                 DiagLog.d("pipeline") { "custom categories: ${custom.categories.size} made, ${custom.assignments.size} filed" }
                 com.zyke.message.domain.categories.CustomCategories.apply(classified, custom)
             }
@@ -155,6 +183,8 @@ class ObserveMessagesUseCase(
                 if (cards.isEmpty()) classified else classified.map { CardMatcher.apply(it, cards) }
             }
             .combine(senderImages.keysWithImage) { classified, keys ->
+                if (lastImages != null && keys != lastImages) userChanged()
+                lastImages = keys
                 if (keys.isEmpty()) classified else classified.map { message ->
                     // A picture chosen for this one payment beats one chosen for everything from its sender or receiver.
                     val own = CategoryKey.messageKey(message.id)
@@ -174,6 +204,8 @@ class ObserveMessagesUseCase(
                 }
             }
             .combine(nicknameRepository.nicknames) { classified, nicknames ->
+                if (lastNicknames != null && nicknames != lastNicknames) userChanged()
+                lastNicknames = nicknames
                 DiagLog.d("pipeline") {
                     val named = classified.count { it.merchant.renamed }
                     "nicknames: ${nicknames.size} set, ${classified.count { m -> nicknames.containsKey(CategoryKey.messageKey(m.id)) || CategoryKey.of(m)?.let(nicknames::containsKey) == true }} of ${classified.size} messages match one (before applying), $named already renamed"
@@ -187,21 +219,23 @@ class ObserveMessagesUseCase(
             }
             .combine(cardBills.state) { classified, decisions ->
                 // A payment of a card's bill moves the person's own money: the swipes were counted when they were made.
-                com.zyke.message.domain.ledger.CardBillPayments.apply(classified, decisions, ZoneId.systemDefault())
+                cardBillMemo.run(classified, decisions) { com.zyke.message.domain.ledger.CardBillPayments.apply(it, decisions, ZoneId.systemDefault()) }
             }
             .combine(setAsides.state) { classified, asides ->
                 DiagLog.d("pipeline") { "set aside: ${asides.excluded.size} left out, ${asides.transfers.size} transfers, ${asides.dismissed.size} dismissed suggestions, over ${classified.size} messages" }
-                if (asides.excluded.isEmpty() && asides.transfers.isEmpty()) classified else classified.map { message ->
-                    val kind = message.setAside ?: asides.kindOf(message.id) ?: return@map message
-                    val content = message.content
-                    val internal = if (content is MessageContent.Transaction) content.copy(isCardPayment = true) else content
-                    message.copy(content = internal, setAside = kind)
+                if (asides.excluded.isEmpty() && asides.transfers.isEmpty()) classified else setAsideMemo.run(classified, asides) { all ->
+                    all.map { message ->
+                        val kind = message.setAside ?: asides.kindOf(message.id) ?: return@map message
+                        val content = message.content
+                        val internal = if (content is MessageContent.Transaction) content.copy(isCardPayment = true) else content
+                        message.copy(content = internal, setAside = kind)
+                    }
                 }
             }
-            .combine(mergeRepository.merges) { classified, merges -> Merges.apply(classified, merges) }
+            .combine(mergeRepository.merges) { classified, merges -> mergeMemo.run(classified, merges) { Merges.apply(it, merges) } }
             .combine(samePayments.state) { classified, decisions ->
                 // One payment, several texts: the bank's debit counts, a gateway's or merchant's confirmation of it does not.
-                com.zyke.message.domain.ledger.SamePayment.apply(classified, decisions, ZoneId.systemDefault())
+                samePaymentMemo.run(classified, decisions) { com.zyke.message.domain.ledger.SamePayment.apply(it, decisions, ZoneId.systemDefault()) }
             }
             .combine(paymentNotes.notes) { classified, notes ->
                 if (notes.isEmpty()) classified else classified.map { com.zyke.message.domain.notes.PaymentNotes.apply(it, notes) }
@@ -209,7 +243,15 @@ class ObserveMessagesUseCase(
             .map(CategorySuggester::annotate)
             // Nothing changed for any message (every one is the same instance): do not wake every screen again.
             .distinctUntilChanged(::sameInstances)
+            .onEach { list ->
+                val started = changeStartedAt
+                if (started != 0L) {
+                    changeStartedAt = 0L
+                    DiagLog.d("category") { "change applied in ${(System.nanoTime() - started) / 1_000_000} ms (${list.size} messages)" }
+                }
+            }
             .flowOn(dispatcher)
+    }
 
     /** Only messages left as plain text that a taught format reads fully are copied; every other one stays the same instance. */
     private fun applyLearned(classified: List<ClassifiedMessage>, templates: List<com.zyke.message.domain.teach.LearnedTemplate>): List<ClassifiedMessage> {

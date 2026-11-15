@@ -17,11 +17,12 @@ class CategoryOverrideRepositoryImpl(context: Context) : CategoryOverrideReposit
 
     @Synchronized
     override fun set(key: String, category: MessageCategory?) {
+        // Everyone watching sees the choice first; the disk follows in the background.
+        val before = _overrides.value.size
+        _overrides.value = if (category == null) _overrides.value - key else _overrides.value + (key to category)
         val editor = prefs.edit()
         if (category == null) editor.remove(key) else editor.putString(key, category.name)
         editor.apply()
-        val before = _overrides.value.size
-        _overrides.value = if (category == null) _overrides.value - key else _overrides.value + (key to category)
         com.zyke.message.data.diag.DevLog.d("category") {
             "set key=${com.zyke.message.domain.diag.DiagLog.key(key)} category=$category count $before -> ${_overrides.value.size} storedNow=${prefs.contains(key)}"
         }
@@ -35,8 +36,8 @@ class CategoryOverrideRepositoryImpl(context: Context) : CategoryOverrideReposit
             for ((key, category) in changes) {
                 if (category == null) { editor.remove(key); next = next - key } else { editor.putString(key, category.name); next = next + (key to category) }
             }
-            editor.apply()
             _overrides.value = next
+            editor.apply()
             com.zyke.message.data.diag.DevLog.d("category") { "set ${changes.size} keys at once -> ${next.size} choices" }
         }
     }

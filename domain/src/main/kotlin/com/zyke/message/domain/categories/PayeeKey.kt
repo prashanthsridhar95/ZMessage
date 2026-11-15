@@ -17,8 +17,26 @@ object PayeeKey {
     private val VPA = Regex("^[A-Za-z0-9._\\-]{2,}@[A-Za-z][A-Za-z0-9.]{1,}$")
     private val NOT_WORD = Regex("[^\\p{L}\\p{N}]+")
 
-    /** The key for [payee], or null when there is nothing to key on. */
+    private const val NONE = "\u0000"
+    private const val MAX_CACHED = 20_000
+    private const val MAX_CACHED_LENGTH = 200
+    private val known = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * The key for [payee], or null when there is nothing to key on. The same few hundred names recur across thousands of
+     * messages and many stages, so each distinct name is worked out once (the regex work below is the cost of a category change).
+     */
     fun of(payee: String): String? {
+        known[payee]?.let { return if (it == NONE) null else it }
+        val result = work(payee)
+        if (payee.length <= MAX_CACHED_LENGTH) {
+            if (known.size >= MAX_CACHED) known.clear()
+            known[payee] = result ?: NONE
+        }
+        return result
+    }
+
+    private fun work(payee: String): String? {
         val trimmed = payee.trim().trim { !it.isLetterOrDigit() }
         if (trimmed.isEmpty()) return null
         if (!trimmed.any { it.isWhitespace() } && VPA.matches(trimmed)) return trimmed.lowercase()

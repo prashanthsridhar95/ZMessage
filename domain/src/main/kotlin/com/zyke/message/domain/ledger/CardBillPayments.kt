@@ -84,6 +84,36 @@ object CardBillPayments {
     /** Payees of these kinds are people and shops-with-no-category: a payment to one that equals a card bill is the bill. */
     private val NEUTRAL = setOf(MessageCategory.OTHERS, MessageCategory.UPI_PAYMENT, MessageCategory.CREDIT_CARDS, MessageCategory.PAY_LATER)
 
+    /**
+     * The only ways [apply] reads a message's category, as a number that is the same before and after a change of category
+     * exactly when the change cannot alter what [apply] finds (see CategoryOnlyMemo): whether the payee is filed as "credit cards",
+     * and, for a debit whose amount equals a bill's total or minimum due or a card's payment credit, whether it is one of the neutral
+     * kinds (the layers that look at that need such an amount; nothing else reads it). Built from [messages], the list [apply] is given.
+     */
+    fun categorySensitivity(messages: List<ClassifiedMessage>): (ClassifiedMessage) -> Int {
+        val billAmounts = ArrayList<BigDecimal>()
+        val creditAmounts = HashSet<BigDecimal>()
+        for (m in messages) {
+            val content = m.content
+            if (content is MessageContent.CardBill) {
+                content.amount.toBigDecimalOrNull()?.let { billAmounts += it }
+                content.minimumDue?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }?.let { billAmounts += it }
+            } else if (content is MessageContent.Transaction && content.isReceived && content.isCard && content.isCardPayment) {
+                content.amount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }?.let { creditAmounts += it.stripTrailingZeros() }
+            }
+        }
+        return { message ->
+            val tx = message.content as? MessageContent.Transaction
+            if (tx == null) {
+                0
+            } else {
+                val amount = tx.amount.toBigDecimalOrNull()
+                val near = amount != null && (amount.stripTrailingZeros() in creditAmounts || billAmounts.any { (amount - it).abs() <= BigDecimal.ONE })
+                (if (near && message.category in NEUTRAL) 1 else 0) + (if (message.category == MessageCategory.CREDIT_CARDS) 2 else 0)
+            }
+        }
+    }
+
     /** True when [message] is a bank-side payment of a card bill that is kept out of the totals (and not a wallet top-up). */
     fun isCountedAsBillPayment(message: ClassifiedMessage): Boolean {
         val tx = message.content as? MessageContent.Transaction ?: return false

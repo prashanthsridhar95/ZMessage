@@ -49,6 +49,9 @@ class MessagesViewModel(
     private val conversationBuilder = ConversationBuilder()
     private var observeJob: Job? = null
 
+    /** Category choices shown at once, until the inbox that comes back carries them (see [PendingCategories]). */
+    private val pending = com.zyke.message.domain.categories.PendingCategories()
+
     init {
         startDeriving("messages", deriveContext) { snapshot -> deriveFeed(snapshot) }
         viewModelScope.launch {
@@ -130,7 +133,9 @@ class MessagesViewModel(
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
             is Intent.SetMessageCategory -> {
                 com.zyke.message.data.diag.DevLog.d("category") { "messages: this transaction id=${intent.messageId} -> ${intent.category}" }
-                categoryOverrides.set(CategoryKey.messageKey(intent.messageId), intent.category)
+                val key = CategoryKey.messageKey(intent.messageId)
+                showCategoryNow(key, intent.category)
+                categoryOverrides.set(key, intent.category)
             }
             is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }.also { message ->
                 com.zyke.message.data.diag.DevLog.d("category") {
@@ -139,6 +144,7 @@ class MessagesViewModel(
             }?.let { message ->
                 val key = CategoryKey.of(message) ?: return@let
                 val previous = message.category.takeIf { message.categoryOverridden }
+                showCategoryNow(key, intent.category)
                 categoryOverrides.set(key, intent.category)
                 if (intent.announce) {
                     emitEffect(Effect.CategoryChanged(message.id, CategoryKey.label(message), intent.category, previous))
@@ -216,12 +222,27 @@ class MessagesViewModel(
                         copy(
                             isLoading = false,
                             hasError = false,
-                            messages = inbox,
+                            messages = pending.settle(inbox),
                             now = clock.instant()
                         )
                     }
                 }
         }
+    }
+
+    /**
+     * The person filed a payment or a payee: the messages in the state, the rows already built and so the open sheet show it in
+     * this same reduction, before the choice has gone through the pipeline; the feed is then built again behind it.
+     */
+    private fun showCategoryNow(key: String, category: com.zyke.message.domain.model.MessageCategory?) {
+        val started = System.nanoTime()
+        pending.add(key, category)
+        reduce {
+            val shown = pending.overlay(messages)
+            if (shown === messages) this else copy(messages = shown, feed = com.zyke.message.domain.feed.FeedPatch.sync(feed, com.zyke.message.domain.feed.FeedPatch.changed(messages, shown)))
+        }
+        requestDerive()
+        com.zyke.message.domain.diag.DiagLog.d("category") { "change shown in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
     }
 
     /** Applies [change] at once and asks for the derived [State.feed] to be rebuilt away from the main thread. */
@@ -256,7 +277,9 @@ class MessagesViewModel(
         val key = updated.openThreadKey
         com.zyke.message.data.diag.DevLog.d("feed") { "feed rebuilt in ${(System.nanoTime() - started) / 1_000_000} ms (${updated.messages.size} messages)" }
         return {
-            val built = copy(feed = feed, conversations = conversations, thread = thread)
+            // Messages that changed while this was being built (a category just chosen) are shown as they are now, not as they were.
+            val newer = if (messages === updated.messages) emptyMap() else com.zyke.message.domain.feed.FeedPatch.changed(updated.messages, messages)
+            val built = copy(feed = com.zyke.message.domain.feed.FeedPatch.sync(feed, newer), conversations = conversations, thread = thread)
             // A conversation that has no messages left (all archived) closes itself.
             if (key != null && thread == null && openThreadKey == key) built.copy(openThreadKey = null, focusMessageId = null) else built
         }

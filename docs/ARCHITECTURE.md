@@ -87,6 +87,19 @@ or only this one) in the pickers. The sender's own flow (the sender thread, "Edi
 No store was added: payee choices live in the existing `category_overrides`, `nicknames`, `custom_categories` and the image
 store, already in the backup.
 
+**A category change shows at once.** Three things make it so. (1) The screens that hold the inbox (Messages, Home) apply the
+choice on the messages they already have in the same reduction as the tap (`PendingCategories`, domain, tested; `FeedPatch` puts
+the new versions into the rows already built), so rows, the open sheet and the picker's current value change in the same frame;
+the inbox that comes back replaces the overlay (`settle`; one that was already on its way from before the tap does not undo it,
+and a choice not confirmed within five seconds is dropped). Taking a choice away is not shown ahead, because the automatic
+category is only known to the pipeline. (2) In the pipeline the heavy stages (card bill payments, set asides, merges, same
+payment) are wrapped in `CategoryOnlyMemo`: when only the category fields of some messages differ from last time, the stage's
+last result is patched for those messages instead of run over the whole inbox; the card bill stage also runs in full when the
+change could alter its reading (`CardBillPayments.categorySensitivity`). Differential tests compare the patched inbox with a full
+run for random sequences of choices. (3) `calm` keeps its gap only for the bulk re-reads of a big inbox: a change in category,
+word rule, custom category, name or picture sets a flag that lets the next list through at once. The developer log has
+`change shown in N ms` (the screen) and `change applied in N ms` (the pipeline), counts only.
+
 ## Flights on the day you fly
 
 A flight booked by SMS gets a card at the top of Home on the day of travel, and a bottom sheet with its full status.
