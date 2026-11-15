@@ -906,9 +906,10 @@ internal fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             RowTitle(message.merchant.displayName)
-            Caption(
-                DisplayFormatters.listStamp(message.message.date) +
-                    (tx.accountNumber.takeIf { it.isNotEmpty() }?.let { " · •• $it" } ?: "")
+            com.zyke.message.presentation.messages.components.PaymentInstrumentCaption(
+                instrument = com.zyke.message.presentation.messages.components.rememberInstrument(message),
+                last4 = tx.accountNumber,
+                rest = DisplayFormatters.listStamp(message.message.date)
             )
         }
         Spacer(Modifier.width(12.dp))

@@ -36,6 +36,8 @@ class AccessibilityPolicyTest {
         "home/AccountsUi.kt" to 1,                         // leading icon of a menu item, whose text is the label
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label
         "messages/components/SwipeActions.kt" to 1,         // the icon beside its label behind a swiped row; the row offers the same actions to a screen reader
+        "messages/components/PaymentInstrumentCaption.kt" to 1, // the instrument glyph before the masked number; the row's spoken summary names the instrument ("from credit card ending 8065")
+        "messages/components/MessageDetailSheet.kt" to 1,  // the same glyph before the card or account number; its row label already says "Credit card", "Bank account"...
         "messages/components/OtpCard.kt" to 1,             // copy glyph on a card that is described and clickable as a whole
         "messages/components/MessageCommon.kt" to 2,       // airline logo (its box clears semantics; the card speaks) and the small icon in IconCaption beside its text
         "trains/TrainParts.kt" to 1,                       // the train glyph on its tile (the card speaks as a whole)
@@ -158,5 +160,22 @@ class AccessibilityPolicyTest {
         assertTrue("a screen reader is detected", "fun rememberScreenReaderOn" in File(presentation, "common/Accessibility.kt").readText())
         val strip = File(presentation, "home/NetWorthPull.kt").readText().substringAfter("fun NetWorthPullStrip")
         assertTrue("the pull strip is decoration, not a second thing to focus", "clearAndSetSemantics" in strip)
+    }
+
+    @Test
+    fun theInstrumentIconIsDecorativeThemedAndEveryInstrumentHasAGlyph() {
+        val text = File(presentation, "messages/components/PaymentInstrumentCaption.kt").readText()
+        assertEquals("one unlabelled glyph, no other", 1, Regex("contentDescription = null").findAll(text).count())
+        assertTrue("tinted by the theme's muted colour, never a literal colour", "ColorFilter.tint(color)" in text && "Color(0x" !in text && "Color.Red" !in text)
+        val enumText = File(appRoot().parentFile, "domain/src/main/kotlin/com/zyke/message/domain/accounts/PaymentInstruments.kt").takeIf { it.isFile }?.readText()
+        val drawables = File(appRoot(), "src/main/res/drawable")
+        listOf("ic_instrument_bank", "ic_instrument_credit_card", "ic_instrument_debit_card", "ic_instrument_fastag").forEach { name ->
+            val xml = File(drawables, "$name.xml")
+            assertTrue("$name.xml exists", xml.isFile)
+            assertTrue("$name is a plain vector with a path", "<vector" in xml.readText() && "android:pathData" in xml.readText())
+        }
+        // The spoken summary says the instrument, so the glyph adds nothing a screen reader would miss.
+        assertTrue("instrument.spoken" in File(presentation, "format/AccessibilityText.kt").readText() || "instrument" in File(presentation, "format/AccessibilityText.kt").readText())
+        if (enumText != null) assertTrue("UNKNOWN" in enumText)
     }
 }

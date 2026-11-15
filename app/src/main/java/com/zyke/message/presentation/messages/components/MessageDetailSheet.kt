@@ -36,6 +36,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.zyke.message.presentation.common.LocalImageStore
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import com.zyke.message.domain.accounts.PaymentInstrument
 import kotlinx.coroutines.launch
 import com.zyke.message.presentation.common.AppBottomSheet
 import com.zyke.message.presentation.common.addToCalendar
@@ -109,6 +114,7 @@ internal fun MessageDetailSheet(
     val message = item.message
     val content = item.content
     val facts = item.detailFacts()
+    val instrument = rememberInstrument(item)
     val senderLabel = com.zyke.message.presentation.common.rememberSenderLabel(message.sender, item.merchant.name.takeIf { item.merchant.renamed })
     val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else if (senderLabel.verified) senderLabel.name else SenderKey.displayAddress(message.sender)
     val sender = SenderKey.displayAddress(message.sender)
@@ -163,8 +169,22 @@ internal fun MessageDetailSheet(
                     facts.forEachIndexed { index, fact ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                         Row(Modifier.fillMaxWidth().padding(vertical = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-                            Caption(fact.label, Modifier.weight(1f))
+                            val factInstrument = if (fact.isInstrument) instrument else PaymentInstrument.UNKNOWN
+                            Caption(
+                                if (factInstrument == PaymentInstrument.UNKNOWN) fact.label else factInstrument.spoken.replaceFirstChar { it.uppercase() },
+                                Modifier.weight(1f)
+                            )
                             Spacer(Modifier.width(Spacing.md))
+                            val factIcon = factInstrument.icon()
+                            if (factIcon != null) {
+                                Image(
+                                    modifier = Modifier.size(Spacing.lg),
+                                    painter = painterResource(factIcon),
+                                    contentDescription = null,
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.secondary)
+                                )
+                                Spacer(Modifier.width(Spacing.xs))
+                            }
                             Text(
                                 text = fact.value,
                                 style = MaterialTheme.typography.bodyLarge,

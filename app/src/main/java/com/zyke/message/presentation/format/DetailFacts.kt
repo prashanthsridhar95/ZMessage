@@ -8,7 +8,8 @@ import com.zyke.message.domain.model.ScheduledKind
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class DetailFact(val label: String, val value: String)
+/** [isInstrument]: this row names the card or account the payment was made with; the sheet puts the instrument icon before it. */
+data class DetailFact(val label: String, val value: String, val isInstrument: Boolean = false)
 
 /** The numbers and names we understood in a message, as label / value rows for its detail sheet. */
 fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<DetailFact> {
@@ -46,7 +47,7 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
 private fun ClassifiedMessage.transactionFacts(c: MessageContent.Transaction) = listOfNotNull(
     DetailFact(if (c.isCardPayment) (com.zyke.message.domain.ledger.InternalMoves.label(c) ?: "Card bill paid") else if (c.isReceived) "Received" else "Paid", DisplayFormatters.rupees(c.amount)),
     c.payee.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isReceived) "From" else "To", merchant.displayName) },
-    c.accountNumber.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isCard) "Card" else "Account", "•• $it") },
+    c.accountNumber.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isCard) "Card" else "Account", "•• $it", isInstrument = true) },
     c.bankName.displayString.takeIf { it.isNotEmpty() }?.let { DetailFact("Bank", it) }
 )
 

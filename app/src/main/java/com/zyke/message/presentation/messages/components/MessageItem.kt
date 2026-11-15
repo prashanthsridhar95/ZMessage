@@ -78,7 +78,8 @@ internal fun MessageCard(
     val isUnread = state.isUnread(item) || related.any { state.isUnread(it) }
     val expand = { actions.onOpenMessage(item.id) }
 
-    val spoken = com.zyke.message.presentation.common.privateSpeech(remember(item, isUnread, time, today, related.size) { item.spokenSummary(time, isUnread, today, related.size) })
+    val instrument = rememberInstrument(item)
+    val spoken = com.zyke.message.presentation.common.privateSpeech(remember(item, isUnread, time, today, related.size, instrument) { item.spokenSummary(time, isUnread, today, related.size, instrument) })
 
     CompositionLocalProvider(LocalSpokenSummary provides spoken) {
         when (val content = item.content) {

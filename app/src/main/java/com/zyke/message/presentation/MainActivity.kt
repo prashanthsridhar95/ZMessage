@@ -414,8 +414,13 @@ class MainActivity : ComponentActivity() {
 
                 // After Welcome and the permission steps: the tour invitation (fresh installs), or a tour left half-way.
                 com.zyke.message.presentation.tour.TourLaunch(tourController, permissionsSettled.value)
+                // The person's accounts, so every payment row can say whether its number is a credit card, a debit card or a bank account.
+                val paymentAccounts by remember { homeViewModel.state.map { it.accounts.accounts }.distinctUntilChanged() }
+                    .collectAsStateWithLifecycle(emptyList())
+                val paymentInstruments = remember(paymentAccounts) { com.zyke.message.domain.accounts.PaymentInstruments.Lookup.of(paymentAccounts) }
                 AppRoot(
                     inboxBadge = unread,
+                    paymentInstruments = paymentInstruments,
                     // Collected inside the note, so the progress ticking while the inbox is read redraws only the note.
                     topNote = {
                         val reading by container.observeMessages.progress.collectAsStateWithLifecycle()

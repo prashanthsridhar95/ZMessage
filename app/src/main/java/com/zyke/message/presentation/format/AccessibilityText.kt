@@ -1,5 +1,7 @@
 package com.zyke.message.presentation.format
 
+import com.zyke.message.domain.accounts.PaymentInstrument
+import com.zyke.message.domain.accounts.PaymentInstruments
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.CourierStatus
 import com.zyke.message.domain.model.FastTagEvent
@@ -11,7 +13,14 @@ import java.time.LocalDate
  * One sentence per message for screen readers, so TalkBack says "Paid ₹540 to Burmy Foods from
  * account ending 5765" instead of reading a logo, a name, a dot and an amount as separate items.
  */
-fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: LocalDate = LocalDate.now(), related: Int = 0): String {
+fun ClassifiedMessage.spokenSummary(
+    time: String,
+    isUnread: Boolean,
+    today: LocalDate = LocalDate.now(),
+    related: Int = 0,
+    /** What the payment was made with (the row's icon); worked out from the wording when the caller has no accounts to ask. */
+    instrument: PaymentInstrument = PaymentInstruments.of(this)
+): String {
     val body = when (val c = content) {
         is MessageContent.Otp ->
             if (c.code.isEmpty()) "Message from ${senderSpoken(c.senderName)}"
@@ -22,7 +31,7 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
             val verb = if (c.isReceived) "Received $amount from $who" else "Paid $amount to $who"
             val repeat = samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { ". Same payment as the ${it.primaryLabel}, not counted again" }.orEmpty()
             val more = if (related > 0) ", ${DisplayFormatters.count(related, "related message", "related messages")}" else ""
-            verb + account(c.accountNumber, c.isCard) + more + repeat
+            verb + paidWith(instrument, c.accountNumber, c.isCard, c.isReceived) + more + repeat
         }
         is MessageContent.CardBill -> {
             val due = c.dueDate?.let { ", ${DisplayFormatters.dueLabel(it, today).replaceFirst("Due", "due")}" }.orEmpty()
@@ -66,6 +75,13 @@ fun ClassifiedMessage.spokenSummary(time: String, isUnread: Boolean, today: Loca
 /** The sender as a screen reader says it: "Spinny, verified sender" for a registered header, the name the person gave it if they gave one. */
 private fun ClassifiedMessage.senderSpoken(fallbackName: String? = null): String =
     com.zyke.message.domain.conversation.SenderDisplay.of(message.sender, merchant.name.takeIf { merchant.renamed }, fallbackName).spoken
+
+/** "from credit card ending 8065" for a payment, "to bank account ending 5765" for money in; the plain wording when the instrument is not known. */
+private fun paidWith(instrument: PaymentInstrument, number: String, isCard: Boolean, received: Boolean): String {
+    if (instrument == PaymentInstrument.UNKNOWN || instrument.spoken.isEmpty()) return account(number, isCard)
+    val ending = if (number.isEmpty()) "" else " ending $number"
+    return if (received) ", to ${instrument.spoken}$ending" else " from ${instrument.spoken}$ending"
+}
 
 private fun account(number: String, isCard: Boolean): String =
     if (number.isEmpty()) "" else ", ${if (isCard) "card" else "account"} ending $number"

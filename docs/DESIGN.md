@@ -161,6 +161,14 @@ the amount (`RowAmount`: one line, shrinks to fit its half of the row) or a stat
 (`TypeRole.section`, capitals, muted) on the page colour so rows pass under them while they stick. The skeleton uses the same gutters,
 tile and line heights, so the list that replaces it does not move.
 
+**What it was paid with.** A payment's caption starts with one small monochrome icon (14 dp, 1.5x less than the font scale, theme muted
+colour via `ColorFilter.tint`, never a literal colour) directly before the masked number: `[icon] •• 8065 · 10:20 PM`
+(`PaymentInstrumentCaption`: icon and text share one row, the text ellipsises, the icon never wraps alone). The icon is the funding
+source: credit card, debit card (card with a chip), bank account (UPI, IMPS, NEFT and net banking all pay from one), wallet (UPI Lite
+balance, prepaid wallets) or FASTag; an unknown instrument draws nothing. It is decoration: the row's spoken summary says "Paid ₹804 to
+Amazon from credit card ending 8065". Used by the Messages row, Home's recent activity and the detail sheet's Card / Account row (whose
+label then reads "Credit card", "Bank account"...). Not shown where the caption has no number (Accounts activity, Review, Search rows).
+
 **What animates**
 
 | Where | What | Token |

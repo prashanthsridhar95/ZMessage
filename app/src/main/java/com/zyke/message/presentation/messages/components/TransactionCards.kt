@@ -30,8 +30,9 @@ internal fun TransactionCard(
     /** What the row says about them when it is more than a count ("+1 copy"); null shows "+N related". */
     relatedLabel: String? = null
 ) {
-    val account = content.accountNumber.takeIf { it.isNotEmpty() }?.let { "•• $it" }
-        ?: content.bankName.displayString.takeIf { it.isNotEmpty() }
+    val instrument = rememberInstrument(item)
+    val last4 = content.accountNumber.takeIf { it.isNotEmpty() }
+    val fallbackName = if (last4 == null) content.bankName.displayString.takeIf { it.isNotEmpty() } else null
     val sign = if (content.isReceived) "+" else "-"
     // A gateway's or merchant's text for a payment the bank's debit already shows: it says so, and its amount is quiet.
     val repeatOf = item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { "Same payment as ${it.primaryLabel}" }
@@ -42,7 +43,11 @@ internal fun TransactionCard(
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             RowTitle(item.merchant.displayName)
-            Caption(listOfNotNull(repeatOf ?: account, time, if (relatedCount > 0) (relatedLabel ?: "+$relatedCount related") else null).joinToString(" · "))
+            PaymentInstrumentCaption(
+                instrument = instrument,
+                last4 = if (repeatOf == null) last4 else null,
+                rest = listOfNotNull(repeatOf ?: fallbackName, time, if (relatedCount > 0) (relatedLabel ?: "+$relatedCount related") else null).joinToString(" · ")
+            )
         }
 
         Spacer(Modifier.width(Spacing.md))

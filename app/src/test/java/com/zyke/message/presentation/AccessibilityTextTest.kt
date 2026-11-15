@@ -17,15 +17,28 @@ class AccessibilityTextTest {
     @Test
     fun payment_isOneSentence() {
         val text = summary("Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 1")
-        assertEquals("Paid ₹540 to Burmy Foods, account ending 5765. 2:30 PM", text)
+        assertEquals("Paid ₹540 to Burmy Foods from bank account ending 5765. 2:30 PM", text)
+    }
+
+    @Test
+    fun aCardPaymentSaysWhichCard() {
+        val text = summary("Spent Rs.804 On HDFC Bank Card 8065 At AMAZON On 2026-10-01:10:20:11")
+        assertTrue(text, text.startsWith("Paid ₹804 to ") && text.endsWith(" from credit card ending 8065. 2:30 PM"))
+    }
+
+    @Test
+    fun theMatchedAccountDecidesWhatTheSummarySays() {
+        val message = classifier.classify(SmsMessage(1, "AD-HDFCBK", "Spent Rs.804 On HDFC Bank Card 8065 At AMAZON On 2026-10-01:10:20:11", 0, true))
+        val text = message.spokenSummary("2:30 PM", false, LocalDate.of(2026, 10, 26), 0, com.zyke.message.domain.accounts.PaymentInstrument.DEBIT_CARD)
+        assertTrue(text, text.endsWith(" from debit card ending 8065. 2:30 PM"))
     }
 
     @Test
     fun aPaymentWithRelatedMessagesSaysHowMany() {
         val message = classifier.classify(SmsMessage(1, "AD-HDFCBK", "Sent Rs.540.00\nFrom HDFC Bank A/C *5765\nTo BURMY FOODS\nOn 26/10/26\nRef 1", 0, true))
         val today = LocalDate.of(2026, 10, 26)
-        assertEquals("Paid ₹540 to Burmy Foods, account ending 5765, 2 related messages. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 2))
-        assertEquals("Paid ₹540 to Burmy Foods, account ending 5765, 1 related message. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 1))
+        assertEquals("Paid ₹540 to Burmy Foods from bank account ending 5765, 2 related messages. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 2))
+        assertEquals("Paid ₹540 to Burmy Foods from bank account ending 5765, 1 related message. 2:30 PM", message.spokenSummary("2:30 PM", false, today, related = 1))
     }
 
     @Test

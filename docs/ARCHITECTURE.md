@@ -355,6 +355,12 @@ passbook messages) and is added to the same totals as "Provident fund (from mess
   stocks, gold and retirement into holdings once (id `nw:<itemId>`, invested = current = the old amount) and records their ids in the
   same locked write, so an entry counts exactly once before and after. The originals stay in `net_worth`, hidden. The
   net-worth form no longer offers those kinds. Tested: totals match before and after.
+* **Payment instrument** (`PaymentInstruments`, domain/accounts): a pure function of a classified message and the accounts. Order: FASTag
+  content; wallet wording (UPI Lite, "wallet", "Pay balance") unless the wallet is the payee (a top-up leaves the bank); the account
+  `Accounts.build` matched for the last four digits and bank (`PaymentInstruments.Lookup`, its kind including the person's override;
+  ambiguous matches are ignored); then the wording (card without "debit card" wording is a credit card, as in `Accounts`; a number or
+  A/c, UPI, IMPS, NEFT... is a bank account); else UNKNOWN. Nothing is serialised, so `RULES_VERSION` is unchanged. The app shell
+  provides the `Lookup` from Home's accounts (`LocalPaymentInstruments`) and rows call `rememberInstrument`.
 * **Accounts Overview and the Net worth door**: `AccountsOverviewModel.build` (domain) turns `AccountsOverview` into the total balance,
   `CardDues.summarize` (billed = `NetWorth.billOwing` per credit card, unbilled = `AccountSummary.unbilled`, or the month's `spent`
   flagged approximate when the cycle is unknown; per-card order, next bill due) and `leftAfterDues`. Billed and unbilled use the same

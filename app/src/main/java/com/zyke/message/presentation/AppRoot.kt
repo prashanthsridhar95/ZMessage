@@ -97,6 +97,8 @@ val StartTab = AppTab.HOME
 @Composable
 fun AppRoot(
     inboxBadge: Int,
+    /** The person's accounts, so a payment row can say whether its number is a credit card, a debit card or a bank account. */
+    paymentInstruments: com.zyke.message.domain.accounts.PaymentInstruments.Lookup = com.zyke.message.domain.accounts.PaymentInstruments.Lookup.EMPTY,
     toolbar: @Composable (tab: AppTab, openSettings: () -> Unit) -> Unit,
     /** Settings is a bottom sheet over whatever tab is showing; it is only composed while open. */
     settings: @Composable (onDismiss: () -> Unit) -> Unit,
@@ -167,6 +169,7 @@ fun AppRoot(
     }.collectAsState()
     CompositionLocalProvider(
         com.zyke.message.presentation.common.LocalCustomCategories provides customCategories.categories,
+        com.zyke.message.presentation.messages.components.LocalPaymentInstruments provides paymentInstruments,
         LocalSheetHost provides sheetHost,
         com.zyke.message.presentation.common.LocalPageHost provides pageHost,
         LocalAppSnackbar provides snackbar,
