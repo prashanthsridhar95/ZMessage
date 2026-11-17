@@ -25,6 +25,7 @@ import com.zyke.message.presentation.messages.MessagesContract.Intent
 import com.zyke.message.presentation.messages.MessagesContract.PermissionStatus
 import com.zyke.message.presentation.messages.MessagesContract.State
 import com.zyke.message.presentation.messages.MessagesContract.ViewMode
+import com.zyke.message.presentation.common.MessageActions
 import com.zyke.message.presentation.mvi.MviViewModel
 import java.time.Clock
 import java.time.ZoneId
@@ -49,8 +50,19 @@ class MessagesViewModel(
     private val conversationBuilder = ConversationBuilder()
     private var observeJob: Job? = null
 
-    /** Category choices shown at once, until the inbox that comes back carries them (see [PendingCategories]). */
-    private val pending = com.zyke.message.domain.categories.PendingCategories()
+    /** The choices shared with Home (pin, mute, archive, copy, open, category), written once in [MessageActions]. */
+    private val actions = MessageActions(
+        userState = userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, screen = "messages",
+        messages = { currentState().messages }, pinnedIds = { currentState().userState.pinnedIds },
+        write = { it() },
+        showOverlay = { pending ->
+            reduce {
+                val shown = pending.overlay(messages)
+                if (shown === messages) this else copy(messages = shown, feed = com.zyke.message.domain.feed.FeedPatch.sync(feed, com.zyke.message.domain.feed.FeedPatch.changed(messages, shown)))
+            }
+            requestDerive()
+        }
+    )
 
     init {
         startDeriving("messages", deriveContext) { snapshot -> deriveFeed(snapshot) }
@@ -100,29 +112,24 @@ class MessagesViewModel(
             Intent.CloseSummary -> reduce { copy(showSummarySheet = false) }
 
             is Intent.CopyOtp -> {
-                userStateRepository.markRead(intent.messageId)
+                actions.markReadForCopy(intent.messageId)
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
             is Intent.Archive -> {
                 if (currentState().detailMessageId == intent.messageId) reduce { copy(detailMessageId = null) }
-                userStateRepository.setArchived(intent.messageId, true)
+                actions.archive(intent.messageId)
                 emitEffect(Effect.MessageArchived(intent.messageId))
             }
-            is Intent.Unarchive -> userStateRepository.setArchived(intent.messageId, false)
+            is Intent.Unarchive -> actions.unarchive(intent.messageId)
             is Intent.SetRead -> setRead(intent.messageId, intent.read)
             is Intent.SetReadMany -> intent.ids.forEach { if (intent.read) userStateRepository.markRead(it) else userStateRepository.markUnread(it) }
-            is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
-                mutedSenders.setMuted(SenderKey.of(message.message.sender), !message.isMuted)
-            }
+            is Intent.ToggleMute -> actions.toggleMute(intent.messageId)
             is Intent.ArchiveMany -> {
                 intent.ids.forEach { userStateRepository.setArchived(it, true) }
                 emitEffect(Effect.ManyArchived(intent.ids))
             }
             is Intent.UnarchiveMany -> intent.ids.forEach { userStateRepository.setArchived(it, false) }
-            is Intent.TogglePin -> userStateRepository.setPinned(
-                intent.messageId,
-                intent.messageId !in currentState().userState.pinnedIds
-            )
+            is Intent.TogglePin -> actions.pin(intent.messageId)
             is Intent.RequestMerge -> if (intent.primaryId != intent.duplicateId) reduce { copy(mergeRequest = intent.primaryId to intent.duplicateId) }
             Intent.SwapMerge -> reduce { copy(mergeRequest = mergeRequest?.let { (primary, duplicate) -> duplicate to primary }) }
             Intent.ConfirmMerge -> {
@@ -131,26 +138,11 @@ class MessagesViewModel(
             }
             Intent.CancelMerge -> reduce { copy(mergeRequest = null) }
             is Intent.Unmerge -> merges.unmerge(intent.duplicateId)
-            is Intent.SetMessageCategory -> {
-                com.zyke.message.data.diag.DevLog.d("category") { "messages: this transaction id=${intent.messageId} -> ${intent.category}" }
-                val key = CategoryKey.messageKey(intent.messageId)
-                showCategoryNow(key, intent.category)
-                categoryOverrides.set(key, intent.category)
+            is Intent.SetMessageCategory -> actions.setMessageCategory(intent.messageId, intent.category)
+            is Intent.SetCategory -> actions.setCategory(intent.messageId, intent.category) { message, previous ->
+                if (intent.announce) emitEffect(Effect.CategoryChanged(message.id, CategoryKey.label(message), intent.category, previous))
             }
-            is Intent.SetCategory -> currentState().messages.firstOrNull { it.id == intent.messageId }.also { message ->
-                com.zyke.message.data.diag.DevLog.d("category") {
-                    "messages: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(message?.let(CategoryKey::of))} messagesInState=${currentState().messages.size}"
-                }
-            }?.let { message ->
-                val key = CategoryKey.of(message) ?: return@let
-                val previous = message.category.takeIf { message.categoryOverridden }
-                showCategoryNow(key, intent.category)
-                categoryOverrides.set(key, intent.category)
-                if (intent.announce) {
-                    emitEffect(Effect.CategoryChanged(message.id, CategoryKey.label(message), intent.category, previous))
-                }
-            }
-            is Intent.DismissAttention -> userStateRepository.dismissAttention(intent.key, intent.forever)
+            is Intent.DismissAttention -> actions.dismissAttention(intent.key, intent.forever)
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
         }
     }
@@ -177,9 +169,7 @@ class MessagesViewModel(
 
     private fun openMessage(messageId: Long) {
         if (currentState().messages.none { it.id == messageId }) return
-        userStateRepository.markRead(messageId)
-        // Opening a payment opens the messages that repeat it too: the group is one row, so it is read as one.
-        com.zyke.message.domain.ledger.PaymentGroups.of(currentState().messages).followersOf(messageId).forEach { userStateRepository.markRead(it.id) }
+        actions.markOpened(messageId)
         reduce { copy(detailMessageId = messageId) }
     }
 
@@ -222,27 +212,12 @@ class MessagesViewModel(
                         copy(
                             isLoading = false,
                             hasError = false,
-                            messages = pending.settle(inbox),
+                            messages = actions.pending.settle(inbox),
                             now = clock.instant()
                         )
                     }
                 }
         }
-    }
-
-    /**
-     * The person filed a payment or a payee: the messages in the state, the rows already built and so the open sheet show it in
-     * this same reduction, before the choice has gone through the pipeline; the feed is then built again behind it.
-     */
-    private fun showCategoryNow(key: String, category: com.zyke.message.domain.model.MessageCategory?) {
-        val started = System.nanoTime()
-        pending.add(key, category)
-        reduce {
-            val shown = pending.overlay(messages)
-            if (shown === messages) this else copy(messages = shown, feed = com.zyke.message.domain.feed.FeedPatch.sync(feed, com.zyke.message.domain.feed.FeedPatch.changed(messages, shown)))
-        }
-        requestDerive()
-        com.zyke.message.domain.diag.DiagLog.d("category") { "change shown in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
     }
 
     /** Applies [change] at once and asks for the derived [State.feed] to be rebuilt away from the main thread. */

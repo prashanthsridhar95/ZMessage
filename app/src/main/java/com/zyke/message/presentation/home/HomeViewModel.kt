@@ -53,6 +53,7 @@ import com.zyke.message.domain.repository.NoMutedSenders
 import com.zyke.message.domain.repository.NoCategoryOverrides
 import com.zyke.message.domain.repository.UserMessageStateRepository
 import com.zyke.message.domain.usecase.ObserveMessagesUseCase
+import com.zyke.message.presentation.common.MessageActions
 import com.zyke.message.presentation.home.HomeContract.Effect
 import com.zyke.message.presentation.home.HomeContract.Intent
 import com.zyke.message.presentation.home.HomeContract.State
@@ -117,23 +118,22 @@ class HomeViewModel(
     /** Writes the person's choices to disk one after another, away from the main thread. */
     private val writes = kotlinx.coroutines.channels.Channel<() -> Unit>(kotlinx.coroutines.channels.Channel.UNLIMITED)
 
-    /** Category choices shown at once, until the inbox that comes back carries them (see [PendingCategories]). */
-    private val pending = com.zyke.message.domain.categories.PendingCategories()
-
-    /** The person filed a payment or a payee: the messages in the state show it in this same reduction, before the pipeline has the choice. */
-    private fun showCategoryNow(key: String, category: com.zyke.message.domain.model.MessageCategory?) {
-        val started = System.nanoTime()
-        pending.add(key, category)
-        reduceHome {
-            val shown = pending.overlay(messages)
-            if (shown === messages) this else copy(messages = shown)
-        }
-        com.zyke.message.domain.diag.DiagLog.d("category") { "change shown in ${(System.nanoTime() - started) / 1_000_000} ms (${currentState().messages.size} messages)" }
-    }
-
     private fun io(write: () -> Unit) {
         writes.trySend(write)
     }
+
+    /** The choices shared with Messages (pin, mute, archive, copy, open, category), written once in [MessageActions]; saves go through [io]. */
+    private val actions = MessageActions(
+        userState = userStateRepository, categoryOverrides = categoryOverrides, mutedSenders = mutedSenders, screen = "home",
+        messages = { currentState().messages }, pinnedIds = { currentState().userState.pinnedIds },
+        write = ::io,
+        showOverlay = { pending ->
+            reduceHome {
+                val shown = pending.overlay(messages)
+                if (shown === messages) this else copy(messages = shown)
+            }
+        }
+    )
 
     init {
         startDeriving("home", deriveContext) { snapshot -> derive(snapshot) }
@@ -184,10 +184,10 @@ class HomeViewModel(
             is Intent.ScreenStarted ->
                 if (intent.permissionGranted) startObserving() else reduce { copy(isLoading = false, permissionMissing = true) }
             is Intent.CopyOtp -> {
-                io { userStateRepository.markRead(intent.messageId) }
+                actions.markReadForCopy(intent.messageId)
                 emitEffect(Effect.CopyToClipboard("One-time Password", intent.code))
             }
-            is Intent.DismissAttention -> io { userStateRepository.dismissAttention(intent.key, intent.forever) }
+            is Intent.DismissAttention -> actions.dismissAttention(intent.key, intent.forever)
             is Intent.RestoreAttention -> io { userStateRepository.restoreAttention(intent.key) }
             is Intent.LinkTransfer -> io { setAsideRepository.link(intent.debitId, intent.creditId) }
             is Intent.DismissTransfer -> io { setAsideRepository.dismissSuggestion(intent.key) }
@@ -196,44 +196,21 @@ class HomeViewModel(
             is Intent.SaveManualEntry -> io { manualEntryRepository.save(intent.entry.let { if (it.id <= 0) it.copy(id = manualEntryRepository.nextId()) else it }) }
             is Intent.OpenLink -> emitEffect(Effect.OpenLink(intent.url))
             is Intent.OpenMessage -> {
-                val repeats = com.zyke.message.domain.ledger.PaymentGroups.of(currentState().messages).followersOf(intent.messageId)
-                io { userStateRepository.markRead(intent.messageId); repeats.forEach { userStateRepository.markRead(it.id) } }
+                actions.markOpened(intent.messageId)
                 reduce { copy(detailMessageId = intent.messageId) }
             }
             Intent.CloseMessage -> reduce { copy(detailMessageId = null) }
             is Intent.OpenBudget -> reduce { copy(budgetDetail = intent.category) }
             Intent.CloseBudget -> reduce { copy(budgetDetail = null) }
-            is Intent.TogglePin -> {
-                val pin = intent.messageId !in currentState().userState.pinnedIds
-                io { userStateRepository.setPinned(intent.messageId, pin) }
-            }
+            is Intent.TogglePin -> actions.pin(intent.messageId)
             is Intent.Archive -> {
                 reduce { copy(detailMessageId = null) }
-                io { userStateRepository.setArchived(intent.messageId, true) }
+                actions.archive(intent.messageId)
             }
-            is Intent.Unarchive -> io { userStateRepository.setArchived(intent.messageId, false) }
-            is Intent.ToggleMute -> currentState().messages.firstOrNull { it.id == intent.messageId }?.let { message ->
-                val sender = SenderKey.of(message.message.sender)
-                val mute = !message.isMuted
-                io { mutedSenders.setMuted(sender, mute) }
-            }
-            is Intent.SetMessageCategory -> {
-                com.zyke.message.data.diag.DevLog.d("category") { "home: this transaction id=${intent.messageId} -> ${intent.category}" }
-                val key = CategoryKey.messageKey(intent.messageId)
-                showCategoryNow(key, intent.category)
-                io { categoryOverrides.set(key, intent.category) }
-            }
-            is Intent.SetCategory -> {
-                val message = currentState().messages.firstOrNull { it.id == intent.messageId }
-                val key = message?.let(CategoryKey::of)
-                com.zyke.message.data.diag.DevLog.d("category") {
-                    "home: sender/receiver id=${intent.messageId} -> ${intent.category} messageFound=${message != null} key=${com.zyke.message.domain.diag.DiagLog.key(key)} messagesInState=${currentState().messages.size}"
-                }
-                key?.let {
-                    showCategoryNow(it, intent.category)
-                    io { categoryOverrides.set(it, intent.category) }
-                }
-            }
+            is Intent.Unarchive -> actions.unarchive(intent.messageId)
+            is Intent.ToggleMute -> actions.toggleMute(intent.messageId)
+            is Intent.SetMessageCategory -> actions.setMessageCategory(intent.messageId, intent.category)
+            is Intent.SetCategory -> actions.setCategory(intent.messageId, intent.category)
             Intent.OpenCalendar -> reduce { copy(calendarOffset = 0) }
             Intent.OpenAdjustDaily -> reduce { copy(adjustingDaily = true) }
             Intent.CloseAdjustDaily -> reduce { copy(adjustingDaily = false) }
@@ -399,7 +376,7 @@ class HomeViewModel(
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceHome {
-                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = pending.settle(inbox), now = clock.instant())
+                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = actions.pending.settle(inbox), now = clock.instant())
                     }
                 }
         }

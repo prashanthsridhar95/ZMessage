@@ -28,16 +28,32 @@ class CategoryInstantPolicyTest {
 
     @Test
     fun pickingACategoryAppliesItOnTheStateBeforeTheRepositoryWrite() {
+        val source = read("presentation/common/MessageActions.kt")
+        for (function in listOf("setCategory", "setMessageCategory")) {
+            val start = source.indexOf("fun $function(")
+            assertTrue("no $function", start >= 0)
+            val next = source.indexOf("\n    fun ", start + 5).let { if (it < 0) source.length else it }
+            val text = source.substring(start, next)
+            val shown = text.indexOf("showCategoryNow(")
+            val written = text.indexOf("categoryOverrides.set(")
+            assertTrue("$function must show the choice at once", shown >= 0)
+            assertTrue("$function must still save the choice", written >= 0)
+            assertTrue("$function must show the choice before it is written", shown < written)
+        }
+        // The overlay is applied on the state before the (queued) write is even built.
+        val show = source.substring(source.indexOf("private fun showCategoryNow("))
+        assertTrue(show.indexOf("pending.add(") in 0 until show.indexOf("showOverlay("))
+    }
+
+    @Test
+    fun bothScreensFileCategoriesThroughTheSharedActions() {
         for ((path, name) in screens) {
             val source = read(path)
+            assertTrue("$name must use MessageActions", source.contains("MessageActions("))
             for (intent in listOf("SetCategory", "SetMessageCategory")) {
-                val text = branch(source, intent)
-                val shown = text.indexOf("showCategoryNow(")
-                val written = text.indexOf("categoryOverrides.set(")
-                assertTrue("$name $intent must show the choice at once", shown >= 0)
-                assertTrue("$name $intent must still save the choice", written >= 0)
-                assertTrue("$name $intent must show the choice before it is written", shown < written)
+                assertTrue("$name $intent must delegate", branch(source, intent).contains("actions.${intent.replaceFirstChar { it.lowercase() }}("))
             }
+            assertFalse("$name must not write overrides itself", source.contains("categoryOverrides.set("))
         }
     }
 
