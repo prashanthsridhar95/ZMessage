@@ -86,9 +86,11 @@ class ManifestPolicyTest {
         assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "FlightFetcher()" in it.readText() })
         assertTrue("FlightFetcher()" in File("src/main/java/com/zyke/message/data/flights/FlightService.kt").readText())
         // The in-flight tracking service reuses that one fetcher through FlightService.refresh; it has no network code or fetcher of its own.
-        val tracking = File("src/main/java/com/zyke/message/notifications/FlightTrackingService.kt").readText()
+        val notifications = File("src/main/java/com/zyke/message/notifications")
+        val shared = listOf("TripTrackingService.kt", "TripTrackingControl.kt", "TripNotifier.kt").map { File(notifications, it).readText() }
+        val tracking = File(notifications, "FlightTrackingService.kt").readText() + File(notifications, "FlightTrackingControl.kt").readText()
         assertTrue("flights.refresh(" in tracking)
-        assertFalse("FlightFetcher" in tracking || "FlightFetcher" in File("src/main/java/com/zyke/message/notifications/FlightTrackingControl.kt").readText())
+        assertFalse("FlightFetcher" in tracking || shared.any { "FlightFetcher" in it })
 
         // Live train status (off until the person has saved their own key and switched it on) asks one host over HTTPS, for one train: the
         // number, the run's start day and the person's key, nothing else.
@@ -103,9 +105,9 @@ class ManifestPolicyTest {
         assertFalse(Regex("CookieHandler|Authorization|ANDROID_ID|Settings\\.Secure|advertising", RegexOption.IGNORE_CASE).containsMatchIn(trainsFetcher))
         assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "TrainFetcher()" in it.readText() })
         assertTrue("TrainFetcher()" in File("src/main/java/com/zyke/message/data/trains/TrainService.kt").readText())
-        val trainTracking = File("src/main/java/com/zyke/message/notifications/TrainTrackingService.kt").readText()
+        val trainTracking = File(notifications, "TrainTrackingService.kt").readText() + File(notifications, "TrainTrackingControl.kt").readText()
         assertTrue("trains.refresh(" in trainTracking)
-        assertFalse("TrainFetcher" in trainTracking || "TrainFetcher" in File("src/main/java/com/zyke/message/notifications/TrainTrackingControl.kt").readText())
+        assertFalse("TrainFetcher" in trainTracking || shared.any { "TrainFetcher" in it })
         // The train source probe and the unofficial source it was looking for are gone, with every host they used.
         val everything = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.joinToString("\n") { it.readText() }
         assertFalse("TrainProbe" in everything)

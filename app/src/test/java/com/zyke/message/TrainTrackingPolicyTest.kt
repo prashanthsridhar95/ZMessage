@@ -17,79 +17,89 @@ class TrainTrackingPolicyTest {
     private val service get() = text("notifications/TrainTrackingService.kt")
     private val control get() = text("notifications/TrainTrackingControl.kt")
     private val notifier get() = text("notifications/TrainNotifier.kt")
+    // The loop, the notification builders and the alarm rules are written once, in the shared base classes (TripTrackingPolicyTest pins both kinds together).
+    private val baseService get() = text("notifications/TripTrackingService.kt")
+    private val baseControl get() = text("notifications/TripTrackingControl.kt")
+    private val baseNotifier get() = text("notifications/TripNotifier.kt")
 
     @Test fun theServiceIsADataSyncForegroundServiceThatEndsWhenTheSystemSays() {
-        assertTrue("ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC" in service)
-        assertTrue("startForeground(id, notification, ServiceInfo" in service)
-        assertTrue("override fun onTimeout(startId: Int, fgsType: Int)" in service)
-        assertTrue(service.substringAfter("override fun onTimeout").take(80).contains("StopReason.TIME_LIMIT"))
-        assertTrue("START_NOT_STICKY" in service && "START_STICKY" !in service.replace("START_NOT_STICKY", ""))
+        assertTrue("ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC" in baseService)
+        assertTrue("startForeground(id, notification, ServiceInfo" in baseService)
+        assertTrue("override fun onTimeout(startId: Int, fgsType: Int)" in baseService)
+        assertTrue(baseService.substringAfter("override fun onTimeout").take(80).contains("StopReason.TIME_LIMIT"))
+        assertTrue("START_NOT_STICKY" in baseService && "START_STICKY" !in baseService.replace("START_NOT_STICKY", ""))
+    }
+
+        @Test fun theServiceIsAThinSubclassOfTheSharedLoop() {
+        assertTrue("class TrainTrackingService : TripTrackingService<" in service)
+        assertFalse("onTimeout" in service || "startForeground" in service)
     }
 
     @Test fun theOngoingNotificationCannotBeSwipedAwayAndTheFinishedOneCan() {
-        val ongoing = notifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
+        val ongoing = baseNotifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
         assertTrue("setOngoing(true)" in ongoing)
         assertTrue("\"Stop tracking\"" in ongoing)
         assertTrue("setProgress(100" in ongoing)
         assertEquals("one action only", 1, Regex("addAction\\(").findAll(ongoing).count())
-        val finished = notifier.substringAfter("fun finished(").substringBefore("fun prompt(")
+        val finished = baseNotifier.substringAfter("fun finished(").substringBefore("fun prompt(")
         assertTrue("setOngoing(false)" in finished && "setAutoCancel(true)" in finished)
         assertFalse("addAction(" in finished)
         assertTrue("NotificationPrivacy.text(" in ongoing && "NotificationPrivacy.text(" in finished)
     }
 
     @Test fun theLockScreenShowsTheTrainUnlessTheOneSharedSwitchIsOff() {
-        val lock = notifier.substringAfter("private fun NotificationCompat.Builder.lockScreen(").substringBefore("/** The ongoing notification")
+        val lock = baseNotifier.substringAfter("private fun NotificationCompat.Builder.lockScreen(").substringBefore("/** The ongoing notification")
         assertTrue("setVisibility(NotificationCompat.VISIBILITY_PUBLIC)" in lock)
         assertTrue("setVisibility(NotificationCompat.VISIBILITY_PRIVATE)" in lock && "setPublicVersion(" in lock)
         assertTrue("TrainNotificationText.PUBLIC_TITLE" in notifier)
-        val ongoing = notifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
-        val finished = notifier.substringAfter("fun finished(").substringBefore("fun prompt(")
+        val ongoing = baseNotifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
+        val finished = baseNotifier.substringAfter("fun finished(").substringBefore("fun prompt(")
         for (n in listOf(ongoing, finished)) {
             assertTrue(".lockScreen(context," in n)
             assertFalse("setPublicVersion(" in n || "VISIBILITY_PRIVATE" in n)
         }
         assertTrue("detailsOnLock(context)" in ongoing && "detailsOnLock(context)" in finished)
         // One switch for flights and trains: the train notifier reads the flight service's stored flag.
-        assertTrue("container.flights.lockScreenDetails" in notifier)
-        assertTrue("VISIBILITY_PRIVATE" in notifier.substringAfter("fun prompt(").substringBefore("fun paused("))
+        assertTrue("container.flights.lockScreenDetails" in baseNotifier)
+        assertTrue("VISIBILITY_PRIVATE" in baseNotifier.substringAfter("fun prompt(").substringBefore("fun paused("))
     }
 
     @Test fun theOngoingNotificationIsGlanceableAndQuiet_onItsOwnChannel() {
-        val ongoing = notifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
+        val ongoing = baseNotifier.substringAfter("fun ongoing(").substringBefore("fun finished(")
         assertTrue("setOnlyAlertOnce(true)" in ongoing)
         assertTrue("CATEGORY_PROGRESS" in ongoing)
         assertTrue("setUsesChronometer(true)" in ongoing && "setChronometerCountDown(true)" in ongoing)
-        assertFalse(Regex("setColorized|RemoteViews|setCustom\\w*View|setVibrate|setDefaults|setFullScreenIntent|setTimeoutAfter").containsMatchIn(notifier))
-        val channel = notifier.substringAfter("TRACKING_CHANNEL, \"Train tracking\"").substringBefore("PROMPT_CHANNEL, \"Train reminders\"")
+        assertFalse(Regex("setColorized|RemoteViews|setCustom\\w*View|setVibrate|setDefaults|setFullScreenIntent|setTimeoutAfter").containsMatchIn(notifier + baseNotifier))
+        val channel = baseNotifier.substringAfter("NotificationChannel(look.trackingChannel, look.trackingName").substringBefore("NotificationChannel(look.promptChannel")
+        assertTrue("trackingName = \"Train tracking\"" in notifier && "promptName = \"Train reminders\"" in notifier)
         assertTrue("IMPORTANCE_DEFAULT" in channel && "IMPORTANCE_HIGH" !in channel)
         assertTrue("setSound(null, null)" in channel && "enableVibration(false)" in channel && "enableLights(false)" in channel)
         assertFalse("lockscreenVisibility =" in channel)
         // Its own channel ids, so the person can mute trains apart from flights (a channel's settings cannot be changed afterwards).
         assertTrue("TRACKING_CHANNEL = \"train_live\"" in notifier && "PROMPT_CHANNEL = \"train_prompts\"" in notifier)
         // Only constants and APIs the flight notifier already uses.
-        assertFalse("VISIBILITY_NO_OVERRIDE" in notifier.replace("(VISIBILITY_NO_OVERRIDE)", ""))
+        assertFalse("VISIBILITY_NO_OVERRIDE" in (notifier + baseNotifier).replace("(VISIBILITY_NO_OVERRIDE)", ""))
     }
 
     @Test fun liveUpdatesAreAskedForTheOngoingNoticeOnlyAndOnlyWhileTheLockScreenSwitchIsOn() {
-        assertTrue("if (details) LiveUpdates.promote(" in notifier)
-        assertFalse("LiveUpdates.promote(" in notifier.substringAfter("fun finished(").substringBefore("fun prompt("))
-        assertTrue("R.drawable.baseline_train_24" in notifier)
+        assertTrue("if (details) LiveUpdates.promote(" in baseNotifier)
+        assertFalse("LiveUpdates.promote(" in baseNotifier.substringAfter("fun finished(").substringBefore("fun prompt("))
+        assertTrue("R.drawable.baseline_train_24" in notifier && "look.icon" in baseNotifier.substringAfter("if (details) LiveUpdates.promote("))
     }
 
     @Test fun theAlarmIsInexactAndTheAppAsksForNoExactAlarmPermission() {
-        assertFalse(Regex("setExact|setAlarmClock|canScheduleExactAlarms").containsMatchIn(control))
-        assertTrue("setAndAllowWhileIdle" in control)
+        assertFalse(Regex("setExact|setAlarmClock|canScheduleExactAlarms").containsMatchIn(control + baseControl))
+        assertTrue("setAndAllowWhileIdle" in baseControl)
         val boot = text("notifications/BootReceiver.kt")
         assertTrue("TrainTrackingControl.rearm(context)" in boot)
         assertFalse("startService" in boot || "TrainTrackingService" in boot)
-        assertTrue(control.substringAfter("fun startService(").contains("catch (e: Exception)"))
+        assertTrue(baseControl.substringAfter("fun startService(").contains("catch (e: Exception)"))
         assertTrue("TrainNotificationText.tapToStart(" in control)
     }
 
     @Test fun nothingAboutATrainIsEverWrittenToTheLog() {
         val files = listOf(
-            service, control, notifier, text("data/trains/TrainService.kt"), text("presentation/trains/ManualTrainUi.kt"), text("presentation/trains/TrainUi.kt"),
+            service, control, notifier, baseService, baseControl, baseNotifier, text("data/trains/TrainService.kt"), text("presentation/trains/ManualTrainUi.kt"), text("presentation/trains/TrainUi.kt"),
             text("data/repository/ManualTrainRepositoryImpl.kt"), text("data/trains/TrainPlanStore.kt"), text("data/markets/TrainFetcher.kt")
         )
         val logged = files.flatMap { f -> f.lines().filter { "DevLog." in it || "Log." in it || "println(" in it } }
@@ -101,11 +111,11 @@ class TrainTrackingPolicyTest {
     }
 
     @Test fun theServiceAsksTheNetworkOnlyThroughTrainService_andStopsOnTheListedReasons() {
-        assertTrue("trains.refresh(" in service)
-        assertFalse(Regex("TrainFetcher|IndianRailApiParser").containsMatchIn(service + control))
-        val stops = service.substringAfter("private suspend fun watch()").substringBefore("private fun countFailures")
-        assertTrue("TrainTracking.stopReason(" in stops)
-        assertTrue("TrainTracking.pollDelayMs(" in stops)
+        assertTrue("control.refresh(" in baseService && "trains.refresh(" in control)
+        assertFalse(Regex("TrainFetcher|IndianRailApiParser").containsMatchIn(service + control + baseService + baseControl + baseNotifier))
+        val stops = baseService.substringAfter("private suspend fun watch()").substringBefore("private fun countFailures")
+        assertTrue("control.stopReason(" in stops && "TrainTracking.stopReason(" in control)
+        assertTrue("control.pollDelayMs(" in stops && "TrainTracking.pollDelayMs(" in control)
         assertTrue("canNotify" in stops && "liveOn" in stops && "trackingOn" in stops)
     }
 
@@ -166,13 +176,13 @@ class TrainTrackingPolicyTest {
     }
 
     @Test fun theKeyIsNeverLoggedShownInANotificationOrKeptInSavedState() {
-        val notificationAndLogFiles = listOf(service, control, notifier, text("data/trains/TrainService.kt"), keyStore, keyUi, text("data/markets/TrainFetcher.kt"))
+        val notificationAndLogFiles = listOf(service, control, notifier, baseService, baseControl, baseNotifier, text("data/trains/TrainService.kt"), keyStore, keyUi, text("data/markets/TrainFetcher.kt"))
         for (f in notificationAndLogFiles) {
             for (line in f.lines().filter { "DevLog." in it || "Log." in it || "println(" in it || "BlackBox" in it }) {
                 assertFalse("a log line may carry the key: $line", Regex("(?i)\\bkey\\(|\\bsafeKey\\b|\\bapi_?key\\b|\\bdraft\\b").containsMatchIn(line.substringAfter("{", "")))
             }
         }
-        assertFalse(Regex("(?i)\\bkey\\(").containsMatchIn(notifier) || "settings.key" in notifier)
+        assertFalse(Regex("(?i)\\bkey\\(").containsMatchIn(notifier + baseNotifier) || "settings.key" in notifier + baseNotifier)
         // What is typed is in memory only (not rememberSaveable, which would put it in the saved instance state).
         assertFalse("rememberSaveable" in keyUi.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") || it.trim().startsWith("/**") }.joinToString("\n"))
         assertTrue("var draft by remember { mutableStateOf(\"\") }" in keyUi)
@@ -202,7 +212,7 @@ class TrainTrackingPolicyTest {
         val ui = text("presentation/trains/TrainSettings.kt")
         assertTrue("enabled = canSwitch" in ui && "Add a train data key above to turn this on." in ui)
         // Everything that asks reads the effective flag, not the raw switch.
-        assertFalse("liveSwitch" in service + control + text("presentation/trains/TrainUi.kt") + text("presentation/trains/ManualTrainUi.kt"))
+        assertFalse("liveSwitch" in service + control + baseService + baseControl + text("presentation/trains/TrainUi.kt") + text("presentation/trains/ManualTrainUi.kt"))
     }
 
     @Test fun theRequestsOfTheDayAreCountedAndShownWithTheHonestHint() {

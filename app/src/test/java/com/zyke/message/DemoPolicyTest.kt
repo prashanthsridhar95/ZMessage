@@ -62,8 +62,9 @@ class DemoPolicyTest {
             "notifications/SmsReceiver.kt", "notifications/DigestReceiver.kt", "notifications/WeeklyReceiver.kt", "notifications/BootReceiver.kt",
             "notifications/ReminderAlarms.kt", "notifications/DigestScheduler.kt", "notifications/WeeklyScheduler.kt", "notifications/LiveAlerts.kt",
             "notifications/MarketCloseReceiver.kt", "notifications/MarketCloseScheduler.kt",
-            "notifications/FlightTrackingControl.kt", "notifications/FlightTrackingService.kt", "notifications/FlightNotifier.kt",
-            "notifications/TrainTrackingControl.kt", "notifications/TrainTrackingService.kt", "notifications/TrainNotifier.kt",
+            "notifications/FlightTrackingControl.kt", "notifications/TrainTrackingControl.kt",
+            // The service and notifier of both kinds are the shared classes (the thin Flight/Train ones only name them; TripTrackingPolicyTest).
+            "notifications/TripTrackingControl.kt", "notifications/TripTrackingService.kt", "notifications/TripNotifier.kt",
             "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
             "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
@@ -130,11 +131,12 @@ class DemoPolicyTest {
         assertTrue(container.contains("ManualFlightRepositoryImpl(context)"))
         assertTrue(container.contains("FlightPlanStore(context)"))
         val control = text("notifications/FlightTrackingControl.kt")
+        val sharedControl = text("notifications/TripTrackingControl.kt")
         for (door in listOf("fun onForeground(", "fun rearm(", "fun onAlarm(")) {
-            assertTrue("$door must stop in the demo", control.substringAfter(door).take(500).contains("DemoMode.active"))
+            assertTrue("$door must stop in the demo", sharedControl.substringAfter(door).take(500).contains("DemoMode.active"))
         }
         assertTrue("the alarm receiver stops in the demo", control.substringAfter("class FlightAlarmReceiver").contains("DemoMode.active"))
-        val service = text("notifications/FlightTrackingService.kt")
+        val service = text("notifications/TripTrackingService.kt")
         assertTrue("the service answers the demo with nothing to watch", service.contains("if (DemoMode.active) null else"))
         assertTrue(service.substringAfter("if (first == null || DemoMode.active)").take(120).contains("finishService"))
         // The form's look-up is answered before the network is reached, and the demo never reaches it.
@@ -143,7 +145,7 @@ class DemoPolicyTest {
         assertTrue(lookup.indexOf("if (demo ||") in 0 until lookup.indexOf("fetcher.fetch("))
         assertTrue(text("presentation/flights/ManualFlightUi.kt").contains("val canLookUp = liveOn && !container.demo"))
         // The tracking code itself has no way to the network except through the service.
-        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + service + text("notifications/FlightNotifier.kt")))
+        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + sharedControl + service + text("notifications/FlightNotifier.kt") + text("notifications/TripNotifier.kt")))
     }
 
     @Test fun liveTrainStatusIsMadeUpInTheDemo_andNeverAsksTheNetwork() {
@@ -168,15 +170,16 @@ class DemoPolicyTest {
         assertTrue(container.contains("ManualTrainRepositoryImpl(context)"))
         assertTrue(container.contains("TrainPlanStore(context)"))
         val control = text("notifications/TrainTrackingControl.kt")
+        val sharedControl = text("notifications/TripTrackingControl.kt")
         for (door in listOf("fun onForeground(", "fun rearm(", "fun onAlarm(")) {
-            assertTrue("$door must stop in the demo", control.substringAfter(door).take(500).contains("DemoMode.active"))
+            assertTrue("$door must stop in the demo", sharedControl.substringAfter(door).take(500).contains("DemoMode.active"))
         }
         assertTrue("the alarm receiver stops in the demo", control.substringAfter("class TrainAlarmReceiver").contains("DemoMode.active"))
-        val service = text("notifications/TrainTrackingService.kt")
+        val service = text("notifications/TripTrackingService.kt")
         assertTrue("the service answers the demo with nothing to watch", service.contains("if (DemoMode.active) null else"))
         assertTrue(service.substringAfter("if (first == null || DemoMode.active)").take(120).contains("finishService"))
         assertTrue(text("presentation/trains/ManualTrainUi.kt").contains("val canLookUp = liveOn && !container.demo"))
-        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + service + text("notifications/TrainNotifier.kt")))
+        assertFalse(Regex("HttpURLConnection|openConnection|java\\.net\\.URL|okhttp").containsMatchIn(control + sharedControl + service + text("notifications/TrainNotifier.kt") + text("notifications/TripNotifier.kt")))
     }
 
     @Test fun theBannerIsOnEveryTab_andSettingsCanStartAndLeave() {
