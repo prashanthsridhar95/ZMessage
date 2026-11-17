@@ -48,6 +48,9 @@ import com.zyke.message.domain.train.TrainLive
 import com.zyke.message.domain.train.TrainLookup
 import com.zyke.message.notifications.TrainTrackingControl
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.TripLookupPanel
+import com.zyke.message.presentation.common.LookupFound
+import com.zyke.message.presentation.common.LookupWords
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -238,32 +241,26 @@ internal fun ManualTrainSheet(initial: ManualTrain?, onDismiss: () -> Unit, acti
 /** What the look-up found, or what it could not, under the fields. */
 @Composable
 private fun LookupPanel(state: Lookup, canLookUp: Boolean, demo: Boolean, ok: ManualTrainCheck.Ok?) {
-    when {
-        state is Lookup.Found && ok != null -> {
-            val preview = ManualTrains.confirmed(ManualTrain("", ok.number, ok.date, ok.boarding?.code, ok.boarding?.city), state.live)
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Found", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                RowTitle(listOfNotNull(ok.number, preview.name).joinToString(" "))
-                Caption(
-                    listOfNotNull(
-                        listOfNotNull(preview.boardingName ?: preview.boardingCode, preview.destinationName ?: preview.destinationCode).joinToString(" → ").ifEmpty { null },
-                        preview.departure?.let { "Leaves " + clockText(it) }, preview.arrival?.let { "Arrives " + clockText(it) }
-                    ).joinToString(" · ").ifEmpty { "No times given yet" },
-                    maxLines = 3
-                )
-            }
-        }
-        state is Lookup.Unconfirmed ->
-            Caption("Couldn’t confirm this train: the service doesn’t list it yet, or couldn’t be reached. You can save it anyway; it will say “Schedule not confirmed”.", maxLines = 5)
-        state is Lookup.Looking -> Caption("Asking for the name and schedule…", maxLines = 2)
-        demo -> Caption("Demo: nothing is asked of the internet. The train is saved on this demo only.", maxLines = 3)
-        canLookUp -> Caption("Look up train checks the name and schedule before saving. Only the train number and the day it started are sent.", maxLines = 3)
-        else -> Caption("Turn on live train status in Settings to confirm the schedule. Without it the train is saved as “Schedule not confirmed”.", maxLines = 4)
-    }
+    val found = if (state is Lookup.Found && ok != null) {
+        val preview = ManualTrains.confirmed(ManualTrain("", ok.number, ok.date, ok.boarding?.code, ok.boarding?.city), state.live)
+        LookupFound(
+            listOfNotNull(ok.number, preview.name).joinToString(" "),
+            listOfNotNull(
+                listOfNotNull(preview.boardingName ?: preview.boardingCode, preview.destinationName ?: preview.destinationCode).joinToString(" → ").ifEmpty { null },
+                preview.departure?.let { "Leaves " + clockText(it) }, preview.arrival?.let { "Arrives " + clockText(it) }
+            ).joinToString(" · ").ifEmpty { "No times given yet" }
+        )
+    } else null
+    TripLookupPanel(found, state is Lookup.Unconfirmed, state is Lookup.Looking, demo, canLookUp, TRAIN_LOOKUP_WORDS)
 }
+
+private val TRAIN_LOOKUP_WORDS = LookupWords(
+    unconfirmed = "Couldn’t confirm this train: the service doesn’t list it yet, or couldn’t be reached. You can save it anyway; it will say “Schedule not confirmed”.",
+    looking = "Asking for the name and schedule…",
+    demo = "Demo: nothing is asked of the internet. The train is saved on this demo only.",
+    canLookUp = "Look up train checks the name and schedule before saving. Only the train number and the day it started are sent.",
+    off = "Turn on live train status in Settings to confirm the schedule. Without it the train is saved as “Schedule not confirmed”."
+)
 
 private fun clockText(time: java.time.LocalTime): String = FormatCache.pattern("HH:mm", Locale.getDefault()).format(time)
 

@@ -3,7 +3,7 @@ package com.zyke.message.domain.accounts
 import java.math.BigDecimal
 
 /** What each credit card has been used for in the current month, against one limit for all of them together. */
-data class CardSpendStatus(
+data class CardSpendLimitStatus(
     val limit: BigDecimal,
     val used: BigDecimal,
     val perCard: List<Pair<String, BigDecimal>>
@@ -20,12 +20,12 @@ data class CardSpendStatus(
     }
 }
 
-object CardSpend {
+object CardSpendLimit {
     /** Spending on every credit card in the pay cycle, or null when no limit is set. The limit is shared: use it on any card. */
-    fun status(accounts: List<AccountSummary>, limit: BigDecimal?): CardSpendStatus? {
+    fun status(accounts: List<AccountSummary>, limit: BigDecimal?): CardSpendLimitStatus? {
         if (limit == null || limit.signum() <= 0) return null
         val cards = accounts.filter { it.kind == AccountKind.CREDIT_CARD }
-        return CardSpendStatus(
+        return CardSpendLimitStatus(
             limit = limit,
             used = cards.fold(BigDecimal.ZERO) { sum, card -> sum + card.spent },
             perCard = cards.filter { it.spent.signum() > 0 }.sortedByDescending { it.spent }.map { it.title to it.spent }

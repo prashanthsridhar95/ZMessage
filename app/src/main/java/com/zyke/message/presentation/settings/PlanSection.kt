@@ -77,14 +77,14 @@ internal fun PlanSection(
             } else {
                 ""
             }
-            PlanRow(
+            PlanValueRow(
                 title = "Salary found in your messages",
                 value = DisplayFormatters.rupees(spotted.typical),
                 detail = (if (spotted.isEstimated) "Estimated from your messages. " else "") + "Around day ${spotted.typicalDay}$range. Used instead of the amount below.",
                 onClick = { editSalary = true }
             )
         }
-        PlanRow(
+        PlanValueRow(
             title = if (spotted != null) "Salary to use if none is found" else "Monthly salary",
             value = plan.salary?.let { DisplayFormatters.rupees(it) } ?: "Not set",
             detail = if (plan.salaryOnLastWorkingDay) "Arrives on the last working day" else plan.salaryDay?.let { "Usually arrives on day $it" },
@@ -112,7 +112,7 @@ internal fun PlanSection(
                 )
             }
             items.forEach { item ->
-                PlanRow(
+                PlanValueRow(
                     title = item.name,
                     value = DisplayFormatters.rupees(item.amount),
                     detail = item.dayOfMonth?.let { "Around day $it" },
@@ -123,7 +123,7 @@ internal fun PlanSection(
 
         // Savings
         HorizontalDivider(Modifier.padding(top = 12.dp))
-        PlanRow(
+        PlanValueRow(
             title = "Save each month",
             value = plan.savingsGoal?.let { DisplayFormatters.rupees(it) } ?: "Not set",
             detail = null,
@@ -189,7 +189,7 @@ internal fun PlanSection(
 }
 
 @Composable
-private fun PlanRow(title: String, value: String, detail: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun PlanValueRow(title: String, value: String, detail: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()

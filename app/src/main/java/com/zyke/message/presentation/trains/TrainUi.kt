@@ -61,6 +61,7 @@ import com.zyke.message.domain.train.TrainText
 import com.zyke.message.domain.train.TrainTracker
 import com.zyke.message.notifications.TrainTrackingControl
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.TripFacts
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -363,35 +364,7 @@ private fun Facts(s: TrainSnapshot, train: BookedTrain, stack: Boolean, onCopyPn
         Caption("Platform, coach and berth appear here when your messages or the live status give them.", maxLines = 3)
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        facts.chunked(if (stack) 1 else 2).forEach { rowFacts ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowFacts.forEach { (label, value) -> FactTile(label, value, Modifier.weight(1f)) }
-                if (rowFacts.size == 1 && !stack) Spacer(Modifier.weight(1f))
-            }
-        }
-        train.pnr?.let { pnr ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(start = 14.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Caption("PNR")
-                    Text(pnr, style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.width(8.dp))
-                AppButton("Copy", { onCopyPnr(pnr) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FactTile(label: String, value: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(horizontal = 14.dp, vertical = 12.dp)) {
-        Caption(label)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
-    }
+    TripFacts(facts, train.pnr, stack, tileMaxLines = 2, tabularPnr = true, onCopyPnr = onCopyPnr)
 }
 
 /** The stops still ahead, up to the person's destination, with when each is expected; the first few, the rest behind one button. */

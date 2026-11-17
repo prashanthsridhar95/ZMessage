@@ -48,6 +48,9 @@ import com.zyke.message.domain.flight.ManualFlightCheck
 import com.zyke.message.domain.flight.ManualFlightRules
 import com.zyke.message.domain.flight.ManualFlights
 import com.zyke.message.notifications.FlightTrackingControl
+import com.zyke.message.presentation.common.TripLookupPanel
+import com.zyke.message.presentation.common.LookupFound
+import com.zyke.message.presentation.common.LookupWords
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.DateField
@@ -297,35 +300,27 @@ private fun Modifier.background05(): Modifier = this.then(Modifier.background(Ma
 /** What the look-up found, or what it could not, under the fields. */
 @Composable
 private fun LookupPanel(state: Lookup, canLookUp: Boolean, demo: Boolean, ok: ManualFlightCheck.Ok?, zone: ZoneId) {
-    when {
-        state is Lookup.Found && ok != null -> {
-            val preview = ManualFlights.confirmed(ManualFlight("", ok.airline.code, ok.number, ok.date), state.status, zone)
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background05().padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Found", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                RowTitle(
-                    listOfNotNull(preview.originCode, preview.destinationCode).joinToString(" → ")
-                        .ifEmpty { "${ok.airline.name} ${ok.airline.code} ${ok.number}" }
-                )
-                Caption(
-                    listOfNotNull(
-                        preview.departure?.let { "Departs " + clockText(it) }, preview.arrival?.let { "Arrives " + clockText(it) },
-                        preview.originCode?.let { Airports.city(it) }
-                    ).joinToString(" · ").ifEmpty { "No times given yet" },
-                    maxLines = 3
-                )
-            }
-        }
-        state is Lookup.Unconfirmed ->
-            Caption("Couldn’t confirm this flight: the service doesn’t list it yet, or couldn’t be reached. You can save it anyway; it will say “Schedule not confirmed”.", maxLines = 5)
-        state is Lookup.Looking -> Caption("Asking for the route and times…", maxLines = 2)
-        demo -> Caption("Demo: nothing is asked of the internet. The flight is saved on this demo only.", maxLines = 3)
-        canLookUp -> Caption("Look up flight checks the route and times before saving. Only the airline code and flight number are sent.", maxLines = 3)
-        else -> Caption("Turn on live status in Settings to confirm the route and times. Without it the flight is saved as “Schedule not confirmed”.", maxLines = 4)
-    }
+    val found = if (state is Lookup.Found && ok != null) {
+        val preview = ManualFlights.confirmed(ManualFlight("", ok.airline.code, ok.number, ok.date), state.status, zone)
+        LookupFound(
+            listOfNotNull(preview.originCode, preview.destinationCode).joinToString(" → ")
+                .ifEmpty { "${ok.airline.name} ${ok.airline.code} ${ok.number}" },
+            listOfNotNull(
+                preview.departure?.let { "Departs " + clockText(it) }, preview.arrival?.let { "Arrives " + clockText(it) },
+                preview.originCode?.let { Airports.city(it) }
+            ).joinToString(" · ").ifEmpty { "No times given yet" }
+        )
+    } else null
+    TripLookupPanel(found, state is Lookup.Unconfirmed, state is Lookup.Looking, demo, canLookUp, FLIGHT_LOOKUP_WORDS)
 }
+
+private val FLIGHT_LOOKUP_WORDS = LookupWords(
+    unconfirmed = "Couldn’t confirm this flight: the service doesn’t list it yet, or couldn’t be reached. You can save it anyway; it will say “Schedule not confirmed”.",
+    looking = "Asking for the route and times…",
+    demo = "Demo: nothing is asked of the internet. The flight is saved on this demo only.",
+    canLookUp = "Look up flight checks the route and times before saving. Only the airline code and flight number are sent.",
+    off = "Turn on live status in Settings to confirm the route and times. Without it the flight is saved as “Schedule not confirmed”."
+)
 
 private fun clockText(time: java.time.LocalTime): String = FormatCache.pattern("HH:mm", Locale.getDefault()).format(time)
 

@@ -7,7 +7,8 @@ import java.net.URL
 import java.net.URLEncoder
 
 /**
- * The second, and last, code in the app that talks to the internet for prices. It exists for the market strip, which is
+ * One of the five classes in the app that talk to the internet (the others are LogoFetcher, FlightFetcher, TrainFetcher and
+ * DriveBackupClient); this one fetches prices. It exists for the market strip, which is
  * off until the person switches it on. It sends only a ticker such as "RELIANCE.NS" or "USDINR=X" (the price of one), or
  * the few letters typed into the add-a-share box (the search for names), to Yahoo Finance's public endpoints. No message
  * text, numbers or amounts. A test keeps network calls out of every other file and pins the hosts.

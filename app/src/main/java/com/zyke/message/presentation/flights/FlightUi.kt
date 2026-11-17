@@ -69,6 +69,7 @@ import com.zyke.message.domain.flight.FlightTracker
 import com.zyke.message.domain.flight.ManualFlights
 import com.zyke.message.notifications.FlightTrackingControl
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.TripFacts
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
@@ -383,35 +384,7 @@ private fun Facts(s: FlightSnapshot, flight: BookedFlight, stack: Boolean, onCop
         Caption("Terminal and gate appear here when your airline or the live status gives them.", maxLines = 3)
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        facts.chunked(if (stack) 1 else 2).forEach { rowFacts ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowFacts.forEach { (label, value) -> FactTile(label, value, Modifier.weight(1f)) }
-                if (rowFacts.size == 1 && !stack) Spacer(Modifier.weight(1f))
-            }
-        }
-        flight.pnr?.let { pnr ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(start = 14.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Caption("PNR")
-                    Text(pnr, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.width(8.dp))
-                AppButton("Copy", { onCopyPnr(pnr) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FactTile(label: String, value: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)).padding(horizontal = 14.dp, vertical = 12.dp)) {
-        Caption(label)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    TripFacts(facts, flight.pnr, stack, tileMaxLines = 1, tabularPnr = false, onCopyPnr = onCopyPnr)
 }
 
 /** Where the status comes from and how fresh it is; what went wrong when it could not be refreshed; or that it is off. */

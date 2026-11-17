@@ -38,7 +38,7 @@ object SettingsContract {
         /** Monthly limits worked out from the plan and from what has been spent, to set in one tap. */
         val limitSuggestions: List<com.zyke.message.domain.forecast.LimitSuggestion> = emptyList(),
         /** Credit card spending against the one limit set for all cards. */
-        val cardSpend: com.zyke.message.domain.accounts.CardSpendStatus? = null,
+        val cardSpend: com.zyke.message.domain.accounts.CardSpendLimitStatus? = null,
         /** The salary the messages show arriving each month, if there is one. It is used ahead of the entered amount. */
         val spottedSalary: SalaryPattern? = null
     )

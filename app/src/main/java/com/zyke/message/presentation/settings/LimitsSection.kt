@@ -69,7 +69,7 @@ internal fun LimitsSection(
     status: BudgetStatus? = null,
     spendable: BigDecimal? = null,
     suggestions: List<com.zyke.message.domain.forecast.LimitSuggestion> = emptyList(),
-    cardSpend: com.zyke.message.domain.accounts.CardSpendStatus? = null,
+    cardSpend: com.zyke.message.domain.accounts.CardSpendLimitStatus? = null,
     onCardLimit: (String) -> Unit = {}
 ) {
     var editing by remember { mutableStateOf<CategoryLimits?>(null) }

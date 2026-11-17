@@ -113,4 +113,16 @@ class TripTrackingPolicyTest {
         // The tag is the only thing a kind adds to a line.
         assertTrue(logged.filter { "DevLog." in it }.all { "DevLog.d(control.logTag)" in it || "DevLog.d(logTag)" in it })
     }
+
+    @Test fun theSharedTripPiecesOfTheScreensGetNoMotion_andAreDefinedOnce() {
+        val presentation = File("src/main/java/com/zyke/message/presentation")
+        val parts = File(presentation, "common/TripParts.kt").readText()
+        assertFalse(Regex("animate\\w*As|AnimatedVisibility|AnimatedContent|infiniteRepeatable|rememberInfiniteTransition|Crossfade").containsMatchIn(parts))
+        for (f in listOf("flights/FlightUi.kt", "trains/TrainUi.kt", "flights/ManualFlightUi.kt", "trains/ManualTrainUi.kt")) {
+            val src = File(presentation, f).readText()
+            assertFalse("$f must use the shared FactTile", "fun FactTile(" in src)
+            assertFalse("$f must use the shared look-up panel", "Caption(\"Couldn’t confirm" in src)
+        }
+        assertEquals(1, presentation.walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "fun FactTile(" in it.readText() })
+    }
 }

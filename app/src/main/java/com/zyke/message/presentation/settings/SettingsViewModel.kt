@@ -269,7 +269,7 @@ class SettingsViewModel(
         ).accounts
         val spendable = com.zyke.message.domain.plan.PlanInsightsBuilder.build(state.plan, inbox, clock.instant(), clock.zone, cycle)?.spendable
         val suggestions = com.zyke.message.domain.forecast.LimitSuggestions.build(inbox, state.monthlyLimits, spendable, clock.instant(), clock.zone, cycle)
-        val cardSpend = com.zyke.message.domain.accounts.CardSpend.status(accounts, state.plan.cardSpendLimit)
+        val cardSpend = com.zyke.message.domain.accounts.CardSpendLimit.status(accounts, state.plan.cardSpendLimit)
         val budgetStatus = Budgets.status(
             state.monthlyLimits, state.budgetAdjustments, inbox, cycle, java.time.LocalDate.ofInstant(clock.instant(), clock.zone), clock.zone, spendable
         )
