@@ -80,8 +80,14 @@ same). The chain, applied by `ObserveMessagesUseCase` in this order (a later sta
 this payment's own choice (`msg:<id>`), then the payee's choice, then a word rule (category only), then the app's own
 classification. Category, custom category, nickname and picture each follow it, and the result is written into
 `ClassifiedMessage.category` / `merchant`, which is the only thing budgets, spending limits, Insights, the spend summary,
-search and exports read, so a payee rule moves every total. Keys saved before `PayeeKey` folded punctuation (`CategoryKey.legacyOf`)
-still apply until the person sets the new key. `TransactionRules` (domain, tested) says where each value in the detail sheet
+search and exports read, so a payee rule moves every total. There is exactly one key per message: rules saved before `PayeeKey`
+folded punctuation ("mr. diy") are moved to the current key ("mr diy") by `LegacyKeyMigration` (domain, tested), which
+`ObserveMessagesUseCase` runs as lists arrive, before the rule stages read the stores. It rewrites only keys a payee produced
+(recomputed from the messages, so sender keys, `msg:<id>` keys and word rules are never touched), where the new key already exists
+it wins and the old one is dropped, and pictures are renamed through `SenderImageRepository.moveKeys`. It keeps no done-flag, so a
+backup restore is migrated at the next start; when nothing is stored under an old key it costs a set lookup per distinct payee.
+The first list of the first start after the update can render with the old values and is followed by one re-emission when the
+move is published. Not migrated (they never had a legacy lookup): the payee sets of card-bill and same-payment answers. `TransactionRules` (domain, tested) says where each value in the detail sheet
 comes from; the sheet shows it per row ("Mr Diy rule", "Only this transaction", "Automatic") with a scope choice (all payments
 or only this one) in the pickers. The sender's own flow (the sender thread, "Edit sender rules for HDFC Bank") is unchanged.
 No store was added: payee choices live in the existing `category_overrides`, `nicknames`, `custom_categories` and the image

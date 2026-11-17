@@ -807,9 +807,9 @@ private fun PayeeRulesGroup(
     val categorySource = TransactionRules.categorySource(item, overrides)
     val nameSource = TransactionRules.nicknameSource(item)
     val pictureSource = TransactionRules.pictureSource(item, pictureKeys)
-    // The keys a rule at [source] may be kept under: this payment's own, or the payee's (and its older spelling).
+    // The keys a rule at [source] may be kept under: this payment's own, or the payee's.
     fun keysFor(source: RuleSource): List<String> =
-        if (source == RuleSource.THIS_TRANSACTION) listOf(CategoryKey.messageKey(item.id)) else listOfNotNull(CategoryKey.of(item), CategoryKey.legacyOf(item))
+        if (source == RuleSource.THIS_TRANSACTION) listOf(CategoryKey.messageKey(item.id)) else listOfNotNull(CategoryKey.of(item))
 
     SettingsGroup(payeeTitle) {
         if (others > 0) Caption("$others other ${if (others == 1) "payment" else "payments"} with this payee", Modifier.padding(top = Spacing.sm), maxLines = 1)

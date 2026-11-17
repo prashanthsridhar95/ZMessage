@@ -67,7 +67,7 @@ class PendingCategories(private val nanoTime: () -> Long = System::nanoTime, pri
         fun applyTo(message: ClassifiedMessage, choices: Map<String, MessageCategory>): ClassifiedMessage {
             if (choices.isEmpty()) return message
             val own = choices[CategoryKey.messageKey(message.id)]
-            val category = own ?: message.takeIf { !it.categoryOwn }?.let { CategoryKey.find(choices, it) } ?: return message
+            val category = own ?: message.takeIf { !it.categoryOwn }?.let { CategoryKey.of(it)?.let(choices::get) } ?: return message
             val isOwn = own != null
             if (message.category == category && message.merchant.category == category && message.categoryOverridden &&
                 message.categoryOwn == isOwn && message.customCategoryId == null

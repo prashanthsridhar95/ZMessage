@@ -107,7 +107,6 @@ class PayeeRulesTest {
     fun aNameWithNoPunctuationKeepsTheKeyItAlwaysHad() {
         val m = debit(1, "MR DIY")
         assertEquals("mr diy", CategoryKey.of(m))
-        assertNull(CategoryKey.legacyOf(m))
     }
 
     @Test
@@ -198,17 +197,17 @@ class PayeeRulesTest {
     }
 
     @Test
-    fun aChoiceSavedBeforeThePunctuationWasFolded_stillApplies() {
+    fun aChoiceSavedBeforeThePunctuationWasFolded_appliesOnceMigrated_andNotBefore() {
         val m = withPayee(debit(1, "MR DIY"), "Mr. Diy")
         assertEquals("mr diy", CategoryKey.of(m))
-        assertEquals("mr. diy", CategoryKey.legacyOf(m))
         val categories = Categories().apply { set("mr. diy", MessageCategory.SHOPPING) }
+        // Only the current key is looked up; the older spelling is moved by the migration.
+        assertEquals(false, CategoryKey.apply(m, categories.overrides.value).categoryOverridden)
+        com.zyke.message.domain.categories.LegacyKeyMigration(categories, Names(), com.zyke.message.domain.repository.CustomCategoryStore(), Pictures()).run(listOf(m))
+        assertEquals(mapOf("mr diy" to MessageCategory.SHOPPING), categories.overrides.value)
         val shown = CategoryKey.apply(m, categories.overrides.value)
         assertEquals(MessageCategory.SHOPPING, shown.category)
         assertEquals(RuleSource.PAYEE, TransactionRules.categorySource(shown, categories.overrides.value))
-        // And the new key wins over the old one when both exist.
-        categories.set("mr diy", MessageCategory.FOOD)
-        assertEquals(MessageCategory.FOOD, CategoryKey.apply(m, categories.overrides.value).category)
     }
 
     @Test

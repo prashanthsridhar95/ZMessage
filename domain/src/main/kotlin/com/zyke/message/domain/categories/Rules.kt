@@ -41,14 +41,12 @@ object Rules {
         tokenRules: Map<String, MessageCategory> = emptyMap()
     ): RulesOverview {
         val byKey = messages.groupBy { CategoryKey.of(it) }
-        // Choices saved before punctuation was folded out of payee names sit under the older spelling of the key.
-        val byOldKey = messages.mapNotNull { m -> CategoryKey.legacyOf(m)?.let { it to m } }.groupBy({ it.first }, { it.second })
         val byId = messages.associateBy { it.id }
         val keys = (categoryOverrides.keys + nicknames.keys).toSortedSet()
         val rows = keys.map { key ->
             val single = key.startsWith("msg:")
             val own = if (single) key.removePrefix("msg:").toLongOrNull()?.let(byId::get) else null
-            val group = if (single) listOfNotNull(own) else (byKey[key].orEmpty() + byOldKey[key].orEmpty()).distinctBy { it.id }
+            val group = if (single) listOfNotNull(own) else byKey[key].orEmpty()
             TaughtRule(
                 key = key,
                 label = group.firstOrNull()?.let(CategoryKey::label)?.ifBlank { null } ?: if (single) UNKNOWN_PAYMENT else UNKNOWN_PAYEE,

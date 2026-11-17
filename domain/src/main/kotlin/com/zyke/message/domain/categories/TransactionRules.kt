@@ -25,7 +25,7 @@ object TransactionRules {
         message.categoryOwn -> RuleSource.THIS_TRANSACTION
         !message.categoryOverridden -> RuleSource.AUTOMATIC
         // Filed under one of the person's own categories, or by a stored choice for the key: a payee rule. Only a match by word is not.
-        message.customCategoryId != null || CategoryKey.find(overrides, message) != null -> RuleSource.PAYEE
+        message.customCategoryId != null || CategoryKey.of(message)?.let { overrides.containsKey(it) } == true -> RuleSource.PAYEE
         else -> RuleSource.WORD_RULE
     }
 
@@ -39,7 +39,7 @@ object TransactionRules {
     /** Picture: chosen for this payment, chosen for its payee, or none (a brand logo or the initial is automatic). [pictureKeys] are the keys with a chosen picture. */
     fun pictureSource(message: ClassifiedMessage, pictureKeys: Set<String>): RuleSource = when {
         CategoryKey.messageKey(message.id) in pictureKeys -> RuleSource.THIS_TRANSACTION
-        CategoryKey.of(message)?.let { it in pictureKeys } == true || CategoryKey.legacyOf(message)?.let { it in pictureKeys } == true -> RuleSource.PAYEE
+        CategoryKey.of(message)?.let { it in pictureKeys } == true -> RuleSource.PAYEE
         else -> RuleSource.AUTOMATIC
     }
 

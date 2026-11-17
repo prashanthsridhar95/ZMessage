@@ -10,7 +10,7 @@ package com.zyke.message.domain.categories
  *   app does not guess they are the same.
  *
  * Keys are lower-case so that they match the keys kept before this existed ([CategoryKey.normalise]); a name with no
- * punctuation to remove has the same key as before, and [CategoryKey.legacyOf] finds the older spelling of the rest.
+ * punctuation to remove has the same key as before, and [LegacyKeys] moves what was saved under the older spelling of the rest.
  */
 object PayeeKey {
     private val SPACES = Regex("\\s+")
