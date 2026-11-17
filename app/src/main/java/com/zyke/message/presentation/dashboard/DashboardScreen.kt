@@ -37,7 +37,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.animation.AnimatedVisibility
 import com.zyke.message.presentation.motion.CrossfadeContent
 import com.zyke.message.presentation.motion.CrossfadeKeyed
 import com.zyke.message.presentation.motion.EnterGate
@@ -56,17 +55,12 @@ import com.zyke.message.presentation.dashboard.components.Chevron
 import com.zyke.message.presentation.dashboard.components.InsightCard
 import com.zyke.message.presentation.dashboard.components.InsightsSkeleton
 import androidx.compose.foundation.lazy.LazyItemScope
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
-import com.zyke.message.presentation.dashboard.components.CollapsedHeroBar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
@@ -246,19 +240,6 @@ private fun DashboardContent(state: State, dashboard: Dashboard, onIntent: (Inte
                 DashboardList(state, dashboard, onIntent, listState, gate)
             }
         }
-    }
-}
-
-/** Fades the compact bar in over the list. A function of its own so no layout scope's overload gets picked. */
-@Composable
-private fun HeroBarOverlay(visible: Boolean, dashboard: Dashboard, onDirection: (FlowDirection) -> Unit, modifier: Modifier) {
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier,
-        enter = fadeIn() + slideInVertically { -it / 2 },
-        exit = fadeOut() + slideOutVertically { -it / 2 }
-    ) {
-        CollapsedHeroBar(dashboard, onDirection)
     }
 }
 

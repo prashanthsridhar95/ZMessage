@@ -57,8 +57,6 @@ object BlackBox {
     /** A step marker, for example `mark("firstrun", "restore check done")`. Text must be ids and step names only. */
     fun mark(tag: String, step: String) = write("I", tag, step)
 
-    fun phoneLine(app: Context): String = describePhone(app)
-
     private fun describePhone(app: Context): String {
         val info = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
         return "app ${info?.versionName} (${info?.longVersionCode}) · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}"

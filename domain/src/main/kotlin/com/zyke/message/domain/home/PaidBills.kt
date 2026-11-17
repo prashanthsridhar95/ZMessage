@@ -2,7 +2,6 @@ package com.zyke.message.domain.home
 
 import java.math.BigDecimal
 import java.time.LocalDate
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** A bill the person said they paid outside the messages; see [UpcomingItem.markedPaidKey]. */
@@ -28,12 +27,6 @@ interface PaidBillRepository {
     /** Records [bill]; marking the same bill again replaces the earlier record. */
     fun record(bill: PaidBill)
     fun remove(key: String)
-}
-
-object NoPaidBills : PaidBillRepository {
-    override val bills: StateFlow<List<PaidBill>> = MutableStateFlow(emptyList())
-    override fun record(bill: PaidBill) = Unit
-    override fun remove(key: String) = Unit
 }
 
 object PaidBills {

@@ -52,7 +52,3 @@ internal fun contrastRatio(a: Color, b: Color): Float {
     val lo = minOf(l1, l2)
     return (hi + 0.05f) / (lo + 0.05f)
 }
-
-/** Black or white, whichever reads better on top of this colour (for text or an icon on a branded fill). */
-fun Color.onColor(): Color =
-    if (contrastRatio(this, Color.Black) >= contrastRatio(this, Color.White)) Color.Black else Color.White

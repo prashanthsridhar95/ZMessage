@@ -32,12 +32,4 @@ object Tokens {
         if (rules.isEmpty() || key.startsWith("msg:")) return null
         return of(key).firstNotNullOfOrNull(rules::get)
     }
-
-    /** Words in common, Jaccard-style: 0.0 to 1.0. */
-    fun similarity(a: String, b: String): Double {
-        val x = of(a).toSet()
-        val y = of(b).toSet()
-        if (x.isEmpty() || y.isEmpty()) return 0.0
-        return x.intersect(y).size.toDouble() / x.union(y).size
-    }
 }

@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zyke.message.R
 import com.zyke.message.domain.model.MerchantLogo
-import com.zyke.message.domain.model.MessageCategory
 
 @DrawableRes
 internal fun MerchantLogo.drawableRes(): Int = when (this) {
@@ -293,21 +292,6 @@ internal fun Caption(
         maxLines = scaledLines(maxLines),
         overflow = TextOverflow.Ellipsis,
         color = color
-    )
-}
-
-@Composable
-internal fun CategoryTag(category: MessageCategory, modifier: Modifier = Modifier) {
-    Text(
-        modifier = modifier
-            .padding(top = 4.dp)
-            .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp),
-        text = category.displayString,
-        fontSize = 14.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        color = mutedColor()
     )
 }
 

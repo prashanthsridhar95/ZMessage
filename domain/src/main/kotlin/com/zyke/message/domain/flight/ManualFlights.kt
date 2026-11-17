@@ -172,14 +172,6 @@ interface ManualFlightRepository {
     fun prune(now: Instant, zone: ZoneId): Int
 }
 
-/** Keeps nothing (tests, and anywhere the app has no place to keep flights). */
-object NoManualFlights : ManualFlightRepository {
-    override val flights: StateFlow<List<ManualFlight>> = MutableStateFlow(emptyList<ManualFlight>()).asStateFlow()
-    override fun save(flight: ManualFlight) = Unit
-    override fun remove(id: String): ManualFlight? = null
-    override fun prune(now: Instant, zone: ZoneId): Int = 0
-}
-
 /** The working part of the repository, free of Android so it can be tested: every change is applied, published and saved under one lock. */
 class ManualFlightStore(initial: List<ManualFlight> = emptyList(), private val persist: (List<ManualFlight>) -> Unit = {}) : ManualFlightRepository {
     private val lock = Any()

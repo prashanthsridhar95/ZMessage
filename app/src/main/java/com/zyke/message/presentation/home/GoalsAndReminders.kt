@@ -1,6 +1,5 @@
 package com.zyke.message.presentation.home
 
-import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.domain.goals.Goals
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.common.ChipOption
@@ -16,8 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
@@ -58,9 +55,6 @@ import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.common.fullWidthClickable
 import com.zyke.message.presentation.dashboard.components.ShareBar
 import com.zyke.message.presentation.format.DisplayFormatters
-import com.zyke.message.presentation.messages.components.Caption
-import com.zyke.message.presentation.messages.components.RowTitle
-import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -176,19 +170,6 @@ internal fun ReminderDialog(
     }
 }
 
-/** One line on Home for something planned ahead; it opens its own sheet. */
-@Composable
-internal fun PlanTile(title: String, summary: String, onOpen: () -> Unit) {
-    FintechCard(onClick = onOpen) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RowTitle(title, Modifier.weight(1f))
-            Caption(summary)
-            Spacer(Modifier.width(Spacing.sm))
-            Text("\u203A", color = mutedColor())
-        }
-    }
-}
-
 /** A wide button with an icon and its name beside it, for a page of its own. Two sit side by side on a phone. */
 @Composable
 internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifier, onOpen: () -> Unit) {
@@ -217,18 +198,5 @@ internal fun ShortcutTile(label: String, icon: Int, modifier: Modifier = Modifie
 internal fun PlanPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     com.zyke.message.presentation.common.AppPage(title, onBack) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) { content() }
-    }
-}
-
-/** The sheet a plan tile opens: its card, with room round it. */
-@Composable
-internal fun PlanSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    AdaptiveSheet(title, onDismiss) {
-        Column(
-            Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md)
-        ) {
-            content()
-        }
     }
 }

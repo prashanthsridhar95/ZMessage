@@ -15,12 +15,6 @@ interface NetWorthRepository {
     fun remove(id: String)
 }
 
-object NoNetWorth : NetWorthRepository {
-    override val items: StateFlow<List<NetWorthItem>> = MutableStateFlow(emptyList())
-    override fun save(item: NetWorthItem) = Unit
-    override fun remove(id: String) = Unit
-}
-
 /** The loans the person typed in, kept on the phone. */
 interface LoanRepository {
     val loans: StateFlow<List<Loan>>

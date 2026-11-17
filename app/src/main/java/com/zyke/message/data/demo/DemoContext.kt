@@ -49,11 +49,6 @@ class DemoContext(base: Context) : ContextWrapper(base) {
     override fun openOrCreateDatabase(name: String, mode: Int, factory: SQLiteDatabase.CursorFactory?, errorHandler: DatabaseErrorHandler?): SQLiteDatabase =
         SQLiteDatabase.openDatabase(getDatabasePath(name).path, factory, SQLiteDatabase.CREATE_IF_NECESSARY, errorHandler)
 
-    /** Empties the scratch folder (Demo mode is over). */
-    fun discard() {
-        runCatching { scratch.deleteRecursively() }
-    }
-
     companion object {
         fun scratchDir(context: Context): File = File(context.cacheDir, "demo_mode")
     }

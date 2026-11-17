@@ -159,15 +159,6 @@ object BalanceReader {
         val notCounted: Int get() = statesBalance + unreadableBalance + badAmount
     }
 
-    /**
-     * What came in and went out of [reading]'s account after the message that stated it, from messages that did not
-     * state a balance themselves. Added to the stated balance this is the best guess at what the account holds now.
-     * Nothing dated before the reading is touched, so an older credit (a salary, however it is filed) never moves it.
-     * A payment the person set aside from the totals or a bill paid from the account still moved the money, so it counts here.
-     */
-    fun movedSince(messages: List<ClassifiedMessage>, reading: AccountBalance): Pair<BigDecimal, Int> =
-        movement(messages, reading).let { it.net to it.count }
-
     fun movement(messages: List<ClassifiedMessage>, reading: AccountBalance): Movement {
         var net = BigDecimal.ZERO
         var credits = 0

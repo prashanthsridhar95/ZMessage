@@ -170,13 +170,6 @@ interface ManualTrainRepository {
     fun prune(now: Instant): Int
 }
 
-object NoManualTrains : ManualTrainRepository {
-    override val trains: StateFlow<List<ManualTrain>> = MutableStateFlow(emptyList<ManualTrain>()).asStateFlow()
-    override fun save(train: ManualTrain) = Unit
-    override fun remove(id: String): ManualTrain? = null
-    override fun prune(now: Instant): Int = 0
-}
-
 /** The working part of the repository, free of Android so it can be tested: every change is applied, published and saved under one lock. */
 class ManualTrainStore(initial: List<ManualTrain> = emptyList(), private val persist: (List<ManualTrain>) -> Unit = {}) : ManualTrainRepository {
     private val lock = Any()

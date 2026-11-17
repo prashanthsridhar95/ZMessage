@@ -81,9 +81,6 @@ object SenderDisplay {
 
     private fun validName(name: String) = name.length in 2..MAX_NAME && name.any { it.isLetter() }
 
-    /** True when [raw] is a registered header or an RBM agent's address. */
-    fun isVerified(raw: String): Boolean = RbmSender.isRbm(raw) || parseHeader(raw) != null
-
     /** The name alone for [raw] ("HDFC Bank"); what a notification says. A plain number or name is returned as it is. */
     fun name(raw: String): String = of(raw).name
 

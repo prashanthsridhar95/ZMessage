@@ -28,11 +28,6 @@ object LogShare {
     /** Oldest first; the black box last so the crash is at the end and survives the size cap. */
     private val files = listOf("zyke.1.log", "zyke.log", BlackBox.PREVIOUS, BlackBox.FILE)
 
-    fun hasLogs(context: Context): Boolean = runCatching {
-        val dir = File(context.applicationContext.filesDir, LOG_DIR)
-        files.any { File(dir, it).let { f -> f.isFile && f.length() > 0 } }
-    }.getOrDefault(false)
-
     fun share(context: Context): Result {
         return try {
             val app = context.applicationContext

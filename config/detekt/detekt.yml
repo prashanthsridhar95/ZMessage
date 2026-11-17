@@ -36,7 +36,7 @@ style:
     excludeCommentStatements: true
     excludeRawStrings: true
     # Regular-expression tables are long by nature and unreadable when wrapped.
-    excludes: ['**/domain/classification/**', '**/domain/diagnostics/**', '**/test/**', '**/Previews.kt']
+    excludes: ['**/domain/classification/**', '**/domain/diagnostics/**', '**/test/**']
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview']
   MagicNumber:

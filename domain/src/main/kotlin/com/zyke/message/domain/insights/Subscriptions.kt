@@ -44,8 +44,6 @@ data class Subscription(
     /** Keys of the entries folded into this one by [RecurringMerges.apply]. */
     val mergedKeys: List<String> = emptyList()
 ) {
-    fun daysUntilDue(today: LocalDate): Long = ChronoUnit.DAYS.between(today, nextDue)
-
     /** Stable identity for the person's confirm / ignore choice. */
     val key: String get() = Subscriptions.keyFor(payee) + (if (variant.isEmpty()) "" else Subscriptions.VARIANT_SEPARATOR + variant)
 

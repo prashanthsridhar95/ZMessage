@@ -103,12 +103,6 @@ object CardCatalog {
         return pool.filter { it.contains(q, ignoreCase = true) && !it.equals(q, ignoreCase = true) }.take(limit)
     }
 
-    /** Banks that contain what has been typed, for the searchable picker; blank gives them all. */
-    fun bankSuggestions(typed: String): List<String> {
-        val q = typed.trim()
-        return if (q.isEmpty()) banks else banks.filter { it.contains(q, ignoreCase = true) }
-    }
-
     /** The network a card most likely runs on, from its bank and name; null when it cannot be told. */
     fun guessNetwork(bank: String, variant: String): CardNetwork? = CardNetworks.fromProduct(bank, variant)
 }

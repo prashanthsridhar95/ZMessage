@@ -73,8 +73,6 @@ object LearnedTemplates {
         return null
     }
 
-    fun isValidAmount(text: String): Boolean = TemplateLearner.isPositive(text)
-
     /** Used only to compare an amount that was read with the one that was picked. */
     internal fun decimal(text: String): BigDecimal? = text.replace(",", "").toBigDecimalOrNull()
 }

@@ -98,7 +98,4 @@ class BackupRunner(
         prefs.recordFailure(m, Instant.now(), failure)
         DevLog.d("backup") { "run trigger=$trigger place=$m result=failed class=$failure took=${SystemClock.elapsedRealtime() - started}ms" }
     }
-
-    /** Where the Auto Backup file lives, for the restore step. */
-    fun hasLocalFile(): Boolean = engine.readLocalOrNull() != null
 }

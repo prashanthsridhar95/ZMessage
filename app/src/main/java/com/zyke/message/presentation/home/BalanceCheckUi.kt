@@ -91,26 +91,6 @@ internal data class BalanceTarget(
 private fun balanceCheck(context: android.content.Context) =
     (context.applicationContext as ZykeMessagesApplication).container.balanceCheck
 
-/**
- * The line a tile shows while a request is out: "Request sent · waiting for the reply", then "No reply yet", then nothing. A balance
- * that arrives after the request (from any message that states this account's balance) clears it. Null when there is nothing to say.
- */
-@Composable
-internal fun rememberRequestStatus(requestKey: String, balanceAt: Long): String? {
-    val repository = balanceCheck(LocalContext.current)
-    val requests by repository.requests.collectAsStateWithLifecycle()
-    val request = requests[requestKey]
-    var now by remember(request) { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(request, balanceAt) {
-        // Only ticks while a request is out; a quiet tile has no timer.
-        while (request != null && BalanceRequests.phase(request, balanceAt, now) != RequestPhase.IDLE) {
-            delay(10_000)
-            now = System.currentTimeMillis()
-        }
-    }
-    return BalanceRequests.statusLine(BalanceRequests.phase(request, balanceAt, now))
-}
-
 /** Where a request stands for one tile, re-read every second while a progress or "Updated just now" is showing. */
 @Composable
 internal fun rememberCheckState(requestKey: String, balanceAt: Long): Pair<CheckState, Float> {

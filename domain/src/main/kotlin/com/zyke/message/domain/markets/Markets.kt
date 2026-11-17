@@ -196,11 +196,6 @@ interface WatchlistRepository {
     fun save(settings: WatchSettings)
 }
 
-object NoWatchlist : WatchlistRepository {
-    override val watch = kotlinx.coroutines.flow.MutableStateFlow(WatchSettings())
-    override fun save(settings: WatchSettings) = Unit
-}
-
 /** The sign to show before a price in a currency, from the code the quote came with. */
 object CurrencySymbols {
     private val known = mapOf(

@@ -127,6 +127,6 @@ licensed font instead, drop its files into `res/font` and change `AppFontFamily`
 ```
 
 Parsers, classifier, feed / attention / spend builders, use case, formatters and the ViewModel are
-covered by JVM unit tests. `Previews.kt` has Compose previews of the whole feed (light, dark, loading).
+covered by JVM unit tests.
 
 CI (`.github/workflows/ci.yml`) runs the unit tests and builds the debug APK.

@@ -37,20 +37,6 @@ interface HoldingRepository {
     fun undo(undo: HoldingUndo)
 }
 
-object NoHoldings : HoldingRepository {
-    override val state: StateFlow<Holdings> = MutableStateFlow(Holdings())
-    override fun add(holding: Holding) = HoldingUndo(emptyList(), emptySet())
-    override fun update(holding: Holding) = HoldingUndo(emptyList(), emptySet())
-    override fun remove(id: String) = HoldingUndo(emptyList(), emptySet())
-    override fun updateValue(id: String, value: BigDecimal, on: LocalDate, invested: BigDecimal?): HoldingUndo? = null
-    override fun markMatured(id: String): HoldingUndo? = null
-    override fun close(id: String, received: BigDecimal?, on: LocalDate): HoldingUndo? = null
-    override fun renew(id: String, successor: Holding): HoldingUndo? = null
-    override fun dismissMaturityCard(id: String) = Unit
-    override fun migrate(items: List<NetWorthItem>) = 0
-    override fun undo(undo: HoldingUndo) = Unit
-}
-
 /**
  * The working part of the holdings repository, free of Android so it can be tested. Every change is read, applied,
  * published and saved under one lock, so two changes can never start from the same old state. Developer-log lines carry

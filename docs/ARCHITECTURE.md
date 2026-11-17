@@ -125,7 +125,7 @@ A flight booked by SMS gets a card at the top of Home on the day of travel, and 
   the add-a-flight form) goes through it too and is answered with nothing in the demo.
 - **Flights added by hand (`domain/flight/ManualFlights`, `data/repository/ManualFlightRepositoryImpl`).** `ManualFlight` (airline,
   number, day, optional PNR note, and the route and times when a look-up confirmed them) lives in `ManualFlightStore` (atomic,
-  tested; `NoManualFlights` for tests) behind `ManualFlightRepository`, persisted in the private `manual_flights` preferences,
+  tested) behind `ManualFlightRepository`, persisted in the private `manual_flights` preferences,
   which go into the setup backup. `ManualFlights.merge` joins them to the flights found in texts by airline + number + day (the
   text version wins, the hand-made one fills what it lacks, so the same flight is never twice); `isExpired` drops one a day after it
   should have landed. `ManualFlightRules` validates the form. The form (`ManualFlightUi`, a `FormSheet`) is reached from the Home

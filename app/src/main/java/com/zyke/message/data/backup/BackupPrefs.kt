@@ -124,8 +124,6 @@ class BackupPrefs(context: Context, keyReady: () -> Boolean) {
         refresh()
     }
 
-    fun setFolderLabel(label: String) { folder.edit().putString("label", label).apply(); refresh() }
-
     /** Switches the folder backup off and forgets the folder (the caller gives the access grant back). */
     fun clearFolder() {
         folder.edit().clear().apply()

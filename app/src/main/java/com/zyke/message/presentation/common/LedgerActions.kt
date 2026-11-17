@@ -45,12 +45,6 @@ class LedgerActions(
         return excluded
     }
 
-    fun setExcluded(id: Long, excluded: Boolean) {
-        asides.exclude(id, excluded)
-        com.zyke.message.data.diag.DevLog.d("ledger") { "set: id=$id leftOut=$excluded storedKind=${asides.state.value.kindOf(id)}" }
-        offerUndo(if (excluded) "Left out of totals" else "Counted in totals again") { asides.exclude(id, !excluded) }
-    }
-
     /** Shows [message] with an Undo that runs [undo]; for the pages that change the ledger through other paths. */
     fun withUndo(message: String, undo: () -> Unit) = offerUndo(message, undo)
 

@@ -27,9 +27,6 @@ class PaymentGroups private constructor(
 
     fun isFollower(messageId: Long): Boolean = messageId in anchorByFollower
 
-    /** Every member of the group [anchor] leads, the payment first. */
-    fun membersOf(anchor: ClassifiedMessage): List<ClassifiedMessage> = listOf(anchor) + followersOf(anchor.id)
-
     companion object {
         /** The most followers one payment row holds. */
         const val MAX_FOLLOWERS = 6

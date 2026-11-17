@@ -135,16 +135,6 @@ internal fun BalanceHero(overview: AccountsOverview, modifier: Modifier = Modifi
     }
 }
 
-/** What is still owed on the cards' latest bills: a bill paid in full counts as nothing, a part-paid one only its rest. */
-internal fun outstandingBilled(cards: List<AccountSummary>): java.math.BigDecimal =
-    cards.fold(java.math.BigDecimal.ZERO) { sum, card ->
-        val bill = card.dueAmount
-        sum + when {
-            bill == null || card.billPaid -> java.math.BigDecimal.ZERO
-            else -> (bill - (card.paidSinceBill ?: java.math.BigDecimal.ZERO)).max(java.math.BigDecimal.ZERO)
-        }
-    }
-
 /**
  * A running clock for screens that count down. It ticks once a second while the app is on screen, stops while it is
  * not, and reads the real time the instant the app comes back, so a countdown never shows the moment it was left at.
@@ -883,12 +873,6 @@ internal fun freshCodes(candidates: List<ClassifiedMessage>, nowMillis: Long): L
     candidates.filter { nowMillis - it.message.date in 0 until CODE_LIFE_WINDOW_MS }.take(MAX_FRESH_CODES)
 
 private const val MAX_FRESH_CODES = 6
-
-/** The newest code that has not yet run out, or null. */
-internal fun freshCode(state: HomeContract.State, nowMillis: Long): ClassifiedMessage? =
-    state.messages.firstOrNull {
-        it.content is MessageContent.Otp && nowMillis - it.message.date in 0 until CODE_LIFE_WINDOW_MS && it.id !in state.userState.archivedIds
-    }
 
 internal const val CODE_LIFE_WINDOW_MS = 10 * 60 * 1000L
 private const val CODE_LIST_WINDOW_MS = 60 * 60 * 1000L

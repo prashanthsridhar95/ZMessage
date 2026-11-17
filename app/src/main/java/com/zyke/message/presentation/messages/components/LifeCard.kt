@@ -93,12 +93,3 @@ internal fun whenLabel(date: LocalDate, content: MessageContent.Life, today: Loc
     val clock = content.time?.let { FormatCache.pattern("h:mm a", Locale.getDefault()).format(it) }
     return listOfNotNull(day, clock).joinToString(" · ")
 }
-
-/** The card read aloud: "Appointment from Apollo Clinic. Appointment confirmed. Tomorrow · 4:30 PM". */
-internal fun lifeSpoken(content: MessageContent.Life, today: LocalDate): String =
-    listOfNotNull(
-        "${content.kind.label} from ${content.title}",
-        content.status,
-        content.date?.let { whenLabel(it, content, today) },
-        content.reference?.let { "reference $it" }
-    ).joinToString(". ")

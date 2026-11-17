@@ -63,12 +63,6 @@ class FolderBackupStore(context: Context, private val prefs: BackupPrefs) {
         return FolderLabel.of(docId, name)
     }
 
-    /** True when the chosen folder can still be written to (the grant is there and the provider answers). */
-    fun isAccessible(): Boolean = try {
-        val tree = prefs.folderTree?.let(Uri::parse)
-        tree != null && hasWriteGrant(tree) && listOurs(tree, DocumentsContract.getTreeDocumentId(tree)) != null
-    } catch (e: Exception) { false }
-
     /**
      * Adds a dated file with [bytes] and trims the old ones. Returns the number of bytes written.
      * Throws [BackupFailureException] with FOLDER_LOST (grant taken back, folder deleted or its app removed),

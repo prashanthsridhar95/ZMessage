@@ -4,7 +4,6 @@ import com.zyke.message.domain.repository.GoalRepository
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 enum class ContributionSource(val label: String) {
@@ -29,12 +28,6 @@ interface GoalContributionRepository {
     fun save(contribution: GoalContribution)
 
     fun remove(id: String)
-}
-
-object NoGoalContributions : GoalContributionRepository {
-    override val contributions: StateFlow<List<GoalContribution>> = MutableStateFlow(emptyList())
-    override fun save(contribution: GoalContribution) = Unit
-    override fun remove(id: String) = Unit
 }
 
 /** Pure rules for contributions; [GoalSavings] applies them to the repositories. */

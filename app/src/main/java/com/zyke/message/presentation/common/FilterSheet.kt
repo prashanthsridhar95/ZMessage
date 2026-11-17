@@ -1,29 +1,22 @@
 package com.zyke.message.presentation.common
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
 import com.zyke.message.presentation.common.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.mutedColor
 
 /**
@@ -74,41 +67,4 @@ fun SheetSection(title: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Bold,
         color = mutedColor()
     )
-}
-
-/** One choice in a single-choice list: a radio button, a label and an optional count. */
-@Composable
-fun OptionRow(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    trailing: String? = null
-) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        // A ring that fills and ticks when chosen: plainer and larger than a radio button, and clear without colour.
-        androidx.compose.foundation.layout.Box(
-            Modifier.padding(12.dp).size(24.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
-                .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            if (selected) Text("\u2713", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-        }
-        Text(
-            modifier = Modifier.weight(1f),
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-        )
-        if (trailing != null) Caption(trailing)
-    }
 }

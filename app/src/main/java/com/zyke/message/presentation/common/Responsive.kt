@@ -120,16 +120,6 @@ fun CapFontScale(max: Float, content: @Composable () -> Unit) {
 /** At most [max] wide, but never wider than the room there is: a fixed 360.dp would overflow a 320 dp phone. */
 fun Modifier.fitWidthMax(max: Dp): Modifier = this.widthIn(max = max).fillMaxWidth()
 
-/** Gaps that tighten on a narrow phone. */
-@Immutable
-data class CompactSpacing(val gutter: Dp, val card: Dp, val gap: Dp)
-
-@Composable
-fun rememberCompactSpacing(): CompactSpacing {
-    val compact = LocalResponsive.current.isCompact
-    return remember(compact) { if (compact) CompactSpacing(Spacing.md, 14.dp, Spacing.sm) else CompactSpacing(Spacing.lg, Spacing.xl, Spacing.md) }
-}
-
 /** What a cell of a [ResponsiveRow] asks for: a share of the row, or the full width once stacked. */
 interface ResponsiveRowScope {
     val stacked: Boolean

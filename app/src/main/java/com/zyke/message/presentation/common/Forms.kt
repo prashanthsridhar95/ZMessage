@@ -33,9 +33,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -257,6 +255,3 @@ fun FormGroup(label: String, modifier: Modifier = Modifier, content: @Composable
         content()
     }
 }
-
-@Composable
-fun FormSpacer() = Spacer(Modifier.height(Spacing.xs))

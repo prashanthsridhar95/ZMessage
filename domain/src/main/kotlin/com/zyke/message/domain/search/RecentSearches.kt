@@ -6,11 +6,6 @@ interface RecentSearchStore {
     fun save(searches: List<String>)
 }
 
-object NoRecentSearchStore : RecentSearchStore {
-    override fun load(): List<String> = emptyList()
-    override fun save(searches: List<String>) = Unit
-}
-
 /** Keeps the list tidy: newest first, no repeats, at most [MAX]. */
 object RecentSearches {
     const val MAX = 8

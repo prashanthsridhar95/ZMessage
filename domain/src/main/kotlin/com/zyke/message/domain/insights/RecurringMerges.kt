@@ -56,10 +56,6 @@ object RecurringMerges {
     fun groupOf(key: String, merges: List<RecurringMerge>): Set<String> =
         normalize(merges).firstOrNull { key in it.allKeys }?.allKeys?.toSet() ?: setOf(key)
 
-    /** The key that stands for [key]: its group's primary, or itself. Planned items and charges match on this. */
-    fun canonicalKey(key: String, merges: List<RecurringMerge>): String =
-        normalize(merges).firstOrNull { key in it.allKeys }?.primaryKey ?: key
-
     /** Adds [added] to [existing] (flattening chains), as one new list. */
     fun merged(existing: List<RecurringMerge>, added: List<RecurringMerge>): List<RecurringMerge> = normalize(existing + added)
 

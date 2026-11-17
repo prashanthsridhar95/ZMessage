@@ -37,7 +37,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +63,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -99,7 +97,6 @@ import com.zyke.message.domain.dashboard.TrendUnit
 import com.zyke.message.domain.dashboard.VendorSummary
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.presentation.format.DateFormatters
-import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.common.rememberGrowingState
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.displayName
@@ -110,7 +107,6 @@ import com.zyke.message.presentation.common.TileOption
 import com.zyke.message.presentation.common.SheetSection
 import com.zyke.message.presentation.messages.components.MerchantChip
 import com.zyke.message.presentation.messages.components.RowTitle
-import com.zyke.message.presentation.messages.components.SegmentedControl
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
 import java.time.Instant
@@ -231,51 +227,6 @@ internal fun SectionCard(
     }
 }
 
-/**
- * What the hero card turns into once it has scrolled away: the same total, small, beside the Spent / Received
- * switch, so the switch is never more than a glance away.
- */
-@Composable
-internal fun CollapsedHeroBar(
-    dashboard: Dashboard,
-    onDirection: (FlowDirection) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        com.zyke.message.presentation.common.PrivateAmount(
-            modifier = Modifier.weight(1f).padding(end = 12.dp),
-            text = rememberAnimatedRupees(dashboard.total),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            fit = true
-        )
-        DashboardControls(dashboard.direction, onDirection, Modifier.weight(1.4f))
-    }
-}
-
-/** The Spent / Received switch; period tabs sit above and the category filter lives in the sheet. */
-@Composable
-internal fun DashboardControls(
-    direction: FlowDirection,
-    onDirection: (FlowDirection) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    SegmentedControl(
-        options = FlowDirection.entries.map { it.label },
-        selectedIndex = direction.ordinal,
-        onSelect = { onDirection(FlowDirection.entries[it]) },
-        modifier = modifier
-    )
-}
-
 @Composable
 internal fun DashboardFilterSheet(
     period: DashboardPeriod,
@@ -354,120 +305,6 @@ internal fun DashboardFilterSheet(
                     )
                 }
             }
-        )
-    }
-}
-
-/**
- * The headline number: how much went out (or came in) this period, in one glance.
- *
- * One container colour, one "on" colour: every piece of text sits on the card in the colour the theme
- * guarantees is readable there. Direction of change is said in words, never by hue alone.
- */
-@Composable
-internal fun HeroCard(
-    dashboard: Dashboard,
-    period: DashboardPeriod,
-    onDirection: (FlowDirection) -> Unit,
-    modifier: Modifier = Modifier,
-    /** True on the Money tab, where the totals are a switch and one is chosen; false where they only link. */
-    showSelection: Boolean = true
-) {
-    val monthFmt = FormatCache.pattern("MMMM", Locale.getDefault())
-    val verb = dashboard.direction.label
-    val caption = when (period) {
-        DashboardPeriod.THIS_MONTH, DashboardPeriod.LAST_MONTH, DashboardPeriod.CUSTOM -> "$verb · ${periodName(dashboard.range)}"
-        DashboardPeriod.LAST_3_MONTHS -> "$verb in the last 3 months"
-        DashboardPeriod.ALL_TIME -> "$verb in total"
-    }
-    val comparison = when (period) {
-        DashboardPeriod.THIS_MONTH -> "than the same days last month"
-        DashboardPeriod.LAST_MONTH -> "than the month before"
-        DashboardPeriod.LAST_3_MONTHS -> "than the previous 3 months"
-        DashboardPeriod.CUSTOM -> "than the days just before"
-        DashboardPeriod.ALL_TIME -> null
-    }
-    val onHero = MaterialTheme.colorScheme.onSurface
-
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .padding(20.dp)
-    ) {
-        Text(
-            text = caption.uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = onHero.copy(alpha = 0.8f),
-            maxLines = 1
-        )
-        com.zyke.message.presentation.common.PrivateAmount(
-            modifier = Modifier.padding(top = 4.dp),
-            text = rememberAnimatedRupees(dashboard.total),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        val change = dashboard.changePercent
-        val note = if (change != null && comparison != null) {
-            val percent = abs(change).roundToInt()
-            val direction = if (percent == 0) "About the same" else "$percent% ${if (change >= 0) "more" else "less"}"
-            "$direction $comparison"
-        } else {
-            null
-        }
-        Text(
-            modifier = Modifier.padding(top = 4.dp),
-            text = listOfNotNull(note, dashboard.direction.countLabel(dashboard.count).takeIf { note == null }).joinToString(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = onHero.copy(alpha = 0.9f),
-            maxLines = 2
-        )
-
-        // Both totals are always visible; tapping one switches the whole screen to it.
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowTotal(
-                "Spent", dashboard.spentTotal, showSelection, showSelection && dashboard.direction == FlowDirection.SPENT,
-                Modifier.weight(1f)
-            ) { onDirection(FlowDirection.SPENT) }
-            FlowTotal(
-                "Received", dashboard.receivedTotal, showSelection, showSelection && dashboard.direction == FlowDirection.RECEIVED,
-                Modifier.weight(1f)
-            ) { onDirection(FlowDirection.RECEIVED) }
-        }
-    }
-}
-
-@Composable
-private fun FlowTotal(
-    label: String,
-    amount: BigDecimal,
-    isSwitch: Boolean,
-    selected: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    val onHero = MaterialTheme.colorScheme.onSurface
-    Column(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            // The chosen one is lifted onto a lighter plate so the choice is visible without colour.
-            .background(if (selected) onHero.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(role = Role.Tab, onClickLabel = "Show $label", onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        // As a plain link both totals are equal; as a switch the unchosen one steps back.
-        Text(label, style = MaterialTheme.typography.labelMedium, color = onHero.copy(alpha = if (selected || !isSwitch) 1f else 0.8f))
-        Text(
-            rememberAnimatedRupees(amount),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = onHero,
-            maxLines = 1
         )
     }
 }

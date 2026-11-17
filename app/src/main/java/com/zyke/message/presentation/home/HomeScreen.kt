@@ -23,7 +23,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.mutableLongStateOf
-import com.zyke.message.presentation.dashboard.components.SectionCard
 import com.zyke.message.presentation.common.heading
 import com.zyke.message.domain.insights.NudgeKind
 import com.zyke.message.domain.insights.RefundItem
@@ -52,7 +51,6 @@ import androidx.compose.foundation.clickable
 import com.zyke.message.presentation.motion.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -89,14 +87,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.R
 import com.zyke.message.domain.dashboard.CategoryTotal
-import com.zyke.message.domain.dashboard.Dashboard
 import com.zyke.message.domain.home.UpcomingItem
 import com.zyke.message.domain.home.UpcomingKind
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.AppTab
 import com.zyke.message.presentation.common.ErrorState
-import com.zyke.message.presentation.common.rememberAnimatedRupees
 import com.zyke.message.presentation.common.PermissionGate
 import com.zyke.message.presentation.dashboard.components.ChartColors
 import com.zyke.message.presentation.dashboard.components.ShareBar
@@ -119,8 +115,6 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 @Composable
 fun HomeRoute(
@@ -790,27 +784,6 @@ private const val MAX_PLANS = 4
 private const val REMINDER_SOON_DAYS = 7L
 private const val MAX_RECENT_ACTIVITY = 5
 
-/** The month in one line of type: what was spent, and how that compares. Tap for the detail. */
-@Composable
-private fun MonthHeadline(month: Dashboard, onOpen: () -> Unit) {
-    val change = month.changePercent
-    val note = change?.let {
-        val percent = abs(it).roundToInt()
-        if (percent == 0) "About the same as the same days last month"
-        else "$percent% ${if (it >= 0) "more" else "less"} than the same days last month"
-    }
-    Column(Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "See where it went", onClick = onOpen)) {
-        Caption("Spent · ${periodName(month.range)}")
-        com.zyke.message.presentation.common.FitText(
-            rememberAnimatedRupees(month.total),
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        note?.let { Caption(it, Modifier.padding(top = 2.dp), maxLines = 2) }
-    }
-}
-
 /** One thing ahead: an order on its way, a trip, an appointment or a renewal. Tap for the message. */
 @Composable
 private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit, more: (@Composable () -> Unit)? = null) {
@@ -935,9 +908,4 @@ private fun FocusCard(text: String, urgent: Boolean) {
         )
     }
 }
-
-/** A title and a short summary on one line; the same folded section the other tabs use. */
-@Composable
-private fun FoldSection(title: String, summary: String, content: @Composable ColumnScope.() -> Unit) =
-    SectionCard(title, summary = summary, content = content)
 
