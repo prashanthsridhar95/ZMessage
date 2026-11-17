@@ -211,12 +211,7 @@ class ObserveMessagesUseCase(
                     val named = classified.count { it.merchant.renamed }
                     "nicknames: ${nicknames.size} set, ${classified.count { m -> nicknames.containsKey(CategoryKey.messageKey(m.id)) || CategoryKey.of(m)?.let(nicknames::containsKey) == true }} of ${classified.size} messages match one (before applying), $named already renamed"
                 }
-                if (nicknames.isEmpty()) classified else classified.map { message ->
-                    // A name given to this one transaction wins over one given to everything from the same sender or receiver.
-                    val own = nicknames[CategoryKey.messageKey(message.id)]
-                    val nickname = own ?: CategoryKey.of(message)?.let(nicknames::get)
-                    if (nickname != null) message.copy(merchant = message.merchant.copy(name = nickname, renamed = true), nicknameOwn = own != null) else message
-                }
+                if (nicknames.isEmpty()) classified else classified.map { message -> com.zyke.message.domain.nickname.NicknameStage.apply(message, nicknames) }
             }
             .combine(cardBills.state) { classified, decisions ->
                 // A payment of a card's bill moves the person's own money: the swipes were counted when they were made.

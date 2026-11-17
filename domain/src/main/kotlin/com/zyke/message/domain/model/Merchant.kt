@@ -38,5 +38,11 @@ data class Merchant(
     /** Set when the person has chosen a picture for this sender / receiver; see the image store. */
     val imageKey: String? = null,
     /** True when [name] is a nickname the person gave, to be shown exactly as typed. */
-    val renamed: Boolean = false
+    val renamed: Boolean = false,
+    /**
+     * What [name] was before the person's nickname replaced it (set only while a nickname is applied by the pipeline). The
+     * nickname leads wherever a name is looked up (a brand logo, a picture search); this is the second try, and what a
+     * nickname that is taken away returns to.
+     */
+    val originalName: String? = null
 ) : java.io.Serializable

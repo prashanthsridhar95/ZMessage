@@ -62,6 +62,7 @@ class ConversationBuilder(private val merchants: MerchantResolver = MerchantReso
             merchant = resolved.copy(
                 name = named?.merchant?.name ?: resolved.name,
                 renamed = named != null || resolved.renamed,
+                originalName = if (named != null) named.merchant.originalName ?: resolved.name else resolved.originalName,
                 imageKey = pictured?.merchant?.imageKey ?: resolved.imageKey
             ),
             messages = sorted,

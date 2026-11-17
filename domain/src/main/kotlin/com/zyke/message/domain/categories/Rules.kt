@@ -15,7 +15,9 @@ data class TaughtRule(
     val affects: Int,
     val single: Boolean,
     /** The key is a person or shop named in payment messages (see [TransactionRules]), not a sender. */
-    val payee: Boolean = false
+    val payee: Boolean = false,
+    /** The id of the person's own category the key is filed under, if it is (a rule with no built-in category). */
+    val customCategoryId: String? = null
 )
 
 /** "Anything with [token] files under [category]". */
@@ -38,11 +40,13 @@ object Rules {
         categoryOverrides: Map<String, MessageCategory>,
         nicknames: Map<String, String>,
         imageKeys: Set<String>,
-        tokenRules: Map<String, MessageCategory> = emptyMap()
+        tokenRules: Map<String, MessageCategory> = emptyMap(),
+        /** Keys filed under one of the person's own categories (key to category id): they are rules too. */
+        customAssignments: Map<String, String> = emptyMap()
     ): RulesOverview {
         val byKey = messages.groupBy { CategoryKey.of(it) }
         val byId = messages.associateBy { it.id }
-        val keys = (categoryOverrides.keys + nicknames.keys).toSortedSet()
+        val keys = (categoryOverrides.keys + nicknames.keys + customAssignments.keys).toSortedSet()
         val rows = keys.map { key ->
             val single = key.startsWith("msg:")
             val own = if (single) key.removePrefix("msg:").toLongOrNull()?.let(byId::get) else null
@@ -51,6 +55,7 @@ object Rules {
                 key = key,
                 label = group.firstOrNull()?.let(CategoryKey::label)?.ifBlank { null } ?: if (single) UNKNOWN_PAYMENT else UNKNOWN_PAYEE,
                 category = categoryOverrides[key],
+                customCategoryId = customAssignments[key],
                 nickname = nicknames[key],
                 hasPicture = key in imageKeys,
                 affects = group.size,
