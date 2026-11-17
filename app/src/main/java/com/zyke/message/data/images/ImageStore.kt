@@ -129,6 +129,27 @@ class ImageStore(
         true
     }
 
+    /** See [SenderImageRepository.moveKeys]: the file is copied to its new name, then the old one is deleted. */
+    @Synchronized
+    override fun moveKeys(moves: Map<String, String>) {
+        if (moves.isEmpty()) return
+        var keys = _keys.value
+        for ((from, to) in moves) {
+            if (from !in keys || from == to) continue
+            val source = File(chosenDir, fileName(from))
+            if (to !in keys && source.isFile) {
+                val copied = runCatching { source.copyTo(File(chosenDir, fileName(to)), overwrite = true) }.isSuccess
+                if (!copied) continue
+                keys = keys + to
+            }
+            source.delete()
+            cache.remove(CHOSEN + from)
+            cache.remove(CHOSEN + to)
+            keys = keys - from
+        }
+        if (keys != _keys.value) updateKeys(keys)
+    }
+
     fun removeChosen(key: String) {
         File(chosenDir, fileName(key)).delete()
         cache.remove(CHOSEN + key)

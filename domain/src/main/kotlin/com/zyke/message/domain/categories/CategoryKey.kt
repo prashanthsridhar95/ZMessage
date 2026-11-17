@@ -11,6 +11,9 @@ import com.zyke.message.domain.model.MessageContent
  */
 object CategoryKey {
 
+    /** The receiver of a payment or scheduled payment, or "" when the message has none. */
+    fun payeeOf(message: ClassifiedMessage): String = payee(message)
+
     private fun payee(message: ClassifiedMessage): String = when (val content = message.content) {
         is MessageContent.Transaction -> content.payee
         is MessageContent.ScheduledPayment -> content.payee

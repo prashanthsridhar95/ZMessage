@@ -79,7 +79,9 @@ class ObserveMessagesUseCase(
     /** What the person said about which debits paid a credit card's bill. */
     private val cardBills: com.zyke.message.domain.ledger.CardBillRepository = com.zyke.message.domain.ledger.NoCardBills,
     /** What the person said about which texts are the same payment as a bank debit. */
-    private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments
+    private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments,
+    /** Moves rules saved under a payee's older key to its current key as messages arrive (see [com.zyke.message.domain.categories.LegacyKeyMigration]); null where nothing is stored. */
+    private val legacyKeys: com.zyke.message.domain.categories.LegacyKeyMigration? = null
 ) {
     /** Ids of notification items folded into a picture message by [RichMerge]; they are not rows any more, and their marks moved. */
     private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
@@ -154,6 +156,7 @@ class ObserveMessagesUseCase(
         var lastNicknames: Any? = null
         var lastImages: Any? = null
         return (progressive?.messages() ?: whole())
+            .onEach { migrateLegacyKeys(it) }
             .combine(manualEntries.entries) { classified, entries ->
                 if (entries.isEmpty()) {
                     classified
@@ -251,6 +254,21 @@ class ObserveMessagesUseCase(
                 }
             }
             .flowOn(dispatcher)
+    }
+
+    /**
+     * Before any stage reads the rules: a payee's rules saved under its older key move to the current one. The stores publish
+     * the move, so a list built from the old values is followed by one re-emission; it never stops the list from showing.
+     */
+    private fun migrateLegacyKeys(list: List<ClassifiedMessage>) {
+        val migration = legacyKeys ?: return
+        try {
+            val started = System.nanoTime()
+            val moved = migration.run(list)
+            if (moved > 0) DiagLog.d("category") { "legacy keys: $moved saved keys moved in ${(System.nanoTime() - started) / 1_000_000} ms" }
+        } catch (e: Exception) {
+            DiagLog.d("category") { "legacy keys: not moved (${e.javaClass.simpleName})" }
+        }
     }
 
     /** Only messages left as plain text that a taught format reads fully are copied; every other one stays the same instance. */

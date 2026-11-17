@@ -160,7 +160,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills, samePayments = samePayments
+        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills, samePayments = samePayments,
+        legacyKeys = if (demo) null else com.zyke.message.domain.categories.LegacyKeyMigration(categoryOverrides, nicknames, customCategories, imageStore)
     ) }
 
     /**
