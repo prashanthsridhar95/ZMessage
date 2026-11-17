@@ -51,9 +51,9 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation("androidx.wear.compose:compose-material:1.4.0")
     implementation("androidx.wear.compose:compose-foundation:1.4.0")
-    implementation("androidx.wear.tiles:tiles:1.4.0")
-    implementation("androidx.wear.protolayout:protolayout:1.2.0")
+    implementation("androidx.wear.tiles:tiles:1.6.2")
+    implementation("androidx.wear.protolayout:protolayout:1.4.2")
     implementation("androidx.concurrent:concurrent-futures:1.2.0")
-    implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1")
+    implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.3.0")
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
 }
