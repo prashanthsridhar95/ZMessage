@@ -27,7 +27,7 @@ internal fun FastTagCard(
     val event = content.event
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = "FASTag", isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = "FASTag", isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

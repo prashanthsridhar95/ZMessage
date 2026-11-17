@@ -52,7 +52,7 @@ internal fun GenericCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = null, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = null, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f)) {
@@ -86,7 +86,7 @@ internal fun CourierCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -122,7 +122,7 @@ internal fun LoyaltyCard(
     modifier: Modifier = Modifier
 ) {
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

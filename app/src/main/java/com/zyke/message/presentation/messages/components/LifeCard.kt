@@ -39,7 +39,7 @@ internal fun LifeCard(
 ) {
     MessageRow(onClick, modifier) {
         MerchantChip(
-            item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name,
+            item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName,
             description = content.title, isUnread = isUnread
         )
         Spacer(Modifier.width(Spacing.lg))

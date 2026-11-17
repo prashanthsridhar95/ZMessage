@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
 import com.zyke.message.data.logo.LogoFetcher
+import com.zyke.message.domain.classification.BrandLogo
 import com.zyke.message.domain.classification.KnownEntityDomains
 import com.zyke.message.domain.repository.SenderImageRepository
 import java.io.File
@@ -159,12 +160,18 @@ class ImageStore(
     /** The picture if it is already in memory, else null. Cheap enough to ask while a row is being composed. */
     fun peekChosen(key: String): Bitmap? = cache.get(CHOSEN + key)
 
-    /** The brand logo for [name] if it is already in memory, else null. Never reads a file or the network. */
-    fun peekLogo(name: String): Bitmap? {
-        if (isHidden(name)) return null
-        val domain = domainOf(name) ?: return null
+    /**
+     * The brand logo for [name] if it is already in memory, else null. Never reads a file or the network. [name] is the name
+     * the person sees (their nickname when they gave one); [original] is the name in the message, tried second.
+     */
+    fun peekLogo(name: String, original: String? = null): Bitmap? {
+        val domain = logoDomain(name, original) ?: return null
         return cache.get(LOGO + domain)
     }
+
+    /** The website whose logo is shown for [name], else for [original]: the first that is a known brand and not turned off. */
+    private fun logoDomain(name: String, original: String?): String? =
+        BrandLogo.resolve(BrandLogo.names(name, original), ::domainOf, ::isHidden)?.second
 
     /** The logo for a listed website (an airline's, see [com.zyke.message.domain.flight.Airlines.logoDomain]) if it is already in memory. */
     fun peekLogoDomain(domain: String): Bitmap? = if (KnownEntityDomains.isListed(domain)) cache.get(LOGO + domain) else null
@@ -180,9 +187,8 @@ class ImageStore(
     }
 
     /** The cached logo for a well-known [name]; downloads it first when allowed and not tried recently. */
-    suspend fun loadLogo(name: String): Bitmap? = withContext(Dispatchers.IO) {
-        if (isHidden(name)) return@withContext null
-        val domain = domainOf(name) ?: return@withContext null
+    suspend fun loadLogo(name: String, original: String? = null): Bitmap? = withContext(Dispatchers.IO) {
+        val domain = logoDomain(name, original) ?: return@withContext null
         fetchLogo(domain)
     }
 
@@ -220,12 +226,27 @@ class ImageStore(
     /** True when the name is one a brand logo can be found for. */
     fun hasLogo(name: String): Boolean = domainOf(name) != null
 
+    /** True when a brand logo is shown for [name], else for [original] (a known brand that has not been turned off). */
+    fun showsLogo(name: String, original: String?): Boolean = logoDomain(name, original) != null
+
+    /** True when a logo exists for [name] or [original] but the person turned it off. */
+    fun logoTurnedOff(name: String, original: String?): Boolean {
+        val names = BrandLogo.names(name, original)
+        return names.any { domainOf(it) != null } && logoDomain(name, original) == null
+    }
+
     fun isHidden(name: String): Boolean = norm(name) in _hidden.value
 
-    /** Shows the plain icon for this name instead of a brand logo. */
-    fun hideLogo(name: String) = setHidden(_hidden.value + norm(name))
+    /**
+     * Shows the plain icon instead of a brand logo, for every name the logo could have been found by ([name] and [original]),
+     * so changing the nickname later does not bring a wrong logo back by the other name.
+     */
+    fun hideLogo(name: String, original: String? = null) {
+        val names = BrandLogo.withLogo(BrandLogo.names(name, original), ::domainOf).ifEmpty { listOf(name) }
+        setHidden(_hidden.value + names.map(::norm))
+    }
 
-    fun showLogo(name: String) = setHidden(_hidden.value - norm(name))
+    fun showLogo(name: String, original: String? = null) = setHidden(_hidden.value - BrandLogo.names(name, original).map(::norm).toSet())
 
     private fun setHidden(names: Set<String>) {
         index.edit().putStringSet(HIDDEN, names).apply()

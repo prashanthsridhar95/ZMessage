@@ -63,7 +63,7 @@ private fun SenderRow(conversation: Conversation, today: LocalDate, modifier: Mo
     val unread = conversation.unreadCount
 
     MessageRow(onClick = onClick, modifier = modifier) {
-        MerchantChip(conversation.merchant.logo, size = RowTile, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = conversation.title(), isUnread = false)
+        MerchantChip(conversation.merchant.logo, size = RowTile, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, originalName = conversation.merchant.originalName, description = conversation.title(), isUnread = false)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f)) {

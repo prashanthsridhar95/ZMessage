@@ -70,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.categories.CategoryKey
+import com.zyke.message.domain.nickname.PictureSearchQuery
 import com.zyke.message.domain.categories.RuleSource
 import com.zyke.message.domain.categories.TransactionRules
 import com.zyke.message.presentation.common.Choice
@@ -128,17 +129,23 @@ internal fun MessageDetailSheet(
     var categoryScope by remember { mutableStateOf<Boolean?>(null) }
     var nameScope by remember { mutableStateOf<Boolean?>(null) }
     var pictureScope by remember { mutableStateOf<Boolean?>(null) }
-    val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, CategoryKey.label(item)) }
+    // The picture search starts from the name the person sees (their nickname), never the raw sender or payee text; the name in the message is the second search.
+    val nicknameMap by (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container.nicknames.nicknames.collectAsState()
+    val payeeSearch = remember(item, nicknameMap) { PictureSearchQuery.forPayee(item, CategoryKey.of(item)?.let(nicknameMap::get)) }
+    val thisSearch = remember(item) { PictureSearchQuery.of(item) }
+    val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, payeeSearch.primary, payeeSearch.alternative) }
     val imageStore = LocalImageStore.current
     val pictureKeys by (imageStore?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
     val thisMessageKey = CategoryKey.messageKey(item.id)
     val senderHasPicture = CategoryKey.of(item)?.let { it in pictureKeys } == true
     val thisHasPicture = thisMessageKey in pictureKeys
     // The same chooser, for this one payment rather than everything from its sender or receiver.
-    val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, payeeTitle) else null
+    val pickThisPicture = if (canTag && content is MessageContent.Transaction) rememberPicturePicker(thisMessageKey, thisSearch.primary, thisSearch.alternative) else null
     var confirmDelete by remember { mutableStateOf(false) }
     val haptics = com.zyke.message.presentation.motion.rememberHaptics()
     val hiddenLogos by (imageStore?.hiddenLogos ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
+    // The brand logo is looked up by the nickname first, then by the name in the message; re-asked when a logo is turned off or on.
+    val logoShown = remember(item.merchant.name, item.merchant.originalName, hiddenLogos) { imageStore?.showsLogo(item.merchant.name, item.merchant.originalName) == true }
 
     AdaptiveSheet(title, onDismiss, asPage = true) {
         Column(
@@ -147,7 +154,7 @@ internal fun MessageDetailSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MerchantChip(
-                    item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, size = 52.dp,
+                    item.merchant.logo, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = title, size = 52.dp,
                     modifier = if (pickPicture != null) Modifier.clip(RoundedCornerShape(13.dp)).clickable(role = Role.Button, onClickLabel = "Change picture", onClick = pickPicture) else Modifier
                 )
                 Spacer(Modifier.width(Spacing.md))
@@ -260,8 +267,7 @@ internal fun MessageDetailSheet(
             if (content !is MessageContent.Otp) {
                 // A payment can be filed and named on its own, apart from everything else paid to the same receiver.
                 if (payeeCase) {
-                    val hiddenNow = item.merchant.name.trim().lowercase() in hiddenLogos
-                    val autoPicture = if (imageStore != null && imageStore.hasLogo(item.merchant.name) && !hiddenNow) "Brand logo" else "Default"
+                    val autoPicture = if (logoShown) "Brand logo" else "Default"
                     PayeeRulesGroup(
                         item = item, payeeTitle = payeeTitle, pictureKeys = pictureKeys, autoPicture = autoPicture,
                         onCategory = { categoryScope = item.categoryOwn },
@@ -292,7 +298,7 @@ internal fun MessageDetailSheet(
                         if (pickPicture != null) {
                             val pictureValue = when {
                                 senderHasPicture -> "Your picture"
-                                imageStore != null && imageStore.hasLogo(item.merchant.name) && item.merchant.name.trim().lowercase() !in hiddenLogos -> "Brand logo"
+                                logoShown -> "Brand logo"
                                 else -> "Default"
                             }
                             DetailRow("Picture", pictureValue, onClick = pickPicture)
@@ -376,7 +382,7 @@ internal fun MessageDetailSheet(
 
     val namingLedger = com.zyke.message.presentation.common.rememberLedgerActions()
     val namingScope = rememberCoroutineScope()
-    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger, payeeTitle.takeIf { payeeCase }) { categoryScope = null } }
+    categoryScope?.let { forTransaction -> CategorySheet(item, actions, forTransaction, namingLedger, payeeTitle.takeIf { payeeCase }, shownName = title) { categoryScope = null } }
     nameScope?.let { forTransaction -> NicknameSheet(item, title, forTransaction, namingLedger, namingScope, payeeTitle.takeIf { payeeCase }) { nameScope = null } }
     pictureScope?.let { onlyThis ->
         PictureScopeSheet(
@@ -466,6 +472,8 @@ private fun CategorySheet(
     ledger: com.zyke.message.presentation.common.LedgerActions,
     /** The payee's name when the person can pick between all payments to it and this one; null where the scope is fixed. */
     scopePayee: String?,
+    /** The name the person sees for this payee or sender (their nickname if they gave one): sheet titles and captions use it. */
+    shownName: String,
     onDismiss: () -> Unit
 ) {
     // Which the choice is for: this one transaction, or everything with the same payee (or sender).
@@ -543,14 +551,14 @@ private fun CategorySheet(
         onDismiss()
     }
 
-    AdaptiveSheet(if (forTransaction) "Category for this transaction" else "Category for ${CategoryKey.label(item)}", onDismiss, asPage = true) {
+    AdaptiveSheet(if (forTransaction) "Category for this transaction" else "Category for $shownName", onDismiss, asPage = true) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (scopePayee != null) {
                 ScopeChoice(scopePayee, forTransaction, TransactionRules.othersWithSamePayee(item, messages).size) { forTransaction = it }
             } else {
                 Column {
                     Caption(
-                        if (forTransaction) "Other payments to ${CategoryKey.label(item)} are not changed" else "Every payment to ${CategoryKey.label(item)}",
+                        if (forTransaction) "Other payments to $shownName are not changed" else "Every payment to $shownName",
                         Modifier.padding(top = 2.dp), maxLines = 2
                     )
                 }
@@ -670,7 +678,7 @@ private fun NicknameSheet(
     val inheritedCategory = profile?.category?.takeIf { !it.isEmpty }
 
     FormSheet(
-        title = if (forTransaction) "Name this transaction" else "Name ${CategoryKey.label(item)}",
+        title = if (forTransaction) "Name this transaction" else "Name ${shownName.ifBlank { CategoryKey.label(item) }}",
         onDismiss = onDismiss,
         primaryLabel = "Save",
         primaryEnabled = name.isNotBlank(),
@@ -865,10 +873,12 @@ private fun RemovePictureRow(item: ClassifiedMessage, hasOwnPicture: Boolean) {
     val store = LocalImageStore.current ?: return
     val key = CategoryKey.of(item) ?: return
     val hidden by store.hiddenLogos.collectAsState()
+    // The logo is found by the nickname first, then by the name in the message; turning it off covers both.
     val name = item.merchant.name
+    val original = item.merchant.originalName
     when {
         hasOwnPicture -> DetailRow("Remove picture", null) { store.removeChosen(key) }
-        store.hasLogo(name) && !store.isHidden(name) -> DetailRow("This logo is wrong", null) { store.hideLogo(name) }
-        store.isHidden(name) && hidden.isNotEmpty() -> DetailRow("Show the logo again", null) { store.showLogo(name) }
+        store.showsLogo(name, original) -> DetailRow("This logo is wrong", null) { store.hideLogo(name, original) }
+        store.logoTurnedOff(name, original) && hidden.isNotEmpty() -> DetailRow("Show the logo again", null) { store.showLogo(name, original) }
     }
 }

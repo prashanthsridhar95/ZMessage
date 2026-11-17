@@ -159,11 +159,13 @@ internal fun MerchantChip(
     imageKey: String? = null,
     /** Used to look up a brand logo, for names the app has no built-in icon for. */
     name: String? = null,
+    /** The name in the message when [name] is a nickname the person gave: the logo is looked up by [name] first, then by this. */
+    originalName: String? = null,
     /** Sit on a white plate with a quiet hairline, so any logo reads over a coloured surface such as a card's gradient. */
     plate: Boolean = false
 ) {
     val shape = RoundedCornerShape(size / 4)
-    val picture = rememberSenderPicture(imageKey, name, wantsLogo = logo.isTinted)
+    val picture = rememberSenderPicture(imageKey, name, originalName, wantsLogo = logo.isTinted)
     // A brand logo sits on white so transparent icons read in both themes; a person's own photo fills the tile.
     val isBrandLogo = picture != null && imageKey == null
     val monogram = if (picture == null && logo == MerchantLogo.PERSON) monogramFor(name) else null
@@ -349,24 +351,24 @@ internal fun IconCaption(@DrawableRes icon: Int, text: String, modifier: Modifie
 
 /** The person's chosen picture, else a cached brand logo for a well-known name, else null (the built-in icon). */
 @Composable
-private fun rememberSenderPicture(imageKey: String?, name: String?, wantsLogo: Boolean): ImageBitmap? {
+private fun rememberSenderPicture(imageKey: String?, name: String?, originalName: String?, wantsLogo: Boolean): ImageBitmap? {
     val store = LocalImageStore.current ?: return null
     val version by store.version.collectAsState()
     // A picture already in memory is used on the very first composition, so a row scrolling in never flashes the
     // placeholder icon first. Only a picture that has to be read from storage (or downloaded) arrives a moment later.
-    val cached = remember(imageKey, name, wantsLogo, version) {
+    val cached = remember(imageKey, name, originalName, wantsLogo, version) {
         when {
             imageKey != null -> store.peekChosen(imageKey)
-            wantsLogo && !name.isNullOrBlank() -> store.peekLogo(name)
+            wantsLogo && !name.isNullOrBlank() -> store.peekLogo(name, originalName)
             else -> null
         }?.asImageBitmap()
     }
     if (cached != null) return cached
-    val loaded by produceState<ImageBitmap?>(initialValue = null, imageKey, name, wantsLogo, version) {
+    val loaded by produceState<ImageBitmap?>(initialValue = null, imageKey, name, originalName, wantsLogo, version) {
         value = null
         value = when {
             imageKey != null -> store.loadChosen(imageKey)?.asImageBitmap()
-            wantsLogo && !name.isNullOrBlank() -> store.loadLogo(name)?.asImageBitmap()
+            wantsLogo && !name.isNullOrBlank() -> store.loadLogo(name, originalName)?.asImageBitmap()
             else -> null
         }
     }

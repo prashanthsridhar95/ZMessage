@@ -41,7 +41,7 @@ internal fun ScheduledPaymentCard(
     val urgent = content.kind == ScheduledKind.UPCOMING_DEBIT && content.date?.let { DisplayFormatters.isUrgent(it, today) } == true
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = title, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = title, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

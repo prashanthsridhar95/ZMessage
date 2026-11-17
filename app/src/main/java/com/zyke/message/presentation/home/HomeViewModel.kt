@@ -65,6 +65,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /** The front page: what needs attention, what is coming up, and how the month is going. */
@@ -135,8 +136,20 @@ class HomeViewModel(
         }
     )
 
+    /** A nickname just given or taken away, shown on the messages held here in the same moment as the tap (see [PendingNicknames]). */
+    private val pendingNames = com.zyke.message.domain.nickname.PendingNicknames()
+
     init {
         startDeriving("home", deriveContext) { snapshot -> derive(snapshot) }
+        viewModelScope.launch {
+            nicknames.nicknames.drop(1).collect { names ->
+                pendingNames.changed()
+                reduceHome {
+                    val shown = pendingNames.overlay(messages, names)
+                    if (shown === messages) this else copy(messages = shown)
+                }
+            }
+        }
         viewModelScope.launch(deriveContext) {
             for (write in writes) {
                 runCatching { write() }.onFailure { com.zyke.message.data.diag.DevLog.e("write", "a saved choice could not be written", it) }
@@ -376,7 +389,7 @@ class HomeViewModel(
                 .catch { reduce { copy(isLoading = false, hasError = true) } }
                 .collect { inbox ->
                     reduceHome {
-                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = actions.pending.settle(inbox), now = clock.instant())
+                        copy(isLoading = false, hasError = false, hasLoaded = true, messages = pendingNames.overlay(actions.pending.settle(inbox), nicknames.nicknames.value), now = clock.instant())
                     }
                 }
         }

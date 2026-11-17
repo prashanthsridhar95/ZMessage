@@ -272,7 +272,7 @@ internal fun UpcomingRow(
     PlanRow(
         title = title,
         modifier = Modifier.rowTap("Open details", onOpen),
-        leading = { MerchantChip(merchant.logo, imageKey = merchant.imageKey, name = merchant.name, description = title, size = RowTile) },
+        leading = { MerchantChip(merchant.logo, imageKey = merchant.imageKey, name = merchant.name, originalName = merchant.originalName, description = title, size = RowTile) },
         caption = {
             Caption(
                 if (paid) "$kind · paid today" else "$kind · " + BillsMath.dueCaption(item.date, today),

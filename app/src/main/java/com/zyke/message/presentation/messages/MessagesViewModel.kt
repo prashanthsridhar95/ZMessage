@@ -31,6 +31,7 @@ import java.time.Clock
 import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
@@ -64,8 +65,21 @@ class MessagesViewModel(
         }
     )
 
+    /** A nickname just given or taken away, shown on the messages held here in the same moment as the tap (see [PendingNicknames]). */
+    private val pendingNames = com.zyke.message.domain.nickname.PendingNicknames()
+
     init {
         startDeriving("messages", deriveContext) { snapshot -> deriveFeed(snapshot) }
+        viewModelScope.launch {
+            nicknames.nicknames.drop(1).collect { names ->
+                pendingNames.changed()
+                reduce {
+                    val shown = pendingNames.overlay(messages, names)
+                    if (shown === messages) this else copy(messages = shown, feed = com.zyke.message.domain.feed.FeedPatch.sync(feed, com.zyke.message.domain.feed.FeedPatch.changed(messages, shown)))
+                }
+                requestDerive()
+            }
+        }
         viewModelScope.launch {
             userStateRepository.state.collect { userState -> reduceFeed { copy(userState = userState) } }
         }
@@ -212,7 +226,7 @@ class MessagesViewModel(
                         copy(
                             isLoading = false,
                             hasError = false,
-                            messages = actions.pending.settle(inbox),
+                            messages = pendingNames.overlay(actions.pending.settle(inbox), nicknames.nicknames.value),
                             now = clock.instant()
                         )
                     }

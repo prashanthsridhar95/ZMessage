@@ -340,7 +340,7 @@ private fun RefundRow(item: RefundItem, onReceived: () -> Unit, onNotReceived: (
     PlanRow(
         title = item.from,
         modifier = Modifier.rowTap("Open details", onOpen),
-        leading = { MerchantChip(merchant.logo, imageKey = merchant.imageKey, name = merchant.name, description = item.from, size = RowTile) },
+        leading = { MerchantChip(merchant.logo, imageKey = merchant.imageKey, name = merchant.name, originalName = merchant.originalName, description = item.from, size = RowTile) },
         caption = { Caption(status, color = if (item.isPending) mutedColor() else MaterialTheme.colorScheme.primary, maxLines = 2) },
         amount = { RowAmount(DisplayFormatters.rupees(item.amount), MaterialTheme.colorScheme.secondary) },
         actions = actions

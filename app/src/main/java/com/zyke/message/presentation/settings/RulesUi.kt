@@ -54,7 +54,10 @@ internal fun RulesSection() {
     val actions = rememberLedgerActions()
     val customs = com.zyke.message.presentation.common.LocalCustomCategories.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val view = remember(messages, overrides, nicknames, pictures, words) { Rules.describe(messages, overrides, nicknames, pictures, words) }
+    val customState by container.customCategories.state.collectAsStateWithLifecycle()
+    // Payees filed under one of the person's own categories are rules too (only those whose category still exists).
+    val customAssignments = remember(customState) { customState.assignments.filterValues { id -> customState.categories.any { it.id == id } } }
+    val view = remember(messages, overrides, nicknames, pictures, words, customAssignments) { Rules.describe(messages, overrides, nicknames, pictures, words, customAssignments) }
     val suggestions = remember(overrides, words) { Rules.suggestTokenRules(overrides, words) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -91,11 +94,11 @@ internal fun RulesSection() {
             Caption("For a person or shop you pay or are paid by. Rules for a sender are below.", maxLines = 2)
             if (payeeRules.size > SEARCH_FROM) FormField("Find a payee", query, { query = it }, placeholder = "Type a name")
             if (shown.isEmpty()) Caption("No payee matches \"${query.trim()}\"", maxLines = 2)
-            shown.forEach { rule -> RuleRow(rule, { editing = rule.key }, { confirmForget = rule }) }
+            shown.forEach { rule -> RuleRow(rule, customs, { editing = rule.key }, { confirmForget = rule }) }
         }
     }
     if (senderRules.isNotEmpty()) SectionCard("Senders") {
-        senderRules.forEach { rule -> RuleRow(rule, { editing = rule.key }, { confirmForget = rule }) }
+        senderRules.forEach { rule -> RuleRow(rule, customs, { editing = rule.key }, { confirmForget = rule }) }
     }
     if (view.tokenRules.isNotEmpty()) SectionCard("Word rules") {
         view.tokenRules.forEach { row ->
@@ -113,12 +116,15 @@ internal fun RulesSection() {
         }
     }
     if (view.singles.isNotEmpty()) SectionCard("Single payments") {
-        view.singles.forEach { rule -> RuleRow(rule, { editing = rule.key }, {
+        view.singles.forEach { rule -> RuleRow(rule, customs, { editing = rule.key }, {
             haptics.reject()
-            container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null)
+            // A payment filed under one of the person's own categories is forgotten too, and comes back with Undo.
+            val custom = container.customCategories.state.value.assignments[rule.key]
+            container.categoryOverrides.set(rule.key, null); container.nicknames.set(rule.key, null); container.customCategories.assign(rule.key, null)
             actions.withUndo("Rule forgotten") {
                 rule.category?.let { container.categoryOverrides.set(rule.key, it) }
                 rule.nickname?.let { container.nicknames.set(rule.key, it) }
+                custom?.let { container.customCategories.assign(rule.key, it) }
             }
         }) }
     }
@@ -138,18 +144,21 @@ internal fun RulesSection() {
         onSave = { category, name ->
             // A category picked here is a deliberate choice; a new name alone brings the category the name already has.
             val chosen = category?.takeIf { open.category != null && it != open.category }
-            val rename = open.nickname != null && !name.isNullOrBlank() && name.trim() != open.nickname
+            // A name can be given, changed or taken away here (empty); the sheet no longer needs a name to exist already.
+            val newName = name?.trim().orEmpty()
+            val rename = newName != open.nickname.orEmpty()
             if (chosen != null || rename) {
                 val covered = if (open.key.startsWith("msg:")) open.key.removePrefix("msg:").toLongOrNull()?.let { setOf(it) } ?: emptySet()
                 else messages.filter { com.zyke.message.domain.categories.CategoryKey.of(it) == open.key }.mapTo(HashSet()) { it.id }
                 actions.edit(
                     com.zyke.message.domain.nickname.NamingEdits.Request(
                         listOf(com.zyke.message.domain.nickname.NamingEdits.Target(open.key, covered)),
-                        if (rename) name else null, chosen?.let { com.zyke.message.domain.nickname.CategoryChoice.of(it) }
+                        if (rename) newName else null, chosen?.let { com.zyke.message.domain.nickname.CategoryChoice.of(it) }
                     ),
                     messages, pictures, customs,
                     copyPicture = { from, to -> scope.launch { container.imageStore.copyChosen(from, to) } },
-                    removePicture = { container.imageStore.removeChosen(it) }
+                    removePicture = { container.imageStore.removeChosen(it) },
+                    summary = if (rename && newName.isEmpty()) "Name removed" else null
                 )
             }
             editing = null
@@ -163,11 +172,12 @@ private const val SEARCH_FROM = 6
 private fun count(n: Int) = if (n == 1) "1 message" else "$n messages"
 
 @Composable
-private fun RuleRow(rule: TaughtRule, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun RuleRow(rule: TaughtRule, customs: List<com.zyke.message.domain.model.CustomCategory>, onEdit: () -> Unit, onDelete: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         RowTitle(rule.label)
         val parts = buildList {
             rule.category?.let { add(it.displayString) }
+            rule.customCategoryId?.let { id -> customs.firstOrNull { it.id == id }?.let { add(it.name) } }
             rule.nickname?.let { add("Called $it") }
             if (rule.hasPicture) add("Has a picture")
             add(count(rule.affects))
@@ -189,14 +199,18 @@ private fun EditRuleSheet(rule: TaughtRule, onSave: (MessageCategory?, String?) 
         title = rule.label,
         onDismiss = onDismiss,
         primaryLabel = "Save",
-        primaryEnabled = rule.nickname == null || name.isNotBlank(),
+        primaryEnabled = true,
         onPrimary = { onSave(category, name) }
     ) {
         if (rule.category != null) PickField(
             "Category", categories.map { it.displayString }, category?.displayString,
             onPick = { picked -> category = categories.firstOrNull { it.displayString == picked } }
         )
-        if (rule.nickname != null) FormField("Name", name, { name = it })
+        FormField(
+            "Name", name, { name = it }, placeholder = rule.label,
+            supporting = if (rule.nickname != null) "Leave empty to show ${rule.label} again" else "Shown instead of ${rule.label} wherever it appears",
+            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+        )
     }
 }
 

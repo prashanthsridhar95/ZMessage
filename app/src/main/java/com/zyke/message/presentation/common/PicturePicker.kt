@@ -25,10 +25,13 @@ import com.zyke.message.presentation.messages.components.RowTitle
 /**
  * The one way to give something a picture, wherever a picture can be set (a sender, a receiver, an account): tapping
  * its photo opens a sheet to choose where from, the person's own photos or a Google image search for [label] inside
- * the app. [key] is what the picture is kept under. Returns what to call to start, or null where pictures are not available.
+ * the app. [key] is what the picture is kept under. [label] is the name the person sees (their nickname when they gave one,
+ * see [com.zyke.message.domain.nickname.PictureSearchQuery]), never the sender's raw header or an account number;
+ * [alternative] is the name in the message, offered as a second search. Returns what to call to start, or null where pictures
+ * are not available.
  */
 @Composable
-fun rememberPicturePicker(key: String, label: String): (() -> Unit)? {
+fun rememberPicturePicker(key: String, label: String, alternative: String? = null): (() -> Unit)? {
     val store = LocalImageStore.current ?: return null
     // Demo mode: no photos from the gallery and no web search.
     if (com.zyke.message.data.demo.DemoMode.active) return null
@@ -58,7 +61,7 @@ fun rememberPicturePicker(key: String, label: String): (() -> Unit)? {
     }
     if (step == 2) {
         ImageSearchSheet(
-            query = label, store = store, onDismiss = { step = 0 },
+            query = label, alternative = alternative, store = store, onDismiss = { step = 0 },
             onUse = { bitmap ->
                 store.saveChosenBitmapDetached(key, bitmap) { saved ->
                     if (saved) step = 0

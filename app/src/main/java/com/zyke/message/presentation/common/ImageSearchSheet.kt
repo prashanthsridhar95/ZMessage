@@ -38,7 +38,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.zyke.message.data.images.ImageStore
+import com.zyke.message.domain.nickname.NicknameProfiles
+import com.zyke.message.domain.nickname.PictureSearchQuery
 import com.zyke.message.presentation.messages.components.Caption
+
+private fun searchAddress(text: String): String = "https://www.google.com/search?tbm=isch&q=" + android.net.Uri.encode(text)
 
 /** Reports the address of a picture the person tapped on the page. Takes a string and nothing else, so a page can do no more with it. */
 private class PickBridge(private val onPicked: (String) -> Unit) {
@@ -77,17 +81,30 @@ private const val TAP_SCRIPT = """
 """
 
 /**
- * Google Images for [query], inside the app. Tap a picture and it is shown in the bar below; "Use this picture" keeps
- * it for the sender. A long press on a picture does the same, for pages that handle taps themselves.
+ * Google Images for [query], inside the app. [query] is the name the person sees (their nickname if they gave one); the field
+ * above the page starts with it and can be edited, and when the name in the message ([alternative]) is a different one it is
+ * offered as a second search. Tap a picture and it is shown in the bar below; "Use this picture" keeps it for the sender. A long
+ * press on a picture does the same, for pages that handle taps themselves. Only the text in the field is ever sent to the web.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, onDismiss: () -> Unit) {
+fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, onDismiss: () -> Unit, alternative: String? = null) {
     var tapped by remember { mutableStateOf<String?>(null) }
     var candidate by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
+    var typed by remember { mutableStateOf(query) }
+    var searched by remember { mutableStateOf(query) }
+    val page = remember { arrayOfNulls<WebView>(1) }
+    fun search(text: String) {
+        val clean = PictureSearchQuery.clean(text)
+        if (clean.isEmpty()) return
+        searched = clean
+        typed = clean
+        tapped = null
+        page[0]?.loadUrl(searchAddress(clean))
+    }
 
     LaunchedEffect(tapped) {
         candidate = null
@@ -101,9 +118,17 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
     // The results are a whole web page to scroll and tap in: a page, whose web view takes the room under the title.
     AppPage("Find a picture", onDismiss, scrollable = false) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Caption("Searching for \"$query\"", Modifier.weight(1f), maxLines = 1)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SearchField(typed, { typed = it }, Modifier.weight(1f), placeholder = "Name to search for", onSearch = ::search, autoFocus = false)
+                AppButton("Search", { search(typed) }, enabled = PictureSearchQuery.clean(typed).isNotEmpty())
             }
+            if (alternative != null && NicknameProfiles.normalise(alternative) != NicknameProfiles.normalise(searched)) {
+                AppButton(
+                    "Search for \u201C$alternative\u201D instead", { search(alternative) },
+                    Modifier.padding(horizontal = 12.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
+                )
+            }
+            Caption("Searching for \"$searched\"", Modifier.padding(horizontal = 20.dp), maxLines = 1)
             if (loading) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
 
             AndroidView(
@@ -138,10 +163,11 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
                                 false
                             }
                         }
-                        loadUrl("https://www.google.com/search?tbm=isch&q=" + android.net.Uri.encode(query))
+                        page[0] = this
+                        loadUrl(searchAddress(PictureSearchQuery.clean(query).ifEmpty { query }))
                     }
                 },
-                onRelease = { it.stopLoading(); it.destroy() }
+                onRelease = { page[0] = null; it.stopLoading(); it.destroy() }
             )
 
             // What was tapped, and the one button to keep it.

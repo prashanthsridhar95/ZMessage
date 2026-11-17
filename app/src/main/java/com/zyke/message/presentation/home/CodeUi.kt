@@ -94,7 +94,7 @@ internal fun CodeCardContent(message: ClassifiedMessage, nowMillis: Long, onCopy
         Modifier.semantics { contentDescription = "Verification code from ${senderLabel.spoken}, ${otp.code.toList().joinToString(" ")}, " + (if (expired) "expired" else "${seconds / SECONDS_IN_MINUTE} minutes ${seconds % SECONDS_IN_MINUTE} seconds left") }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = sender, size = 44.dp)
+            MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, originalName = message.merchant.originalName, description = sender, size = 44.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Caption("VERIFICATION CODE")

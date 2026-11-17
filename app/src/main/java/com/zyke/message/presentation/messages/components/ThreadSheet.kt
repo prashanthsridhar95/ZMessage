@@ -69,7 +69,7 @@ fun ThreadSheet(
     // A whole conversation is always big: it is a page, whose list scrolls by itself.
     com.zyke.message.presentation.common.AppPage(conversation.title(), onDismiss, scrollable = false) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-            MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, description = null, size = 44.dp)
+            MerchantChip(conversation.merchant.logo, imageKey = conversation.merchant.imageKey, name = conversation.merchant.name, originalName = conversation.merchant.originalName, description = null, size = 44.dp)
             Spacer(Modifier.width(Spacing.md))
             Column(Modifier.weight(1f)) {
                 SenderTitle(remember(conversation.key, conversation.merchant, conversation.newest.message.date) { conversation.senderLabel() })

@@ -795,7 +795,7 @@ private fun AgendaRow(item: AgendaItem, today: LocalDate, onOpen: () -> Unit, mo
         modifier = Modifier.fullWidthClickable(onClickLabel = "Open details", onClick = onOpen),
         leading = {
             MerchantChip(
-                item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name,
+                item.message.merchant.logo, imageKey = item.message.merchant.imageKey, name = item.message.merchant.name, originalName = item.message.merchant.originalName,
                 description = item.title, size = 44.dp
             )
         },
@@ -875,7 +875,7 @@ internal fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         Modifier.fillMaxWidth().fullWidthClickable(onClickLabel = "Open details", onClick = onOpen).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, description = message.merchant.name, size = 44.dp)
+        MerchantChip(message.merchant.logo, imageKey = message.merchant.imageKey, name = message.merchant.name, originalName = message.merchant.originalName, description = message.merchant.name, size = 44.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             RowTitle(message.merchant.displayName)

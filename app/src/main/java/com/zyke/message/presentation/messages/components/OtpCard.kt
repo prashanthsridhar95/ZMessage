@@ -72,7 +72,7 @@ internal fun OtpCard(
             )
         }
     ) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = content.senderName, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = content.senderName, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

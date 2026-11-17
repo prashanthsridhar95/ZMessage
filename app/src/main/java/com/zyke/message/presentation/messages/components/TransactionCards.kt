@@ -38,7 +38,7 @@ internal fun TransactionCard(
     val repeatOf = item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let { "Same payment as ${it.primaryLabel}" }
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = item.merchant.name, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = item.merchant.name, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -80,7 +80,7 @@ internal fun CardBillCard(
     val urgent = due != null && DisplayFormatters.isUrgent(due, today)
 
     MessageRow(onClick, modifier) {
-        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, description = bank.displayString, isUnread = isUnread)
+        MerchantChip(item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName, description = bank.displayString, isUnread = isUnread)
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
