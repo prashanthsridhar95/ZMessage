@@ -42,6 +42,14 @@ import com.zyke.message.domain.nickname.NicknameProfiles
 import com.zyke.message.domain.nickname.PictureSearchQuery
 import com.zyke.message.presentation.messages.components.Caption
 
+/** The name followed by "logo" ("Hardware shop logo"), which is how the search starts; a name that already ends in "logo" is left as it is. */
+private fun withLogoWord(name: String): String {
+    val trimmed = name.trim()
+    return if (trimmed.isEmpty() || trimmed.endsWith("logo", ignoreCase = true)) trimmed else "$trimmed logo"
+}
+
+private fun withoutLogoWord(text: String): String = text.trim().removeSuffix(" logo").removeSuffix(" Logo").trim()
+
 private fun searchAddress(text: String): String = "https://www.google.com/search?tbm=isch&q=" + android.net.Uri.encode(text)
 
 /** Reports the address of a picture the person tapped on the page. Takes a string and nothing else, so a page can do no more with it. */
@@ -94,8 +102,9 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
     var failed by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
-    var typed by remember { mutableStateOf(query) }
-    var searched by remember { mutableStateOf(query) }
+    val startText = remember(query) { withLogoWord(PictureSearchQuery.clean(query).ifEmpty { query }) }
+    var typed by remember { mutableStateOf(startText) }
+    var searched by remember { mutableStateOf(startText) }
     val page = remember { arrayOfNulls<WebView>(1) }
     fun search(text: String) {
         val clean = PictureSearchQuery.clean(text)
@@ -122,9 +131,9 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
                 SearchField(typed, { typed = it }, Modifier.weight(1f), placeholder = "Name to search for", onSearch = ::search, autoFocus = false)
                 AppButton("Search", { search(typed) }, enabled = PictureSearchQuery.clean(typed).isNotEmpty())
             }
-            if (alternative != null && NicknameProfiles.normalise(alternative) != NicknameProfiles.normalise(searched)) {
+            if (alternative != null && NicknameProfiles.normalise(alternative) != NicknameProfiles.normalise(withoutLogoWord(searched))) {
                 AppButton(
-                    "Search for \u201C$alternative\u201D instead", { search(alternative) },
+                    "Search for \u201C$alternative\u201D instead", { search(withLogoWord(alternative)) },
                     Modifier.padding(horizontal = 12.dp), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT
                 )
             }
@@ -164,7 +173,7 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
                             }
                         }
                         page[0] = this
-                        loadUrl(searchAddress(PictureSearchQuery.clean(query).ifEmpty { query }))
+                        loadUrl(searchAddress(startText))
                     }
                 },
                 onRelease = { page[0] = null; it.stopLoading(); it.destroy() }
