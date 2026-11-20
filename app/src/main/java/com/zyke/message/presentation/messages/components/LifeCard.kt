@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MessageContent
 import com.zyke.message.presentation.common.scaledLines
+import com.zyke.message.presentation.format.displayName
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -37,15 +38,18 @@ internal fun LifeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // The row says who it is with by the name the person sees: a nickname they set, or the brand found in the text when the sender is only
+    // a number ("57575625" for Zoho). Otherwise the title the parser made stays.
+    val title = if (item.merchant.renamed || content.title.none { it.isLetter() }) item.merchant.displayName.ifBlank { content.title } else content.title
     MessageRow(onClick, modifier) {
         MerchantChip(
             item.merchant.logo, size = RowTile, imageKey = item.merchant.imageKey, name = item.merchant.name, originalName = item.merchant.originalName,
-            description = content.title, isUnread = isUnread
+            description = title, isUnread = isUnread
         )
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            RowTitle(content.title)
+            RowTitle(title)
             Caption(
                 listOfNotNull(content.kind.label, content.reference?.let { "#$it" }, time).joinToString(" · ")
             )
