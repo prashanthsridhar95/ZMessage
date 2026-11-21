@@ -69,6 +69,12 @@ object Tours {
             covers = setOf("home.todays_budget", "home.streak", "home.adjust_budget")
         ),
         TourStep(
+            "home.deck", G.HOME, "Your deck",
+            "New messages wait in small stacks. Open one and swipe a card right for Got it (read), left for Sweep it (archive), up or down to move around. Undo follows, and the gear orders the stacks.",
+            tab = T.HOME, anchor = A.HOME_DECK, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.DECK,
+            covers = setOf("home.deck", "home.deck_swipe", "settings.home_deck")
+        ),
+        TourStep(
             "home.codes", G.HOME, "Codes and alerts",
             "A fresh OTP appears here with a Copy button until it expires. Bills and other things that need your attention sit in the same card.",
             tab = T.HOME, anchor = A.HOME_CODES, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.CODE,

@@ -99,6 +99,12 @@ data class TriageSettings(
         return copy(order = ids)
     }
 
+    /** The repaired form: every stack once in order, and only the modes that differ from the defaults. Two settings that mean the same are equal once normalised. */
+    fun normalized(): TriageSettings = TriageSettings(
+        orderedIds(),
+        TriageStackSpec.ALL.associate { it.id to modeOf(it.id) }.filter { (id, mode) -> mode != TriageStackSpec.byId(id)?.defaultMode }
+    )
+
     val isDefault: Boolean get() = orderedIds() == TriageStackSpec.DEFAULT_ORDER && TriageStackSpec.DEFAULT_ORDER.all { modeOf(it) == TriageStackSpec.byId(it)?.defaultMode }
 }
 

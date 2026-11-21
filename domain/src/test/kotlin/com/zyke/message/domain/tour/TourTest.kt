@@ -71,7 +71,7 @@ class TourContentTest {
         val required = listOf(
             "privacy.local_first", "privacy.no_account", "privacy.messages_stay", "sms.reading", "sms.permission", "nav.tabs",
             "home.total_balance", "home.market_strip", "home.todays_budget", "home.streak", "home.adjust_budget", "home.codes_card",
-            "home.copy_code", "home.needs_review", "home.attention_strip", "home.shortcut_calendar", "home.shortcut_goals",
+            "home.copy_code", "home.deck", "home.deck_swipe", "settings.home_deck", "home.needs_review", "home.attention_strip", "home.shortcut_calendar", "home.shortcut_goals",
             "home.shortcut_reminders", "home.shortcut_afford", "home.plans", "home.snooze_dismiss", "home.mark_paid", "home.pay_bill",
             "add.entry_button", "add.widget", "add.quick_tile", "add.share_to_app",
             "accounts.overview", "accounts.card_dues", "accounts.tabs", "accounts.hero_number", "accounts.card_deck", "accounts.edit_account", "accounts.net_worth", "accounts.leave_out",

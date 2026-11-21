@@ -97,7 +97,7 @@ class DemoDataTest {
         assertEquals(data.messages.size, data.messages.map { it.id }.distinct().size)
         assertTrue(data.messages.size in 250..600)
         assertTrue(data.messages.any { !it.isRead })
-        assertTrue(data.messages.count { !it.isRead } < 10)
+        assertTrue(data.messages.count { !it.isRead } < 20)
     }
 
     @Test

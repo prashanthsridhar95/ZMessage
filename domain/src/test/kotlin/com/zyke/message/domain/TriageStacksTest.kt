@@ -324,6 +324,8 @@ class TriageStacksTest {
         assertEquals(TriageMode.QUIET, quiet.modeOf("payments"))
         assertEquals(emptyMap<String, TriageMode>(), quiet.withMode("payments", TriageMode.KEEP).modes)
         assertTrue(TriageSettings().isDefault)
+        assertEquals(TriageSettings(), TriageSettings(order = listOf("payments", "ghost"), modes = mapOf("payments" to TriageMode.KEEP)).normalized())
+        assertEquals(mapOf("offers" to TriageMode.AUTO_CLEAR), TriageSettings().withMode("offers", TriageMode.AUTO_CLEAR).normalized().modes)
         assertFalse(quiet.isDefault)
     }
 
@@ -376,5 +378,25 @@ class TriageStacksTest {
         assertTrue(d === d.without(emptySet()))
         assertTrue(d === d.without(setOf(9999L)))
         assertEquals(setOf(a.id, b.id), d.shownIds)
+    }
+}
+
+/** The demo has something unread for every stack, so the deck is full the first time it is seen. */
+class TriageDemoTest {
+    @Test
+    fun everyStackHasAUnreadCardInTheDemo() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val now = Instant.parse("2026-11-21T06:00:00Z")
+        val data = com.zyke.message.domain.demo.DemoData.build(now.toEpochMilli(), zone)
+        val classifier = MessageClassifier()
+        val messages = data.messages.map { classifier.classify(it) }
+        val deck = TriageStacks.build(messages, UserMessageState(), TriageSettings(), now, zone)
+        for (spec in TriageStackSpec.ALL) {
+            val stack = deck.stackOf(spec.id)!!
+            val has = stack.items.size + stack.autoCleared.size
+            assertTrue("${spec.title} has no demo card (${deck.stacks.map { it.id + ":" + it.items.size }})", has > 0)
+        }
+        assertTrue(deck.toGo >= 6)
+        assertTrue(deck.autoCleared.isNotEmpty())
     }
 }

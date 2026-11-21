@@ -355,7 +355,7 @@ object DemoData {
             val refundDay = ago(8)
             cardSpend(ago(15), 14, 2, "MYNTRA", 2_199)
             add(refundDay, 12, 30, "VM-HDFCBK-S",
-                "Rs.2199.00 credited to HDFC Bank Credit Card XX$CREDIT_CARD on ${refundDay.format(dmy)} for refund from MYNTRA")
+                "Rs.2199.00 credited to HDFC Bank Credit Card XX$CREDIT_CARD on ${refundDay.format(dmy)} for refund from MYNTRA", unread = true)
 
             // The card's statements: one a month, each paid from the savings account a couple of days before its due date,
             // and the newest one still to pay in a few days (the card on Home, and "Bills").
@@ -366,7 +366,7 @@ object DemoData {
                 val min = (total * 5 / 100 / 10) * 10
                 add(statement, 8, 0, "VM-HDFCBK-S",
                     "HDFC Bank Credit Card XX$CREDIT_CARD Statement: Total due amt: Rs.${inr(total)} Min due amt: Rs.${inr(min)} Due by:${due.format(dmyLong)} pay https://example.com/demo-pay",
-                    null, 0)
+                    null, 0, unread = k == 0)
                 if (k > 0) {
                     val paid = due.minusDays(2)
                     add(paid, 10, 45, "VM-HDFCBK-S",
@@ -389,16 +389,21 @@ object DemoData {
 
             // Codes: one just now (still counting down), one from yesterday.
             addAt(now - 3 * 60_000L, "VM-HDFCBK-S", "482913 is the OTP to log in to HDFC Bank NetBanking. Valid for 10 minutes. Do not share it with anyone. -HDFC Bank", unread = true)
-            add(ago(1), 20, 44, "VM-HDFCBK-S", "Your OTP is 654321 for INR 1,250.00 on your card ending $CREDIT_CARD at Amazon. Do not share it.")
+            add(ago(1), 20, 44, "VM-HDFCBK-S", "Your OTP is 654321 for INR 1,250.00 on your card ending $CREDIT_CARD at Amazon. Do not share it.", unread = true)
             add(ago(5), 13, 2, "AX-SWIGGY-S", "Use OTP 7421 to log in to Swiggy. Do not share it with anyone.")
 
             // Messages that are not money: a parcel, data use, a promotion.
             add(ago(1), 15, 20, "VM-BLUDRT", "Your Blue Dart shipment 51234567890 is out for delivery today. Track on the Blue Dart app.", unread = true)
-            add(ago(6), 9, 15, "AX-AIRTEL-S", "You have used 82% of your daily data quota. Recharge now for more data. -Airtel")
-            add(ago(3), 11, 0, "VM-MYNTRA", "Flat 30% off on the End of Reason Sale! Shop now and save big. Offer valid till Sunday. T&C apply.")
+            add(ago(6), 9, 15, "AX-AIRTEL-S", "You have used 82% of your daily data quota. Recharge now for more data. -Airtel", unread = true)
+            add(ago(3), 11, 0, "VM-MYNTRA", "Flat 30% off on the End of Reason Sale! Shop now and save big. Offer valid till Sunday. T&C apply.", unread = true)
+            add(ago(2), 18, 30, "VM-AMAZON", "Great Indian sale starts tonight! Up to 60% off on electronics and more. Shop now. T&C apply.", unread = true)
+
+            // For the deck on Home: a refund the merchant has processed, and a subscription about to run out (neither moves any money).
+            add(ago(1), 18, 10, "AD-ZEPTOO", "Dear user, Refund of Rs 176.00 has been processed for your Zepto order NUGTJCORO38008. Refund Ref. num. 667812523611.", unread = true)
+            add(ago(2), 10, 0, "VM-ZOHO-S", "Your Zoho subscription expires on ${today.plusDays(12).format(dmyLong)}. Renew now to avoid interruption.", unread = true)
 
             // Nearly-now messages, so Home has "today" in it: a morning coffee and a lunch order.
-            hdfcSent(today, 8, 40, "Third Wave Coffee", 280, "today-coffee", 0)
+            hdfcSent(today, 8, 40, "Third Wave Coffee", 280, "today-coffee", 0, unread = true)
             hdfcSent(today, 13, 5, "Swiggy", 395, "today-lunch", 0, unread = true)
 
             flightToday()
