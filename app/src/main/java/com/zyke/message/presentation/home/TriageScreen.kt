@@ -269,7 +269,8 @@ internal fun TriageDeck(
                 )
             }
     ) {
-        if (front == null) return@Box
+        // (No early return from this lambda: a non-local return here makes the Kotlin 2.0 compiler emit a class D8 cannot dex.)
+        if (front != null) {
         // The two slabs behind. Their place follows the drag (they come forward as the front card leaves) and the grow of the card that
         // took the front; the formula is the same one the Accounts deck uses.
         if (count >= 3) {
@@ -305,6 +306,7 @@ internal fun TriageDeck(
                     false
                 )
             }
+        }
         }
     }
 }

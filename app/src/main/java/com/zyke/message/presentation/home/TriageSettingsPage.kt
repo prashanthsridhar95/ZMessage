@@ -103,14 +103,16 @@ internal fun HomeDeckSettingsPage(onDismiss: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             val ids = draft.orderedIds()
             ids.forEachIndexed { rank, id ->
+                // No `return@key` here: a non-local return in this lambda makes the Kotlin 2.0 compiler emit a class D8 cannot dex.
                 androidx.compose.runtime.key(id) {
-                    val spec = TriageStackSpec.byId(id) ?: return@key
-                    StackSettingsRow(
-                        rank = rank + 1, spec = spec, mode = draft.modeOf(id), canUp = rank > 0, canDown = rank < ids.lastIndex,
-                        onUp = { draft = draft.moved(id, -1); haptics.tick() },
-                        onDown = { draft = draft.moved(id, 1); haptics.tick() },
-                        onMode = { draft = draft.withMode(id, it) }
-                    )
+                    TriageStackSpec.byId(id)?.let { spec ->
+                        StackSettingsRow(
+                            rank = rank + 1, spec = spec, mode = draft.modeOf(id), canUp = rank > 0, canDown = rank < ids.lastIndex,
+                            onUp = { draft = draft.moved(id, -1); haptics.tick() },
+                            onDown = { draft = draft.moved(id, 1); haptics.tick() },
+                            onMode = { draft = draft.withMode(id, it) }
+                        )
+                    }
                 }
             }
         }
