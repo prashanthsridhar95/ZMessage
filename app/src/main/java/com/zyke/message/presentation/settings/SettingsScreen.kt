@@ -343,6 +343,7 @@ private fun GroupContent(
                 )
             }
             TagsEntry()
+            com.zyke.message.presentation.home.HomeDeckEntry()
             RcsSection()
             SectionCard("Parsing health") {
                 val diagnostics = state.diagnostics

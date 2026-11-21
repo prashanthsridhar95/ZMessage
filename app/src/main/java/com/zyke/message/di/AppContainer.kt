@@ -145,6 +145,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository by lazy { com.zyke.message.data.repository.RecurringGroupRepositoryImpl(context) }
     val cancelledSubscriptions: com.zyke.message.domain.repository.CancelledSubscriptionRepository by lazy { com.zyke.message.data.repository.CancelledSubscriptionRepositoryImpl(context) }
     val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository by lazy { com.zyke.message.data.repository.ReceivedRefundRepositoryImpl(context) }
+    /** The order and modes of Home's stacks of cards, and the cards restored from Auto cleared (prefs `triage_prefs`; in memory in the demo). */
+    val triage: com.zyke.message.domain.triage.TriageRepository by lazy { com.zyke.message.data.repository.TriageRepositoryImpl(context) }
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a

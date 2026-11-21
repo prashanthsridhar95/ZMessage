@@ -32,6 +32,7 @@ class AccessibilityPolicyTest {
         "common/Buttons.kt" to 1,                          // chevron inside LinkButton, whose text is the label
         "common/SearchField.kt" to 1,                      // magnifier inside the search field
         "settings/SettingsHub.kt" to 2,                    // the icon tile and the chevron of a settings row, whose title and summary are read
+        "home/HomeDeck.kt" to 2,                           // the icon and the chevron of a deck row (Quiet, Auto cleared, Read), whose title and summary are read as one button
         "home/GoalsAndReminders.kt" to 1,                  // icon of a ShortcutTile, whose text is the label
         "home/AccountsUi.kt" to 1,                         // leading icon of a menu item, whose text is the label
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label

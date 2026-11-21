@@ -223,12 +223,18 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         }
     }
     var reviewOpen by rememberSaveable { mutableStateOf(false) }
+    // Home's deck: the triage page ("fresh" or "quiet", then the chosen stack or empty), the Auto cleared page and "Make it yours".
+    var triageRoute by rememberSaveable { mutableStateOf<String?>(null) }
+    var autoClearedOpen by rememberSaveable { mutableStateOf(false) }
+    var deckSettingsOpen by rememberSaveable { mutableStateOf(false) }
     // The prices are asked for only while Home is in front, and only if the person switched the strip on.
     if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
 
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when (page) {
-            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true })
+            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true },
+                onOpenTriage = { quiet, stack -> triageRoute = (if (quiet) "quiet:" else "fresh:") + (stack ?: "") },
+                onOpenAutoCleared = { autoClearedOpen = true }, onDeckSettings = { deckSettingsOpen = true })
             HomePage.BILLS -> BillsPage(state, today, onIntent, gate)
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
@@ -293,6 +299,27 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         )
     }
 
+    triageRoute?.let { route ->
+        TriageScreen(
+            state, startQuiet = route.startsWith("quiet:"), startStack = route.substringAfter(':').takeIf { it.isNotEmpty() },
+            onIntent = onIntent, onClose = { triageRoute = null }
+        )
+    }
+    if (autoClearedOpen) {
+        val ledger = com.zyke.message.presentation.common.rememberLedgerActions()
+        val shown = remember(state.deck, state.triageHidden) { state.shownDeck }
+        AutoClearedPage(
+            cards = shown.autoCleared,
+            onRestore = { card ->
+                onIntent(Intent.TriageRestore(card.messageId))
+                ledger.withUndo("Restored \u00b7 ${card.headline}") { onIntent(Intent.TriageUnrestore(card.messageId)) }
+            },
+            onOpen = { onIntent(Intent.PeekMessage(it.messageId)) },
+            onBack = { autoClearedOpen = false }
+        )
+    }
+    if (deckSettingsOpen) HomeDeckSettingsPage { deckSettingsOpen = false }
+
     if (marketsOpen) com.zyke.message.presentation.markets.MarketPage(onBack = { marketsOpen = false })
 }
 
@@ -303,9 +330,10 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 @Composable
 private fun SummaryPage(
     state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate, onOpenMarkets: () -> Unit,
-    onOpenReview: () -> Unit
+    onOpenReview: () -> Unit, onOpenTriage: (quiet: Boolean, stack: String?) -> Unit, onOpenAutoCleared: () -> Unit, onDeckSettings: () -> Unit
 ) {
     val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
+    val deck = remember(state.deck, state.triageHidden) { state.shownDeck }
     val markPaid = rememberMarkPaid(onIntent)
     val focus = state.nudges.firstOrNull()
     val next = state.planUpcoming.firstOrNull()
@@ -467,6 +495,21 @@ private fun SummaryPage(
                         Modifier.padding(top = 4.dp), maxLines = 3
                     )
                     AppButton("Adjust", { onIntent(Intent.OpenAdjustDaily) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
+                }
+            }
+        }
+
+        // The deck: what is new, sorted into small stacks. Going through it clears things from the cards below, which are the same messages.
+        if (deck.toGo + deck.quietCount + deck.autoCleared.size + deck.readCount > 0) {
+            val at = slot
+            slot += deckSlots(deck)
+            item(key = "deck") {
+                val intro = gate.rememberIsEntering(at)
+                Box(itemMotion().tourAnchor(TourAnchor.HOME_DECK)) {
+                    DeckSection(
+                        deck, gate, at, intro,
+                        onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenRead = { onNavigate(AppTab.INBOX) }, onSettings = onDeckSettings
+                    )
                 }
             }
         }

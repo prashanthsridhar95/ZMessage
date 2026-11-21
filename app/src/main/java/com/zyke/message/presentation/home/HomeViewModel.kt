@@ -98,6 +98,7 @@ class HomeViewModel(
     private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges,
     private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups,
     private val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository = com.zyke.message.domain.repository.NoReceivedRefunds,
+    private val triage: com.zyke.message.domain.triage.TriageRepository = com.zyke.message.domain.triage.NoTriage,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -108,7 +109,7 @@ class HomeViewModel(
         planActions = planActionRepository.state.value, dailyOverride = dailyOverride.amount.value,
         cancelledSubs = cancelledSubscriptions.cancelled.value, recurringMerges = recurringMerges.merges.value, mergeDismissed = recurringMerges.dismissed.value,
         recurringGroups = recurringGroups.groups.value, recurringNames = recurringGroups.names.value, groupDismissed = recurringGroups.dismissed.value,
-        receivedRefunds = receivedRefunds.received.value)
+        receivedRefunds = receivedRefunds.received.value, triageSettings = triage.settings.value, triageRestored = triage.restored.value)
 ) {
 
     // Declared before init: the first collections below can run at once and reach the memo.
@@ -189,6 +190,8 @@ class HomeViewModel(
         viewModelScope.launch { pfAccounts.keys.collect { keys -> reduceHome { copy(pfAccountKeys = keys) } } }
         viewModelScope.launch { wishlist.items.collect { items -> reduceHome { copy(wishlist = items) } } }
         viewModelScope.launch { setAsideRepository.state.collect { asides -> reduceHome { copy(asides = asides) } } }
+        viewModelScope.launch { triage.settings.collect { settings -> reduceHome { copy(triageSettings = settings) } } }
+        viewModelScope.launch { triage.restored.collect { ids -> reduceHome { copy(triageRestored = ids) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
     }
 
@@ -302,6 +305,21 @@ class HomeViewModel(
                     split.copy(people = split.people.map { if (it.name == intent.person) it.copy(settledByHand = true) else it })
                 )
             }
+            is Intent.TriageGotIt -> {
+                reduce { copy(triageHidden = triageHidden + intent.ids) }
+                actions.markAllRead(intent.ids)
+            }
+            is Intent.TriageSweep -> {
+                reduce { copy(triageHidden = triageHidden + intent.id) }
+                actions.archive(intent.id)
+            }
+            is Intent.TriageUndo -> {
+                reduce { copy(triageHidden = triageHidden - intent.ids.toSet()) }
+                if (intent.swept) intent.ids.forEach { actions.unarchive(it) } else actions.markAllUnread(intent.ids)
+            }
+            is Intent.TriageRestore -> io { triage.restore(intent.id) }
+            is Intent.TriageUnrestore -> io { triage.unrestore(intent.id) }
+            is Intent.PeekMessage -> reduce { copy(detailMessageId = intent.messageId) }
             Intent.Retry -> {
                 reduce { copy(hasError = false, isLoading = true) }
                 startObserving()
@@ -599,6 +617,12 @@ class HomeViewModel(
                     updated.recurringGroups, { it.subscription }
                 )
             }
+            // Home's deck of cards: a pure function of the inbox, the person's marks and their stack settings.
+            val triageSettings = updated.triageSettings
+            val triageRestored = updated.triageRestored
+            val deck = memo("deck", msgs, us.readIds, us.archivedIds, us.pinnedIds, triageSettings, triageRestored, now) {
+                com.zyke.message.domain.triage.TriageStacks.build(msgs, us, triageSettings, now, zone, triageRestored)
+            }
             val budgetStatus = memo("budgetStatus", dashboard) {
                 dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
             }
@@ -608,7 +632,10 @@ class HomeViewModel(
                     accounts = accounts, quickAdds = quickAdds, nudges = nudges, refunds = refunds, owed = owed,
                     subscriptions = subscriptions, mergeSuggestions = mergeSuggestions, groupSuggestions = groupSuggestions, recurringItems = recurringItems, subscriptionOverview = subscriptionOverview, attention = attention, flights = flights, trains = trains, review = review, thisMonth = dashboard,
                     upcoming = upcoming, outflow = outflow, budgetStatus = budgetStatus, recent = recent, alerts = alerts,
-                    agenda = agenda, unreadCount = unread,
+                    agenda = agenda, unreadCount = unread, deck = deck,
+                    // What was hidden at once is forgotten when the deck no longer has it (the marks have come back); an Undo that
+                    // has brought a card back removes it from the set before then.
+                    triageHidden = if (triageHidden.isEmpty()) triageHidden else triageHidden.filterTo(HashSet()) { it in deck.shownIds },
                     planAgenda = planAgenda, planUpcoming = planUpcoming, planReminders = planReminders
                 )
             }
@@ -667,7 +694,8 @@ class HomeViewModel(
         private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
         private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges,
         private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups,
-        private val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository = com.zyke.message.domain.repository.NoReceivedRefunds
+        private val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository = com.zyke.message.domain.repository.NoReceivedRefunds,
+        private val triage: com.zyke.message.domain.triage.TriageRepository = com.zyke.message.domain.triage.NoTriage
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -679,7 +707,7 @@ class HomeViewModel(
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
                 recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride,
                 cancelledSubscriptions = cancelledSubscriptions, accountOverrides = accountOverrides, recurringMerges = recurringMerges, recurringGroups = recurringGroups,
-                receivedRefunds = receivedRefunds
+                receivedRefunds = receivedRefunds, triage = triage
             ) as T
     }
 

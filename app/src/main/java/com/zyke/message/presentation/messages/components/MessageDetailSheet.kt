@@ -467,7 +467,7 @@ internal val CATEGORY_GROUPS = listOf(
  * away. Typing in the search box narrows them all to the ones that match. Tapping the one already chosen takes the choice away.
  */
 @Composable
-private fun CategorySheet(
+internal fun CategorySheet(
     item: ClassifiedMessage, actions: FeedActions, startForTransaction: Boolean,
     ledger: com.zyke.message.presentation.common.LedgerActions,
     /** The payee's name when the person can pick between all payments to it and this one; null where the scope is fixed. */

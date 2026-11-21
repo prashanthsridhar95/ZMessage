@@ -358,6 +358,48 @@ tap gives the firmer buzz (`haptics.reject()`), then the snackbar still offers U
 `MotionPolicyTest` scans these files (no loops, no raw specs, no raw swaps outside the motion package, one-off spacing numbers
 banned) and checks the rules above.
 
+## Home deck (stacks of cards)
+
+Home's "Your deck" turns what is new into a few small stacks you can clear with a swipe. The rules are in the domain and tested
+(`domain/triage`: `TriageStacks`, `TriageSettings`, `TriageGestures`); the screens are `home/HomeDeck.kt` (the section and the Auto cleared page),
+`home/TriageScreen.kt` (the card stack) and `home/TriageSettingsPage.kt` ("Make it yours"). `HomeDeckPolicyTest` keeps them true.
+
+- **Where.** One keyed item on Home, under the balance and today's budget and above the codes and attention card (which stay; see UNIFICATION).
+  A header ("YOUR DECK", a 48 dp gear that opens "Make it yours"), the figure "N to go" (`TypeRole.hero`, `rememberCountUpInt`: counts up from zero
+  on Home's first showing only, static when reduced) with an outline "Swipe all ->" button (stacked under the figure at large text or 320 dp),
+  one calm line ("A few things need a look."), then the stacks as tiles, two to a row, then compact rows: Quiet (N waiting for later),
+  Auto cleared (N handled for you), Read (N read or swept; opens Messages). Nothing left: the shared `EmptyState` "All caught up".
+- **Tiles.** Equal size within a row (`IntrinsicSize.Max`), at least 148 dp and growing with text; a stack's own tonal pairing from
+  `theme/StackPalette.kt` (container + ink, light and dark, every pair 8:1 or better; the only literal colours for stacks, and only in the theme);
+  a paper edge drawn as an opaque slab (the container pulled a little towards the ink) above the tile; the mode tag chip, "N new", the name in
+  `titleLarge` (two lines at most) and the newest headline on one line with an ellipsis. A tile dips while held (`tappable`) and is one button
+  with one spoken sentence (amounts masked through `privateSpeech`). The header and each row of tiles rise in once, in turn (`enterOnce`, the first
+  eight slots of Home's gate).
+- **Triage page** (`AppPage`, not scrollable): Fresh . N / Quiet . N (`SegmentedTabs`), chips All . N and one per stack, the title with "3 of 8", the
+  deck, and a control bar pinned in the page footer: `<- Sweep it`, `Got it ->`, up, down (48 dp+, `ChromeScale`). Cards are `TriageCard`s: logo
+  (`MerchantChip`), name with the verified check (`SenderTitle`), time, a category chip that opens the existing `CategorySheet` (instant, through
+  `MessageActions`), the bold headline, a summary of one or two lines, up to three tags, and the footer "Summary by Zyke . on this phone" with
+  "Open message" (the detail sheet, which does not read the message, so the card stays).
+- **Gestures.** The front card follows the finger on one axis (locked after 12 px) and tilts up to 8 degrees; a tint and a word firm up as it nears the
+  line (left "Sweep it", right "Got it"). Past 30 % of the width or a 1,200 px/s flick it flies off (240 ms, `Motion.Emphasized`) and the card
+  behind grows forward; a light tick fires on commit, never on a spring back (`gentle()`). Down moves to the next card and up to the previous
+  (a vertical drag past 20 % of the height or a flick; the cursor wraps; the card slides out of the way). Behind the card two opaque slabs peek.
+  The data moves on at once: nothing waits for an animation, and the next card can be acted on immediately. Reduced motion or Lite: no tilt, no
+  flying, instant swaps. Decisions: `TriageGestures.decide`, `next`, `previous`, `afterRemoval` (tested).
+- **Alternatives to gestures.** The control bar buttons, and four TalkBack custom actions on the card (Sweep it, Got it, Previous card, Next card).
+- **Actions** are the existing stores: Got it = mark read (the repeats a payment card holds too), Sweep it = archive (the anchor only, as in Messages).
+  Both are optimistic (`triageHidden` in Home's state, the same idea as `MessageActions.pending`), so "to go" has dropped before anything is saved,
+  and both offer Undo in the snackbar (amounts masked while hidden). Restore (Auto cleared) brings a card back under Quiet.
+- **Empty.** "Stack cleared" with "Next stack" (when there is one) and "Back to Home".
+- **Auto clear safety rule.** Only Codes (expired codes; a fresh one stays on Home's code card and the code itself is never drawn) and Offers
+  (plain promotional or muted messages) can be cleared without a look. Payments, bills, refunds, balance and FASTag alerts, orders and trips can
+  only be Keep or Quiet: the settings page offers nothing else for them (`TriageStackSpec.allowed`), `TriageSettings.modeOf` turns any other
+  stored value back into the default, and `TriageStacks.autoClearable` checks the message itself. Offers start Quiet and are never auto-cleared
+  unless the person chooses it; Codes start Auto clear. Cleared cards are not deleted: they stay in Messages.
+- **Make it yours.** The stacks in order with a rank, up and down buttons (48 dp, equal), a segmented Keep / Quiet (+ Auto clear for Codes and Offers),
+  a draft until Save, Reset to defaults. Also in Settings, Messages and pictures, "Home deck". Stored as `triage_prefs` (in backups, in memory in Demo).
+- **Not animated:** anything on scroll, amounts while hidden, the settings page.
+
 ## Settings (wave B5)
 
 Settings is a short list of **groups**, not a stack of cards. The first screen (`settings/SettingsHub.kt`) is a search field, an

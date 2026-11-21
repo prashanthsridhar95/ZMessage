@@ -56,6 +56,11 @@ fun TourPreview(kind: TourPreviewKind, modifier: Modifier = Modifier) {
                 Bar(0.2f, "of ₹1,500")
                 Pills("Streak: 5 days" to Tone.GOOD, "Adjust" to Tone.NEUTRAL)
             }
+            TourPreviewKind.DECK -> {
+                Line("3 to go", "")
+                Sub("Payments · Bills & dues · Refunds")
+                Pills("\u2190 Sweep it" to Tone.NEUTRAL, "Got it \u2192" to Tone.GOOD)
+            }
             TourPreviewKind.CODE -> {
                 Line("Sample Bank · OTP", "482 913")
                 Pills("Expires in 4:12" to Tone.WARN, "Copy" to Tone.NEUTRAL)

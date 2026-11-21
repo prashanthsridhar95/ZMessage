@@ -47,6 +47,12 @@ class MessageActions(
 
     fun unarchive(messageId: Long) = write { userState.setArchived(messageId, false) }
 
+    /** "Got it" on a deck card: reads the message and the repeats it holds. */
+    fun markAllRead(ids: List<Long>) = write { ids.forEach { userState.markRead(it) } }
+
+    /** Undo of [markAllRead]. */
+    fun markAllUnread(ids: List<Long>) = write { ids.forEach { userState.markUnread(it) } }
+
     /** Copying a code reads the message it came from. */
     fun markReadForCopy(messageId: Long) = write { userState.markRead(messageId) }
 

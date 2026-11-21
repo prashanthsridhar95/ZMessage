@@ -57,8 +57,15 @@ object HomeContract {
         val wishlist: List<WishItem> = emptyList(),
         val splits: List<Split> = emptyList(),
         val now: Instant = Instant.EPOCH,
+        /** The order and modes of the deck's stacks, and the cards the person restored from Auto cleared. */
+        val triageSettings: com.zyke.message.domain.triage.TriageSettings = com.zyke.message.domain.triage.TriageSettings(),
+        val triageRestored: Set<Long> = emptySet(),
+        /** Messages the person just acted on in the deck: taken off it at once, until the saved marks come back through the pipeline. */
+        val triageHidden: Set<Long> = emptySet(),
 
         // Derived
+        /** Home's stacks of cards, worked out from the inbox and the person's marks; see [shownDeck] for what is drawn. */
+        val deck: com.zyke.message.domain.triage.TriageDeck = com.zyke.message.domain.triage.TriageDeck.EMPTY,
         val attention: List<AttentionItem> = emptyList(),
         /** Flights booked around today (yesterday to tomorrow) read from airline texts; which are "today" is decided on screen, by the clock. */
         val flights: List<com.zyke.message.domain.flight.BookedFlight> = emptyList(),
@@ -154,6 +161,9 @@ object HomeContract {
         /** The payment being split with friends, while its dialog is open. */
         val splittingMessageId: Long? = null
     ) {
+        /** The deck with what was just acted on already taken off. */
+        val shownDeck: com.zyke.message.domain.triage.TriageDeck get() = deck.without(triageHidden)
+
         val splitting: ClassifiedMessage? get() = splittingMessageId?.let { id -> messages.firstOrNull { it.id == id } }
 
         val detail: ClassifiedMessage? get() = detailMessageId?.let { id -> messages.firstOrNull { it.id == id } }
@@ -257,6 +267,17 @@ object HomeContract {
         data class SetMessageCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class SetCategory(val messageId: Long, val category: MessageCategory?) : Intent
         data class ToggleMute(val messageId: Long) : Intent
+        /** "Got it": reads the card's message and what it holds (kept in Messages). */
+        data class TriageGotIt(val ids: List<Long>) : Intent
+        /** "Sweep it": archives the card's message (Undo restores it). */
+        data class TriageSweep(val id: Long) : Intent
+        /** Takes back [TriageGotIt] (when [swept] is false) or [TriageSweep]. */
+        data class TriageUndo(val ids: List<Long>, val swept: Boolean) : Intent
+        /** Brings a card back from Auto cleared; it waits under Quiet. */
+        data class TriageRestore(val id: Long) : Intent
+        data class TriageUnrestore(val id: Long) : Intent
+        /** Opens a message sheet without reading the message, so its card stays on the deck. */
+        data class PeekMessage(val messageId: Long) : Intent
         /** Try again after the inbox could not be read. */
         data object Retry : Intent
     }

@@ -725,6 +725,23 @@ and nothing is searched; the list ends with "N hidden by filters . Show" (and no
 `FeedBuilder` and walks its sections, so it cannot drift from the screen. Developer options > Inbox audit shows the counts, the twenty
 newest rows with the reason for each (masked sender, length, type, never text) and shares the same text with Share audit.
 
+## Home deck: the triage pipeline
+
+`TriageStacks.build(messages, userState, settings, now, zone, restored)` (domain/triage) is a pure function from the classified inbox to `TriageDeck`.
+Home's ViewModel runs it as one memoised part of `derive` (inputs: the messages, the read, archived and pinned marks, the stack settings, the
+restored ids, the clock) and keeps the result in `State.deck`. Nothing is parsed again: each message is sorted by what the classifier already found
+(Transaction -> Payments; CardBill, ScheduledPayment and autopay or dues notices -> Bills & dues; Life and Courier -> Orders & travel; refund notices -> Refunds;
+FASTag and other notices -> Account alerts; an expired OTP -> Codes; promotional or muted plain messages -> Offers; anything else -> Everything else). A
+payment's repeats and followers (`PaymentGroups`) are not cards; the card stands for the group. A card is an unread, unarchived message of the last 30 days
+(card bills: the newest per card, not paid, due within 14 days past); the person's own read and archive marks decide, and there is no new persistence for
+them. The only stored things are `TriageRepository` (`triage_prefs`: order, a mode per stack where it differs from the default, and the message ids restored
+from Auto cleared; in `PrefsBackup`, in memory in Demo).
+
+Acting: "Got it" -> `Intent.TriageGotIt(ids)` -> `MessageActions.markAllRead`; "Sweep it" -> `Intent.TriageSweep` -> `MessageActions.archive`; Undo ->
+`Intent.TriageUndo`. Each first adds the ids to `State.triageHidden`, and the screens draw `State.shownDeck` (= `deck.without(triageHidden)`), so the cards and
+"to go" change in the same reduction as the tap; an id leaves the set once the deck no longer holds it. Archiving takes a message out of Home's `live` list,
+so a bill that was swept also leaves the attention strip; "Got it" only marks it read.
+
 ## Sender names and the verified check
 
 `SenderDisplay` (domain/conversation) takes an India DLT header apart (route prefix, name, one-letter category S/T/P/G; any part may be
