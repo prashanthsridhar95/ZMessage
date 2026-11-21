@@ -143,7 +143,7 @@ class TourController(
                 val pageChanged = step.page != shownPage
                 if (pageChanged) nav.open(step.page)
                 shownPage = step.page
-                if (tabChanged && wantTab != null) nav.showTab(wantTab)
+                if (wantTab != null && tabChanged) nav.showTab(wantTab)
                 delay(if (tabChanged || pageChanged) SETTLE_MS else QUICK_MS)
                 if (step.page == null && wantTab != null) registry.scrollToTop(wantTab)
             }

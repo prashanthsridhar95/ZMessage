@@ -284,7 +284,7 @@ internal fun UpcomingRow(
         below = {
             Column(Modifier.padding(start = RowTile + Spacing.md)) {
                 BillStatusSlot(status)
-                if (isPart && partPaid != null) {
+                if (partPaid != null && isPart) {
                     ProgressReveal(
                         BillsMath.partFraction(item.amount, partPaid), Modifier.padding(top = Spacing.sm).clearAndSetSemantics { },
                         color = Warn, height = Spacing.xs

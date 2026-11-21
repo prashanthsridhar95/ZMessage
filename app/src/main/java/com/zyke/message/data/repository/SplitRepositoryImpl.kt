@@ -56,7 +56,7 @@ class SplitRepositoryImpl(context: Context) : SplitRepository {
                 SplitPerson(person.getString("name"), share, person.optBoolean("settled"))
             }
             // Splits saved before "who paid" existed have no paidBy; they were all paid by the person.
-            Split(json.getString("id"), json.getLong("message"), json.getString("title"), total, people, SplitPayer.parse(json.optString("paidBy", null)))
+            Split(json.getString("id"), json.getLong("message"), json.getString("title"), total, people, SplitPayer.parse(if (json.has("paidBy") && !json.isNull("paidBy")) json.getString("paidBy") else null))
         }
     }.getOrDefault(emptyList())
 

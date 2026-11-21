@@ -556,6 +556,8 @@ class MainActivity : ComponentActivity() {
         amountsResult = null
     }
 
+    // The system's own credential screen needs no library and no permission; the newer prompt would need one.
+    @Suppress("DEPRECATION")
     private fun authenticateForAmounts(onResult: (Boolean) -> Unit) {
         val intent = getSystemService(KeyguardManager::class.java)?.createConfirmDeviceCredentialIntent("Show amounts", "Confirm it is you to see your money figures")
         if (intent == null) { onResult(false); return }
@@ -570,6 +572,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The phone's own fingerprint / face / PIN screen. It needs no library and no permission. */
+    @Suppress("DEPRECATION")
     private fun requestUnlock() {
         val keyguard = getSystemService(KeyguardManager::class.java)
         val intent = keyguard?.createConfirmDeviceCredentialIntent("Unlock Zyke", null)

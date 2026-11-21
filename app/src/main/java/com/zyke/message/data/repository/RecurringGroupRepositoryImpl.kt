@@ -38,7 +38,7 @@ class RecurringGroupRepositoryImpl(context: Context) : RecurringGroupRepository 
     }.getOrDefault(emptyList())
 
     private fun readNames(): Map<String, String> = runCatching {
-        val o = JSONObject(prefs.getString(NAMES, "{}"))
+        val o = JSONObject(prefs.getString(NAMES, "{}") ?: "{}")
         o.keys().asSequence().associateWith { o.getString(it) }.filterValues { it.isNotBlank() }
     }.getOrDefault(emptyMap())
 

@@ -329,6 +329,8 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
         if (started) onDismiss()
     }
 
+    // phoneCount is the simple answer on every Android version the app supports; its replacement needs Android 11.
+    @Suppress("DEPRECATION")
     val dualSim = remember { runCatching { (context.getSystemService(android.content.Context.TELEPHONY_SERVICE) as TelephonyManager).phoneCount > 1 }.getOrDefault(false) }
     val editorOpen = changing || plan is EnquiryPlan.Unsupported
     val shownNumber = numberDraft ?: service?.number.orEmpty()

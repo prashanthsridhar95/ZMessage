@@ -203,7 +203,7 @@ internal fun MergeSheet(
                 "Amounts differ: ${DisplayFormatters.rupees(amountA!!)} and ${DisplayFormatters.rupees(amountB!!)}",
                 color = MaterialTheme.colorScheme.error
             )
-            amountB != null && b != null ->
+            amountB != null ->
                 Caption("${if (b.isReceived) "Received" else "Spent"} total goes down by ${DisplayFormatters.rupees(amountB)}")
         }
     }

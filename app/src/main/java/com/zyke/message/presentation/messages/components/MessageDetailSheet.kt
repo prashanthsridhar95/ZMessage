@@ -725,7 +725,7 @@ private fun NicknameSheet(
                 ) { picked -> name = suggestions.first { (if (it.uses > 1) "${it.name} \u00B7 ${it.uses}" else it.name) == picked }.name }
             }
         }
-        if (inheritedCategory != null && profile != null) {
+        if (profile != null && inheritedCategory != null) {
             val inheritedLabel = inheritedCategory.label(customs)
             val current = CustomCategories.label(item, customs)
             FormGroup("Category") {
