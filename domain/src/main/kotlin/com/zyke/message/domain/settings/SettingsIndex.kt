@@ -128,6 +128,8 @@ object SettingsIndex {
         // Messages and senders
         e("messages.logos", "Brand logos", "Fetch a logo once for well-known brands", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "pictures", "images", "internet", "photos", "fetch"),
         e("messages.tags", "Tags", "Labels you add to payments", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "label", "note", "trip", "work"),
+        e("messages.homedeck", "Home deck", "Order and mode of the stacks of cards on Home", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "stacks", "cards", "triage", "swipe", "make it yours", "reorder", "keep", "quiet"),
+        e("messages.homedeck.autoclear", "Auto clear codes and offers", "Expired codes and offers can clear themselves", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "auto cleared", "restore", "marketing", "otp", "promotions"),
         e("messages.rcs", "RCS chats and Google Pay top-ups", "Needs notification access", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "notification access", "rcs", "upi lite", "listener", "google messages", "samsung"),
         e("messages.health", "Parsing health", "How many money messages are understood", SettingsGroupId.MESSAGES, SettingsPageId.MESSAGES, "diagnostics", "report", "unrecognised", "share report", "accuracy"),
         e("rules.categories", "Your categories", "Make your own, then pick them when filing a payment", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "custom", "category"),
