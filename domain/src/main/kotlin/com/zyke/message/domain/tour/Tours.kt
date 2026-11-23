@@ -63,50 +63,44 @@ object Tours {
             covers = setOf("home.total_balance", "home.market_strip", "settings.market_watch", "settings.market_any")
         ),
         TourStep(
+            "home.today", G.HOME, "Today",
+            "One card shows the one thing that matters now: a trip today, a fresh code with Copy, a bill due (Pay or Mark as paid), or a calm all clear. A quiet line says if more is waiting.",
+            tab = T.HOME, anchor = A.HOME_TODAY, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.CODE,
+            covers = setOf("home.codes_card", "home.copy_code", "home.attention_strip", "home.mark_paid", "home.pay_bill")
+        ),
+        TourStep(
             "home.budget", G.HOME, "Today's budget",
-            "A safe amount to spend today, worked out from your salary and bills. Stay under it to build a streak. Tap Adjust to set your own.",
+            "One line: what is left to spend today, from your salary and bills. Stay under it to build a streak. Tap Adjust to set your own.",
             tab = T.HOME, anchor = A.HOME_BUDGET, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.TODAY_BUDGET,
             covers = setOf("home.todays_budget", "home.streak", "home.adjust_budget")
         ),
         TourStep(
             "home.deck", G.HOME, "Your deck",
-            "New messages wait in small stacks. Open one and swipe a card right for Got it (read), left for Sweep it (archive), up or down to move around. Undo follows, and the gear orders the stacks.",
+            "New messages wait in small stacks. Open one and swipe a card right for Got it (read), left for Sweep it (archive), up or down to move around. Undo follows. All stacks and the settings are one tap away.",
             tab = T.HOME, anchor = A.HOME_DECK, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.DECK,
             covers = setOf("home.deck", "home.deck_swipe", "settings.home_deck")
         ),
         TourStep(
-            "home.codes", G.HOME, "Codes and alerts",
-            "A fresh OTP appears here with a Copy button until it expires. Bills and other things that need your attention sit in the same card.",
-            tab = T.HOME, anchor = A.HOME_CODES, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.CODE,
-            covers = setOf("home.codes_card", "home.copy_code", "home.attention_strip")
-        ),
-        TourStep(
             "home.review", G.HOME, "Needs review",
-            "Possible duplicates, transfers between your own accounts and messages Zyke could not read are collected here. A minute of review keeps totals true.",
+            "Possible duplicates, transfers between your own accounts and messages Zyke could not read wait in one quiet line under the deck. A minute of review keeps totals true.",
             tab = T.HOME, anchor = A.HOME_REVIEW, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.NEEDS_REVIEW,
             covers = setOf("home.needs_review", "messages.review", "messages.duplicates", "messages.transfers")
         ),
         TourStep(
-            "home.plans", G.HOME, "What is coming up",
-            "Next due and Plans list your bills and trips. Use the three dots on a row to Snooze, Dismiss, Mark as paid, or Pay bill when the message has a link.",
-            tab = T.HOME, anchor = A.HOME_NEXT_DUE, fallbackAnchor = A.HOME_BALANCE, needsData = true, preview = V.PLAN_ROW,
-            covers = setOf("home.plans", "home.snooze_dismiss", "home.mark_paid", "home.pay_bill")
-        ),
-        TourStep(
-            "home.shortcuts", G.HOME, "Four shortcuts",
-            "Calendar, Goals, Reminders and Can I afford it? Each opens a page of its own. Can I afford it? checks a purchase against what you have left.",
-            tab = T.HOME, anchor = A.HOME_SHORTCUTS,
-            covers = setOf("home.shortcut_calendar", "home.shortcut_goals", "home.shortcut_reminders", "home.shortcut_afford")
+            "home.customize", G.HOME, "Customize Home",
+            "Home is calm on purpose. Customize Home brings back the shortcut tiles, goals and reminders, the quick adds prompt and the market strip, or resets the calm layout.",
+            tab = T.HOME, anchor = A.HOME_CUSTOMIZE, fallbackAnchor = A.HOME_BALANCE,
+            covers = setOf("home.customize")
         ),
         TourStep(
             "home.calendar", G.HOME, "Calendar",
-            "Bills, reminders, trips and warranty end dates on one calendar. Tap a day to see it, and add your own events.",
+            "Bills, reminders, trips and warranty end dates on one calendar. Tap a day to see it, and add your own events. Open it from Bills, Plan ahead.",
             tab = T.HOME, page = P.CALENDAR, covers = setOf("calendar", "calendar.warranties")
         ),
         TourStep(
             "home.goals", G.HOME, "Goals and reminders",
             "Set a goal such as a trip or a phone and add money towards it. Reminders can repeat monthly and show up in Bills.",
-            tab = T.HOME, page = P.GOALS, tip = "Reminders is the shortcut next to Goals.",
+            tab = T.HOME, page = P.GOALS, tip = "Reminders sits next to Goals under Bills, Plan ahead.",
             covers = setOf("goals", "reminders")
         ),
         TourStep(
@@ -200,6 +194,12 @@ object Tours {
             "Everything due in the next 30 days, soonest first. Mark a bill as paid, snooze it, or pay it from the link in its message.",
             tab = T.BILLS, anchor = A.BILLS_DUE, fallbackAnchor = A.NAV_BILLS, needsData = true, preview = V.BILL_ROW,
             covers = setOf("bills.due_list", "bills.mark_paid", "bills.snooze")
+        ),
+        TourStep(
+            "bills.plan", G.BILLS, "Plan ahead",
+            "Calendar, Goals, Reminders and Can I afford it? live here, with what Zyke found in your messages to add. Use the three dots on a bill to Snooze or Dismiss it.",
+            tab = T.BILLS, anchor = A.BILLS_PLAN, fallbackAnchor = A.NAV_BILLS,
+            covers = setOf("home.shortcut_calendar", "home.shortcut_goals", "home.shortcut_reminders", "home.shortcut_afford", "home.plans", "home.snooze_dismiss")
         ),
         TourStep(
             "bills.repeats", G.BILLS, "Repeats monthly",

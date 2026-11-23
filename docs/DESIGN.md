@@ -17,8 +17,7 @@ in waves (see the end of this page).
 
 Movement explains a change: something entered or left, a value changed, a control was touched. It is never decoration.
 
-1. **One-shot only.** No `rememberInfiniteTransition`, `infiniteRepeatable`, shimmer or pulse. (The one inherited loop is the
-   priority card's light, `movingBorder`; it is a faint static outline when reduced and is allow-listed in
+1. **One-shot only.** No `rememberInfiniteTransition`, `infiniteRepeatable`, shimmer or pulse. (The one inherited loop, `movingBorder`, is no longer used on Home; it remains in the shared card and the Messages attention strip, is a faint static outline when reduced and is allow-listed in
    `LowEndPolicyTest`. It is not to be copied.)
 2. **One switch.** Every spec comes from `rememberMotion()` (`motion/Motion.kt`). It returns instant specs and no-op
    transitions when the person turned system animations off or lite mode is on. A raw `tween(`, `spring(` or `snap(` in a
@@ -358,18 +357,45 @@ tap gives the firmer buzz (`haptics.reject()`), then the snackbar still offers U
 `MotionPolicyTest` scans these files (no loops, no raw specs, no raw swaps outside the motion package, one-off spacing numbers
 banned) and checks the rules above.
 
+## Home (the calm layout)
+
+Home answers one question: "am I okay, and is there one thing I should do?" It was fifteen blocks; it is now six, with one hero and one
+adaptive card. The pure rules are in `:domain` (`home/HomeFocus.kt`, `home/HomeLayout.kt`, tested in `HomeFocusTest`); `HomeCalmPolicyTest`
+keeps the shape from eroding.
+
+| Block (keyed item) | What it is |
+|---|---|
+| Header | logo, search, the eye, settings (unchanged) |
+| `balance` | **The one hero** (`Tonal.Hero`, `TypeRole.hero`, counts up once): total balance and one quiet line (how many accounts). Tap opens Accounts. Nothing else inside it |
+| `focus` (TODAY) | **One** card, chosen by `HomeFocus.pick`: a trip today (the flight or train card as it is, it is time-critical), else a fresh code with Copy (every fresh code is in its pager; it leaves when it expires), else a bill due today or overdue (Pay bill, Mark as paid with Undo), else the next bill due within 3 days, else "You're all clear" (or the one pacing nudge, in its old words). Several things competing show the top one and a quiet "and N more" link that opens the deck (or Bills when the deck is empty). Cards never stack |
+| `today` | Today's budget as one slim line: "₹3,800 left today", a 4 dp bar, "Adjust". Tap opens the streak calendar. Optional (on) |
+| `deck` | "YOUR DECK", "N to go", "Swipe all", at most four tiles, "All stacks" when there are more, one quiet line "Quiet 3 · Auto cleared 5" (each opens its page), and one quiet row "N things to review" (only when there are some; it stays even if the deck is switched off, the review page opens from nowhere else). Optional (on) |
+| `activity` | the last three payments (the row anatomy of Messages) and "See all" to Messages. Optional (on) |
+| `footer` | "Customize Home" |
+
+Rhythm and polish: 16 dp gutters, 12 dp between blocks, 20 dp inside a card (tokens only). One hero; every other card is `Tonal.Quiet`.
+No moving outline anywhere on Home (the light round the old priority card is gone; `movingBorder` stays only in the shared card and the
+Messages attention strip). No borders or shadows added. Headings use the type roles. The first eight blocks enter once, in turn
+(`enterOnce`); tiles and rows dip while held. At 320 dp and font scale 2.0 the balance, the budget line and the deck header stack; hidden
+amounts stay hidden (the budget figure is an `AnimatedAmount`). Demo mode shows the same layout with made-up content.
+
+**Customize Home** (Settings, Appearance and feel, Home; also the footer): a switch for Today's budget row, Recent activity, Your deck,
+Market strip, Goals and reminders, Shortcut tiles and the Quick adds prompt, and "Reset to calm layout". Defaults: budget, activity and
+deck on, the rest off. Stored as `home_layout` (`HomeLayoutRepository`, `HomeLayoutRepositoryImpl`; in backups, in memory in the demo).
+The Market strip needs Market watch on in Settings as well; its full list opens from Settings, Market watch, "Open market watch".
+Existing users get the calm layout on update and can turn the old blocks back on.
+
 ## Home deck (stacks of cards)
 
 Home's "Your deck" turns what is new into a few small stacks you can clear with a swipe. The rules are in the domain and tested
 (`domain/triage`: `TriageStacks`, `TriageSettings`, `TriageGestures`); the screens are `home/HomeDeck.kt` (the section and the Auto cleared page),
 `home/TriageScreen.kt` (the card stack) and `home/TriageSettingsPage.kt` ("Make it yours"). `HomeDeckPolicyTest` keeps them true.
 
-- **Where.** One keyed item on Home, under the balance and today's budget and above the codes and attention card (which stay; see UNIFICATION).
-  A header ("YOUR DECK", a 48 dp gear that opens "Make it yours"), the figure "N to go" (`TypeRole.hero`, `rememberCountUpInt`: counts up from zero
-  on Home's first showing only, static when reduced) with an outline "Swipe all ->" button (stacked under the figure at large text or 320 dp),
-  one calm line ("A few things need a look."), then the stacks as tiles, two to a row, then compact rows: Quiet (N waiting for later),
-  Auto cleared (N handled for you), Read (N read or swept; opens Messages). Nothing left: the shared `EmptyState` "All caught up".
-- **Tiles.** Equal size within a row (`IntrinsicSize.Max`), at least 148 dp and growing with text; a stack's own tonal pairing from
+- **Where.** One keyed item on Home, under the Today card and the budget line (see "Home (the calm layout)"). A header ("YOUR DECK", a 48 dp gear that
+  opens "Make it yours"), "N to go" (`TypeRole.title`, `rememberCountUpInt`: counts up from zero on Home's first showing only, static when reduced) with a
+  text "Swipe all ->" button (stacked at large text or 320 dp), at most four tiles (two to a row), "All stacks" when there are more, then one quiet line
+  for Quiet and Auto cleared. Nothing left to go: one caption, "All caught up". The old Read row is gone from Home (Messages has it).
+- **Tiles.** Equal size within a row (`IntrinsicSize.Max`), at least 112 dp and growing with text; a stack's own tonal pairing from
   `theme/StackPalette.kt` (container + ink, light and dark, every pair 8:1 or better; the only literal colours for stacks, and only in the theme);
   a paper edge drawn as an opaque slab (the container pulled a little towards the ink) above the tile; the mode tag chip, "N new", the name in
   `titleLarge` (two lines at most) and the newest headline on one line with an ellipsis. A tile dips while held (`tappable`) and is one button

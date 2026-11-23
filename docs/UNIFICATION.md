@@ -68,7 +68,7 @@ deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `
 | Sender name vs raw header | One rule: `SenderDisplay` (domain/conversation) decides the name and the verified check everywhere a sender is shown (Messages rows, search, conversations, detail sheet, Home code card, attention strip, Review queue). `SenderKey` still decides what two headers are "the same sender" for muting, nicknames and threads; the two share the header shape on purpose |
 | Payee vs sender rules | Already one chain, not two stores. A rule for a person or shop (the payee a payment names) and a rule for a sender are the same stores (`category_overrides`, `nicknames`, `custom_categories`, the image store) under different keys: `CategoryKey.of` is the payee for a transaction and the sender only when a message names nobody. A parallel `payee_rules` store was considered and rejected: it would have made two rules for one payee. The detail sheet used to label these rows after the bank ("Same as HDFC Bank") when the payee had no logo; it now names the payee, shows where each value comes from, and asks whether a choice is for all payments or only this one. Settings > Your rules lists them as Payee rules (with search) and Senders. **One key per message**: rules saved under a payee's older spelling (before `PayeeKey`) are moved to the current key by `LegacyKeyMigration` as the first lists arrive (idempotent, no stored flag, sender and `msg:` keys untouched, new key wins, pictures renamed), so no lookup tries a second key |
 | Nickname vs original name | The name the person sees leads every lookup that starts from a name. `NicknameStage` (domain/nickname) is the one place a nickname is applied (the pipeline and, for an instant change, the screens' own messages via `PendingNicknames`); the nickname is `Merchant.name` and the name it replaced is `Merchant.originalName`. The brand logo is looked up by the nickname first, then the original name (`BrandLogo`); "This logo is wrong" turns off every name the logo could be found by. The picture search starts from the nickname (else the shown name, else the message's), is sanitised (`PictureSearchQuery`: no numbers, amounts or UPI hosts), can be edited in a field, and offers the message's own name as a second search. A payee's picture search ignores a name given to one payment alone. Settings > Your rules can give, change and remove a name, and lists payees filed under the person's own categories |
-| Home deck vs Needs your attention vs Review queue | Keep, with one way through. The deck (`TriageStacks`) is the place to clear what is new: Payments, Bills & dues, Orders & travel, Refunds, Account alerts, Codes, Offers and the rest, from the same classified messages. The attention card (fresh code, bills due, low FASTag) and the Review card (what the app is unsure of) stay on Home above and below it; they are the act-now and the questions, the deck is the inbox. A bill swept in the deck is archived and so leaves the attention card; "Got it" only reads it (the bill stays until paid or marked paid). A fresh code is not in the deck until it expires. Read, archived and pinned marks are the ones Messages uses; nothing new is stored but the order and modes of the stacks (`triage_prefs`) |
+| Home deck vs Needs your attention vs Review queue | Keep, with one way through. The deck (`TriageStacks`) is the place to clear what is new: Payments, Bills & dues, Orders & travel, Refunds, Account alerts, Codes, Offers and the rest, from the same classified messages. Home's Today card (a trip, a fresh code, a bill due; one at a time) and the Review row (what the app is unsure of, under the deck) are the act-now and the questions, the deck is the inbox. The full Attention strip (codes, bills due, low FASTag) is on the Messages tab. A bill swept in the deck is archived and so leaves the attention card; "Got it" only reads it (the bill stays until paid or marked paid). A fresh code is on the Today card, not in the deck, until it expires. Read, archived and pinned marks are the ones Messages uses; nothing new is stored but the order and modes of the stacks (`triage_prefs`) |
 | Mute / hide / leave out of totals | Keep. Muted sender (hide a sender's messages), hidden account (leave out of totals) and set-aside (leave a payment out) act on different objects |
 | Code alerts vs Share codes with trusted people | Keep. Code alerts (Copy-code and Pay buttons) tell the person on this phone; Share codes sends the code on by SMS to other people. They share one receiver (`SmsReceiver`, `LiveAlerts.refreshReceiver` keeps it on if either switch is on) and one classifier pass, but have separate switches, stores (`settings` vs `code_sharing`) and health checks (`CodeAlertHealth` vs `CodeSharingHealth`), and neither needs the other |
 | Check balance by SMS vs Set balance / Fix balance | Keep. "Set balance" is the person typing a figure; "Check balance" texts the bank and the reply is read by the same `BalanceReader`, so both land in one balance (the newer reading wins). One sender (`CodeSharer.sendPlain`), one status receiver (`CodeShareStatusReceiver`) and one backup rule shared with Share codes; separate stores (`balance_check`, `balance_check_device` vs `code_sharing`) |
@@ -82,6 +82,27 @@ reads the same texts with `FlightParser` because it needs far more (flight numbe
 `LifeParser` keeps, and it shows only on the day of travel. `LifeParser` is unchanged, so classification and the agenda behave
 as before; the two readers do not disagree on what a trip is (the flight card needs a known airline code, a flight number and a
 flight word).
+
+## Where everything went (the calm Home)
+
+Home used to hold about fifteen blocks. Nothing was deleted; each block is merged or one tap away.
+
+| Was on Home | Now |
+|---|---|
+| Tour banner | Only while the tour is running (unchanged) |
+| Market strip | Off unless Market watch is on in Settings **and** "Market strip" is on in Customize Home. The full list: Settings, Market watch, Open market watch |
+| Flight card, train card | The TODAY card, first priority (the same cards) |
+| Total balance | Unchanged, now the only hero |
+| Today's budget card | A slim one-line row (Customize Home can hide it). Streak and basis: tap the row (calendar) and Adjust (sheet) |
+| Your deck (6 to 8 tiles, three rows) | Compact: four tiles, "All stacks", one quiet line for Quiet and Auto cleared. Read: Messages |
+| Codes and Needs your attention (one card) | The TODAY card (a fresh code with Copy, or a bill due). The Attention strip is on the Messages tab; all codes: "All codes" in the code card |
+| Needs review card | A quiet row under the deck |
+| First thing (pacing nudge) | The calm line of the TODAY card when nothing else is waiting |
+| Next due | The TODAY card (bill due within 3 days); all bills: Bills tab |
+| Four shortcut tiles (Calendar, Goals, Reminders, Can I afford it?) | Bills tab, "Plan ahead"; or Customize Home, Shortcut tiles |
+| Recent activity (5 rows, month total) | The last three, "See all" to Messages; month total: Insights |
+| Plans (agenda, maturities) | Customize Home, Goals and reminders; the calendar and Reminders on Bills, Plan ahead |
+| "We found N things to add" | Bills, "Plan ahead", "Found in your messages"; or Customize Home, Quick adds prompt |
 
 ## Follow-ups not done
 
