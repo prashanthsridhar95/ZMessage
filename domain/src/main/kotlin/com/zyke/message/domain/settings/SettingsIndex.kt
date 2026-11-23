@@ -100,6 +100,7 @@ object SettingsIndex {
         e("appearance.theme", "Theme", "Automatic, light, dark or true black", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "dark", "light", "black", "oled", "night", "mode"),
         e("appearance.colour", "Accent colour", "The colour the app is drawn in", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "color", "accent", "wallpaper", "custom", "palette"),
         e("appearance.icon", "App icon", "The colour of the icon on your home screen", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "launcher", "logo", hiddenInDemo = true),
+        e("appearance.home", "Home layout", "Which sections Home shows, or the calm layout", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "customize home", "calm", "sections", "shortcuts", "goals", "quick adds", "market strip", "recent activity", "declutter", "layout"),
         e("appearance.haptics", "Haptic feedback", "A light tick on switches, a firmer one on deletes", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "vibration", "vibrate", "buzz", "touch"),
         e("appearance.performance", "Performance", "Smooth animations, or lite mode for a slow phone", SettingsGroupId.APPEARANCE, SettingsPageId.APPEARANCE, "lite", "animations", "motion", "battery", "slow"),
         // Notifications and alerts

@@ -20,7 +20,7 @@ class SettingsIndexTest {
      * loses one, this fails; adding a setting means adding its id to the index, and here.
      */
     private val before = listOf(
-        "appearance.theme", "appearance.colour", "appearance.icon", "appearance.haptics", "appearance.performance",
+        "appearance.theme", "appearance.colour", "appearance.icon", "appearance.haptics", "appearance.performance", "appearance.home",
         "alerts.status", "alerts.morning", "alerts.buttons", "alerts.weekly", "alerts.headsup", "alerts.floor", "alerts.share", "alerts.widget",
         "money.salary", "money.savings", "money.fixed", "money.cycle",
         "budgets.categories", "budgets.suggestions", "budgets.move", "budgets.card",
