@@ -1,6 +1,13 @@
 package com.zyke.message.presentation.home
 
 import com.zyke.message.domain.tour.TourAnchor
+import com.zyke.message.domain.bills.BillsMath
+import com.zyke.message.domain.home.FocusBill
+import com.zyke.message.domain.home.FocusCode
+import com.zyke.message.domain.home.FocusTrip
+import com.zyke.message.domain.home.HomeFocus
+import com.zyke.message.domain.home.HomeLayout
+import com.zyke.message.domain.home.HomeSection
 import com.zyke.message.presentation.common.CardHeader
 import com.zyke.message.presentation.motion.CrossfadeContent
 import com.zyke.message.presentation.motion.EnterGate
@@ -223,6 +230,9 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         }
     }
     var reviewOpen by rememberSaveable { mutableStateOf(false) }
+    var affordOpen by rememberSaveable { mutableStateOf(false) }
+    var customizeOpen by rememberSaveable { mutableStateOf(false) }
+    val layout = rememberHomeLayout()
     // Home's deck: the triage page ("fresh" or "quiet", then the chosen stack or empty), the Auto cleared page and "Make it yours".
     var triageRoute by rememberSaveable { mutableStateOf<String?>(null) }
     var autoClearedOpen by rememberSaveable { mutableStateOf(false) }
@@ -232,10 +242,11 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
 
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when (page) {
-            HomePage.HOME -> SummaryPage(state, today, actions, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true },
+            HomePage.HOME -> SummaryPage(state, today, layout, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true },
                 onOpenTriage = { quiet, stack -> triageRoute = (if (quiet) "quiet:" else "fresh:") + (stack ?: "") },
-                onOpenAutoCleared = { autoClearedOpen = true }, onDeckSettings = { deckSettingsOpen = true })
-            HomePage.BILLS -> BillsPage(state, today, onIntent, gate)
+                onOpenAutoCleared = { autoClearedOpen = true }, onDeckSettings = { deckSettingsOpen = true },
+                onAfford = { affordOpen = true }, onCustomize = { customizeOpen = true })
+            HomePage.BILLS -> BillsPage(state, today, onIntent, gate, onAfford = { affordOpen = true })
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
         // The one prominent add action: money that came in no message.
@@ -319,34 +330,36 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         )
     }
     if (deckSettingsOpen) HomeDeckSettingsPage { deckSettingsOpen = false }
+    if (customizeOpen) HomeLayoutPage { customizeOpen = false }
+    if (affordOpen) com.zyke.message.presentation.plan.AffordPage(state, onIntent) { affordOpen = false }
 
     if (marketsOpen) com.zyke.message.presentation.markets.MarketPage(onBack = { marketsOpen = false })
 }
 
 /**
- * Home is the money at a glance: what the accounts hold, today's budget, a code if one has just arrived, the one
- * thing worth knowing, what is due next and the latest activity. Each part is a card; everything else has a tab.
+ * Home is calm: the balance, the one thing that matters today, today's budget as one line, the deck, the last three payments and a
+ * footer. Everything else is behind Customize Home (see [HomeLayout]) or on another tab (Bills, Plan ahead). Six keyed items in the
+ * default layout.
  */
 @Composable
 private fun SummaryPage(
-    state: State, today: LocalDate, actions: FeedActions, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate, onOpenMarkets: () -> Unit,
-    onOpenReview: () -> Unit, onOpenTriage: (quiet: Boolean, stack: String?) -> Unit, onOpenAutoCleared: () -> Unit, onDeckSettings: () -> Unit
+    state: State, today: LocalDate, layout: HomeLayout, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate, onOpenMarkets: () -> Unit,
+    onOpenReview: () -> Unit, onOpenTriage: (quiet: Boolean, stack: String?) -> Unit, onOpenAutoCleared: () -> Unit, onDeckSettings: () -> Unit,
+    onAfford: () -> Unit, onCustomize: () -> Unit
 ) {
-    val showMarkets = com.zyke.message.presentation.markets.marketsEnabled()
+    val marketWatchOn = com.zyke.message.presentation.markets.marketsEnabled()
     val deck = remember(state.deck, state.triageHidden) { state.shownDeck }
     val markPaid = rememberMarkPaid(onIntent)
-    val focus = state.nudges.firstOrNull()
-    val next = state.planUpcoming.firstOrNull()
+    val markOverduePaid = rememberMarkOverduePaid(onIntent)
+    val nudge = state.nudges.firstOrNull()
     val planHandler = rememberPlanActionHandler(onIntent)
-    // Deposits maturing within the same two weeks as the rest of the agenda; dismissed or snoozed like any plan item.
-    val maturities = com.zyke.message.presentation.investments.rememberMaturitiesAhead(state.planActions, today)
-    var affordOpen by rememberSaveable { mutableStateOf(false) }
+    // Deposits maturing within the same two weeks as the rest of the agenda; dismissed or snoozed like any plan item (only when Goals and reminders is on).
+    val maturities = if (layout.shows(HomeSection.GOALS)) com.zyke.message.presentation.investments.rememberMaturitiesAhead(state.planActions, today) else emptyList()
     // The clock ticks every second, but only the code card needs to see it: Home itself changes only when a code appears or runs out.
     val now = rememberNowState()
     val otps = remember(state.messages, state.userState.archivedIds) { otpCandidates(state) }
     val codes by remember(otps) { derivedStateOf(structuralEqualityPolicy()) { freshCodes(otps, now.value) } }
 
-    val attention = remember(state.attention) { state.attention.filterNot { it is AttentionItem.FreshOtp } }
     val tourBanner = com.zyke.message.presentation.tour.rememberTourBannerVisible()
     // Flights on their day of travel: worked out here, asked about once each time Home comes to the front.
     val flightsToday = com.zyke.message.presentation.flights.rememberFlightsToday(state.flights, state.userState.dismissedAttention)
@@ -409,14 +422,41 @@ private fun SummaryPage(
             onDismiss = { tripChoice = false }
         )
     }
+
+    // What the Today card can show: bills still to pay (upcoming, then overdue), keyed the way the pick names them.
+    val billViews = HashMap<String, FocusBillView>()
+    state.planUpcoming.filter { it.paidOn == null }.forEach { item ->
+        billViews[item.markedPaidKey] = FocusBillView(
+            item.title, if (item.kind == UpcomingKind.CARD_BILL) "Bill" else "Auto-debit", item.date, BillsMath.left(item.amount, item.partPaid),
+            item.message, item.paymentLink, onMarkPaid = { markPaid(item) }
+        )
+    }
+    state.review.bills.forEach { bill ->
+        billViews.putIfAbsent(
+            bill.markedPaidKey,
+            FocusBillView(bill.label, "Bill", bill.dueDate, bill.amount, bill.message, null, onMarkPaid = { markOverduePaid(bill) })
+        )
+    }
+    val tripFocus = flightsToday.flights.map { FocusTrip(it.key, false, (it.departure?.toSecondOfDay()?.toLong()?.times(1000L)) ?: Long.MAX_VALUE) } +
+        trainsToday.trains.map { FocusTrip(it.key, true, (it.departure?.toSecondOfDay()?.toLong()?.times(1000L)) ?: Long.MAX_VALUE) }
+    val billFocus = billViews.map { (key, view) -> FocusBill(key, view.date, view.amount) }
+    val codeFocus = otps.map { FocusCode(it.id, it.message.date) }
+    val pick by remember(tripFocus, billFocus, codeFocus, today) {
+        derivedStateOf(structuralEqualityPolicy()) { HomeFocus.pick(now.value, today, tripFocus, codeFocus, billFocus) }
+    }
+    val onMore: () -> Unit = {
+        if (layout.shows(HomeSection.DECK) && deck.toGo > 0) onOpenTriage(false, null) else onNavigate(AppTab.BILLS)
+    }
+    val showDeckSection = (layout.shows(HomeSection.DECK) && deck.toGo + deck.quietCount + deck.autoCleared.size > 0) || state.review.count > 0
+
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = summaryList,
         contentPadding = PaddingValues(start = Spacing.lg, top = Spacing.lg, end = Spacing.lg, bottom = 96.dp),
-        // One rhythm: 12 dp between cards, 16 dp gutters. The first eight cards enter in a stagger, once (see enterOnce);
-        // a card that comes or goes later fades and the rest close the gap (itemMotion).
+        // One rhythm: 12 dp between blocks, 16 dp gutters. The first eight blocks enter in a stagger, once (see enterOnce);
+        // a block that comes or goes later fades and the rest close the gap (itemMotion).
         verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         var slot = 0
@@ -424,35 +464,6 @@ private fun SummaryPage(
             val at = slot++
             item(key = "tour-banner") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.tour.TourBanner() } }
         }
-        if (showMarkets) {
-            val at = slot++
-            item(key = "market") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) } }
-        }
-        if (flightsToday.flights.isNotEmpty()) {
-            val at = slot++
-            item(key = "flights") {
-              Box(itemMotion().enterOnce(gate, at)) {
-                com.zyke.message.presentation.flights.FlightCard(
-                    flightsToday, onOpen = { flightOpen = it },
-                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
-                    onAdd = { tripChoice = true }
-                )
-              }
-            }
-        }
-        if (trainsToday.trains.isNotEmpty()) {
-            val at = slot++
-            item(key = "trains") {
-              Box(itemMotion().enterOnce(gate, at)) {
-                com.zyke.message.presentation.trains.TrainCard(
-                    trainsToday, onOpen = { trainOpen = it },
-                    onDismiss = { onIntent(Intent.DismissAttention(it, forever = true)) },
-                    onAdd = { tripChoice = true }
-                )
-              }
-            }
-        }
-
         if (state.isBlank) {
             // Nothing to show yet: say so gently, and what will appear.
             val at = slot++
@@ -466,6 +477,7 @@ private fun SummaryPage(
             }
         }
 
+        // The one hero: the balance, alone.
         run {
             val at = slot++
             item(key = "balance") {
@@ -474,133 +486,73 @@ private fun SummaryPage(
             }
         }
 
-        val todayBudget = state.daily
-        if (todayBudget != null) {
+        if (layout.shows(HomeSection.MARKET) && marketWatchOn) {
             val at = slot++
-            item(key = "today") {
-                val intro = gate.rememberIsEntering(at)
-                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BUDGET), onClick = { onIntent(Intent.OpenCalendar) }) {
-                    TodayBudget(todayBudget, onAdjust = { onIntent(Intent.OpenAdjustDaily) }, intro = intro)
-                }
-            }
-        } else if (!state.isBlank) {
-            // Never just vanish: say what the card needs, and let the person type one.
+            item(key = "market") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) } }
+        }
+
+        if (!state.isBlank) {
             val at = slot++
-            item(key = "today") {
-                FintechCard(itemMotion().enterOnce(gate, at), onClick = { onIntent(Intent.OpenAdjustDaily) }) {
-                    CardHeader("Today's budget")
-                    Text("Not enough to suggest one yet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
-                    Caption(
-                        "Needs about a month of spending to suggest a budget; or set one.",
-                        Modifier.padding(top = 4.dp), maxLines = 3
-                    )
-                    AppButton("Adjust", { onIntent(Intent.OpenAdjustDaily) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                }
+            item(key = "focus") {
+                TodayCard(
+                    pick = pick, today = today, codes = codes, nowMillis = now.value, flights = flightsToday, trains = trainsToday, bills = billViews, nudge = nudge,
+                    onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
+                    onAllCodes = { onIntent(Intent.OpenCodes) },
+                    onOpenFlight = { flightOpen = it }, onOpenTrain = { trainOpen = it },
+                    onDismissTrip = { onIntent(Intent.DismissAttention(it, forever = true)) },
+                    onAddTrip = { tripChoice = true },
+                    onPay = { onIntent(Intent.OpenLink(it)) },
+                    onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
+                    onMore = onMore,
+                    modifier = itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_TODAY)
+                )
             }
         }
 
-        // The deck: what is new, sorted into small stacks. Going through it clears things from the cards below, which are the same messages.
-        if (deck.toGo + deck.quietCount + deck.autoCleared.size + deck.readCount > 0) {
+        if (layout.shows(HomeSection.BUDGET) && !state.isBlank) {
+            val at = slot++
+            item(key = "today") {
+                val intro = gate.rememberIsEntering(at)
+                TodayBudgetRow(
+                    state.daily, onOpen = { onIntent(Intent.OpenCalendar) }, onAdjust = { onIntent(Intent.OpenAdjustDaily) }, intro = intro,
+                    modifier = itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BUDGET)
+                )
+            }
+        }
+
+        // The deck: what is new, sorted into a few stacks. The review row sits under it, and stays when the deck is switched off.
+        if (showDeckSection) {
             val at = slot
             slot += deckSlots(deck)
             item(key = "deck") {
                 val intro = gate.rememberIsEntering(at)
                 Box(itemMotion().tourAnchor(TourAnchor.HOME_DECK)) {
                     DeckSection(
-                        deck, gate, at, intro,
-                        onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenRead = { onNavigate(AppTab.INBOX) }, onSettings = onDeckSettings
+                        deck, gate, at, intro, showDeck = layout.shows(HomeSection.DECK), reviewCount = state.review.count,
+                        onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenReview = onOpenReview, onSettings = onDeckSettings
                     )
                 }
             }
         }
 
-        // Codes and what needs attention are the two things that cannot wait, so they share one card, and the one outline.
-        if (codes.isNotEmpty() || attention.isNotEmpty()) {
+        if (layout.shows(HomeSection.SHORTCUTS)) {
             val at = slot++
-            item(key = "priority") {
-                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_CODES), movingOutline = true) {
-                    if (codes.isNotEmpty()) {
-                        CodePagerContent(
-                            codes, now.value,
-                            onCopy = { message, code -> onIntent(Intent.CopyOtp(message.id, code)) },
-                            onAll = { onIntent(Intent.OpenCodes) }
-                        )
+            item(key = "plan-tiles") {
+                // Four shortcuts in two rows of two, each a page of its own.
+                Column(itemMotion().enterOnce(gate, at), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
+                        ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
                     }
-                    if (codes.isNotEmpty() && attention.isNotEmpty()) {
-                        HorizontalDivider(Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
+                        ShortcutTile("Can I afford it?", R.drawable.ic_afford_24, Modifier.weight(1f)) { onAfford() }
                     }
-                    if (attention.isNotEmpty()) AttentionStrip(attention, today, actions, inset = 0.dp, bordered = false)
                 }
             }
         }
 
-        if (state.review.count > 0) {
-            val at = slot++
-            item(key = "review") { Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_REVIEW)) { ReviewCard(state.review.count, onOpenReview) } }
-        }
-
-        if (focus != null) {
-            val at = slot++
-            item(key = "focus") {
-                FintechCard(itemMotion().enterOnce(gate, at), onClick = focus.messageId?.let { id -> { onIntent(Intent.OpenMessage(id)) } }) {
-                    FocusCard(focus.text, urgent = focus.kind != NudgeKind.PACE)
-                }
-            }
-        }
-
-        if (next != null) {
-            val at = slot++
-            item(key = "next") {
-                FintechCard(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_NEXT_DUE)) {
-                    CardHeader("Next due")
-                    val nextRow: @Composable (@Composable () -> Unit) -> Unit = { more ->
-                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid, more = more) { onIntent(Intent.OpenLink(it)) }
-                    }
-                    if (next.paidOn != null) {
-                        UpcomingRow(next, today, onOpen = { onIntent(Intent.OpenMessage(next.message.id)) }, onMarkPaid = markPaid) { onIntent(Intent.OpenLink(it)) }
-                    } else PlanItemFrame(next.title, PlanKeys.bill(next), PlanKind.BILL, today, planHandler, content = nextRow)
-                    LinkButton("All bills", { onNavigate(AppTab.BILLS) })
-                }
-            }
-        }
-
-        run {
-          val at = slot++
-          item(key = "plan-tiles") {
-            // Four shortcuts in two rows of two, each a page of its own.
-            Column(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_SHORTCUTS), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    ShortcutTile("Calendar", R.drawable.baseline_event_24, Modifier.weight(1f)) { onIntent(Intent.OpenAgenda) }
-                    ShortcutTile("Goals", R.drawable.ic_goal_24, Modifier.weight(1f)) { onIntent(Intent.OpenGoals) }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    ShortcutTile("Reminders", R.drawable.ic_reminder_24, Modifier.weight(1f)) { onIntent(Intent.OpenReminders) }
-                    ShortcutTile("Can I afford it?", R.drawable.ic_afford_24, Modifier.weight(1f)) { affordOpen = true }
-                }
-            }
-          }
-        }
-
-        if (state.recent.isNotEmpty()) {
-            val at = slot++
-            item(key = "activity") {
-                FintechCard(itemMotion().enterOnce(gate, at)) {
-                    val month = state.thisMonth?.takeIf { !it.isEmpty }
-                    if (month != null) {
-                        CardHeader("Recent activity", trailing = { Caption("Spent ${DisplayFormatters.rupees(month.total)} · ${periodName(month.range)}") })
-                    } else {
-                        CardHeader("Recent activity")
-                    }
-                    state.recent.take(MAX_RECENT_ACTIVITY).forEachIndexed { index, message ->
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        RecentRow(message, onOpen = { onIntent(Intent.OpenMessage(message.id)) })
-                    }
-                    LinkButton("Insights", { onNavigate(AppTab.MONEY) })
-                }
-            }
-        }
-
-        if (state.planAgenda.isNotEmpty() || maturities.isNotEmpty()) {
+        if (layout.shows(HomeSection.GOALS) && (state.planAgenda.isNotEmpty() || maturities.isNotEmpty())) {
             val at = slot++
             item(key = "plans") {
                 FintechCard(itemMotion().enterOnce(gate, at)) {
@@ -633,13 +585,24 @@ private fun SummaryPage(
             }
         }
 
-        if (state.quickAdds.isNotEmpty()) {
+        if (layout.shows(HomeSection.QUICK_ADDS) && state.quickAdds.isNotEmpty()) {
             val at = slot++
             item(key = "quickadds") { FintechCard(itemMotion().enterOnce(gate, at)) { QuickAddsPrompt(state.quickAdds.size) { onIntent(Intent.OpenQuickAdds) } } }
         }
+
+        if (layout.shows(HomeSection.ACTIVITY) && state.recent.isNotEmpty()) {
+            val at = slot++
+            item(key = "activity") {
+                RecentActivity(
+                    state.recent.take(MAX_RECENT_ACTIVITY), onOpen = { onIntent(Intent.OpenMessage(it)) }, onSeeAll = { onNavigate(AppTab.INBOX) },
+                    modifier = itemMotion().enterOnce(gate, at)
+                )
+            }
+        }
+
+        item(key = "footer") { HomeFooter(onCustomize, Modifier.tourAnchor(TourAnchor.HOME_CUSTOMIZE)) }
     }
     }
-    if (affordOpen) com.zyke.message.presentation.plan.AffordPage(state, onIntent) { affordOpen = false }
 }
 
 /** Opened by tapping any item: the message in full, or a budget's detail. */
@@ -825,7 +788,7 @@ internal const val CODE_WARN_FRACTION = 0.2f
 internal val CODE_GROUPABLE = 4..10 step 2
 private const val MAX_PLANS = 4
 private const val REMINDER_SOON_DAYS = 7L
-private const val MAX_RECENT_ACTIVITY = 5
+private const val MAX_RECENT_ACTIVITY = 3
 
 /** One thing ahead: an order on its way, a trip, an appointment or a renewal. Tap for the message. */
 @Composable
@@ -875,6 +838,27 @@ internal fun rememberMarkPaid(onIntent: (Intent) -> Unit, tickOnPay: Boolean = t
                 onIntent(Intent.RestoreAttention(item.markedPaidKey))
                 item.attentionKey?.let { onIntent(Intent.RestoreAttention(it)) }
                 paidBills.remove(item.markedPaidKey)
+            }
+        }
+    }
+}
+
+/** The person says an overdue bill was paid: it leaves Home's Today card and the review list, and Undo brings it back. */
+@Composable
+internal fun rememberMarkOverduePaid(onIntent: (Intent) -> Unit): (com.zyke.message.domain.ledger.OverdueBill) -> Unit {
+    val snackbar = com.zyke.message.presentation.common.LocalAppSnackbar.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val tick = com.zyke.message.presentation.common.rememberTick()
+    return { bill ->
+        tick()
+        onIntent(Intent.DismissAttention(bill.markedPaidKey, forever = true))
+        onIntent(Intent.DismissAttention(bill.attentionKey, forever = true))
+        scope.launch {
+            val result = snackbar.showSnackbar("Marked ${bill.label} as paid", actionLabel = "Undo", duration = androidx.compose.material3.SnackbarDuration.Long)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                tick()
+                onIntent(Intent.RestoreAttention(bill.markedPaidKey))
+                onIntent(Intent.RestoreAttention(bill.attentionKey))
             }
         }
     }
@@ -935,20 +919,3 @@ internal fun RecentRow(message: ClassifiedMessage, onOpen: () -> Unit) {
         )
     }
 }
-
-/** The one thing to read first, set apart by space and a single colour rather than a box of detail. */
-@Composable
-private fun FocusCard(text: String, urgent: Boolean) {
-    val accent = if (urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Column(Modifier.fillMaxWidth()) {
-        Caption("FIRST THING", color = accent)
-        Text(
-            text,
-            Modifier.padding(top = 6.dp),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-}
-

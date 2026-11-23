@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,7 +84,7 @@ private class PaidLine(val key: String, val title: String, val caption: String, 
  * Undo reverses all of it.
  */
 @Composable
-internal fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit, gate: EnterGate) {
+internal fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Unit, gate: EnterGate, onAfford: () -> Unit = {}) {
     val markPaid = rememberMarkPaid(onIntent, tickOnPay = false)
     val haptics = rememberHaptics()
     val motion = rememberMotion()
@@ -258,6 +262,27 @@ internal fun BillsPage(state: State, today: LocalDate, onIntent: (Intent) -> Uni
                     }
                 }
             }
+            // Where the calendar, goals, reminders, the affordability check and what was found in messages live now that Home is calm.
+            run {
+                val at = slot++
+                item(key = "plan-ahead") {
+                    Box(Modifier.tourAnchor(TourAnchor.BILLS_PLAN)) {
+                        BillsSection("Plan ahead", itemMotion().enterOnce(gate, at)) {
+                            PlanAheadRow("Calendar", "Bills, reminders, trips and your own events") { onIntent(Intent.OpenAgenda) }
+                            RowDivider()
+                            PlanAheadRow("Goals", "Save towards something, a little at a time") { onIntent(Intent.OpenGoals) }
+                            RowDivider()
+                            PlanAheadRow("Reminders", "Things to do, once or every month") { onIntent(Intent.OpenReminders) }
+                            RowDivider()
+                            PlanAheadRow("Can I afford it?", "Check a purchase against what you have left") { onAfford() }
+                            if (state.quickAdds.isNotEmpty()) {
+                                RowDivider()
+                                PlanAheadRow("Found in your messages", DisplayFormatters.count(state.quickAdds.size, "thing", "things") + " to add") { onIntent(Intent.OpenQuickAdds) }
+                            }
+                        }
+                    }
+                }
+            }
             if (state.refunds.isNotEmpty()) {
                 val at = slot++
                 item(key = "refunds") {
@@ -413,4 +438,22 @@ private fun SubscriptionRow(
             RowAction("Not recurring", ButtonStyle.TEXT, "$name is not recurring") { onIgnore() }
         )
     )
+}
+
+/** One way into a plan page: a title, one line, and a chevron; the whole row is the button. */
+@Composable
+private fun PlanAheadRow(title: String, caption: String, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).rowTap("Open $title", onClick),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            com.zyke.message.presentation.messages.components.RowTitle(title)
+            Caption(caption, maxLines = 2)
+        }
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(com.zyke.message.R.drawable.baseline_chevron_right_24), contentDescription = null,
+            modifier = Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(mutedColor())
+        )
+    }
 }

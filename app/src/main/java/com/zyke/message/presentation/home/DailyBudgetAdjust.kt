@@ -99,6 +99,7 @@ internal fun AdjustDailySheet(
                 )
             }
             Caption(explanation(suggestion), Modifier.padding(top = 4.dp), maxLines = 6)
+            current?.let { Caption(basisCaption(it.basis, it.cyclesUsed), Modifier.padding(top = 4.dp), maxLines = 2) }
         }
     }
 }

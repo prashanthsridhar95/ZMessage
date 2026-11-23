@@ -88,48 +88,6 @@ import java.util.Locale
 private val UnderColor: Color @Composable @ReadOnlyComposable get() = AppColors.success
 private val OverColor: Color @Composable @ReadOnlyComposable get() = AppColors.danger
 
-/** Today's share of what is spendable, how much of it is left, and the run of days kept within it. Tap for the calendar. */
-@Composable
-internal fun TodayBudget(daily: DailyBudgetStatus, onAdjust: () -> Unit = {}, intro: Boolean = false) {
-    val over = daily.isOver
-    val color = if (over) OverColor else UnderColor
-    val used = com.zyke.message.domain.motion.MotionMath.share(daily.spentToday, daily.allowance)
-
-    Column(Modifier.fillMaxWidth()) {
-        com.zyke.message.presentation.common.CardHeader("Today's budget")
-        // Counts to a new figure when what is left changes, and up from zero the first time Home appears.
-        com.zyke.message.presentation.motion.AnimatedAmount(
-            if (over) daily.leftToday.negate() else daily.leftToday,
-            Modifier.padding(top = 2.dp),
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = color,
-            maxLines = 1,
-            fit = true,
-            fromZero = intro
-        )
-        Caption(
-            if (over) "over today's ${DisplayFormatters.rupees(daily.allowance)}"
-            else "left of ${DisplayFormatters.rupees(daily.allowance)} · spent ${DisplayFormatters.rupees(daily.spentToday)}"
-        )
-        ShareBar(used, color = color)
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Caption(
-                    if (daily.currentStreak > 0) {
-                        "${DisplayFormatters.count(daily.currentStreak, "day", "days")} streak"
-                    } else {
-                        "No streak yet"
-                    },
-                    color = if (daily.currentStreak > 0) UnderColor else mutedColor()
-                )
-                Caption(basisCaption(daily.basis, daily.cyclesUsed))
-            }
-            AppButton("Adjust", onAdjust, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-        }
-    }
-}
-
 /**
  * The budget calendar: the streak as the headline, then the pay cycle as a plain grid. Days are not painted red or
  * green; a small mark under the date says whether the day stayed within budget, the days of the current streak

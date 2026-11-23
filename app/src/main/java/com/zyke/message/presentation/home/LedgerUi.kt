@@ -139,25 +139,6 @@ internal fun ManualEntrySheet(today: LocalDate, onSave: (ManualEntry) -> Unit, o
     }
 }
 
-/** One card on Home: how many things the app would like the person to look at. */
-@Composable
-internal fun ReviewCard(count: Int, onOpen: () -> Unit) {
-    FintechCard(onClick = onOpen) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Caption("NEEDS REVIEW")
-                Text(
-                    DisplayFormatters.count(count, "thing", "things") + " to look at",
-                    Modifier.padding(top = 4.dp), style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
-                )
-                Caption("Bills, possible duplicates and transfers, large payments, messages not understood", maxLines = 2)
-            }
-            Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.secondary)
-        }
-    }
-}
-
 /** What the app is unsure of, each with the one thing to do about it. Nothing here is decided until the person says so. */
 @Composable
 internal fun ReviewPage(
