@@ -19,6 +19,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,12 +51,16 @@ fun MarketSettingsSection() {
 
     SectionCard("Market watch") {
         SwitchLine(
-            title = "Show market strip on Home",
-            description = "A scrolling strip of live prices on Home; tap it for the full list. Prices come from Yahoo Finance over the internet, so this is off until you turn it on. Only the tickers you watch, and the letters you type into the add box, are sent to Yahoo Finance, never anything from your messages.",
+            title = "Turn on market watch",
+            description = "Turns the prices on. Home shows the strip only if you also choose it in Customize Home; the full list opens from here. Prices come from Yahoo Finance over the internet, so this is off until you turn it on. Only the tickers you watch, and the letters you type into the add box, are sent to Yahoo Finance, never anything from your messages.",
             checked = watch.enabled,
             onChange = { container.watchlist.save(watch.copy(enabled = it)) }
         )
         if (watch.enabled) {
+            // The full price list used to open only from Home's strip, which is off in the calm layout: open it from here too.
+            var listOpen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+            AppButton("Open market watch", { listOpen = true }, style = ButtonStyle.OUTLINE, modifier = Modifier.padding(top = 8.dp))
+            if (listOpen) MarketPage(onBack = { listOpen = false })
             SwitchLine("US dollar in rupees", "Shows USD / INR", watch.showDollar, { container.watchlist.save(watch.copy(showDollar = it)) })
             SwitchLine("Gold", "Rupees for 10 grams, worked out from the international price", watch.showGold, { container.watchlist.save(watch.copy(showGold = it)) })
 

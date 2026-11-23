@@ -527,6 +527,7 @@ private fun GroupContent(
                 )
             }
         }
+        com.zyke.message.presentation.home.HomeLayoutEntry()
         SectionCard("Feel") {
             ToggleRow(
                 title = "Haptic feedback",

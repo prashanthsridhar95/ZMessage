@@ -147,6 +147,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository by lazy { com.zyke.message.data.repository.ReceivedRefundRepositoryImpl(context) }
     /** The order and modes of Home's stacks of cards, and the cards restored from Auto cleared (prefs `triage_prefs`; in memory in the demo). */
     val triage: com.zyke.message.domain.triage.TriageRepository by lazy { com.zyke.message.data.repository.TriageRepositoryImpl(context) }
+    /** Which optional parts of Home are shown (prefs `home_layout`, in backups; in memory in the demo because `context` is the demo context). */
+    val homeLayout: com.zyke.message.domain.home.HomeLayoutRepository by lazy { com.zyke.message.data.repository.HomeLayoutRepositoryImpl(context) }
 
     /**
      * How each message was read, kept encrypted on the phone. Tagged with the app's version and install time, so a
