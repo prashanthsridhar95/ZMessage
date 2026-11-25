@@ -54,7 +54,7 @@ class SpendPlaceRepositoryImpl private constructor(
                 }
                 if (s.settings != lastSettings) {
                     val c = s.settings
-                    settings.edit().putBoolean("enabled", c.enabled).putBoolean("explained", c.explained).putBoolean("geocode", c.geocodeNames)
+                    settings.edit().putBoolean("enabled", c.enabled).putBoolean("explained", c.explained).putBoolean("prompted", c.prompted).putBoolean("geocode", c.geocodeNames)
                         .putBoolean("backup", c.includeInBackup).putBoolean("pictures", c.mapPictures).putInt("months", c.keepMonths)
                         .putStringSet("capture", c.captureOverrides).putStringSet("skip", c.skipOverrides).apply()
                     lastSettings = c
@@ -79,7 +79,7 @@ class SpendPlaceRepositoryImpl private constructor(
             }
             val d = SpendPlaceSettings()
             val cfg = SpendPlaceSettings(
-                enabled = settings.getBoolean("enabled", d.enabled), explained = settings.getBoolean("explained", d.explained),
+                enabled = settings.getBoolean("enabled", d.enabled), explained = settings.getBoolean("explained", d.explained), prompted = settings.getBoolean("prompted", d.prompted),
                 geocodeNames = settings.getBoolean("geocode", d.geocodeNames), includeInBackup = settings.getBoolean("backup", d.includeInBackup), mapPictures = settings.getBoolean("pictures", d.mapPictures),
                 keepMonths = settings.getInt("months", d.keepMonths),
                 captureOverrides = settings.getStringSet("capture", emptySet()).orEmpty().toSet(),

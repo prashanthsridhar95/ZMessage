@@ -389,3 +389,26 @@ class DemoPlacesTest {
         assertTrue(abs(a.lat - DemoPlaces.CENTER_LAT) < 0.1 && abs(a.lon - DemoPlaces.CENTER_LON) < 0.1)
     }
 }
+
+class PlacesPromptTest {
+    private val fresh = SpendPlaceSettings()
+    @Test fun neverAsksInDemoOrWhileBlocked() {
+        assertEquals(PlacesPromptKind.NONE, PlacesPrompt.kind(fresh, demo = true, fresh = true, blocked = false))
+        assertEquals(PlacesPromptKind.NONE, PlacesPrompt.kind(fresh, demo = false, fresh = true, blocked = true))
+    }
+    @Test fun freshInstallGetsOnboarding_updateGetsTheNewPage() {
+        assertEquals(PlacesPromptKind.ONBOARDING, PlacesPrompt.kind(fresh, false, true, false))
+        assertEquals(PlacesPromptKind.UPDATE, PlacesPrompt.kind(fresh, false, false, false))
+        assertEquals("New: remember where you spend", PlacesPrompt.headline(PlacesPromptKind.UPDATE))
+        assertEquals("NEW", PlacesPrompt.kicker(PlacesPromptKind.UPDATE))
+        assertEquals(null, PlacesPrompt.kicker(PlacesPromptKind.ONBOARDING))
+    }
+    @Test fun answeredOnceIsAnsweredForGood() {
+        for (s in listOf(fresh.copy(prompted = true), fresh.copy(enabled = true), fresh.copy(explained = true)))
+            assertEquals(PlacesPromptKind.NONE, PlacesPrompt.kind(s, false, false, false))
+    }
+    @Test fun theDefaultIsOffAndUnanswered() {
+        assertEquals(false, fresh.enabled)
+        assertEquals(false, fresh.prompted)
+    }
+}

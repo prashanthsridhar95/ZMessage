@@ -35,6 +35,8 @@ data class SpendPlaceSettings(
     val enabled: Boolean = false,
     /** The one-time explanation sheet has been read. */
     val explained: Boolean = false,
+    /** The person has answered the first-run / after-update prompt (Turn on or Not now); it is never shown again. Never backed up. */
+    val prompted: Boolean = false,
     /** Ask the phone's geocoder for a place name (it may contact a remote service). */
     val geocodeNames: Boolean = true,
     /** Show OpenStreetMap squares behind the pins (asks the internet for the squares on screen); off until the person agrees. */
