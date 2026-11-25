@@ -110,7 +110,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /** How much of each card behind the front one peeks out above it. */
-private val DECK_PEEK = 10.dp
+internal val DECK_PEEK = 10.dp
 
 private const val TILT_DEGREES = 8f
 
@@ -484,7 +484,7 @@ private fun TriageChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 /** The card: who and when, the category, the bold headline, the short summary, tags, and the footer. Its content is one spoken sentence with the four actions. */
 @Composable
-private fun CardFace(
+internal fun CardFace(
     card: TriageCard,
     message: ClassifiedMessage?,
     index: Int,
@@ -493,7 +493,9 @@ private fun CardFace(
     modifier: Modifier,
     onMove: (TriageMove) -> Unit,
     onCategory: () -> Unit,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    /** Home's inline deck: no category chip, a two-line headline and summary, no tags. */
+    compact: Boolean = false
 ) {
     val shape = AppShapes.card
     val surface = MaterialTheme.colorScheme.surface
@@ -528,7 +530,7 @@ private fun CardFace(
                         SenderTitle(SenderLabel(card.title, card.verified), style = MaterialTheme.typography.titleSmall)
                         Caption(DisplayFormatters.listStamp(card.dateMillis))
                     }
-                    if (message != null && message.content !is MessageContent.Otp) {
+                    if (!compact && message != null && message.content !is MessageContent.Otp) {
                         Box(
                             Modifier.heightIn(min = 48.dp).widthIn(max = 132.dp).tappable(onClick = onCategory, onClickLabel = "Change category"),
                             contentAlignment = Alignment.Center
@@ -555,16 +557,16 @@ private fun CardFace(
                         }
                 ) {
                     Text(
-                        card.headline, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary, maxLines = scaledLines(4), overflow = TextOverflow.Ellipsis
+                        card.headline, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary, maxLines = if (compact) 2 else scaledLines(4), overflow = TextOverflow.Ellipsis
                     )
                     if (card.summary.isNotEmpty()) {
                         Text(
                             card.summary, Modifier.padding(top = Spacing.md), style = TypeRole.body, color = ink.copy(alpha = 0.86f),
-                            maxLines = scaledLines(6), overflow = TextOverflow.Ellipsis
+                            maxLines = if (compact) 2 else scaledLines(6), overflow = TextOverflow.Ellipsis
                         )
                     }
-                    TagRow(card, Modifier.padding(top = Spacing.md))
+                    if (!compact) TagRow(card, Modifier.padding(top = Spacing.md))
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(ink.copy(alpha = 0.08f)))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
