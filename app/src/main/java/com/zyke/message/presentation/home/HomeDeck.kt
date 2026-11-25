@@ -2,186 +2,296 @@ package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
+import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.triage.TriageCard
 import com.zyke.message.domain.triage.TriageDeck
-import com.zyke.message.domain.triage.TriageStack
+import com.zyke.message.domain.triage.TriageGestures
+import com.zyke.message.domain.triage.TriageMove
 import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.EmptyState
-import com.zyke.message.presentation.common.LinkButton
-import com.zyke.message.presentation.common.LocalResponsive
 import com.zyke.message.presentation.common.AppPage
 import com.zyke.message.presentation.common.Text
-import com.zyke.message.presentation.common.heading
+import com.zyke.message.presentation.common.DeckDots
 import com.zyke.message.presentation.common.privateSpeech
+import com.zyke.message.presentation.common.rememberLedgerActions
 import com.zyke.message.presentation.common.scaledLines
 import com.zyke.message.presentation.common.tappable
 import com.zyke.message.presentation.format.DisplayFormatters
+import com.zyke.message.presentation.home.HomeContract.Intent
 import com.zyke.message.presentation.messages.components.Caption
-import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.domain.tour.TourAnchor
 import com.zyke.message.presentation.tour.tourAnchor
 import com.zyke.message.presentation.motion.EnterGate
 import com.zyke.message.presentation.motion.enterOnce
 import com.zyke.message.presentation.motion.rememberCountUpInt
+import com.zyke.message.presentation.motion.rememberHaptics
+import com.zyke.message.presentation.motion.rememberMotion
 import com.zyke.message.presentation.theme.AppShapes
-import com.zyke.message.presentation.theme.Radius
 import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.theme.Tonal
 import com.zyke.message.presentation.theme.TypeRole
-import com.zyke.message.presentation.theme.StackTone
-import com.zyke.message.presentation.theme.stackTone
 import com.zyke.message.presentation.theme.tonalFill
 
-/** How many tiles Home shows: the first four stacks that have something new, in the person's order. The triage page has them all. */
-private const val MAX_TILES = 4
+/** The height of the front card on Home: the same card the triage page shows, with a two-line headline and summary. It never grows with text (the card caps font scale at 1.3). */
+private val INLINE_CARD_HEIGHT = 272.dp
 
-/** The least height of a tile; it grows with large text, and the two tiles of a row are always the same height. */
-private val TILE_MIN_HEIGHT = 112.dp
-
-/** How many first-showing slots [DeckSection] uses: its header and one per row of tiles (see enterOnce). */
-internal fun deckSlots(deck: TriageDeck): Int = 1 + (deck.tiles.take(MAX_TILES).size + 1) / 2
+/** How many first-showing slots [DeckSection] uses: its header, the stack and the line of chips (see enterOnce). */
+internal fun deckSlots(@Suppress("UNUSED_PARAMETER") deck: TriageDeck): Int = 3
 
 /**
- * "Your deck", compact: a header, "N to go" with "Swipe all", at most four tiles (two to a row, equal size, each its own tonal
- * colour), and one quiet line for what waits (Quiet) and what was cleared for the person (Auto cleared), each opening its page. When
- * something needs review a single quiet row says so under it; that row stays even when the deck itself is switched off in Customize Home
- * ([showDeck] false), because the review page opens from nowhere else. The cards themselves are swiped in [TriageScreen]; nothing here
- * changes a message.
+ * "Your deck" on Home: ONE block that is the whole story of what needs a look.
  *
- * Entrance: the header and each row of tiles rise in once, in turn (the Home screen's gate); the number counts up from zero on that
- * first showing only and afterwards counts to its new value. Nothing loops.
+ *  - Something is new (the KEEP stacks have cards): a real stack. The front card with the next two peeking behind it, "N to go" above.
+ *    Swipe it left to archive, right to keep (mark read), up or down to move around the deck, the same gestures, hints and haptics as the
+ *    triage page. Every gesture is also a screen-reader action on the card; the triage page has the buttons.
+ *  - Nothing is new but the app has questions about the money (the review queue): one card that opens the review. The deck and the review
+ *    are two different sources (cards come from unread messages, the review queue from the ledger), so they are one block with one count each.
+ *  - Neither: one quiet row, "All caught up".
+ * Under it one line of chips: "N to review" (always the strongest), "Quiet N", "Auto-cleared N" and "All stacks"; each opens its page.
+ * When the deck is switched off in Customize Home ([showDeck] false) only the review row remains, because the review page opens from nowhere else.
+ *
+ * Entrance: the header, the stack and the chips rise in once, in turn (the Home screen's gate); the number counts up from zero on that first
+ * showing only. Nothing loops.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DeckSection(
     deck: TriageDeck,
+    messages: Map<Long, ClassifiedMessage>,
     gate: EnterGate,
     firstSlot: Int,
     intro: Boolean,
     showDeck: Boolean,
     reviewCount: Int,
+    onIntent: (Intent) -> Unit,
     onOpen: (quiet: Boolean, stackId: String?) -> Unit,
     onOpenAutoCleared: () -> Unit,
     onOpenReview: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val responsive = LocalResponsive.current
-    val stacked = responsive.stackRows || responsive.fontScale >= 1.5f
+    // Whichever of the review card, the review chip or the review row is on screen carries the tour's anchor (only one is ever composed).
+    val reviewAnchor = Modifier.tourAnchor(TourAnchor.HOME_REVIEW)
+    if (!showDeck) {
+        if (reviewCount > 0) ReviewRow(reviewCount, onOpenReview, modifier.then(reviewAnchor))
+        return
+    }
+    val cards = remember(deck) { deck.cards(false) }
+    var index by rememberSaveable { mutableIntStateOf(0) }
+    val i = TriageGestures.afterRemoval(index, cards.size)
+    val front = cards.getOrNull(i)
+    val deckState = remember { TriageDeckState() }
+    val motion = rememberMotion()
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val ledger = rememberLedgerActions()
+    val act: (TriageMove) -> Unit = { move ->
+        val card = front
+        if (card != null && move != TriageMove.NONE && !(cards.size < 2 && (move == TriageMove.NEXT || move == TriageMove.PREVIOUS))) {
+            haptics.tick()
+            deckState.fling(scope, move, card, motion) {
+                when (move) {
+                    TriageMove.SWEEP -> {
+                        onIntent(Intent.TriageSweep(card.messageId))
+                        ledger.withUndo("Archived · ${card.headline}") { onIntent(Intent.TriageUndo(listOf(card.messageId), swept = true)) }
+                    }
+                    TriageMove.KEEP -> {
+                        onIntent(Intent.TriageGotIt(card.allIds))
+                        ledger.withUndo("Marked read · ${card.headline}") { onIntent(Intent.TriageUndo(card.allIds, swept = false)) }
+                    }
+                    TriageMove.NEXT -> index = TriageGestures.next(i, cards.size)
+                    TriageMove.PREVIOUS -> index = TriageGestures.previous(i, cards.size)
+                    TriageMove.NONE -> Unit
+                }
+            }
+        } else if (move != TriageMove.NONE) deckState.springBack(scope, motion)
+    }
+
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        if (showDeck) {
-            Column(Modifier.enterOnce(gate, firstSlot)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        HomeLabel("Your deck")
-                        if (deck.toGo > 0) {
-                            val count = rememberCountUpInt(deck.toGo, fromZero = intro)
-                            Text(
-                                "$count to go", Modifier.padding(top = Spacing.xs).semantics { contentDescription = "${deck.toGo} to go" },
-                                style = TypeRole.title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
-                            Caption("All caught up. Cleared cards stay in Messages.", Modifier.padding(top = Spacing.xs), maxLines = 2)
-                        }
-                    }
-                    if (!stacked && deck.toGo > 0) LinkButton("Swipe all", { onOpen(false, null) })
-                    Box(
-                        Modifier.size(48.dp).tappable(onClick = onSettings, onClickLabel = "Make it yours: order and modes of the stacks"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.baseline_settings_24), contentDescription = "Deck settings",
-                            modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(mutedColor())
-                        )
-                    }
-                }
-                if (stacked && deck.toGo > 0) LinkButton("Swipe all", { onOpen(false, null) })
-            }
-            val shown = deck.tiles.take(MAX_TILES)
-            shown.chunked(2).forEachIndexed { row, pair ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max).enterOnce(gate, firstSlot + 1 + row), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    pair.forEach { stack -> StackTile(stack, Modifier.weight(1f).fillMaxHeight()) { onOpen(false, stack.id) } }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+        // Header: the label, what is left, and the settings gear.
+        Row(Modifier.fillMaxWidth().enterOnce(gate, firstSlot), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                HomeLabel("Your deck")
+                val big = if (cards.isNotEmpty()) deck.toGo else reviewCount
+                if (big > 0) {
+                    val count = rememberCountUpInt(big, fromZero = intro)
+                    val unit = if (cards.isNotEmpty()) "to go" else "to review"
+                    Text(
+                        "$count $unit", Modifier.padding(top = Spacing.xs).semantics { contentDescription = "$big $unit" },
+                        style = TypeRole.title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
-            if (deck.tiles.size > MAX_TILES) {
-                LinkButton("All stacks", { onOpen(false, null) })
-            }
-            if (deck.quietCount > 0 || deck.autoCleared.isNotEmpty()) {
-                val quiet: @Composable () -> Unit = {
-                    if (deck.quietCount > 0) QuietLink("Quiet ${deck.quietCount}", "Quiet: ${deck.quietCount} waiting for later") { onOpen(true, null) }
-                }
-                val cleared: @Composable () -> Unit = {
-                    if (deck.autoCleared.isNotEmpty()) QuietLink("Auto cleared ${deck.autoCleared.size}", "Auto cleared: ${deck.autoCleared.size} handled for you", onOpenAutoCleared)
-                }
-                if (stacked) {
-                    Column { quiet(); cleared() }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        quiet()
-                        if (deck.quietCount > 0 && deck.autoCleared.isNotEmpty()) {
-                            Text("\u00B7", Modifier.padding(horizontal = Spacing.sm), style = TypeRole.caption, color = mutedColor())
-                        }
-                        cleared()
-                    }
-                }
+            if (front != null && cards.size > 1) Caption(TriageGestures.counter(i, cards.size), Modifier.padding(end = Spacing.xs))
+            Box(
+                Modifier.size(48.dp).tappable(onClick = onSettings, onClickLabel = "Make it yours: order and modes of the stacks"),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.baseline_settings_24), contentDescription = "Deck settings",
+                    modifier = Modifier.size(20.dp), colorFilter = ColorFilter.tint(mutedColor())
+                )
             }
         }
-        if (reviewCount > 0) {
-            ReviewRow(reviewCount, onOpenReview)
+        when {
+            front != null -> Column(Modifier.fillMaxWidth().enterOnce(gate, firstSlot + 1)) {
+                TriageDeck(
+                    front, cards.size, deckState, act,
+                    Modifier.fillMaxWidth().padding(top = DECK_PEEK * 2).height(INLINE_CARD_HEIGHT)
+                ) { card, m, isFront ->
+                    CardFace(
+                        card, messages[card.messageId], i, cards.size, if (isFront) deckState else null, m, act,
+                        onCategory = {}, onOpen = { onIntent(Intent.PeekMessage(card.messageId)) }, compact = true
+                    )
+                }
+                // Where you are, and what a swipe does, said once and quietly.
+                Column(Modifier.fillMaxWidth().padding(top = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (cards.size > 1) DeckDots(cards.size, i, active = MaterialTheme.colorScheme.primary)
+                    Caption(
+                        "Swipe left to archive, right to keep", Modifier.padding(top = Spacing.xs).clearAndSetSemantics { },
+                        maxLines = 2, textAlign = TextAlign.Center
+                    )
+                }
+            }
+            reviewCount > 0 -> Box(Modifier.enterOnce(gate, firstSlot + 1)) { ReviewCard(reviewCount, onOpenReview, reviewAnchor) }
+            else -> Box(Modifier.enterOnce(gate, firstSlot + 1)) { CaughtUpRow() }
+        }
+        val hasChips = reviewCount > 0 || deck.quietCount > 0 || deck.autoCleared.isNotEmpty() || cards.isNotEmpty()
+        if (hasChips) {
+            FlowRow(Modifier.fillMaxWidth().enterOnce(gate, firstSlot + 2), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                // The review count is the strongest chip, and the only one when the cards above are not about it; with the review card showing it is not repeated.
+                if (reviewCount > 0 && cards.isNotEmpty()) {
+                    DeckChip("$reviewCount to review", "$reviewCount to review, open the review", true, onOpenReview, reviewAnchor)
+                }
+                if (deck.quietCount > 0) DeckChip("Quiet ${deck.quietCount}", "Quiet: ${deck.quietCount} waiting for later", false, { onOpen(true, null) })
+                if (deck.autoCleared.isNotEmpty()) {
+                    DeckChip("Auto-cleared ${deck.autoCleared.size}", "Auto cleared: ${deck.autoCleared.size} handled for you", false, onOpenAutoCleared)
+                }
+                if (cards.isNotEmpty()) DeckChip("All stacks", "Open all stacks", false, { onOpen(false, null) })
+            }
         }
     }
 }
 
-/** One part of the quiet footer line under the deck: muted text on a 48 dp target. */
+/** A small rounded chip on a 48 dp target; the strong one carries the accent. */
 @Composable
-private fun QuietLink(text: String, spoken: String, onClick: () -> Unit) {
+private fun DeckChip(label: String, spoken: String, strong: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
     Box(
-        Modifier.heightIn(min = 48.dp).tappable(onClick = onClick, onClickLabel = "Open")
-            .semantics(mergeDescendants = true) { contentDescription = spoken },
-        contentAlignment = Alignment.CenterStart
+        modifier.heightIn(min = 48.dp).tappable(onClick = onClick, onClickLabel = "Open").semantics(mergeDescendants = true) { contentDescription = spoken },
+        contentAlignment = Alignment.Center
     ) {
-        Text(text, style = TypeRole.caption, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            label,
+            Modifier.background(if (strong) scheme.primary.copy(alpha = 0.14f) else tonalFill(Tonal.Quiet), CircleShape).padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+            color = if (strong) scheme.primary else scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
-/** "N things to review": one quiet row; the whole row opens the review page. */
+/** Nothing is new and nothing needs review: one small quiet row, not a block. */
 @Composable
-private fun ReviewRow(count: Int, onOpen: () -> Unit) {
+private fun CaughtUpRow() {
+    HomeCard(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = "All caught up. Cleared cards stay in Messages." },
+        vertical = Spacing.md
+    ) {
+        Column(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalArrangement = Arrangement.Center) {
+            Text("All caught up", style = TypeRole.body, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Caption("Cleared cards stay in Messages.", maxLines = 2)
+        }
+    }
+}
+
+/**
+ * Nothing is new but the ledger has questions: the review as one card in the deck's own shape (a seal, a title, a short summary, a quiet
+ * footer). The whole card opens the review page. It is not swipeable: there is nothing to archive, only to answer.
+ */
+@Composable
+private fun ReviewCard(count: Int, onOpen: () -> Unit, anchor: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val label = DisplayFormatters.count(count, "thing", "things") + " to review"
+    val face = lerp(scheme.surface, scheme.onSurface, 0.03f)
+    val shape = AppShapes.card
+    Column(
+        anchor.fillMaxWidth().clip(shape).background(face).border(1.dp, scheme.onSurface.copy(alpha = 0.10f), shape)
+            .tappable(onClick = onOpen, onClickLabel = "Open review")
+            .semantics(mergeDescendants = true) { contentDescription = "$label. Unclear messages, possible duplicates and overdue bills." }
+            .padding(Spacing.lg)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).background(scheme.primary.copy(alpha = 0.14f), CircleShape).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                Text("?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = scheme.primary)
+            }
+            Column(Modifier.weight(1f).padding(start = Spacing.md).clearAndSetSemantics { }) {
+                Text("Needs a look", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Caption("From your payments")
+            }
+        }
+        Text(
+            label, Modifier.padding(top = Spacing.lg), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+            color = scheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            "Unclear messages, possible duplicates and overdue bills.", Modifier.padding(top = Spacing.sm), style = TypeRole.body,
+            color = scheme.onSurface.copy(alpha = 0.86f), maxLines = 3, overflow = TextOverflow.Ellipsis
+        )
+        Box(Modifier.padding(top = Spacing.md).fillMaxWidth().height(1.dp).background(scheme.onSurface.copy(alpha = 0.08f)))
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Caption("Checked on this phone", Modifier.weight(1f), maxLines = 2)
+            Text("Open review", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = scheme.primary, maxLines = 1)
+        }
+    }
+}
+
+/** "N things to review" as one quiet row, for when the deck is switched off; the whole row opens the review page. */
+@Composable
+private fun ReviewRow(count: Int, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val label = DisplayFormatters.count(count, "thing", "things") + " to review"
     HomeCard(
-        Modifier.semantics(mergeDescendants = true) { contentDescription = label }.tourAnchor(TourAnchor.HOME_REVIEW),
+        modifier.semantics(mergeDescendants = true) { contentDescription = label },
         onClick = onOpen, onClickLabel = "Open review", vertical = Spacing.xs
     ) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -192,45 +302,6 @@ private fun ReviewRow(count: Int, onOpen: () -> Unit) {
             )
         }
     }
-}
-
-/**
- * One stack: its mode, how many are new, its name and the newest card's headline on one line. Quiet and flat: no slab above it, a 16 dp inset, the name in `titleMedium`. The tile dips while held, and speaks as one button.
- */
-@Composable
-private fun StackTile(stack: TriageStack, modifier: Modifier, onClick: () -> Unit) {
-    val tone = stackTone(stack.id)
-    val spoken = privateSpeech("${stack.title}, ${stack.mode.label}, ${stack.newCount} new. ${stack.preview}")
-    Box(
-        modifier
-            .tappable(onClick = onClick, onClickLabel = "Open ${stack.title}")
-            .semantics(mergeDescendants = true) { contentDescription = spoken }
-    ) {
-        Column(
-            Modifier.fillMaxWidth().fillMaxHeight().heightIn(min = TILE_MIN_HEIGHT)
-                .clip(AppShapes.card).background(tone.container).padding(Spacing.lg)
-        ) {
-            ModeTag("${stack.newCount} new", tone, Modifier.align(Alignment.Start))
-            Spacer(Modifier.weight(1f).heightIn(min = Spacing.lg))
-            Text(
-                stack.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = tone.ink,
-                maxLines = scaledLines(2), overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                stack.preview, Modifier.padding(top = Spacing.xs), style = TypeRole.caption, color = tone.ink.copy(alpha = 0.8f),
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-/** The small chip with a stack's mode ("Keep", "Quiet"), on its own tone. */
-@Composable
-internal fun ModeTag(label: String, tone: StackTone, modifier: Modifier = Modifier) {
-    Text(
-        label, modifier.background(tone.ink.copy(alpha = 0.12f), AppShapes.chip).padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-        style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = tone.ink, maxLines = 1
-    )
 }
 
 /**

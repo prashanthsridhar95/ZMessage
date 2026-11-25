@@ -447,7 +447,9 @@ private fun SummaryPage(
     val onMore: () -> Unit = {
         if (layout.shows(HomeSection.DECK) && deck.toGo > 0) onOpenTriage(false, null) else onNavigate(AppTab.BILLS)
     }
-    val showDeckSection = (layout.shows(HomeSection.DECK) && deck.toGo + deck.quietCount + deck.autoCleared.size > 0) || state.review.count > 0
+    // The deck is always there while it is switched on (with nothing to do it is one quiet "All caught up" row); the review stays when it is off.
+    val showDeckSection = layout.shows(HomeSection.DECK) || state.review.count > 0
+    val messagesById = remember(state.messages) { state.messages.associateBy { it.id } }
 
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
@@ -528,8 +530,8 @@ private fun SummaryPage(
                 val intro = gate.rememberIsEntering(at)
                 Box(itemMotion().padding(top = Spacing.sm).tourAnchor(TourAnchor.HOME_DECK)) {
                     DeckSection(
-                        deck, gate, at, intro, showDeck = layout.shows(HomeSection.DECK), reviewCount = state.review.count,
-                        onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenReview = onOpenReview, onSettings = onDeckSettings
+                        deck, messagesById, gate, at, intro, showDeck = layout.shows(HomeSection.DECK), reviewCount = state.review.count,
+                        onIntent = onIntent, onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenReview = onOpenReview, onSettings = onDeckSettings
                     )
                 }
             }
