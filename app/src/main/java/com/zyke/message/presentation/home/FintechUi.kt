@@ -697,6 +697,7 @@ internal fun AccountSheet(
                     RowTitle("Balance over time")
                     LineTrend(
                         amounts = history.map { it.amount },
+                        labels = history.map { dayFormat.format(it.asOf) },
                         firstLabel = dayFormat.format(history.first().asOf),
                         lastLabel = dayFormat.format(history.last().asOf),
                         description = "Line chart of the balance, from ${DisplayFormatters.rupees(history.first().amount)} to ${DisplayFormatters.rupees(history.last().amount)}",

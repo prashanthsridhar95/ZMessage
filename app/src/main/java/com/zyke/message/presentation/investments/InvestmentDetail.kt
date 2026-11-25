@@ -204,7 +204,7 @@ private fun ValueHistory(h: Holding) {
         val first = points.first()
         val last = points.last()
         LineTrend(
-            points.map { it.value }, dayText(first.date), dayText(last.date),
+            points.map { it.value }, points.map { dayText(it.date) }, dayText(first.date), dayText(last.date),
             "Value of ${h.name} from ${money(first.value)} on ${dayText(first.date)} to ${money(last.value)} on ${dayText(last.date)}",
             Modifier.padding(top = Spacing.sm)
         )
