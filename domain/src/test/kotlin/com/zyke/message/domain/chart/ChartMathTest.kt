@@ -3,6 +3,7 @@ package com.zyke.message.domain.chart
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -98,5 +99,73 @@ class ChartMathTest {
         assertEquals(1, ChartMath.legendColumns(100f, 120f, 8f))
         assertEquals(4, ChartMath.legendColumns(2000f, 120f, 8f))
         assertEquals(1, ChartMath.legendColumns(0f, 120f, 8f))
+    }
+
+    @Test fun nearestIndexSnapsAndClamps() {
+        assertEquals(-1, ChartMath.nearestIndex(5f, 0f, 100f, 0))
+        assertEquals(0, ChartMath.nearestIndex(50f, 0f, 100f, 1))
+        assertEquals(0, ChartMath.nearestIndex(-30f, 6f, 106f, 5))
+        assertEquals(4, ChartMath.nearestIndex(500f, 6f, 106f, 5))
+        assertEquals(2, ChartMath.nearestIndex(56f, 6f, 106f, 5))
+        assertEquals(1, ChartMath.nearestIndex(30f, 6f, 106f, 5))
+        assertEquals(0, ChartMath.nearestIndex(Float.NaN, 0f, 100f, 5))
+        assertEquals(0, ChartMath.nearestIndex(10f, 50f, 50f, 5))
+    }
+
+    @Test fun windowIndexFollowsTheVisibleStretch() {
+        // 10 points, window starts at point 4 and shows 4 of them across 0..100
+        assertEquals(4, ChartMath.windowIndexAt(0f, 0f, 100f, 4f, 4f, 10))
+        assertEquals(6, ChartMath.windowIndexAt(50f, 0f, 100f, 4f, 4f, 10))
+        assertEquals(8, ChartMath.windowIndexAt(100f, 0f, 100f, 4f, 4f, 10))
+        assertEquals(9, ChartMath.windowIndexAt(300f, 0f, 100f, 4f, 4f, 10))
+        assertEquals(-1, ChartMath.windowIndexAt(5f, 0f, 100f, 0f, 1f, 0))
+    }
+
+    @Test fun stepsStayInsideAndStartAtTheLatest() {
+        assertEquals(-1, ChartMath.stepIndex(-1, 1, 0))
+        assertEquals(6, ChartMath.stepIndex(-1, -1, 7))
+        assertEquals(6, ChartMath.stepIndex(6, 1, 7))
+        assertEquals(0, ChartMath.stepIndex(0, -1, 7))
+        assertEquals(3, ChartMath.stepIndex(2, 1, 7))
+    }
+
+    @Test fun tooltipNeverLeavesTheChart() {
+        assertEquals(0f, ChartMath.tooltipLeft(2f, 80f, 300f), 0.001f)
+        assertEquals(220f, ChartMath.tooltipLeft(299f, 80f, 300f), 0.001f)
+        assertEquals(110f, ChartMath.tooltipLeft(150f, 80f, 300f), 0.001f)
+        assertEquals(8f, ChartMath.tooltipLeft(2f, 80f, 300f, margin = 8f), 0.001f)
+        assertEquals(212f, ChartMath.tooltipLeft(299f, 80f, 300f, margin = 8f), 0.001f)
+        // wider than the container: start at the margin
+        assertEquals(0f, ChartMath.tooltipLeft(100f, 400f, 300f), 0.001f)
+    }
+
+    @Test fun tooltipSitsAboveTheDotOrBelowWhenThereIsNoRoom() {
+        assertEquals(60f, ChartMath.tooltipTop(100f, 32f, 150f, 8f), 0.001f)
+        assertEquals(28f, ChartMath.tooltipTop(20f, 32f, 150f, 8f), 0.001f)
+        assertEquals(109f, ChartMath.tooltipTop(149f, 32f, 150f, 8f), 0.001f)
+        assertEquals(0f, ChartMath.tooltipTop(10f, 200f, 150f, 8f), 0.001f)
+    }
+
+    @Test fun changeAgainstAReference() {
+        assertEquals(BigDecimal("25.0"), ChartMath.changePercent(BigDecimal(125), BigDecimal(100)))
+        assertEquals(BigDecimal("-33.3"), ChartMath.changePercent(BigDecimal(200), BigDecimal(300)))
+        assertEquals(BigDecimal("-50.0"), ChartMath.changePercent(BigDecimal(50), BigDecimal(100)))
+        assertNull(ChartMath.changePercent(BigDecimal(5), BigDecimal.ZERO))
+        assertNull(ChartMath.changePercent(BigDecimal(5), null))
+        assertEquals(BigDecimal(25), ChartMath.change(BigDecimal(125), BigDecimal(100)))
+        assertEquals(BigDecimal.ZERO, ChartMath.change(BigDecimal(125), null))
+        assertEquals(1.68, ChartMath.changePercent(2487.35, 2446.15)!!, 0.0001)
+        assertNull(ChartMath.changePercent(1.0, 0.0))
+        assertNull(ChartMath.changePercent(1.0, Double.NaN))
+    }
+
+    @Test fun arrowsAndSignedPercentLabels() {
+        assertEquals("\u25B2", ChartMath.changeArrow(0.5))
+        assertEquals("\u25BC", ChartMath.changeArrow(-0.5))
+        assertEquals("", ChartMath.changeArrow(0.0))
+        assertEquals("+4.2%", ChartMath.signedPercent(4.24, 1))
+        assertEquals("-1.0%", ChartMath.signedPercent(-1.0, 1))
+        assertEquals("0.0%", ChartMath.signedPercent(-0.01, 1))
+        assertEquals("+1.68%", ChartMath.signedPercent(1.68, 2))
     }
 }
