@@ -247,11 +247,8 @@ internal fun PlacesSettingsContent() {
     if (explaining) {
         AdaptiveSheet("Remember where I spend", { explaining = false }) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                Text("When a text says you paid at a shop, the app asks the phone where it is, one time, and saves it.", style = MaterialTheme.typography.bodyLarge)
-                Caption("• Only on this phone. Never uploaded, never written to the log, left out of backups unless you choose.", maxLines = 4)
-                Caption("• One position per purchase text, rounded to about 11 metres. No tracking in between.", maxLines = 4)
-                Caption("• Texts arrive when the app is closed, so Android will ask for \"Allow all the time\". It is used for that one position only.", maxLines = 5)
-                Caption("• Online shops, bills, card payments and money coming in are skipped. You can delete places any time.", maxLines = 5)
+                Text(com.zyke.message.domain.places.PlacesPrompt.CONSENT_PROMISE, style = MaterialTheme.typography.bodyLarge)
+                com.zyke.message.domain.places.PlacesPrompt.CONSENT_POINTS.forEach { Caption("\u2022 $it", maxLines = 5) }
                 ResponsiveRow(Modifier.fillMaxWidth(), spacing = Spacing.sm) {
                     AppButton("Not now", { explaining = false }, Modifier.cell(), style = ButtonStyle.OUTLINE)
                     AppButton("Continue", { explaining = false; switchOn() }, Modifier.cell())

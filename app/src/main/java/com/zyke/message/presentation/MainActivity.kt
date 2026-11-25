@@ -143,6 +143,15 @@ class MainActivity : ComponentActivity() {
     private var permissionStage = -1
     private val showAccessPrompt = mutableStateOf(false)
     private val showSmsExplainer = mutableStateOf(false)
+    /** The spending places offer, while it is on screen; NONE otherwise. */
+    private val placesPrompt = mutableStateOf(com.zyke.message.domain.places.PlacesPromptKind.NONE)
+
+    private fun placesPromptKind(): com.zyke.message.domain.places.PlacesPromptKind = com.zyke.message.domain.places.PlacesPrompt.kind(
+        settings = container.spendPlaces.state.value.settings,
+        demo = com.zyke.message.data.demo.DemoMode.active,
+        fresh = container.tourSeen.state.value.installKind == com.zyke.message.domain.tour.TourInstallKind.FRESH,
+        blocked = false
+    )
     /** True once the SMS explainer and the other permission steps are over (answered or dismissed): the tour invitation waits for it. */
     private val permissionsSettled = mutableStateOf(false)
 
@@ -198,7 +207,12 @@ class MainActivity : ComponentActivity() {
             } else {
                 askNextPermission()
             }
-            2 -> if (!hasNotificationAccess()) showAccessPrompt.value = true else permissionsSettled.value = true
+            2 -> if (!hasNotificationAccess()) showAccessPrompt.value = true else askNextPermission()
+            // Last: the one-time offer of spending places (onboarding on a fresh install, "New" after an update). Never in demo mode.
+            3 -> {
+                val kind = placesPromptKind()
+                if (kind != com.zyke.message.domain.places.PlacesPromptKind.NONE) placesPrompt.value = kind else permissionsSettled.value = true
+            }
         }
     }
 
@@ -379,12 +393,22 @@ class MainActivity : ComponentActivity() {
                     NotificationAccessPrompt(
                         onOpenSettings = {
                             showAccessPrompt.value = false
-                            permissionsSettled.value = true
                             runCatching {
                                 startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                             }
+                            askNextPermission()
                         },
-                        onLater = { showAccessPrompt.value = false; permissionsSettled.value = true }
+                        onLater = { showAccessPrompt.value = false; askNextPermission() }
+                    )
+                }
+                val placesKind = placesPrompt.value
+                if (placesKind != com.zyke.message.domain.places.PlacesPromptKind.NONE && !locked && !welcomePending) {
+                    com.zyke.message.presentation.places.PlacesPromptHost(
+                        kind = placesKind,
+                        onDone = {
+                            placesPrompt.value = com.zyke.message.domain.places.PlacesPromptKind.NONE
+                            permissionsSettled.value = true
+                        }
                     )
                 }
                 if (welcomePending) {
@@ -680,7 +704,7 @@ private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
     filterCount = filter.extraCount
 )
 
-private const val LAST_STAGE = 2
+private const val LAST_STAGE = 3
 
 /** What the app reads, why, and what it does with it, before Android asks for permission to read messages. */
 @androidx.compose.runtime.Composable

@@ -53,6 +53,7 @@ fun OnboardingHero(
     modifier: Modifier = Modifier,
     secondaryLabel: String? = null,
     onSecondary: (() -> Unit)? = null,
+    secondaryStyle: ButtonStyle = ButtonStyle.TEXT,
     steps: StepDots? = null,
     footnote: String? = null,
     extra: (@Composable ColumnScope.() -> Unit)? = null
@@ -84,7 +85,7 @@ fun OnboardingHero(
         ) {
             AppButton(primaryLabel, onPrimary, Modifier.fillMaxWidth())
             if (secondaryLabel != null && onSecondary != null) {
-                AppButton(secondaryLabel, onSecondary, Modifier.fillMaxWidth(), style = ButtonStyle.TEXT)
+                AppButton(secondaryLabel, onSecondary, Modifier.fillMaxWidth(), style = secondaryStyle)
             }
             if (footnote != null) Caption(footnote, Modifier.padding(top = Spacing.xs), maxLines = 2, textAlign = TextAlign.Center)
         }
