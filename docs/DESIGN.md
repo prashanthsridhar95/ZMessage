@@ -427,12 +427,12 @@ Home's "Your deck" turns what is new into a few small stacks you can clear with 
   with one spoken sentence (amounts masked through `privateSpeech`). The header and each row of tiles rise in once, in turn (`enterOnce`, the first
   eight slots of Home's gate).
 - **Triage page** (`AppPage`, not scrollable): Fresh . N / Quiet . N (`SegmentedTabs`), chips All . N and one per stack, the title with "3 of 8", the
-  deck, and a control bar pinned in the page footer: `<- Sweep it`, `Got it ->`, up, down (48 dp+, `ChromeScale`). Cards are `TriageCard`s: logo
+  deck, and a control bar pinned in the page footer: `<- Sweep it`, `Got it ->`, up, down (48 dp+, `ChromeScale`). The two decisions are equal in width and the two arrows are equal 52 dp keys. Under the deck, the same page dots as the Accounts deck (`DeckDots`) show the position; the slabs behind carry a hairline so they read on white and on true black; the summary is full-strength ink, the headline `headlineSmall`, with a hairline above the footer. Both decks tilt 8 degrees and peek 10 dp. Cards are `TriageCard`s: logo
   (`MerchantChip`), name with the verified check (`SenderTitle`), time, a category chip that opens the existing `CategorySheet` (instant, through
   `MessageActions`), the bold headline, a summary of one or two lines, up to three tags, and the footer "Summary by Zyke . on this phone" with
   "Open message" (the detail sheet, which does not read the message, so the card stays).
-- **Gestures.** The front card follows the finger on one axis (locked after 12 px) and tilts up to 8 degrees; a tint and a word firm up as it nears the
-  line (left "Sweep it", right "Got it"). Past 30 % of the width or a 1,200 px/s flick it flies off (240 ms, `Motion.Emphasized`) and the card
+- **Gestures.** The front card follows the finger on one axis (locked after 12 px) and tilts up to 8 degrees; a quiet tint, an icon and a word firm up as it nears the
+  line (left "Sweep it" with the archive glyph in a neutral tint, never an alarm red; right "Got it" with a check in the accent tint). Past 30 % of the width or a 1,200 px/s flick it flies off (240 ms, `Motion.Emphasized`) and the card
   behind grows forward; a light tick fires on commit, never on a spring back (`gentle()`). Down moves to the next card and up to the previous
   (a vertical drag past 20 % of the height or a flick; the cursor wraps; the card slides out of the way). Behind the card two opaque slabs peek.
   The data moves on at once: nothing waits for an animation, and the next card can be acted on immediately. Reduced motion or Lite: no tilt, no
@@ -441,7 +441,7 @@ Home's "Your deck" turns what is new into a few small stacks you can clear with 
 - **Actions** are the existing stores: Got it = mark read (the repeats a payment card holds too), Sweep it = archive (the anchor only, as in Messages).
   Both are optimistic (`triageHidden` in Home's state, the same idea as `MessageActions.pending`), so "to go" has dropped before anything is saved,
   and both offer Undo in the snackbar (amounts masked while hidden). Restore (Auto cleared) brings a card back under Quiet.
-- **Empty.** "Stack cleared" with "Next stack" (when there is one) and "Back to Home".
+- **Empty.** "Stack cleared" with "Next stack" (when there is one) and "Back to Home"; with nothing left on either side, "All caught up" and a note that cleared cards stay in Messages.
 - **Auto clear safety rule.** Only Codes (expired codes; a fresh one stays on Home's code card and the code itself is never drawn) and Offers
   (plain promotional or muted messages) can be cleared without a look. Payments, bills, refunds, balance and FASTag alerts, orders and trips can
   only be Keep or Quiet: the settings page offers nothing else for them (`TriageStackSpec.allowed`), `TriageSettings.modeOf` turns any other
