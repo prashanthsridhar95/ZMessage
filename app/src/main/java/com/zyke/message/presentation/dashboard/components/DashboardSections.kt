@@ -1,10 +1,15 @@
 package com.zyke.message.presentation.dashboard.components
 
 import com.zyke.message.presentation.common.AdaptiveSheet
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.drawScrubDot
+import com.zyke.message.presentation.common.drawScrubLine
+import com.zyke.message.presentation.common.scrubLineColor
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.rememberScrubState
 import com.zyke.message.presentation.common.FintechCard
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
@@ -340,66 +345,58 @@ internal fun TrendChart(
         }
     }
     val grow = rememberProgressReveal(1f)
-    var selected by remember(points) { mutableIntStateOf(-1) }
-    val ticker = rememberChartTicker()
+    val scrub = rememberScrubState(points)
     val zeroColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
     val markColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val unitName = if (unit == TrendUnit.DAY) "day" else "month"
     val chartSpoken = com.zyke.message.presentation.common.privateSpeech(
         ChartSpeech.trend(
-            title, points.size, if (unit == TrendUnit.DAY) "day" else "month", DisplayFormatters.rupees(total),
+            title, points.size, unitName, DisplayFormatters.rupees(total),
             max.takeIf { it.signum() > 0 }?.let { DisplayFormatters.rupees(it) },
             fmt.format(peak.start).takeIf { max.signum() > 0 }
         )
     )
-    val picked = points.getOrNull(selected)
-    val readout = if (picked != null) "${fmt.format(picked.start)} \u00B7 ${DisplayFormatters.rupees(picked.amount)}" else summary
 
     Column(modifier.fillMaxWidth()) {
-        Caption(
-            readout,
-            Modifier.padding(bottom = Spacing.sm).semantics { liveRegion = LiveRegionMode.Polite },
-            color = MaterialTheme.colorScheme.secondary
-        )
+        // The readout the finger drives: the date, the amount, and the change from the bar before.
+        ScrubReadout(scrub) { at ->
+            val picked = points.getOrNull(at)
+            val readout = if (picked != null) {
+                listOfNotNull(
+                    fmt.format(picked.start), DisplayFormatters.rupees(picked.amount),
+                    changeLabel(picked.amount, points.getOrNull(at - 1)?.amount)
+                ).joinToString(" \u00B7 ")
+            } else summary
+            Caption(
+                readout,
+                Modifier.padding(bottom = Spacing.sm).semantics { liveRegion = LiveRegionMode.Polite },
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
         ChartBox(aspect = 0.4f, minHeight = 88.dp, maxHeight = 140.dp) {
             Canvas(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(bars.size) {
-                        detectTapGestures { o ->
-                            val index = ChartMath.barIndexAt(o.x, size.width.toFloat(), bars.size)
-                            if (index == selected) {
-                                selected = -1
-                            } else {
-                                selected = index
-                                ticker.moved(index)
-                            }
-                        }
-                    }
-                    .pointerInput(bars.size) {
-                        detectHorizontalDragGestures(onDragEnd = { ticker.release() }, onDragCancel = { ticker.release() }) { change, _ ->
-                            change.consume()
-                            val index = ChartMath.barIndexAt(change.position.x, size.width.toFloat(), bars.size)
-                            selected = index
-                            ticker.moved(index)
-                        }
-                    }
-                    .semantics {
-                        contentDescription = chartSpoken
-                        customActions = listOf(
-                            CustomAccessibilityAction("Next bar") { selected = (selected + 1).coerceAtMost(bars.size - 1); true },
-                            CustomAccessibilityAction("Previous bar") { selected = if (selected <= 0) 0 else selected - 1; true }
-                        )
-                    }
+                    .chartScrub(
+                        scrub, bars.size,
+                        indexAt = { x, w -> ChartMath.barIndexAt(x, w, bars.size) },
+                        speak = { i ->
+                            val p = points[i.coerceIn(0, points.lastIndex)]
+                            "${fmt.format(p.start)}, ${DisplayFormatters.rupees(p.amount)}"
+                        },
+                        pointName = unitName
+                    )
+                    .semantics { contentDescription = chartSpoken }
             ) {
                 val count = bars.size
                 val gap = (if (count > 20) 2.dp else 4.dp).toPx()
                 val barWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1f)
                 val corner = 3.dp.toPx()
                 val grown = grow.value
-                val chosen = selected
+                val chosen = scrub.index
                 bars.forEachIndexed { i, bar ->
                     val x = i * (barWidth + gap)
-                    if (i == chosen) drawRect(markColor, Offset(x - gap / 2f, 0f), androidx.compose.ui.geometry.Size(barWidth + gap, size.height))
+                    if (i == chosen) drawRect(markColor.copy(alpha = markColor.alpha * scrub.strength), Offset(x - gap / 2f, 0f), androidx.compose.ui.geometry.Size(barWidth + gap, size.height))
                     if (bar.fraction <= 0f) {
                         drawRect(zeroColor, Offset(x, size.height - 2.dp.toPx()), androidx.compose.ui.geometry.Size(barWidth, 2.dp.toPx()))
                     } else {
@@ -417,6 +414,14 @@ internal fun TrendChart(
                         }
                     }
                 }
+            }
+            ScrubTooltip(
+                scrub,
+                anchorX = { i, w -> (i + 0.5f) / bars.size * w },
+                anchorY = { i, h -> h - h * bars[i.coerceIn(0, bars.lastIndex)].fraction }
+            ) { i ->
+                val p = points[i.coerceIn(0, points.lastIndex)]
+                ScrubChipText(DisplayFormatters.rupees(p.amount), listOf(fmt.format(p.start)))
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -746,6 +751,7 @@ internal fun CardBillSheet(
 private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter, modifier: Modifier = Modifier) {
     LineTrend(
         amounts = statements.map { it.amount },
+        labels = statements.map { dayFmt.format(statementDate(it)) },
         firstLabel = dayFmt.format(statementDate(statements.first())),
         lastLabel = dayFmt.format(statementDate(statements.last())),
         description = "Line chart of statement amounts. " +
@@ -754,9 +760,20 @@ private fun CardBillTrend(statements: List<BillEntry>, dayFmt: DateTimeFormatter
     )
 }
 
-/** A line over [amounts] (oldest first) that rises from the baseline when it appears, with its first and last labels beneath. */
+/**
+ * A line over [amounts] (oldest first) that rises from the baseline when it appears, with its first and last labels beneath.
+ * Touch and slide to read each point ([labels] names them, one per amount): the readout above and a tooltip show the
+ * date, the amount and the change from the point before.
+ */
 @Composable
-internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel: String, description: String, modifier: Modifier = Modifier) {
+internal fun LineTrend(
+    amounts: List<BigDecimal>,
+    labels: List<String>,
+    firstLabel: String,
+    lastLabel: String,
+    description: String,
+    modifier: Modifier = Modifier
+) {
     val max = amounts.maxOf { it }.coerceAtLeast(BigDecimal.ONE)
     val values = amounts.map { it.fractionOf(max) }
     val spokenDescription = com.zyke.message.presentation.common.privateSpeech(description)
@@ -764,11 +781,32 @@ internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel:
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
 
+    val scrub = rememberScrubState(amounts)
+    val padPx = with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.toPx() }
+    val ring = MaterialTheme.colorScheme.surface
+    val crosshair = scrubLineColor()
+    fun label(i: Int) = labels.getOrNull(i).orEmpty()
+    fun pointX(i: Int, width: Float, pad: Float) =
+        if (amounts.size > 1) pad + (width - 2 * pad) * i / (amounts.size - 1) else width / 2f
+
     Column(modifier) {
+        ScrubReadout(scrub) { at ->
+            val shown = if (at >= 0) at else amounts.lastIndex
+            val text = listOfNotNull(
+                label(shown).takeIf { it.isNotEmpty() }, DisplayFormatters.rupees(amounts[shown]),
+                changeLabel(amounts[shown], amounts.getOrNull(shown - 1))
+            ).joinToString(" \u00B7 ")
+            Caption(text, Modifier.padding(bottom = Spacing.sm).semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.secondary)
+        }
         ChartBox(aspect = 0.36f, minHeight = 96.dp, maxHeight = 150.dp) {
         Canvas(
             Modifier
                 .fillMaxSize()
+                .chartScrub(
+                    scrub, amounts.size,
+                    indexAt = { x, w -> ChartMath.nearestIndex(x, padPx, w - padPx, amounts.size) },
+                    speak = { i -> "${label(i)}, ${DisplayFormatters.rupees(amounts[i.coerceIn(0, amounts.lastIndex)])}" }
+                )
                 .semantics { contentDescription = spokenDescription }
         ) {
             val grown = rise.value
@@ -795,6 +833,19 @@ internal fun LineTrend(amounts: List<BigDecimal>, firstLabel: String, lastLabel:
             points.forEachIndexed { i, p ->
                 drawCircle(lineColor, radius = if (i == points.lastIndex) 5.dp.toPx() else 3.dp.toPx(), center = p)
             }
+            val at = scrub.index
+            if (at in points.indices) {
+                drawScrubLine(points[at].x, 0f, size.height - pad, crosshair, scrub.strength)
+                drawScrubDot(points[at], lineColor, ring, scrub.strength, 5.dp)
+            }
+        }
+        ScrubTooltip(
+            scrub,
+            anchorX = { i, w -> pointX(i, w, padPx) },
+            anchorY = { i, h -> h - padPx - (h - 2 * padPx) * values[i.coerceIn(0, values.lastIndex)].coerceIn(0f, 1f) }
+        ) { i ->
+            val at = i.coerceIn(0, amounts.lastIndex)
+            ScrubChipText(DisplayFormatters.rupees(amounts[at]), listOf(label(at)).filter { it.isNotEmpty() })
         }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -908,6 +959,7 @@ internal fun CardCycleSheet(entry: CardCycles, onDismiss: () -> Unit) {
                     RowTitle("Usage trend")
                     LineTrend(
                         amounts = oldestFirst.map { it.spent },
+                        labels = oldestFirst.map { dayFmt.format(it.start) },
                         firstLabel = dayFmt.format(oldestFirst.first().start),
                         lastLabel = dayFmt.format(oldestFirst.last().start),
                         description = "Line chart of spending by cycle. " +

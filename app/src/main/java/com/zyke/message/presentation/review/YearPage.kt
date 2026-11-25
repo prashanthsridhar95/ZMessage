@@ -1,6 +1,14 @@
 package com.zyke.message.presentation.review
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.rememberScrubState
+import com.zyke.message.presentation.dashboard.components.ChartBox
+import com.zyke.message.presentation.dashboard.components.ScrubChipText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -464,13 +472,17 @@ private fun RankRow(name: String, amount: String, fraction: Float, color: Color,
     }
 }
 
-/** Smallest width a month gets, so a 3-letter name always fits and the chart scrolls sideways instead of squeezing. */
-private val MONTH_SLOT = 48.dp
-private val CHART_HEIGHT = 120.dp
+/** Narrowest slot a month may have for its three-letter name; narrower than this the labels shrink to one letter (the tooltip says the whole name). */
+private val MONTH_NAME_SLOT = 30.dp
 
 /** "Mar", the month's short name. */
 private fun shortMonth(month: java.time.Month): String = month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
+/**
+ * One bar per month across the whole width (no sideways scrolling, so a finger can slide across them): touch or slide to
+ * read a month. The bar under the finger is highlighted, a tooltip and the line above show the month and what was spent,
+ * a light tick marks each new bar, and TalkBack gets Previous / Next month actions.
+ */
 @Composable
 private fun MonthBars(review: YearInReview, today: LocalDate?) {
     val months = remember(review, today) { review.monthsToShow(today) }
@@ -482,69 +494,94 @@ private fun MonthBars(review: YearInReview, today: LocalDate?) {
     val bar = MaterialTheme.colorScheme.primary
     val peak = ChartColors.warning
     val busiest = review.busiestMonth
-    val privacy = com.zyke.message.presentation.common.LocalPrivacyMode.current
-    var selected by rememberSaveable { mutableStateOf<Int?>(null) }
-    val scroll = rememberScrollState()
-    // Opens at the latest month, which is the one most worth seeing.
-    LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
-
-    val chosen = selected?.let(months::getOrNull)
-    Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (chosen == null) {
-            Caption("Tap a month to see what you spent", maxLines = 1)
-        } else {
-            val inProgress = review.isMonthInProgress(chosen.month, today)
-            Caption(shortMonth(chosen.month) + (if (inProgress) " so far" else "") + " \u00B7 ", maxLines = 1)
-            com.zyke.message.presentation.common.PrivateAmount(
-                DisplayFormatters.rupees(chosen.spent),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-            Caption(" spent", maxLines = 1)
-        }
+    val privacy = LocalPrivacyMode.current
+    val scrub = rememberScrubState(months)
+    val fractions = remember(months) {
+        months.map { if (max.signum() > 0) it.spent.divide(max, 4, RoundingMode.HALF_UP).toFloat() else 0f }
     }
-    Row(Modifier.fillMaxWidth().horizontalScroll(scroll).padding(top = 8.dp)) {
-        months.forEachIndexed { i, m ->
-            val fraction = if (max.signum() > 0) m.spent.divide(max, 4, RoundingMode.HALF_UP).toFloat() else 0f
-            val inProgress = review.isMonthInProgress(m.month, today)
-            val isSelected = selected == i
-            val color = when {
-                m.month == busiest -> peak
-                else -> bar
-            }
-            val amountWords = if (privacy.hidden) "amount hidden" else "${DisplayFormatters.rupees(m.spent)} spent"
-            Column(
-                Modifier
-                    .width(MONTH_SLOT)
-                    .selectable(
-                        selected = isSelected, role = Role.Button,
-                        onClick = { selected = if (isSelected) null else i }
-                    )
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = "${shortMonth(m.month)}${if (inProgress) " so far" else ""}: $amountWords"
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(Modifier.fillMaxWidth().height(CHART_HEIGHT), contentAlignment = Alignment.BottomCenter) {
-                    Box(
-                        Modifier
-                            .width(28.dp)
-                            .height(maxOf(CHART_HEIGHT * fraction, 3.dp))
-                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                            // The month still going on is lighter: it is only the part of it so far.
-                            .background(color.copy(alpha = if (inProgress) 0.45f else if (selected != null && !isSelected) 0.6f else 1f))
-                    )
-                }
-                Text(
-                    shortMonth(m.month),
-                    Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isSelected || inProgress) FontWeight.Bold else FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.secondary,
+    fun name(i: Int): String {
+        val m = months[i.coerceIn(0, months.lastIndex)]
+        return shortMonth(m.month) + if (review.isMonthInProgress(m.month, today)) " so far" else ""
+    }
+
+    ScrubReadout(scrub) { at ->
+        Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (at !in months.indices) {
+                Caption("Touch and slide to read a month", maxLines = 1)
+            } else {
+                Caption(name(at) + " \u00B7 ", maxLines = 1)
+                PrivateAmount(
+                    DisplayFormatters.rupees(months[at].spent),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1
                 )
-                Box(Modifier.heightIn(min = 12.dp))
+                Caption(" spent", maxLines = 1)
+            }
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        val slot = maxWidth / months.size
+        val short = slot < MONTH_NAME_SLOT
+        Column(Modifier.fillMaxWidth()) {
+            ChartBox(aspect = 0.4f, minHeight = 96.dp, maxHeight = 140.dp) {
+                Canvas(
+                    Modifier
+                        .fillMaxSize()
+                        .chartScrub(
+                            scrub, months.size,
+                            indexAt = { x, w -> ChartMath.barIndexAt(x, w, months.size) },
+                            speak = { i ->
+                                val m = months[i.coerceIn(0, months.lastIndex)]
+                                "${name(i)}: ${DisplayFormatters.rupees(m.spent)} spent"
+                            },
+                            pointName = "month"
+                        )
+                        .semantics {
+                            contentDescription = if (privacy.hidden) "Spending by month, amounts hidden" else
+                                "Spending by month: " + months.joinToString(", ") { "${shortMonth(it.month)} ${DisplayFormatters.rupees(it.spent)}" }
+                        }
+                ) {
+                    val cell = size.width / months.size
+                    val barWidth = minOf(28.dp.toPx(), cell * 0.62f)
+                    val corner = CornerRadius(4.dp.toPx())
+                    val touched = scrub.index
+                    months.forEachIndexed { i, m ->
+                        val inProgress = review.isMonthInProgress(m.month, today)
+                        val color = if (m.month == busiest) peak else bar
+                        // The month still going on is lighter (only the part of it so far); the others dim a little while one is read.
+                        val dim = if (touched >= 0 && touched != i) 1f - 0.4f * scrub.strength else 1f
+                        val alpha = (if (inProgress) 0.45f else 1f) * dim
+                        val height = maxOf(size.height * fractions[i], 3.dp.toPx())
+                        drawRoundRect(
+                            color.copy(alpha = alpha),
+                            Offset(cell * i + (cell - barWidth) / 2f, size.height - height),
+                            Size(barWidth, height), corner
+                        )
+                    }
+                }
+                ScrubTooltip(
+                    scrub,
+                    anchorX = { i, w -> (i + 0.5f) / months.size * w },
+                    anchorY = { i, h -> h - maxOf(h * fractions[i.coerceIn(0, months.lastIndex)], 3f) }
+                ) { i ->
+                    ScrubChipText(DisplayFormatters.rupees(months[i.coerceIn(0, months.lastIndex)].spent), listOf(name(i)))
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp).clearAndSetSemantics { }) {
+                months.forEach { m ->
+                    val inProgress = review.isMonthInProgress(m.month, today)
+                    Text(
+                        if (short) shortMonth(m.month).take(1) else shortMonth(m.month),
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (inProgress) FontWeight.Bold else FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
             }
         }
     }

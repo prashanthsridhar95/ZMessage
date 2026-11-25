@@ -1,6 +1,5 @@
 package com.zyke.message.presentation.dashboard.components
 
-import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
@@ -64,11 +63,9 @@ import com.zyke.message.presentation.common.privateSpeech
 import com.zyke.message.presentation.common.rememberTick
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.mutedColor
-import com.zyke.message.presentation.motion.Haptics
 import com.zyke.message.presentation.motion.Motion
 import com.zyke.message.presentation.motion.SkeletonBlock
 import com.zyke.message.presentation.motion.fadeInOnce
-import com.zyke.message.presentation.motion.rememberHaptics
 import com.zyke.message.presentation.motion.rememberMotion
 import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.theme.Radius
@@ -155,33 +152,24 @@ internal fun ChartBox(
 }
 
 /**
- * The tick under a finger sliding across a chart: one light haptic each time it lands on a different bar, at most one
- * every [ChartMath.TICK_GAP_MS]. Follows the Haptic feedback setting.
+ * The words in a scrub tooltip: [title] in the title-small weight (the value), then each of [captions] under it in the
+ * caption style (the date, a second value). One line each; long text is cut with an ellipsis, never wider than the chart.
+ * Amounts are masked while hidden (the money-aware [Text]).
  */
-internal class ChartTicker(private val haptics: Haptics) {
-    private var last = -1
-    private var lastAt = 0L
-
-    /** The finger is now over [index]. */
-    fun moved(index: Int) {
-        val now = SystemClock.uptimeMillis()
-        if (ChartMath.shouldTick(last, index, now, lastAt)) {
-            haptics.tick()
-            lastAt = now
-        }
-        if (index >= 0) last = index
-    }
-
-    /** The finger left the chart. */
-    fun release() {
-        last = -1
+@Composable
+internal fun ScrubChipText(title: String, captions: List<String> = emptyList()) {
+    Column {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        captions.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
-@Composable
-internal fun rememberChartTicker(): ChartTicker {
-    val haptics = rememberHaptics()
-    return remember(haptics) { ChartTicker(haptics) }
+/** "\u25B2 12.5%" for a rise from [reference] to [value], "\u25BC 3.0%" for a fall; null when there is nothing to compare with. */
+internal fun changeLabel(value: java.math.BigDecimal, reference: java.math.BigDecimal?): String? {
+    val percent = ChartMath.changePercent(value, reference)?.toDouble() ?: return null
+    val arrow = ChartMath.changeArrow(percent)
+    val text = ChartMath.signedPercent(kotlin.math.abs(percent)).removePrefix("+")
+    return if (arrow.isEmpty()) text else "$arrow $text"
 }
 
 /** One colour key entry. */

@@ -36,6 +36,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.drawScrubDot
+import com.zyke.message.presentation.common.drawScrubLine
+import com.zyke.message.presentation.common.rememberScrubState
+import com.zyke.message.presentation.common.scrubLineColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -218,10 +228,36 @@ private fun ForecastChart(summary: MonthlySummary?, story: ForecastStory) {
         if (limit != null) append("The plan's money is used up at ${DisplayFormatters.rupees(limit)}.")
     }
     val reveal = rememberProgressReveal(1f)
+    val scrub = rememberScrubState(summary)
+    val ring = scheme.surface
+    val crosshair = scrubLineColor()
+    // What each day was, or (past today) where the pace puts it: the dotted line read off at that day.
+    fun valueAt(day: Int): BigDecimal? = when {
+        day < cur.size -> cur[day]
+        projected != null && cur.size < days -> {
+            val share = (day - (cur.size - 1)).toDouble() / (days - cur.size).toDouble()
+            BigDecimal.valueOf(cur.last().toDouble() + (projected.toDouble() - cur.last().toDouble()) * share.coerceIn(0.0, 1.0))
+        }
+        else -> null
+    }
     Column(Modifier.fillMaxWidth()) {
+        ScrubReadout(scrub) { at ->
+            val text = if (at in 0 until days) {
+                val v = valueAt(at)
+                "Day ${at + 1} \u00B7 " + (v?.let { DisplayFormatters.rupees(it) } ?: "no figure") + if (at >= cur.size) " (at this pace)" else ""
+            } else "Touch and slide to read each day"
+            Caption(text, Modifier.padding(bottom = Spacing.sm).semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.secondary, maxLines = 2)
+        }
         ChartBox(aspect = 0.5f, minHeight = 130.dp, maxHeight = 200.dp) {
         Box(
-            Modifier.fillMaxSize().semantics { contentDescription = spoken }
+            Modifier.fillMaxSize()
+                .chartScrub(
+                    scrub, days,
+                    indexAt = { x, w -> ChartMath.nearestIndex(x, 0f, w, days) },
+                    speak = { i -> "Day ${i + 1}, ${valueAt(i)?.let { DisplayFormatters.rupees(it) } ?: "no figure"}${if (i >= cur.size) ", at this pace" else ""}" },
+                    pointName = "day"
+                )
+                .semantics { contentDescription = spoken }
                 .drawWithCache {
                     val w = size.width
                     val h = size.height
@@ -253,9 +289,23 @@ private fun ForecastChart(summary: MonthlySummary?, story: ForecastStory) {
                             if (projPath != null) drawCircle(projectedColor, 5.dp.toPx(), Offset(x((days - 1).toFloat()), y(projected!!.toFloat())), style = Stroke(2.dp.toPx()))
                             cross?.let { drawCircle(crossColor, 6.dp.toPx(), it) }
                         }
+                        val at = scrub.index
+                        val shown = if (at in 0 until days) valueAt(at) else null
+                        if (shown != null) {
+                            drawScrubLine(x(at.toFloat()), 0f, h, crosshair, scrub.strength)
+                            drawScrubDot(Offset(x(at.toFloat()), y(shown.toFloat())), if (at < cur.size) spentColor else projectedColor, ring, scrub.strength)
+                        }
                     }
                 }
         )
+        ScrubTooltip(
+            scrub,
+            anchorX = { i, w -> w * i.coerceIn(0, days - 1) / (days - 1).toFloat() },
+            anchorY = { i, h -> h - (h - 10f) * ((valueAt(i.coerceIn(0, days - 1)) ?: BigDecimal.ZERO).toFloat() / peak) }
+        ) { i ->
+            val at = i.coerceIn(0, days - 1)
+            ScrubChipText(valueAt(at)?.let { DisplayFormatters.rupees(it) } ?: "No figure", listOf("Day ${at + 1}" + if (at >= cur.size) " \u00B7 at this pace" else ""))
+        }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption("Day 1")

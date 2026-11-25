@@ -268,7 +268,7 @@ Wave B3 applied the system to `presentation/dashboard/**` and the year in review
 | `InsightCard(title, summary, spoken, level)` | the Insights card: `FintechCard` + `CardHeader`. On the page it is a tile (header, chevron, one-line summary) that opens its detail in a sheet; `startOpen` shows the content. The settings `SectionCard` is not used on this tab |
 | `Chevron()` | the one chevron, at the end of anything that opens |
 | `ChartBox(aspect, min, max)` | a chart's height follows the width it is given (`ChartMath.chartHeightDp`, a little taller at large text), never a fixed dp |
-| `rememberChartTicker()` | one light haptic each time a finger lands on a different bar, at most one every 60 ms |
+| `rememberScrubState()` / `Modifier.chartScrub(...)` / `ScrubTooltip` / `ScrubReadout` (`common/ChartScrub.kt`) | the one scrub for every time-series chart (see Scrubbing below) |
 | `LegendChips` | the colour key: equal chips (swatch + name) in a `FlowRow`, no scrolling row |
 | `SlidingSegments` | the Spent / Received and the Overview / By day / Categories switch: the indicator slides (spring from the tokens, drawn while painting) and ticks once; 48 dp segments, capped at font scale 1.3 (`ChromeScale`) |
 | `InsightsSkeleton` | the still skeleton shown while the numbers are worked out (one "Loading insights" for a screen reader) |
@@ -283,8 +283,24 @@ Rules of the tab:
   showing only (`AnimatedAmount(fromZero = ...)`, decided by `rememberIsEntering`).
 - **Charts grow once.** Bars (`TrendChart`), lines (`IncomeExpenseCard`, `ForecastChart`, `ByDay`, `LineTrend`) and meters
   (`ProgressReveal`) approach their values from zero when first shown; the progress is read inside `Canvas` / `drawBehind`
-  lambdas, so nothing recomposes per frame. Touch a bar or drag across the chart to read it (a caption with the date and amount,
-  a tick for each new bar).
+  lambdas, so nothing recomposes per frame. Touch a chart anywhere and slide to read it (see Scrubbing).
+- **Scrubbing (Zerodha-style).** Every time-series chart (spending trend, income vs spent, forecast, running total by day, the
+  statement and cycle lines, the year in review's months) and the stock sheet's price chart read the same way. A finger down
+  anywhere selects the nearest point at once: a crosshair line and a dot on the series (theme tokens: `onSurfaceVariant` at 40 %,
+  the dot ringed in the surface colour), a small flat tonal tooltip (value in title-small, date as a caption, never wider than the
+  chart, above the dot or below it when there is no room) and the readout above the chart (value, date, and the change from the
+  point before with a triangle and a percentage; on the stock sheet the change from the previous close or the start of the period).
+  Sliding moves the point, snapped to the nearest, with the light tick when it changes (60 ms apart at most). Vertical drags go
+  to the page: the gesture waits for the touch slop and a mostly vertical drag is handed to the scroll (the selection clears); a
+  sideways drag consumes. A second finger is left to pinch-to-zoom (the income and spent chart). The index lives in a `ScrubState`
+  read only while drawing, while laying out the tooltip and inside `ScrubReadout`, so the chart body never recomposes.
+  When the finger lifts the point stays for 1.5 s (`ChartMath.SCRUB_HOLD_MS`) so the figure can be read, fades in 240 ms and the
+  readout returns to the latest value. Chosen over "stay until the next touch" because a lingering historical figure in the header
+  reads as the current one. Instant under reduced motion. A point picked with TalkBack's "Previous / Next <point>" actions does stay
+  until the next touch, and is spoken (`stateDescription`, masked while amounts are hidden). Hidden amounts: tooltips and readouts
+  use the money-aware `Text`, so they show dots and still move; the stock sheet shows public prices. Flat in every mode: no shadow.
+  `MotionPolicyTest.everyTimeSeriesChartScrubsThroughTheOneSharedModifier` keeps the charts on the shared modifier. Paired bars
+  (this month and last month on a category row) are not scrubbed: both amounts are always printed, and the row is a tap target.
 - **Percentages add up.** Lists of shares use `ChartMath.percentages` (largest remainder), so a legend never says 99 % or 101 %.
 - **Every chart is spoken.** A chart carries a `contentDescription`, built with `ChartSpeech` ("Spending by category: Food
   ₹8,200, 31%; ...") and passed through `privateSpeech`, so hidden amounts are dots for a screen reader too. Touch charts also

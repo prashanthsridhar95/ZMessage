@@ -2,8 +2,6 @@ package com.zyke.message.presentation.dashboard.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +36,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.drawScrubDot
+import com.zyke.message.presentation.common.drawScrubLine
+import com.zyke.message.presentation.common.rememberScrubState
+import com.zyke.message.presentation.common.scrubLineColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -303,26 +307,28 @@ private fun ByDay(summary: MonthlySummary) {
         listOfNotNull(cur.lastOrNull(), prev.lastOrNull(), projected).maxOrNull()?.toFloat()?.takeIf { it > 0f } ?: 1f
     }
     val hidden = LocalPrivacyMode.current.hidden
-    var picked by remember(summary) { mutableIntStateOf(-1) }
-    val ticker = rememberChartTicker()
+    val scrub = rememberScrubState(summary)
     val reveal = rememberProgressReveal(1f)
-    val day = if (picked in 0 until days) picked else (cur.size - 1).coerceAtLeast(0)
+    val ring = surface
+    val crosshair = scrubLineColor()
+    fun dayOf(index: Int) = if (index in 0 until days) index else (cur.size - 1).coerceAtLeast(0)
     val spoken = if (hidden) "Running total chart, amounts hidden." else buildString {
         append("Running total chart. This month ${DisplayFormatters.rupees(summary.spent)} after ${cur.size} days. ")
         prev.lastOrNull()?.let { append("Last month finished at ${DisplayFormatters.rupees(it)}. ") }
         if (projected != null) append("Projected month end ${DisplayFormatters.rupees(projected)}. ")
         append("Use the actions menu for the next or previous day.")
     }
-    val dayText = "Day ${day + 1}"
-    val readout = if (hidden) "$dayText, amounts hidden" else buildString {
-        append(dayText).append(". This month ")
-        append(valueAt(cur, day)?.let { DisplayFormatters.rupees(it) } ?: if (day == days - 1 && projected != null) "about ${DisplayFormatters.rupees(projected)} (projected)" else "not yet")
-        append(". Last month ")
-        append(valueAt(prev, day)?.let { DisplayFormatters.rupees(it) } ?: "no data")
-    }
-
     Column(Modifier.fillMaxWidth()) {
         // The readout the scrubber drives: both months' totals on the chosen day.
+        ScrubReadout(scrub) { at ->
+        val day = dayOf(at)
+        val dayText = "Day ${day + 1}"
+        val readout = if (hidden) "$dayText, amounts hidden" else buildString {
+            append(dayText).append(". This month ")
+            append(valueAt(cur, day)?.let { DisplayFormatters.rupees(it) } ?: if (day == days - 1 && projected != null) "about ${DisplayFormatters.rupees(projected)} (projected)" else "not yet")
+            append(". Last month ")
+            append(valueAt(prev, day)?.let { DisplayFormatters.rupees(it) } ?: "no data")
+        }
         Row(
             Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = readout; liveRegion = LiveRegionMode.Polite },
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -350,30 +356,22 @@ private fun ByDay(summary: MonthlySummary) {
                 }
             }
         }
+        }
         ChartBox(aspect = 0.5f, minHeight = 130.dp, maxHeight = 200.dp, modifier = Modifier.padding(top = Spacing.sm)) {
         Box(
             Modifier
                 .fillMaxSize()
-                .semantics {
-                    contentDescription = spoken
-                    customActions = listOf(
-                        CustomAccessibilityAction("Next day") { picked = (day + 1).coerceAtMost(days - 1); true },
-                        CustomAccessibilityAction("Previous day") { picked = (day - 1).coerceAtLeast(0); true }
-                    )
-                }
-                .pointerInput(days) {
-                    detectTapGestures { o ->
-                        picked = ChartMath.pointIndexAt(o.x, size.width.toFloat(), days)
-                        ticker.moved(picked)
-                    }
-                }
-                .pointerInput(days) {
-                    detectHorizontalDragGestures(onDragEnd = { ticker.release() }, onDragCancel = { ticker.release() }) { change, _ ->
-                        change.consume()
-                        picked = ChartMath.pointIndexAt(change.position.x, size.width.toFloat(), days)
-                        ticker.moved(picked)
-                    }
-                }
+                .chartScrub(
+                    scrub, days,
+                    indexAt = { x, w -> ChartMath.nearestIndex(x, 0f, w, days) },
+                    speak = { i ->
+                        val d = dayOf(i)
+                        "Day ${d + 1}. This month ${valueAt(cur, d)?.let { DisplayFormatters.rupees(it) } ?: "not yet"}. " +
+                            "Last month ${valueAt(prev, d)?.let { DisplayFormatters.rupees(it) } ?: "no data"}"
+                    },
+                    pointName = "day"
+                )
+                .semantics { contentDescription = spoken }
                 .drawWithCache {
                     val w = size.width
                     val h = size.height
@@ -404,23 +402,34 @@ private fun ByDay(summary: MonthlySummary) {
                             }
                             curPath?.let { drawPath(it, thisColor, style = solid) }
                         }
-                        val sel = if (picked in 0 until days) picked else (cur.size - 1).coerceAtLeast(0)
-                        drawLine(gridColor.copy(alpha = 0.35f), Offset(x(sel), 0f), Offset(x(sel), h), 1.5.dp.toPx())
-                        prev.getOrNull(sel)?.let {
-                            drawCircle(surface, 6.dp.toPx(), Offset(x(sel), y(it.toFloat())))
-                            drawCircle(lastColor, 4.dp.toPx(), Offset(x(sel), y(it.toFloat())))
-                        }
-                        cur.getOrNull(sel)?.let {
-                            drawCircle(surface, 7.dp.toPx(), Offset(x(sel), y(it.toFloat())))
-                            drawCircle(thisColor, 5.dp.toPx(), Offset(x(sel), y(it.toFloat())))
-                        }
+                        // At rest the dots sit on the latest day; a finger adds the crosshair and moves them.
+                        val touched = scrub.index
+                        val sel = dayOf(touched)
+                        val shownAlpha = if (touched >= 0) scrub.strength else 1f
+                        if (touched >= 0) drawScrubLine(x(sel), 0f, h, crosshair, scrub.strength)
+                        prev.getOrNull(sel)?.let { drawScrubDot(Offset(x(sel), y(it.toFloat())), lastColor, ring, shownAlpha, 4.dp) }
+                        cur.getOrNull(sel)?.let { drawScrubDot(Offset(x(sel), y(it.toFloat())), thisColor, ring, shownAlpha, 5.dp) }
                     }
                 }
         )
+        ScrubTooltip(
+            scrub,
+            anchorX = { i, w -> w * dayOf(i) / (days - 1).toFloat() },
+            anchorY = { i, h ->
+                val d = dayOf(i)
+                val v = (valueAt(cur, d) ?: valueAt(prev, d) ?: BigDecimal.ZERO).toFloat()
+                h - (h - 8f) * (v / peak)
+            }
+        ) { i ->
+            val d = dayOf(i)
+            val thisText = valueAt(cur, d)?.let { DisplayFormatters.rupees(it) } ?: "not yet"
+            val lastText = valueAt(prev, d)?.let { "Last month " + DisplayFormatters.rupees(it) }
+            ScrubChipText(thisText, listOfNotNull("Day ${d + 1}", lastText))
+        }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
             Caption("Day 1")
-            Caption("Tap or drag to inspect", maxLines = 1)
+            Caption("Touch and slide to read a day", maxLines = 1)
             Caption("Day $days")
         }
         FlowRow(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

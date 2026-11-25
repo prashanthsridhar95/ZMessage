@@ -24,7 +24,7 @@ class MotionPolicyTest {
 
     /** The shared components every screen is made of, plus the shell that moves tabs, pages and sheets, and Home (the reference screen). */
     private val shared = listOf(
-        "common/FintechCard.kt", "common/PageHost.kt", "common/SheetHost.kt", "common/AdaptiveSheet.kt", "common/AppSnackbar.kt",
+        "common/ChartScrub.kt", "common/FintechCard.kt", "common/PageHost.kt", "common/SheetHost.kt", "common/AdaptiveSheet.kt", "common/AppSnackbar.kt",
         "common/Choices.kt", "common/Responsive.kt", "common/PillSwitch.kt", "common/EmptyState.kt", "common/CardHeader.kt",
         "common/Forms.kt", "common/ErrorState.kt", "AppRoot.kt", "home/HomeScreen.kt", "home/BudgetViews.kt",
         "messages/components/Skeleton.kt", "messages/components/AttentionStrip.kt", "theme/Tokens.kt",
@@ -267,5 +267,24 @@ class MotionPolicyTest {
             }
         }
         assertTrue("Use Spacing / Radius tokens instead of 10, 13, 14, 18 or 22 dp one-offs:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+    }
+
+    @Test
+    fun everyTimeSeriesChartScrubsThroughTheOneSharedModifier() {
+        val root = presentationRoot()
+        val charts = listOf(
+            "dashboard/components/DashboardSections.kt", "dashboard/components/IncomeExpenseCard.kt", "dashboard/components/ForecastCard.kt",
+            "dashboard/components/MonthlySummaryCard.kt", "review/YearPage.kt", "markets/StockSheet.kt"
+        )
+        val own = Regex("""detectHorizontalDragGestures|detectDragGestures|detectTapGestures""")
+        charts.forEach { rel ->
+            val text = code(File(root, rel)).joinToString("\n")
+            assertTrue("$rel must scrub with chartScrub(...)", "chartScrub(" in text && "ScrubTooltip(" in text)
+            assertTrue("$rel must not keep its own touch code for a chart", !own.containsMatchIn(text))
+        }
+        val scrub = File(root, "common/ChartScrub.kt").readText()
+        assertTrue("a touch must select at once and a vertical drag must go to the page", "awaitFirstDown" in scrub && "touchSlop" in scrub && "cancelled" in scrub)
+        assertTrue("TalkBack gets Previous / Next", "Previous $" in scrub && "Next $" in scrub)
+        assertTrue("the tooltip is flat: no shadow", "shadow(" !in scrub)
     }
 }

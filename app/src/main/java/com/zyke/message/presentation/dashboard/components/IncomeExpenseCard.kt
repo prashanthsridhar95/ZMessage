@@ -16,6 +16,17 @@ import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.AppButton
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.drawScrubDot
+import com.zyke.message.presentation.common.drawScrubLine
+import com.zyke.message.presentation.common.rememberScrubState
+import com.zyke.message.presentation.common.scrubLineColor
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
@@ -132,7 +143,32 @@ internal fun IncomeExpenseCard(
             val shownSpan by animateFloatAsState(span, motion.tween(Motion.STANDARD_MS), label = "zoom-span")
             val shownView by animateFloatAsState(viewAt, motion.tween(Motion.STANDARD_MS), label = "zoom-view")
 
-            ChartBox(aspect = 0.5f, minHeight = 120.dp, maxHeight = 200.dp, modifier = Modifier.padding(top = Spacing.lg)) {
+            val scrub = rememberScrubState(dates)
+            val padPx = with(LocalDensity.current) { 6.dp.toPx() }
+            val ring = MaterialTheme.colorScheme.surface
+            val crosshair = scrubLineColor()
+            val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
+            // The scale follows what is on screen, so zooming into a quiet stretch shows its detail.
+            fun visiblePeak(from: Int, to: Int): Float =
+                (spent.subList(from, to + 1) + received.subList(from, to + 1)).maxOrNull()?.takeIf { it.signum() > 0 }?.toFloat() ?: 1f
+            fun pointY(value: BigDecimal, height: Float): Float {
+                val from = kotlin.math.floor(shownView).toInt().coerceIn(0, last)
+                val to = kotlin.math.ceil(shownView + shownSpan).toInt().coerceIn(0, last)
+                return height - padPx - (height - 2 * padPx) * (value.toFloat() / visiblePeak(from, to))
+            }
+            fun pointX(index: Int, width: Float) = padPx + (index - shownView) / shownSpan.coerceAtLeast(MIN_SPAN) * (width - 2 * padPx)
+
+            // The readout the finger drives (a hint while nothing is touched).
+            ScrubReadout(scrub) { at ->
+                val text = if (at in dates.indices) {
+                    "${dayFmt.format(dates[at])} \u00B7 Spent ${DisplayFormatters.rupees(spent[at])} \u00B7 Received ${DisplayFormatters.rupees(received[at])}"
+                } else "Touch and slide to read each day"
+                Caption(
+                    text, Modifier.padding(top = Spacing.lg).semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.secondary, maxLines = 2
+                )
+            }
+            ChartBox(aspect = 0.5f, minHeight = 120.dp, maxHeight = 200.dp, modifier = Modifier.padding(top = Spacing.sm)) {
             Canvas(
                 Modifier
                     .fillMaxSize()
@@ -146,9 +182,19 @@ internal fun IncomeExpenseCard(
                             view = (view.coerceIn(0f, (last - span).coerceAtLeast(0f)) + moved).coerceIn(0f, (last - visibleSpan).coerceAtLeast(0f))
                         }
                     }
+                    // After the pinch above, so it sees a single finger first; a second finger leaves the gesture to the zoom.
+                    .chartScrub(
+                        scrub, dates.size,
+                        indexAt = { x, w -> ChartMath.windowIndexAt(x, padPx, w - padPx, shownView, shownSpan.coerceAtLeast(MIN_SPAN), dates.size) },
+                        speak = { i ->
+                            val at = i.coerceIn(0, last)
+                            "${dayFmt.format(dates[at])}, spent ${DisplayFormatters.rupees(spent[at])}, received ${DisplayFormatters.rupees(received[at])}"
+                        },
+                        pointName = "day"
+                    )
                     .semantics {
                         val spoken = "Line chart of money spent and received. Spent ${DisplayFormatters.rupees(dashboard.spentTotal)}, " +
-                            "received ${DisplayFormatters.rupees(dashboard.receivedTotal)}. Pinch to zoom."
+                            "received ${DisplayFormatters.rupees(dashboard.receivedTotal)}. Slide a finger to read each day. Pinch to zoom."
                         contentDescription = if (amountsHidden) com.zyke.message.domain.privacy.AmountMasker.maskSpoken(spoken) else spoken
                     }
             ) {
@@ -160,7 +206,7 @@ internal fun IncomeExpenseCard(
                 // The scale follows what is on screen, so zooming into a quiet stretch shows its detail.
                 val from = kotlin.math.floor(shownView).toInt().coerceIn(0, last)
                 val to = kotlin.math.ceil(shownView + shownSpan).toInt().coerceIn(0, last)
-                val peak = (spent.subList(from, to + 1) + received.subList(from, to + 1)).maxOrNull()?.takeIf { it.signum() > 0 }?.toFloat() ?: 1f
+                val peak = visiblePeak(from, to)
 
                 drawLine(gridColor, Offset(0f, size.height - pad), Offset(size.width, size.height - pad), strokeWidth = 1.dp.toPx())
                 repeat(GRID_LINES) { i ->
@@ -182,9 +228,30 @@ internal fun IncomeExpenseCard(
                 }
                 draw(received, incomeColor)
                 draw(spent, expenseColor)
+
+                val at = scrub.index
+                if (at in from..to) {
+                    val cx = x(at)
+                    drawScrubLine(cx, 0f, size.height - pad, crosshair, scrub.strength)
+                    drawScrubDot(Offset(cx, size.height - pad - usable * (received[at].toFloat() / peak)), incomeColor, ring, scrub.strength)
+                    drawScrubDot(Offset(cx, size.height - pad - usable * (spent[at].toFloat() / peak)), expenseColor, ring, scrub.strength)
+                }
+            }
+            ScrubTooltip(
+                scrub,
+                anchorX = { i, w -> pointX(i, w) },
+                anchorY = { i, h ->
+                    val at = i.coerceIn(0, last)
+                    pointY(maxOf(spent[at], received[at]), h)
+                }
+            ) { i ->
+                val at = i.coerceIn(0, last)
+                ScrubChipText(
+                    "Spent " + DisplayFormatters.rupees(spent[at]),
+                    listOf("Received " + DisplayFormatters.rupees(received[at]), dayFmt.format(dates[at]))
+                )
             }
             }
-            val dayFmt = FormatCache.pattern("d MMM", Locale.getDefault())
             Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Caption(dayFmt.format(dates[kotlin.math.round(viewAt).toInt().coerceIn(0, last)]), Modifier.weight(1f))
                 AppButton("−", { zoom = (zoom / ZOOM_STEP).coerceIn(1f, maxZoom) }, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT, enabled = zoom > 1f)
