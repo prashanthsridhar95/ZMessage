@@ -3,9 +3,18 @@ package com.zyke.message.presentation.markets
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.zyke.message.domain.chart.ChartMath
+import com.zyke.message.presentation.common.ScrubReadout
+import com.zyke.message.presentation.common.ScrubState
+import com.zyke.message.presentation.common.ScrubTooltip
+import com.zyke.message.presentation.common.chartScrub
+import com.zyke.message.presentation.common.drawScrubDot
+import com.zyke.message.presentation.common.drawScrubLine
+import com.zyke.message.presentation.common.rememberScrubState
+import com.zyke.message.presentation.common.scrubLineColor
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -172,7 +181,7 @@ fun StockSheet(row: MarketRow, onDismiss: () -> Unit) {
 
     val shown = (load as? Load.Ready)?.history
     val name = (shown ?: lastGood)?.name?.takeIf { it.isNotBlank() } ?: row.label
-    var scrub by remember(shown) { mutableStateOf<PricePoint?>(null) }
+    val scrub = rememberScrubState(shown)
 
     AdaptiveSheet(
         title = MarketSymbols.defaultLabel(row.symbol).ifBlank { row.label },
@@ -182,7 +191,7 @@ fun StockSheet(row: MarketRow, onDismiss: () -> Unit) {
     ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Header(row, money, shown, lastGood, range, scrub, loading = load is Load.Loading)
-            Chart(load, range, money, onScrub = { scrub = it }, onRetry = { attempt++ })
+            Chart(load, range, money, scrub, onRetry = { attempt++ })
             RangeChips(range) { rangeIndex = it.ordinal }
             Stats(shown ?: lastGood, money)
             Text(
@@ -194,35 +203,53 @@ fun StockSheet(row: MarketRow, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun Header(row: MarketRow, money: MoneyFormat, shown: PriceHistory?, lastGood: PriceHistory?, range: ChartRange, scrub: PricePoint?, loading: Boolean) {
+private fun Header(row: MarketRow, money: MoneyFormat, shown: PriceHistory?, lastGood: PriceHistory?, range: ChartRange, scrub: ScrubState, loading: Boolean) {
     val source = shown ?: lastGood
-    val now = scrub?.value ?: source?.last
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        PriceText(if (now != null) money.price(now) else DASH)
-        when {
-            scrub != null && shown != null -> {
-                Text(
-                    PriceHistories.momentLabel(shown, scrub.time), style = MaterialTheme.typography.bodyMedium,
-                    color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
-            shown != null && shown.change != null -> {
-                val change = shown.change ?: 0.0
-                val color = when {
-                    change > 0 -> Good
-                    change < 0 -> Danger
-                    else -> mutedColor()
+        // While a finger is on the chart the price, the change and the moment follow it; only this scope recomposes.
+        ScrubReadout(scrub) { at ->
+            val touched = shown?.points?.getOrNull(at)
+            val now = touched?.value ?: source?.last
+            PriceText(if (now != null) money.price(now) else DASH)
+            when {
+                touched != null && shown != null -> {
+                    val reference = shown.baseline
+                    val text: AnnotatedString = buildAnnotatedString {
+                        if (reference != null) {
+                            val change = touched.value - reference
+                            val color = when {
+                                change > 0 -> Good
+                                change < 0 -> Danger
+                                else -> mutedColor()
+                            }
+                            val percent = ChartMath.changePercent(touched.value, reference)?.let { " (" + FormatCache.number(Locale.US, 2, 2).format(abs(it)) + "%)" }.orEmpty()
+                            withStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold)) {
+                                append(ChartMath.changeArrow(change).let { if (it.isEmpty()) "" else "$it " } + money.move(change, touched.value) + percent)
+                            }
+                            withStyle(SpanStyle(color = mutedColor())) { append("  ") }
+                        }
+                        withStyle(SpanStyle(color = mutedColor())) { append(PriceHistories.momentLabel(shown, touched.time)) }
+                    }
+                    Text(text, style = MaterialTheme.typography.bodyMedium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                val arrow = if (change > 0) "▲ " else if (change < 0) "▼ " else ""
-                val percent = shown.changePercent?.let { " (" + FormatCache.number(Locale.US, 2, 2).format(abs(it)) + "%)" }.orEmpty()
-                val text: AnnotatedString = buildAnnotatedString {
-                    withStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold)) { append(arrow + money.move(change, shown.last ?: 1.0) + percent) }
-                    withStyle(SpanStyle(color = mutedColor())) { append("  " + range.period) }
+                shown != null && shown.change != null -> {
+                    val change = shown.change ?: 0.0
+                    val color = when {
+                        change > 0 -> Good
+                        change < 0 -> Danger
+                        else -> mutedColor()
+                    }
+                    val arrow = if (change > 0) "▲ " else if (change < 0) "▼ " else ""
+                    val percent = shown.changePercent?.let { " (" + FormatCache.number(Locale.US, 2, 2).format(abs(it)) + "%)" }.orEmpty()
+                    val text: AnnotatedString = buildAnnotatedString {
+                        withStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold)) { append(arrow + money.move(change, shown.last ?: 1.0) + percent) }
+                        withStyle(SpanStyle(color = mutedColor())) { append("  " + range.period) }
+                    }
+                    Text(text, style = MaterialTheme.typography.bodyMedium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                loading -> Block(Modifier.fillMaxWidth(0.5f).height(18.dp), "Loading")
+                else -> Text(range.period, style = MaterialTheme.typography.bodyMedium, color = mutedColor())
             }
-            loading -> Block(Modifier.fillMaxWidth(0.5f).height(18.dp), "Loading")
-            else -> Text(range.period, style = MaterialTheme.typography.bodyMedium, color = mutedColor())
         }
         val where = listOf(source?.exchange?.ifBlank { row.exchange } ?: row.exchange, money.line).filter { it.isNotBlank() }.joinToString(" · ")
         if (where.isNotBlank()) Text(where, style = MaterialTheme.typography.labelMedium, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -251,14 +278,14 @@ private fun Block(modifier: Modifier, description: String) {
 }
 
 @Composable
-private fun Chart(load: Load, range: ChartRange, money: MoneyFormat, onScrub: (PricePoint?) -> Unit, onRetry: () -> Unit) {
+private fun Chart(load: Load, range: ChartRange, money: MoneyFormat, scrub: ScrubState, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when (load) {
             Load.Loading -> Block(Modifier.fillMaxWidth().height(CHART_HEIGHT), "Loading the chart")
             is Load.Ready -> {
                 if (load.history.hasChart) {
                     val up = (load.history.change ?: 0.0) >= 0.0
-                    PriceChart(load.history, if (up) Good else Danger, money, onScrub, Modifier.fillMaxWidth().height(CHART_HEIGHT))
+                    PriceChart(load.history, if (up) Good else Danger, money, scrub, Modifier.fillMaxWidth().height(CHART_HEIGHT))
                     if (load.stale) Text("Offline · showing the last chart", style = MaterialTheme.typography.labelMedium, color = mutedColor())
                 } else {
                     Message("Not enough prices for this period yet", "Try a longer one.", null, onRetry)
@@ -362,7 +389,7 @@ private fun StatLine(label: String, value: String, divider: Boolean) {
  * follows a finger dragged across it. At most 200 points are drawn (the history is downsampled when read).
  */
 @Composable
-private fun PriceChart(history: PriceHistory, color: Color, money: MoneyFormat, onScrub: (PricePoint?) -> Unit, modifier: Modifier) {
+private fun PriceChart(history: PriceHistory, color: Color, money: MoneyFormat, scrub: ScrubState, modifier: Modifier) {
     val points = history.points
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -388,31 +415,29 @@ private fun PriceChart(history: PriceHistory, color: Color, money: MoneyFormat, 
         PlotModel(lo, hi, yLabels, xLabels, axisWidth, labelHeight)
     }
 
-    var marker by remember(history) { mutableIntStateOf(-1) }
-    val report = rememberUpdatedState(onScrub)
     val summary = remember(history) {
         val hiPoint = points.maxOf { it.value }
         val loPoint = points.minOf { it.value }
         "Price chart, ${history.range.period}. From ${money.price(points.first().value)} to ${money.price(points.last().value)}, " +
-            "high ${money.price(hiPoint)}, low ${money.price(loPoint)}."
+            "high ${money.price(hiPoint)}, low ${money.price(loPoint)}. Slide a finger to read each price."
     }
+    val crosshair = scrubLineColor()
 
+    Box(modifier) {
     Canvas(
-        modifier
+        Modifier
+            .fillMaxSize()
             .semantics { contentDescription = summary }
-            .pointerInput(history, plot) {
-                val width = size.width - plot.axisWidth
-                fun at(x: Float) {
-                    val i = ((x / width) * (points.size - 1)).roundToInt().coerceIn(0, points.size - 1)
-                    if (i != marker) { marker = i; report.value(points[i]) }
-                }
-                detectHorizontalDragGestures(
-                    onDragStart = { at(it.x) },
-                    onDragEnd = { marker = -1; report.value(null) },
-                    onDragCancel = { marker = -1; report.value(null) },
-                    onHorizontalDrag = { change, _ -> change.consume(); at(change.position.x) }
-                )
-            }
+            .chartScrub(
+                scrub, points.size,
+                // The line spans the plot, not the price labels on the right.
+                indexAt = { x, width -> ChartMath.nearestIndex(x, 0f, width - plot.axisWidth, points.size) },
+                speak = { i ->
+                    val p = points[i.coerceIn(0, points.lastIndex)]
+                    PriceHistories.momentLabel(history, p.time) + ", " + money.price(p.value)
+                },
+                pointName = "price"
+            )
     ) {
         val w = size.width - plot.axisWidth
         val h = size.height - plot.labelHeight
@@ -444,13 +469,28 @@ private fun PriceChart(history: PriceHistory, color: Color, money: MoneyFormat, 
         drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.30f), color.copy(alpha = 0f)), startY = 0f, endY = h))
         drawPath(line, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 
-        val m = marker
+        val m = scrub.index
         if (m in points.indices) {
             val mx = x(m)
-            drawLine(muted.copy(alpha = 0.7f), Offset(mx, 0f), Offset(mx, h), strokeWidth = 1.dp.toPx())
-            drawCircle(markerRing, 6.dp.toPx(), Offset(mx, y(points[m].value)))
-            drawCircle(color, 4.dp.toPx(), Offset(mx, y(points[m].value)))
+            drawScrubLine(mx, 0f, h, crosshair, scrub.strength)
+            drawScrubDot(Offset(mx, y(points[m].value)), color, markerRing, scrub.strength, 4.dp)
         }
+    }
+    ScrubTooltip(
+        scrub,
+        anchorX = { i, width -> (width - plot.axisWidth) * i.coerceIn(0, points.lastIndex) / (points.size - 1).coerceAtLeast(1) },
+        anchorY = { i, height ->
+            val h = height - plot.labelHeight
+            (h - ((points[i.coerceIn(0, points.lastIndex)].value - plot.lo) / plot.span * h)).toFloat()
+        }
+    ) { i ->
+        val p = points[i.coerceIn(0, points.lastIndex)]
+        // Public prices: Material's Text, as on the rest of this sheet, so a price is never dotted out.
+        Column {
+            Text(money.price(p.value), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(PriceHistories.momentLabel(history, p.time), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
     }
 }
 
