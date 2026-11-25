@@ -70,4 +70,14 @@ class HomeDeckPolicyTest {
         assertTrue("the count comes from the motion package", "rememberCountUpInt" in deck)
         assertTrue("a long press is not needed: tiles are tappable buttons", "tappable(" in deck)
     }
+
+    @Test
+    fun theCardStackShowsWhereYouAreAndHintsQuietly() {
+        val screen = text("home/TriageScreen.kt")
+        assertTrue("the same page dots as the Accounts deck", "DeckDots(cards.size" in screen)
+        assertFalse("archiving is never drawn in the error colour", "errorContainer" in screen)
+        assertTrue("the swipe hint has icons", "baseline_archive_24" in screen && "baseline_check_24" in screen)
+        assertTrue("the two decks tilt the same", "TILT_DEGREES = 8f" in screen && "TILT_DEGREES = 8f" in text("common/HeaderRegion.kt"))
+        assertFalse("the decision buttons are equal in width", Regex("""weight\(1\.3f\)""").containsMatchIn(screen))
+    }
 }
