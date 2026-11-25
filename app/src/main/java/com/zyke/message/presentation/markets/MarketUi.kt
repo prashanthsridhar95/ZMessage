@@ -2,6 +2,24 @@ package com.zyke.message.presentation.markets
 
 import android.content.Context
 import com.zyke.message.presentation.format.FormatCache
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import com.zyke.message.data.markets.HistoryOutcome
+import com.zyke.message.domain.markets.ChartRange
+import com.zyke.message.presentation.home.ChevronTurn
+import com.zyke.message.presentation.motion.AppearVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MarqueeSpacing
@@ -51,14 +69,11 @@ import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.AppPage
 import com.zyke.message.presentation.common.ButtonSize
 import com.zyke.message.presentation.common.ButtonStyle
-import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.home.Danger
 import com.zyke.message.presentation.home.Good
-import com.zyke.message.presentation.home.SectionHeader
 import com.zyke.message.presentation.home.StatusPill
 import com.zyke.message.presentation.home.Tone
 import com.zyke.message.presentation.messages.components.Caption
-import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
 import java.math.BigDecimal
 import java.time.Instant
@@ -160,6 +175,24 @@ fun MarketStrip(onOpen: () -> Unit) {
     val state by ticker.state.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(16.dp)
     val still = com.zyke.message.presentation.common.rememberReduceMotion()
+    val indices = state.rows.filter { it.kind == MarketKind.INDEX }.take(2)
+    if (indices.isNotEmpty()) {
+        // Like Kite's header: the indices on one compact line, no card round them. Tapping still opens the full list.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClickLabel = "Open market watch", onClick = onOpen)
+                .clearAndSetSemantics {
+                    contentDescription = "Market watch. " + indices.joinToString(". ") { spoken(it) }
+                    role = Role.Button
+                    onClick(label = "Open market watch") { onOpen(); true }
+                }
+        ) {
+            IndexLine(indices, Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp))
+            WatchDivider()
+        }
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -176,8 +209,7 @@ fun MarketStrip(onOpen: () -> Unit) {
                 Modifier.padding(horizontal = 16.dp)
             )
         } else {
-            // One row of everything, drawn once, with the system's own marquee moving it: no frame loop of ours, and no list
-            // of a billion repeated items to lay out.
+            // No index to put in the header: one row of everything, drawn once, with the system's own marquee moving it.
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -203,6 +235,104 @@ fun MarketStrip(onOpen: () -> Unit) {
     }
 }
 
+private val TABULAR = "tnum"
+
+@Composable
+private fun WatchDivider() = HorizontalDivider(thickness = Dp.Hairline, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+
+/** "+416.15" with a real minus sign, or null when the service gave no previous close. */
+private fun signedChange(row: MarketRow): String? =
+    row.change?.let { (if (it.signum() >= 0) "+" else "\u2212") + changeAmount(row, it.abs()) }
+
+private fun signedPercent(row: MarketRow): String? =
+    row.changePercent?.let { "(" + (if (it.signum() >= 0) "+" else "\u2212") + it.abs().toPlainString() + "%)" }
+
+/** "▲ +416.15 (+1.64%)": the arrow and the signs say it without the colour. Blank when nothing is known. */
+private fun moveLine(row: MarketRow): String {
+    val arrow = when {
+        row.isUp -> "\u25B2"
+        row.isDown -> "\u25BC"
+        else -> null
+    }
+    return listOfNotNull(arrow, signedChange(row), signedPercent(row)).joinToString(" ")
+}
+
+/** The small grey line under a name: its exchange, or for the dollar and gold what they measure. Nothing when unknown. */
+private fun subLine(row: MarketRow): String =
+    row.exchange.ifBlank { if (row.kind == MarketKind.STOCK || row.kind == MarketKind.INDEX) "" else row.detail }
+
+/** The indices side by side: NAME, then the level and how it moved, wrapping rather than clipping when the text is large. */
+@Composable
+private fun IndexLine(indices: List<MarketRow>, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+        indices.forEach { row ->
+            Column(Modifier.weight(1f)) {
+                Text(row.label.uppercase(Locale.ROOT), style = MaterialTheme.typography.labelMedium, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val color = moveColor(row)
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold)) { append(priceText(row)) }
+                        val move = moveLine(row)
+                        if (move.isNotEmpty()) withStyle(SpanStyle(color = color)) { append("  $move") }
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = TABULAR),
+                    maxLines = 3
+                )
+            }
+        }
+    }
+}
+
+/** The Overview: each index's level, its move and a small 52-week line (only when the service gave the history). */
+@Composable
+private fun IndexOverview(indices: List<MarketRow>) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Overview", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            indices.forEach { row -> Box(Modifier.weight(1f)) { OverviewCell(row) } }
+        }
+        Caption("Lines show the last 52 weeks.")
+    }
+}
+
+@Composable
+private fun OverviewCell(row: MarketRow) {
+    val ticker = LocalContext.current.marketTicker()
+    var closes by remember(row.symbol) { mutableStateOf<List<Double>?>(null) }
+    LaunchedEffect(row.symbol) {
+        val outcome = ticker.history(row.symbol, ChartRange.YEAR)
+        closes = (outcome as? HistoryOutcome.Ready)?.history?.points?.map { it.value }?.takeIf { it.size >= 2 }
+    }
+    val color = moveColor(row)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(row.label.uppercase(Locale.ROOT), style = MaterialTheme.typography.labelMedium, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(priceText(row), style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = TABULAR), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+        moveLine(row).takeIf { it.isNotEmpty() }?.let {
+            Text(it, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = TABULAR), color = color)
+        }
+        closes?.let { YearLine(it, color, Modifier.fillMaxWidth().height(40.dp).padding(top = 6.dp)) }
+    }
+}
+
+/** A line of the closes, scaled to its own high and low. Drawn once; it says its start and end to a screen reader. */
+@Composable
+private fun YearLine(values: List<Double>, color: Color, modifier: Modifier) {
+    val low = values.min()
+    val span = (values.max() - low).takeIf { it > 0.0 } ?: 1.0
+    val summary = "52 week trend, from ${"%,.2f".format(Locale.US, values.first())} to ${"%,.2f".format(Locale.US, values.last())}"
+    val stroke = with(LocalDensity.current) { 1.5.dp.toPx() }
+    Canvas(modifier.clearAndSetSemantics { contentDescription = summary }) {
+        val step = size.width / (values.size - 1)
+        val path = Path()
+        values.forEachIndexed { i, v ->
+            val x = i * step
+            val y = size.height - ((v - low) / span).toFloat() * size.height
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
 /** Every price in the watch list: the dollar and gold, the indices, and the person's shares, with how each moved today. */
 @Composable
 fun MarketPage(onBack: () -> Unit) {
@@ -210,6 +340,7 @@ fun MarketPage(onBack: () -> Unit) {
     val state by ticker.state.collectAsStateWithLifecycle()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
+    var overviewOpen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var editing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     // The ticker whose chart is open. Cards are only tappable on this page, which is only reachable with the market watch on.
     var chartSymbol by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
@@ -230,7 +361,7 @@ fun MarketPage(onBack: () -> Unit) {
             }
         }
     ) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     val at = state.updatedAt?.let { FormatCache.pattern("h:mm:ss a", Locale.getDefault()).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) }
@@ -244,14 +375,32 @@ fun MarketPage(onBack: () -> Unit) {
             }
             if (state.offline) StatusPill(if (state.rows.isEmpty()) "Can't reach the price service" else "Offline · showing the last prices", Tone.WARN)
 
-            val groups = listOf(
-                "Currency and gold" to state.rows.filter { it.kind == MarketKind.CURRENCY || it.kind == MarketKind.COMMODITY },
-                "Indices" to state.rows.filter { it.kind == MarketKind.INDEX },
-                "Your shares" to state.rows.filter { it.kind == MarketKind.STOCK }
-            )
-            groups.filter { it.second.isNotEmpty() }.forEach { (title, rows) ->
-                SectionHeader(title, rows.size)
-                rows.forEach { row -> MarketCard(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null) }
+            val indices = state.rows.filter { it.kind == MarketKind.INDEX }.take(2)
+            if (indices.isNotEmpty()) {
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .clearAndSetSemantics {
+                                contentDescription = indices.joinToString(". ") { spoken(it) }
+                                role = Role.Button
+                                onClick(label = if (overviewOpen) "Hide overview" else "Show overview") { overviewOpen = !overviewOpen; true }
+                            }
+                            .clickable(role = Role.Button, onClickLabel = if (overviewOpen) "Hide overview" else "Show overview") { overviewOpen = !overviewOpen },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IndexLine(indices, Modifier.weight(1f).padding(vertical = 8.dp))
+                        ChevronTurn(overviewOpen)
+                    }
+                    AppearVisibility(overviewOpen) { IndexOverview(indices) }
+                    WatchDivider()
+                }
+            }
+            // One dense list in the order the person set: no card per row, a hairline between them.
+            Column(Modifier.fillMaxWidth()) {
+                state.rows.forEach { row ->
+                    WatchRow(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null)
+                    WatchDivider()
+                }
             }
             Caption("Choose what to watch in Settings › Market watch. Only the tickers you watch (and what you type into the add box) are sent to Yahoo Finance, nothing from your messages.", Modifier.padding(top = 4.dp), maxLines = 4)
             // Room for the button to sit below the last card.
@@ -274,33 +423,36 @@ fun MarketPage(onBack: () -> Unit) {
     }
 }
 
+/** One line of the list, Kite-style: name and exchange on the left, price and move on the right, no card. */
 @Composable
-private fun MarketCard(row: MarketRow, onOpen: (() -> Unit)?) {
-    FintechCard(
-        Modifier.clearAndSetSemantics {
-            contentDescription = spoken(row)
-            if (onOpen != null) {
-                role = Role.Button
-                onClick(label = "Open chart") { onOpen(); true }
+private fun WatchRow(row: MarketRow, onOpen: (() -> Unit)?) {
+    val color = moveColor(row)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clearAndSetSemantics {
+                contentDescription = spoken(row)
+                if (onOpen != null) {
+                    role = Role.Button
+                    onClick(label = "Open chart") { onOpen(); true }
+                }
             }
-        },
-        onClick = onOpen
+            .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClickLabel = "Open chart", onClick = onOpen) else Modifier)
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                RowTitle(row.label)
-                Caption(row.detail)
+        Column(Modifier.weight(1f)) {
+            Text(row.label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            subLine(row).takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium, color = mutedColor(), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(priceText(row), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-                val tone = when {
-                    row.isUp -> Tone.GOOD
-                    row.isDown -> Tone.BAD
-                    else -> Tone.NEUTRAL
-                }
-                row.change?.let { change ->
-                    StatusPill(changeText(row) + "  " + (if (change.signum() >= 0) "+" else "−") + changeAmount(row, change.abs()), tone, Modifier.padding(top = 6.dp))
-                }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(priceText(row), style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = TABULAR), color = color, maxLines = 1)
+            moveLine(row).takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = TABULAR), color = mutedColor(), maxLines = 1)
             }
         }
     }
