@@ -423,6 +423,12 @@ market data, so Hide amounts does not apply to them. No ticker marquee any more.
 
 ## Home deck (stacks of cards)
 
+**Home shows one real stack (rework).** The block on Home is the deck itself, not tiles: "N to go", then the front card with the next two peeking behind
+(the triage page's card in a compact form: seal, sender, one-line headline with its amount, two-line summary, quiet footer). Swipe left archives, right keeps,
+up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action. Under it one line of chips: "N to review" (accent),
+"Quiet N", "Auto-cleared N", "All stacks". The review queue (ledger questions) and the deck (unread messages) are different sources, so with no new cards the
+review is the deck's single card; "All caught up" is one small row, shown only when both are empty.
+
 Home's "Your deck" turns what is new into a few small stacks you can clear with a swipe. The rules are in the domain and tested
 (`domain/triage`: `TriageStacks`, `TriageSettings`, `TriageGestures`); the screens are `home/HomeDeck.kt` (the section and the Auto cleared page),
 `home/TriageScreen.kt` (the card stack) and `home/TriageSettingsPage.kt` ("Make it yours"). `HomeDeckPolicyTest` keeps them true.

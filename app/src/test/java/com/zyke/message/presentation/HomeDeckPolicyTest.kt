@@ -80,4 +80,17 @@ class HomeDeckPolicyTest {
         assertTrue("the two decks tilt the same", "TILT_DEGREES = 8f" in screen && "TILT_DEGREES = 8f" in text("common/HeaderRegion.kt"))
         assertFalse("the decision buttons are equal in width", Regex("""weight\(1\.3f\)""").containsMatchIn(screen))
     }
+
+    @Test
+    fun homeShowsOneRealStackAndMergesTheReviewIntoIt() {
+        val deck = text("home/HomeDeck.kt")
+        assertTrue("the same swipe deck as the triage page, inline", "TriageDeck(" in deck && "compact = true" in deck)
+        assertTrue("swipes archive and keep with undo and a tick", "Intent.TriageSweep" in deck && "Intent.TriageGotIt" in deck && "haptics.tick()" in deck && Regex("""withUndo\(""").findAll(deck).count() >= 2)
+        assertTrue("page dots and the quiet hint", "DeckDots(cards.size" in deck && "Swipe left to archive, right to keep" in deck)
+        assertTrue("the review is the deck's count and chip, not a competing row", "to review" in deck && "ReviewCard(" in deck && "DeckChip(" in deck)
+        assertEquals("one tour anchor for the review", 1, Regex("""TourAnchor\.HOME_REVIEW""").findAll(deck).count())
+        assertFalse("no labelled return in a composable lambda", Regex("""return@""").containsMatchIn(deck))
+        val home = text("home/HomeScreen.kt")
+        assertTrue("the caught-up row shows whenever the deck is on", "val showDeckSection = layout.shows(HomeSection.DECK) || state.review.count > 0" in home)
+    }
 }
