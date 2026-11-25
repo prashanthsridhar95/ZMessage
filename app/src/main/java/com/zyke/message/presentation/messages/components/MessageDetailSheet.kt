@@ -205,6 +205,9 @@ internal fun MessageDetailSheet(
                 }
             }
 
+            // Where the payment was made (only when the person has "Remember where I spend" and a place was saved).
+            if (content is MessageContent.Transaction) com.zyke.message.presentation.places.SpendPlaceSection(item)
+
             // The one action that matters most for this kind of message.
             val billLink = (content as? MessageContent.CardBill)?.paymentLink
             val openLink = LocalOpenLink.current

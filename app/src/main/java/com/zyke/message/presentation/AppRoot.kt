@@ -220,6 +220,7 @@ fun AppRoot(
         }
         if (showSettings) settings { showSettings = false }
         if (showSearch) search({ showSearch = false }) { tab = it }
+        com.zyke.message.presentation.places.SpendMapHost()
         if (web.isOpen && !web.minimised) LinkSheet(web)
     }
     // Drawn after the screens, so over them; the minimised page and the snackbar are drawn after the sheets, so over those.
