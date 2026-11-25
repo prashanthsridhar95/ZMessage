@@ -303,7 +303,7 @@ fun StackedDeck(
     }
 }
 
-private const val TILT_DEGREES = 12f
+private const val TILT_DEGREES = 8f
 
 /** How much of each card behind the front one peeks out above it. */
 private val DECK_PEEK = 10.dp

@@ -1,6 +1,7 @@
 package com.zyke.message.presentation.home
 
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,6 +58,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.zyke.message.R
 import com.zyke.message.domain.model.ClassifiedMessage
@@ -68,6 +73,7 @@ import com.zyke.message.presentation.common.AppButton
 import com.zyke.message.presentation.common.AppPage
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.CapFontScale
+import com.zyke.message.presentation.common.DeckDots
 import com.zyke.message.presentation.common.ChromeScale
 import com.zyke.message.presentation.common.EmptyState
 import com.zyke.message.presentation.common.SegmentedTabs
@@ -87,7 +93,6 @@ import com.zyke.message.presentation.messages.components.CategorySheet
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.FeedActions
 import com.zyke.message.presentation.messages.components.MerchantChip
-import com.zyke.message.presentation.messages.components.mutedColor
 import com.zyke.message.presentation.motion.Motion
 import com.zyke.message.presentation.motion.MotionSpecs
 import com.zyke.message.presentation.motion.rememberHaptics
@@ -109,8 +114,11 @@ private val DECK_PEEK = 10.dp
 
 private const val TILT_DEGREES = 8f
 
-/** How firm the swipe tint gets at the line. */
-private const val HINT_ALPHA = 0.8f
+/** The width of the up and down keys in the control bar. */
+private val ARROW_KEY = 52.dp
+
+/** How firm the swipe tint gets at the line (the tints themselves are already quiet, so it can reach full). */
+private const val HINT_ALPHA = 1f
 private const val STACK_SCALE_STEP = 0.06f
 
 /** A drag moves the card with the finger only after this many px, and then on one axis only: sideways acts, vertical moves. */
@@ -248,6 +256,8 @@ internal fun TriageDeck(
     val ink = MaterialTheme.colorScheme.onSurface
     val slabNear = lerp(frame, ink, 0.07f)
     val slabFar = lerp(frame, ink, 0.12f)
+    // A hairline on each slab keeps its edge readable on true black and on white, where a tint step alone nearly vanishes.
+    val slabEdge = ink.copy(alpha = 0.08f)
     Box(
         modifier
             .onSizeChanged { state.widthPx = it.width.toFloat().coerceAtLeast(1f); state.heightPx = it.height.toFloat().coerceAtLeast(1f) }
@@ -274,10 +284,10 @@ internal fun TriageDeck(
         // The two slabs behind. Their place follows the drag (they come forward as the front card leaves) and the grow of the card that
         // took the front; the formula is the same one the Accounts deck uses.
         if (count >= 3) {
-            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(2f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabFar, AppShapes.card))
+            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(2f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabFar, AppShapes.card).border(1.dp, slabEdge, AppShapes.card))
         }
         if (count >= 2) {
-            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(1f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabNear, AppShapes.card))
+            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(1f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabNear, AppShapes.card).border(1.dp, slabEdge, AppShapes.card))
         }
         androidx.compose.runtime.key(front.messageId) {
             face(
@@ -401,8 +411,8 @@ internal fun TriageScreen(
                 val next = deck.stacks.firstOrNull { it.isQuiet == quiet && it.items.isNotEmpty() && it.id != chip }
                 Column(Modifier.fillMaxWidth().padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     EmptyState(
-                        "Stack cleared",
-                        if (next != null) "Next up: ${next.title}, ${next.newCount} new." else "Nothing left here.",
+                        if (next != null) "Stack cleared" else "All caught up",
+                        if (next != null) "Next up: ${next.title}, ${next.newCount} new." else "Nothing left here. Cleared cards stay in Messages.",
                         icon = R.drawable.baseline_check_24
                     )
                     if (next != null) AppButton("Next stack", { chip = next.id; index = 0 }, Modifier.fillMaxWidth())
@@ -411,13 +421,19 @@ internal fun TriageScreen(
             } else {
                 TriageDeck(
                     front, cards.size, deckState, act,
-                    Modifier.weight(1f).fillMaxWidth().padding(start = Spacing.lg, end = Spacing.lg, top = DECK_PEEK * 2 + Spacing.sm, bottom = Spacing.md)
+                    Modifier.weight(1f).fillMaxWidth().padding(start = Spacing.lg, end = Spacing.lg, top = DECK_PEEK * 2 + Spacing.sm, bottom = Spacing.lg)
                 ) { card, m, isFront ->
                     CardFace(
                         card, byId[card.messageId], i, cards.size, if (isFront) deckState else null, m, act,
                         onCategory = { categoryFor = card.messageId },
                         onOpen = { onIntent(Intent.PeekMessage(card.messageId)) }
                     )
+                }
+                // Where you are in the stack, the same dots the Accounts deck shows (they widen and brighten in 160 ms; the counter above says it in words).
+                if (cards.size > 1) {
+                    Box(Modifier.fillMaxWidth().padding(bottom = Spacing.md), contentAlignment = Alignment.Center) {
+                        DeckDots(cards.size, i, active = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
@@ -482,6 +498,11 @@ private fun CardFace(
     val shape = AppShapes.card
     val surface = MaterialTheme.colorScheme.surface
     val face = lerp(surface, MaterialTheme.colorScheme.onSurface, 0.03f)
+    val ink = MaterialTheme.colorScheme.onSurface
+    val primary = MaterialTheme.colorScheme.primary
+    // What letting go does: archiving is calm and neutral (never an alarm red), keeping takes the accent. Opaque mixes over the card's own face.
+    val sweepTint = lerp(face, ink, 0.14f)
+    val keepTint = lerp(face, primary, 0.2f)
     val spokenTags = card.tags.joinToString(", ") { it.text }
     val spoken = privateSpeech(
         buildString {
@@ -534,17 +555,18 @@ private fun CardFace(
                         }
                 ) {
                     Text(
-                        card.headline, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                        card.headline, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary, maxLines = scaledLines(4), overflow = TextOverflow.Ellipsis
                     )
                     if (card.summary.isNotEmpty()) {
                         Text(
-                            card.summary, Modifier.padding(top = Spacing.sm), style = TypeRole.body, color = mutedColor(),
-                            maxLines = scaledLines(4), overflow = TextOverflow.Ellipsis
+                            card.summary, Modifier.padding(top = Spacing.md), style = TypeRole.body, color = ink.copy(alpha = 0.86f),
+                            maxLines = scaledLines(6), overflow = TextOverflow.Ellipsis
                         )
                     }
                     TagRow(card, Modifier.padding(top = Spacing.md))
                 }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(ink.copy(alpha = 0.08f)))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Caption("Summary by Zyke · on this phone", Modifier.weight(1f), maxLines = 2)
                     Box(Modifier.heightIn(min = 48.dp).tappable(onClick = onOpen, onClickLabel = "Open the message"), contentAlignment = Alignment.CenterEnd) {
@@ -556,19 +578,25 @@ private fun CardFace(
                 }
             }
             if (hint != null) {
-                // What letting go does, said by a tint and a word that firm up as the card nears the line: left sweeps, right keeps.
+                // What letting go does, said by a tint, an icon and a word that firm up as the card nears the line: left sweeps, right keeps.
                 Box(
                     Modifier.matchParentSize().graphicsLayer { alpha = (-hint.dragX / (hint.widthPx * TriageGestures.COMMIT_FRACTION)).coerceIn(0f, 1f) * HINT_ALPHA }
-                        .background(MaterialTheme.colorScheme.errorContainer).clearAndSetSemantics { }
+                        .background(sweepTint).clearAndSetSemantics { }
                 ) {
-                    Text("\u2190 Sweep it", Modifier.padding(Spacing.lg), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Row(Modifier.padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Image(painter = painterResource(R.drawable.baseline_archive_24), contentDescription = null, modifier = Modifier.size(22.dp), colorFilter = ColorFilter.tint(ink))
+                        Text("Sweep it", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ink)
+                    }
                 }
                 Box(
                     Modifier.matchParentSize().graphicsLayer { alpha = (hint.dragX / (hint.widthPx * TriageGestures.COMMIT_FRACTION)).coerceIn(0f, 1f) * HINT_ALPHA }
-                        .background(MaterialTheme.colorScheme.primaryContainer).clearAndSetSemantics { },
+                        .background(keepTint).clearAndSetSemantics { },
                     contentAlignment = Alignment.TopEnd
                 ) {
-                    Text("Got it \u2192", Modifier.padding(Spacing.lg), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Row(Modifier.padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Text("Got it", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ink)
+                        Image(painter = painterResource(R.drawable.baseline_check_24), contentDescription = null, modifier = Modifier.size(22.dp), colorFilter = ColorFilter.tint(primary))
+                    }
                 }
             }
         }
@@ -603,10 +631,11 @@ private fun TagRow(card: TriageCard, modifier: Modifier) {
 private fun androidx.compose.foundation.layout.ColumnScope.ControlBar(enabled: Boolean, canMove: Boolean, onMove: (TriageMove) -> Unit) {
     ChromeScale {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            BarButton("← Sweep it", "Sweep it, archive this card", enabled, false, Modifier.weight(1.3f)) { onMove(TriageMove.SWEEP) }
-            BarButton("Got it →", "Got it, mark read and keep it in Messages", enabled, true, Modifier.weight(1.3f)) { onMove(TriageMove.KEEP) }
-            BarButton("↑", "Previous card", enabled && canMove, false, Modifier.weight(1f)) { onMove(TriageMove.PREVIOUS) }
-            BarButton("↓", "Next card", enabled && canMove, false, Modifier.weight(1f)) { onMove(TriageMove.NEXT) }
+            // The two decisions share the width equally; the two arrows are equal square keys.
+            BarButton("← Sweep it", "Sweep it, archive this card", enabled, false, Modifier.weight(1f)) { onMove(TriageMove.SWEEP) }
+            BarButton("Got it →", "Got it, mark read and keep it in Messages", enabled, true, Modifier.weight(1f)) { onMove(TriageMove.KEEP) }
+            BarButton("↑", "Previous card", enabled && canMove, false, Modifier.width(ARROW_KEY)) { onMove(TriageMove.PREVIOUS) }
+            BarButton("↓", "Next card", enabled && canMove, false, Modifier.width(ARROW_KEY)) { onMove(TriageMove.NEXT) }
         }
     }
 }
