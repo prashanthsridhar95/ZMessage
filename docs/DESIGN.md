@@ -373,11 +373,20 @@ keeps the shape from eroding.
 | `activity` | the last three payments (the row anatomy of Messages) and "See all" to Messages. Optional (on) |
 | `footer` | "Customize Home" |
 
-Rhythm and polish: 16 dp gutters, 12 dp between blocks, 20 dp inside a card (tokens only). One hero; every other card is `Tonal.Quiet`.
-No moving outline anywhere on Home (the light round the old priority card is gone; `movingBorder` stays only in the shared card and the
-Messages attention strip). No borders or shadows added. Headings use the type roles. The first eight blocks enter once, in turn
-(`enterOnce`); tiles and rows dip while held. At 320 dp and font scale 2.0 the balance, the budget line and the deck header stack; hidden
-amounts stay hidden (the budget figure is an `AnimatedAmount`). Demo mode shows the same layout with made-up content.
+Rhythm and polish (`home/HomePolish.kt`, Home-only; `FintechCard` and `CardHeader` are untouched for the other tabs): 20 dp gutters, 16 dp between
+blocks (24 before the deck and Recent activity), 20 dp inside a card, 8 dp inside a group, tokens only. Home's cards (`HomeCard`) are a step of
+the theme's surface containers (`surfaceContainer`), not a tint of the text colour, so dark mode gets its depth from tone and not from a border
+(true black keeps FintechCard's hairline). One hero (`HomeBalanceHero`): a soft diagonal wash of the accent, the figure large in the text colour
+(`displayMedium`, tabular figures, counts up once), a "TOTAL BALANCE" label with a count pill and a chevron, and "Updated today" (the newest
+`balanceAsOf`). Every block label is the one small-capitals style (`HomeLabel`); statuses and counts are one pill (`HomePill`). The accent is for the
+one primary action, links and the hero wash; money in is the success colour, money out and titles are the text colour, a bill's status takes the
+warning or danger colour. Today's bill card: label, status pill, tile, name and amount, one filled primary ("Pay bill"; "Mark as paid" steps down to a
+text button, or is the primary when there is no link). Today's budget is a slim card with a figure, "left of Rs 5,000" and an 8 dp rounded bar
+(`HomeProgress`). Deck tiles are flat (the paper edge is gone), 16 dp inside, name in `titleMedium`. Recent activity is one grouped card, 40 dp
+tiles, hairlines inset to the text. At 320 dp or font scale 1.5 and up (`homeStacked()`) the count pill, the amount, "Adjust" and "Swipe all" move
+under their text. No borders or shadows added. Headings use the type roles. The first eight blocks enter once, in turn (`enterOnce`); tiles and
+rows dip while held. Hidden amounts stay hidden (the figures are `AnimatedAmount` or `RowAmount`). Demo mode shows the same layout with made-up
+content. The toolbar's logo is 26 dp (shared by every tab).
 
 **Customize Home** (Settings, Appearance and feel, Home; also the footer): a switch for Today's budget row, Recent activity, Your deck,
 Market strip, Goals and reminders, Shortcut tiles and the Quick adds prompt, and "Reset to calm layout". Defaults: budget, activity and
@@ -397,8 +406,8 @@ Home's "Your deck" turns what is new into a few small stacks you can clear with 
   for Quiet and Auto cleared. Nothing left to go: one caption, "All caught up". The old Read row is gone from Home (Messages has it).
 - **Tiles.** Equal size within a row (`IntrinsicSize.Max`), at least 112 dp and growing with text; a stack's own tonal pairing from
   `theme/StackPalette.kt` (container + ink, light and dark, every pair 8:1 or better; the only literal colours for stacks, and only in the theme);
-  a paper edge drawn as an opaque slab (the container pulled a little towards the ink) above the tile; the mode tag chip, "N new", the name in
-  `titleLarge` (two lines at most) and the newest headline on one line with an ellipsis. A tile dips while held (`tappable`) and is one button
+  the mode tag chip, "N new", the name in
+  `titleMedium` (two lines at most; the paper edge is gone) and the newest headline on one line with an ellipsis. A tile dips while held (`tappable`) and is one button
   with one spoken sentence (amounts masked through `privateSpeech`). The header and each row of tiles rise in once, in turn (`enterOnce`, the first
   eight slots of Home's gate).
 - **Triage page** (`AppPage`, not scrollable): Fresh . N / Quiet . N (`SegmentedTabs`), chips All . N and one per stack, the title with "3 of 8", the

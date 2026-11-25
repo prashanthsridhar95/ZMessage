@@ -400,7 +400,7 @@ private fun SummaryPage(
             com.zyke.message.presentation.flights.FlightRequests.addRequested.value = false
         }
     }
-    CompositionLocalProvider(LocalContentInset provides 16.dp) {
+    CompositionLocalProvider(LocalContentInset provides Spacing.xl) {
     flightOpen?.let { key ->
         com.zyke.message.presentation.flights.FlightSheet(
             key, flightsToday, onDismiss = { flightOpen = null },
@@ -454,10 +454,10 @@ private fun SummaryPage(
     LazyColumn(
         Modifier.fillMaxSize(),
         state = summaryList,
-        contentPadding = PaddingValues(start = Spacing.lg, top = Spacing.lg, end = Spacing.lg, bottom = 96.dp),
-        // One rhythm: 12 dp between blocks, 16 dp gutters. The first eight blocks enter in a stagger, once (see enterOnce);
+        contentPadding = PaddingValues(start = Spacing.xl, top = Spacing.sm, end = Spacing.xl, bottom = 96.dp),
+        // One rhythm: 16 dp between blocks (24 before the deck and recent activity), 20 dp gutters. The first eight blocks enter in a stagger, once (see enterOnce);
         // a block that comes or goes later fades and the rest close the gap (itemMotion).
-        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         var slot = 0
         if (tourBanner) {
@@ -482,7 +482,7 @@ private fun SummaryPage(
             val at = slot++
             item(key = "balance") {
                 val intro = gate.rememberIsEntering(at)
-                Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BALANCE)) { BalanceHero(state.accounts, intro = intro) { onNavigate(AppTab.ACCOUNTS) } }
+                Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BALANCE)) { HomeBalanceHero(state.accounts, intro = intro) { onNavigate(AppTab.ACCOUNTS) } }
             }
         }
 
@@ -526,7 +526,7 @@ private fun SummaryPage(
             slot += deckSlots(deck)
             item(key = "deck") {
                 val intro = gate.rememberIsEntering(at)
-                Box(itemMotion().tourAnchor(TourAnchor.HOME_DECK)) {
+                Box(itemMotion().padding(top = Spacing.sm).tourAnchor(TourAnchor.HOME_DECK)) {
                     DeckSection(
                         deck, gate, at, intro, showDeck = layout.shows(HomeSection.DECK), reviewCount = state.review.count,
                         onOpen = onOpenTriage, onOpenAutoCleared = onOpenAutoCleared, onOpenReview = onOpenReview, onSettings = onDeckSettings
@@ -595,7 +595,7 @@ private fun SummaryPage(
             item(key = "activity") {
                 RecentActivity(
                     state.recent.take(MAX_RECENT_ACTIVITY), onOpen = { onIntent(Intent.OpenMessage(it)) }, onSeeAll = { onNavigate(AppTab.INBOX) },
-                    modifier = itemMotion().enterOnce(gate, at)
+                    modifier = itemMotion().padding(top = Spacing.sm).enterOnce(gate, at)
                 )
             }
         }

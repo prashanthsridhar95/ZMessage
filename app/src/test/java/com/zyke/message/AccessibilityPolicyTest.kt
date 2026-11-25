@@ -35,6 +35,7 @@ class AccessibilityPolicyTest {
         "home/HomeDeck.kt" to 1,                           // the chevron of the review row, which says "N things to review" as one button
         "home/BillsPage.kt" to 1,                          // the chevron of a Plan ahead row, whose title and caption are read
         "home/HomeToday.kt" to 1,                          // the check beside "You're all clear", whose words are read
+        "home/HomePolish.kt" to 1,                         // the chevron of the balance hero, which is one button ("Open accounts") that speaks the figure
         "home/GoalsAndReminders.kt" to 1,                  // icon of a ShortcutTile, whose text is the label
         "home/AccountsUi.kt" to 1,                         // leading icon of a menu item, whose text is the label
         "AppRoot.kt" to 2,                                 // the two layers of a bottom-bar icon; the item has the label

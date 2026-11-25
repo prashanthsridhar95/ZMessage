@@ -65,7 +65,7 @@ fun ZykeToolbar(
                 // rather than pushing a button off a narrow screen.
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     Image(
-                        modifier = Modifier.height(30.dp),
+                        modifier = Modifier.height(26.dp),
                         painter = painterResource(R.drawable.zyke_main),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                         contentScale = androidx.compose.ui.layout.ContentScale.Fit,

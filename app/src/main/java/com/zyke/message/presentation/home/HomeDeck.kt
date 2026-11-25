@@ -98,14 +98,24 @@ internal fun DeckSection(
 ) {
     val responsive = LocalResponsive.current
     val stacked = responsive.stackRows || responsive.fontScale >= 1.5f
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         if (showDeck) {
             Column(Modifier.enterOnce(gate, firstSlot)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "YOUR DECK", Modifier.weight(1f).heading(), style = TypeRole.section, color = mutedColor(),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
+                    Column(Modifier.weight(1f)) {
+                        HomeLabel("Your deck")
+                        if (deck.toGo > 0) {
+                            val count = rememberCountUpInt(deck.toGo, fromZero = intro)
+                            Text(
+                                "$count to go", Modifier.padding(top = Spacing.xs).semantics { contentDescription = "${deck.toGo} to go" },
+                                style = TypeRole.title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            Caption("All caught up. Cleared cards stay in Messages.", Modifier.padding(top = Spacing.xs), maxLines = 2)
+                        }
+                    }
+                    if (!stacked && deck.toGo > 0) LinkButton("Swipe all", { onOpen(false, null) })
                     Box(
                         Modifier.size(48.dp).tappable(onClick = onSettings, onClickLabel = "Make it yours: order and modes of the stacks"),
                         contentAlignment = Alignment.Center
@@ -116,29 +126,7 @@ internal fun DeckSection(
                         )
                     }
                 }
-                if (deck.toGo > 0) {
-                    val count = rememberCountUpInt(deck.toGo, fromZero = intro)
-                    val title: @Composable (Modifier) -> Unit = { m ->
-                        Text(
-                            "$count to go", m.semantics { contentDescription = "${deck.toGo} to go" }, style = TypeRole.title,
-                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    val swipeAll: @Composable (Modifier) -> Unit = { m ->
-                        AppButton("Swipe all →", { onOpen(false, null) }, m, style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
-                    }
-                    if (stacked) {
-                        title(Modifier.fillMaxWidth())
-                        swipeAll(Modifier)
-                    } else {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                            title(Modifier.weight(1f))
-                            swipeAll(Modifier)
-                        }
-                    }
-                } else {
-                    Caption("All caught up. Cleared cards stay in Messages.", maxLines = 2)
-                }
+                if (stacked && deck.toGo > 0) LinkButton("Swipe all", { onOpen(false, null) })
             }
             val shown = deck.tiles.take(MAX_TILES)
             shown.chunked(2).forEachIndexed { row, pair ->
@@ -160,7 +148,13 @@ internal fun DeckSection(
                 if (stacked) {
                     Column { quiet(); cleared() }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) { quiet(); cleared() }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        quiet()
+                        if (deck.quietCount > 0 && deck.autoCleared.isNotEmpty()) {
+                            Text("\u00B7", Modifier.padding(horizontal = Spacing.sm), style = TypeRole.caption, color = mutedColor())
+                        }
+                        cleared()
+                    }
                 }
             }
         }
@@ -186,24 +180,22 @@ private fun QuietLink(text: String, spoken: String, onClick: () -> Unit) {
 @Composable
 private fun ReviewRow(count: Int, onOpen: () -> Unit) {
     val label = DisplayFormatters.count(count, "thing", "things") + " to review"
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(AppShapes.control)
-            .tappable(onClick = onOpen, onClickLabel = "Open review")
-            .semantics(mergeDescendants = true) { contentDescription = label }
-            .tourAnchor(TourAnchor.HOME_REVIEW),
-        verticalAlignment = Alignment.CenterVertically
+    HomeCard(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = label }.tourAnchor(TourAnchor.HOME_REVIEW),
+        onClick = onOpen, onClickLabel = "Open review", vertical = Spacing.xs
     ) {
-        Text(label, Modifier.weight(1f), style = TypeRole.body, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Image(
-            painter = painterResource(R.drawable.baseline_chevron_right_24), contentDescription = null, modifier = Modifier.size(24.dp),
-            colorFilter = ColorFilter.tint(mutedColor())
-        )
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), style = TypeRole.body, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Image(
+                painter = painterResource(R.drawable.baseline_chevron_right_24), contentDescription = null, modifier = Modifier.size(24.dp),
+                colorFilter = ColorFilter.tint(mutedColor())
+            )
+        }
     }
 }
 
 /**
- * One stack: its mode, how many are new, its name and the newest card's headline on one line. A paper edge (an opaque slab of the
- * same tone, a little darker) peeks out above it so it reads as a stack. The tile dips while held, and speaks as one button.
+ * One stack: its mode, how many are new, its name and the newest card's headline on one line. Quiet and flat: no slab above it, a 16 dp inset, the name in `titleMedium`. The tile dips while held, and speaks as one button.
  */
 @Composable
 private fun StackTile(stack: TriageStack, modifier: Modifier, onClick: () -> Unit) {
@@ -214,22 +206,18 @@ private fun StackTile(stack: TriageStack, modifier: Modifier, onClick: () -> Uni
             .tappable(onClick = onClick, onClickLabel = "Open ${stack.title}")
             .semantics(mergeDescendants = true) { contentDescription = spoken }
     ) {
-        Box(
-            Modifier.align(Alignment.TopCenter).padding(horizontal = Spacing.lg).fillMaxWidth().height(Spacing.md)
-                .background(tone.edge, RoundedCornerShape(topStart = Radius.chip, topEnd = Radius.chip))
-        )
         Column(
-            Modifier.padding(top = Spacing.sm).fillMaxWidth().fillMaxHeight().heightIn(min = TILE_MIN_HEIGHT)
-                .clip(AppShapes.card).background(tone.container).padding(Spacing.md)
+            Modifier.fillMaxWidth().fillMaxHeight().heightIn(min = TILE_MIN_HEIGHT)
+                .clip(AppShapes.card).background(tone.container).padding(Spacing.lg)
         ) {
             ModeTag("${stack.newCount} new", tone, Modifier.align(Alignment.Start))
-            Spacer(Modifier.weight(1f).heightIn(min = Spacing.md))
+            Spacer(Modifier.weight(1f).heightIn(min = Spacing.lg))
             Text(
-                stack.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tone.ink,
+                stack.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = tone.ink,
                 maxLines = scaledLines(2), overflow = TextOverflow.Ellipsis
             )
             Text(
-                stack.preview, Modifier.padding(top = Spacing.xs), style = TypeRole.caption, color = tone.ink.copy(alpha = 0.85f),
+                stack.preview, Modifier.padding(top = Spacing.xs), style = TypeRole.caption, color = tone.ink.copy(alpha = 0.8f),
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
