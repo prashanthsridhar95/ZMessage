@@ -118,7 +118,7 @@ class LocationPolicyTest {
 
     @Test fun theLocationPermissionsAreAskedForOnlyOnTheSettingsPage_andDeletingAsksFirst() {
         val askers = kotlinFiles().filter { f -> code(f).any { it.contains("permission.ACCESS_") && !it.startsWith("import ") } }.map { it.name }.sorted()
-        assertEquals(listOf("PlaceCapturer.kt", "PlacesSettings.kt"), askers)
+        assertEquals(listOf("PlaceCapturer.kt", "PlacesPrompt.kt", "PlacesSettings.kt"), askers)
         val settings = text("presentation/places/PlacesSettings.kt")
         assertTrue(settings.contains("Manifest.permission.ACCESS_BACKGROUND_LOCATION") && settings.contains("Build.VERSION_CODES.Q"))
         assertTrue("Android 11 and later: the system settings page", settings.contains("else openAppSettings()"))
@@ -134,5 +134,23 @@ class LocationPolicyTest {
         assertTrue(namer.contains("Geocoder.isPresent()") && namer.contains("Build.VERSION_CODES.TIRAMISU") && namer.contains("withTimeoutOrNull(TIMEOUT_MS)") && namer.contains("@Suppress(\"DEPRECATION\")"))
         assertTrue(text("presentation/places/PlaceWhere.kt").contains("geocode -> PlaceNamer.name("))
         assertTrue(text("presentation/places/PlacesSettings.kt").contains("often asks a remote service") || text("presentation/places/PlacesSettings.kt").contains("asks a remote service"))
+    }
+
+    @Test fun theOnboardingAndUpdatePrompt_neverEnablesBeforeConsent_andIsNeverShownInDemo() {
+        val prompt = text("presentation/places/PlacesPrompt.kt")
+        // Turn on only leads to the consent page; only its Continue switches capture on, then the system is asked.
+        assertTrue(prompt.contains("onPrimary = { phase = PlacesPromptPhase.CONSENT.ordinal }"))
+        assertTrue(prompt.contains("onPrimary = { agree() }"))
+        assertEquals("enabled = true appears once, in agree()", 1, Regex("""enabled = true""").findAll(prompt).count())
+        assertTrue(prompt.indexOf("enabled = true") < prompt.indexOf("askLocation.launch(arrayOf("))
+        assertTrue("a refusal puts the switch back off", prompt.contains("!fine -> { repo.update { it.copy(enabled = false) }"))
+        assertTrue("Not now and back remember the answer", prompt.contains("fun notNow() { answered(); onDone() }") && prompt.contains("it.copy(prompted = true)"))
+        assertTrue("Android 10 dialog, Android 11+ settings", prompt.contains("Build.VERSION_CODES.Q") && prompt.contains("ACTION_APPLICATION_DETAILS_SETTINGS"))
+        val activity = text("presentation/MainActivity.kt")
+        assertTrue("after the notification steps, never before the lock screen", activity.contains("3 -> {") && activity.contains("PlacesPromptHost(") && activity.contains("&& !locked && !welcomePending"))
+        assertTrue("demo asks nothing at all", activity.contains("demo = com.zyke.message.data.demo.DemoMode.active"))
+        val domain = File("../domain/src/main/kotlin/com/zyke/message/domain/places/PlacesPrompt.kt").readText()
+        assertTrue(domain.contains("demo || blocked || answered(settings) -> PlacesPromptKind.NONE"))
+        assertTrue("the answered flag lives in the never-backed-up settings file", text("data/repository/SpendPlaceRepositoryImpl.kt").contains(".putBoolean(\"prompted\", c.prompted)"))
     }
 }
