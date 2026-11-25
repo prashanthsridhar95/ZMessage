@@ -355,6 +355,8 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
             }
         }
 
+        item(key = "places-entry") { WhereYouSpendEntry() }
+
         if (!dashboard.isEmpty) {
             // The switch and what it covers stay at the top while the sections it drives scroll under it.
             stickyHeader(key = "label-spending") {

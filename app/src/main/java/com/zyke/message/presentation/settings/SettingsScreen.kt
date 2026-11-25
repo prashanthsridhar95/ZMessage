@@ -111,6 +111,7 @@ internal enum class SettingsGroup(val title: String, val icon: Int) {
     MARKETS("Market watch", R.drawable.ic_trending_24),
     FLIGHTS("Flights and trains", R.drawable.baseline_flight_24),
     PRIVACY("Privacy and security", R.drawable.ic_lock_24),
+    PLACES("Spending places", R.drawable.ic_place_24),
     APPEARANCE("Appearance", R.drawable.ic_sun_24),
     HELP("Help and tour", R.drawable.ic_info_24),
     DEMO("Demo mode", R.drawable.ic_demo_24),
@@ -141,6 +142,7 @@ fun SettingsPage(
     val open = SettingsGroup.entries.firstOrNull { it.name == openName }
     val container = (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container
     val watch by container.watchlist.watch.collectAsStateWithLifecycle()
+    val placesState by container.spendPlaces.state.collectAsStateWithLifecycle()
     val flightsOn by container.flights.liveEnabled.collectAsStateWithLifecycle()
     val trainsOn by container.trains.liveEnabled.collectAsStateWithLifecycle()
     val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
@@ -163,6 +165,7 @@ fun SettingsPage(
             SettingsGroup.MARKETS -> if (watch.enabled) "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(watch.symbols.size, "share", "shares") else "Off"
             SettingsGroup.FLIGHTS -> when { flightsOn && trainsOn -> "Flights and trains on"; flightsOn -> "Flights on"; trainsOn -> "Trains on"; else -> "Off" }
             SettingsGroup.PRIVACY -> if (state.settings.appLock) "App lock on" else "Private on this phone"
+            SettingsGroup.PLACES -> when { demoOn -> "Made-up places in the demo"; placesState.settings.enabled -> "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(placesState.places.size, "place", "places"); else -> "Off" }
             SettingsGroup.APPEARANCE -> state.settings.themeMode.label + if (state.settings.accent != com.zyke.message.domain.model.AccentColor.DEFAULT) ", ${state.settings.accent.label}" else ""
             SettingsGroup.HELP -> "Take the app tour"
             SettingsGroup.DEMO -> if (demoOn) "On \u00B7 sample data" else "Show the app with sample data"
@@ -403,6 +406,7 @@ private fun GroupContent(
         CodeSharingEntry()
         }
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
+        SettingsGroup.PLACES -> com.zyke.message.presentation.places.PlacesSettingsContent()
         SettingsGroup.FLIGHTS -> {
             com.zyke.message.presentation.flights.FlightSettingsSection()
             com.zyke.message.presentation.trains.TrainSettingsSection()
