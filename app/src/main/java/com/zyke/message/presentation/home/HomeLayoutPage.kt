@@ -24,7 +24,7 @@ import com.zyke.message.presentation.common.AppPage
 import com.zyke.message.presentation.common.ButtonStyle
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.fullWidthClickable
-import com.zyke.message.presentation.dashboard.components.SectionCard
+import com.zyke.message.presentation.common.FintechCard
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.messages.components.mutedColor
@@ -44,7 +44,8 @@ internal fun rememberHomeLayout(): HomeLayout {
 internal fun HomeLayoutEntry() {
     var open by rememberSaveable { mutableStateOf(false) }
     val layout = rememberHomeLayout()
-    SectionCard("Home") {
+    // A plain card, always showing its one row: a section that folds away would hide the only way into Customize Home.
+    FintechCard {
         Row(
             Modifier.fillMaxWidth().fullWidthClickable(role = Role.Button, onClickLabel = "Open Customize Home") { open = true },
             verticalAlignment = Alignment.CenterVertically
@@ -82,7 +83,8 @@ internal fun HomeLayoutPage(onDismiss: () -> Unit) {
             Modifier.padding(bottom = Spacing.md), maxLines = 3
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            SectionCard("Sections") {
+            // Always open: these switches are the whole point of the page, so nothing here folds away.
+            FintechCard {
                 HomeSection.entries.forEach { section ->
                     // The market strip also needs Market watch switched on in Settings; say so rather than hide the switch.
                     val summary = if (section == HomeSection.MARKET && !watch.enabled) "Turn on Market watch in Settings first" else section.summary
