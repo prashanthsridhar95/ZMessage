@@ -12,7 +12,8 @@ import kotlinx.coroutines.launch
  * Hears about each new text, only after the person turned on live alerts or code sharing (the receiver is disabled until
  * then). It stores nothing: it reads the text in memory, and if it is a code or a card bill it posts a button notification.
  * When the person set up "Share codes with trusted people", a login code from an allowed service is also sent on by SMS to
- * the chosen people ([CodeSharer]: the code and the service name only, never the message). The messaging app remains the default and keeps handling the message itself.
+ * the chosen people ([CodeSharer]: the code and the service name only, never the message). With "Remember where I spend" on, a purchase
+ * text also gets one quick location fix ([com.zyke.message.data.places.PlaceCapturer]), kept only on this phone. The messaging app remains the default and keeps handling the message itself.
  */
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -26,7 +27,9 @@ class SmsReceiver : BroadcastReceiver() {
         val sharing = container.codeSharing.rules.value.enabled
         // A time only, before anything else can return: it lets the sharing page show whether texts reach this receiver at all.
         if (sharing) runCatching { container.codeSharing.noteReceiverFired(System.currentTimeMillis()) }
-        if ((!alerts && !sharing) || settings.readingPaused) return
+        // "Remember where I spend": its switch also keeps this receiver on (spend_places_settings, see PlaceCapturer).
+        val places = container.spendPlaces.state.value.settings.enabled
+        if ((!alerts && !sharing && !places) || settings.readingPaused) return
 
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         // A long text arrives in pieces from one sender; join them.
@@ -45,12 +48,15 @@ class SmsReceiver : BroadcastReceiver() {
         // Passing a code on (this live message only, never a re-read of the inbox) and the heads-up (which reads the inbox for
         // what is usual) take a moment; keep the receiver alive for them.
         val headsUp = alerts && settings.headsUp
-        if (!sharing && !headsUp) return
+        // A purchase text gets one quick location fix (live message only, never a re-read of the inbox); the rule is domain, tested.
+        val wantsPlace = places && com.zyke.message.domain.places.PlaceCapture.decide(classified, container.spendPlaces.state.value.settings) is com.zyke.message.domain.places.CaptureDecision.Capture
+        if (!sharing && !headsUp && !wantsPlace) return
         val pending = goAsync()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             try {
                 if (sharing) CodeSharer.onLiveMessage(context, container, classified)
                 if (headsUp) HeadsUpNotifier.check(context, classified)
+                if (wantsPlace) com.zyke.message.data.places.PlaceCapturer.onPurchaseText(context, container, classified)
             } finally {
                 pending.finish()
             }

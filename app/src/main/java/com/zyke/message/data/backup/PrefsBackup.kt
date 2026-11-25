@@ -28,7 +28,13 @@ object PrefsBackup {
     // train_key_device and train_usage_device: the person's own train data key and the count of requests made today; they describe this phone, so a backup never carries the key.
     // flight_plan and train_plan: the journeys the alarm and the tracking service work from when the app is closed (rebuilt whenever Home is shown); manual_flights and manual_trains travel.
     // home_layout (which optional parts of Home are shown) is the person's own setting and travels.
-    private val EXCLUDED = setOf("flight_plan", "train_plan", "code_sharing_log", "code_sharing_seen", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
+    // spend_places_settings: the "Remember where I spend" switch and its choices describe this phone, so a restored phone never starts collecting places on its own.
+    // spend_places (the places themselves) travels ONLY when the person turned on "Include places in my backup" (off by default): see OPT_IN and placesOptedIn.
+    private val EXCLUDED = setOf("spend_places_settings", "flight_plan", "train_plan", "code_sharing_log", "code_sharing_seen", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
+    /** Files that are left out of a backup unless the person opted in (read from [SETTINGS_FILE] when the snapshot is made). */
+    private val OPT_IN = setOf("spend_places")
+    private const val SETTINGS_FILE = "spend_places_settings"
+    private const val BACKUP_FLAG = "backup"
     private val VALID_NAME = Regex("[a-z][a-z0-9_]{0,63}")
 
     /** A parsed snapshot that has been checked and is ready to apply. Holds nothing but preference values. */
@@ -41,13 +47,18 @@ object PrefsBackup {
     /** Why a decrypted snapshot cannot be used. */
     class InvalidSnapshotException : Exception("The backup does not contain a usable setup.")
 
-    private fun includes(name: String) = name !in EXCLUDED && VALID_NAME.matches(name)
+    private fun includes(name: String) = name !in EXCLUDED && name !in OPT_IN && VALID_NAME.matches(name)
+
+    private fun placesOptedIn(context: Context): Boolean =
+        runCatching { context.applicationContext.getSharedPreferences(SETTINGS_FILE, Context.MODE_PRIVATE).getBoolean(BACKUP_FLAG, false) }.getOrDefault(false)
+
+    private fun includesForCapture(context: Context, name: String) = includes(name) || (name in OPT_IN && placesOptedIn(context) && VALID_NAME.matches(name))
 
     private fun existingNames(context: Context): List<String> =
         File(context.applicationInfo.dataDir, "shared_prefs").listFiles()
             ?.filter { it.isFile && it.name.endsWith(".xml") }
             ?.map { it.name.removeSuffix(".xml") }
-            ?.filter(::includes)
+            ?.filter { includesForCapture(context, it) }
             ?.sorted()
             .orEmpty()
 
@@ -101,7 +112,7 @@ object PrefsBackup {
             val prefs = root.getJSONObject("prefs")
             val files = LinkedHashMap<String, List<Entry>>()
             for (name in prefs.keys()) {
-                if (!includes(name)) continue
+                if (!includes(name) && name !in OPT_IN) continue
                 val file = prefs.getJSONObject(name)
                 val entries = ArrayList<Entry>()
                 for (key in file.keys()) {

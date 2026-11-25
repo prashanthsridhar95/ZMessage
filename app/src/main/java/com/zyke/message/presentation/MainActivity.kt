@@ -232,8 +232,10 @@ class MainActivity : ComponentActivity() {
         observeScreenProtection()
         // The receiver that hears new texts follows the saved switch, even after a restore or an update.
         // It is also wanted while "Share codes with trusted people" is on.
-        val alertsOn = container.settings.settings.value.liveAlerts || container.codeSharing.rules.value.enabled
+        val alertsOn = LiveAlerts.wanted(container)
         Thread({ runCatching { LiveAlerts.reconcile(appContext, alertsOn); LiveAlerts.ensureChannels(appContext) } }, "live-alerts-reconcile").start()
+        // Places older than the keep-for setting, and those of deleted messages, are dropped once per start.
+        com.zyke.message.data.places.PlaceRetention.start(lifecycleScope, container)
         // The alarm for the next timed reminder follows whatever reminders there are.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

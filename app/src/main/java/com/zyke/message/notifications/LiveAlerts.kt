@@ -49,8 +49,12 @@ internal object LiveAlerts {
     fun refreshReceiver(context: Context) {
         if (com.zyke.message.data.demo.DemoMode.active) return
         val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
-        reconcile(context, container.settings.settings.value.liveAlerts || container.codeSharing.rules.value.enabled)
+        reconcile(context, wanted(container))
     }
+
+    /** The receiver is wanted by the code and bill buttons, by passing codes on, and by "Remember where I spend". */
+    fun wanted(container: com.zyke.message.di.AppContainer): Boolean =
+        container.settings.settings.value.liveAlerts || container.codeSharing.rules.value.enabled || container.spendPlaces.state.value.settings.enabled
 
     fun canNotify(context: Context): Boolean =
         !com.zyke.message.data.demo.DemoMode.active && (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

@@ -23,7 +23,18 @@ internal object DemoSeeder {
         container.categoryOverrides.setAll(data.categories)
         container.nicknames.setAll(data.nicknames)
         container.watchlist.save(data.watch)
+        // Made-up places for the made-up purchases, around a fictional city: the demo never asks the phone where it is.
+        seedPlaces(container, data)
         // No tour on the way in (it is still there under Settings, Help).
         container.tourSeen.update { it.finished().copy(installKind = com.zyke.message.domain.tour.TourInstallKind.RESTORED) }
+    }
+
+    private fun seedPlaces(container: AppContainer, data: DemoDataset) {
+        val settings = container.spendPlaces.state.value.settings
+        for (sms in data.messages) {
+            val classified = container.messageClassifier.classify(sms)
+            if (com.zyke.message.domain.places.PlaceCapture.decide(classified, settings.copy(enabled = true)) != com.zyke.message.domain.places.CaptureDecision.Capture) continue
+            container.spendPlaces.put(com.zyke.message.domain.places.DemoPlaces.place(com.zyke.message.domain.places.PlaceKey.of(sms), classified.merchant.name, sms.date))
+        }
     }
 }

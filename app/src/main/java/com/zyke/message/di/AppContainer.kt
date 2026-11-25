@@ -96,6 +96,8 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     /** Who login codes are passed on to. Nothing in Demo mode: nothing is stored, nothing can be sent. */
     val codeSharing: com.zyke.message.domain.sharing.CodeSharingRepository by lazy { if (demo) com.zyke.message.domain.sharing.NoCodeSharing else com.zyke.message.data.repository.CodeSharingRepositoryImpl(context) }
     /** "Check balance by SMS": the person's changes to the bank presets, the saved UAN and the last request per account. In memory only in Demo mode. */
+    /** Where purchases were made, and the choices about it (prefs `spend_places` and `spend_places_settings`; only in memory in the demo, seeded with made-up places). */
+    val spendPlaces: com.zyke.message.domain.places.SpendPlaceRepository by lazy { if (demo) com.zyke.message.domain.places.SpendPlaceStore() else com.zyke.message.data.repository.SpendPlaceRepositoryImpl(context) }
     val balanceCheck: com.zyke.message.domain.balance.BalanceCheckRepository by lazy { if (demo) com.zyke.message.domain.balance.InMemoryBalanceCheck() else com.zyke.message.data.repository.BalanceCheckRepositoryImpl(context) }
     /** The monthly spending limit per card, set from the Cards tab. In memory only in Demo mode. */
     val cardLimits: com.zyke.message.domain.cards.CardLimitsRepository by lazy { if (demo) com.zyke.message.domain.cards.InMemoryCardLimits() else com.zyke.message.data.repository.CardLimitsRepositoryImpl(context) }

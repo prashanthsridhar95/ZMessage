@@ -24,6 +24,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Android 16 and later: lets the in-flight notification be a "Live Update" (progress on the lock screen and status bar). A normal permission, granted at install; ignored on older Android. -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- Only for the optional "Remember where I spend" (off by default, asked for only when it is switched on): one quick location fix when a
+         purchase text arrives, kept only on this phone. Background location is needed because texts arrive while the app is closed; it is
+         used for that one fix and never for tracking. No Google Play services; see PlaceCapturer and LocationPolicyTest. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
 
 
     <application
