@@ -53,6 +53,9 @@ object CategoryOptions {
         MessageNature.OTHER -> MessageCategory.assignable.filter { it != SALARY }
     }
 
+    /** The categories a payment can be filed under, for a filter over spending (the Spending map's chips). */
+    fun forSpending(): List<MessageCategory> = options(MessageNature.EXPENSE)
+
     /** The categories for [message], in a steady order; its current one is always among them so it can be seen and undone. */
     fun forMessage(message: ClassifiedMessage): List<MessageCategory> {
         val list = options(natureOf(message.content))

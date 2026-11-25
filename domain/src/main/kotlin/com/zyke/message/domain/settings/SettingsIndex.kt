@@ -30,6 +30,7 @@ enum class SettingsPageId(val title: String) {
     MARKETS("Market watch"),
     FLIGHTS("Flights and trains"),
     PRIVACY("Privacy and security"),
+    PLACES("Spending places"),
     APPEARANCE("Appearance"),
     HELP("Help and tour"),
     DEMO("Demo mode"),
@@ -74,7 +75,7 @@ object SettingsLayout {
         SettingsGroupId.MESSAGES to listOf(SettingsPageId.MESSAGES, SettingsPageId.RULES),
         SettingsGroupId.TRAVEL to listOf(SettingsPageId.FLIGHTS),
         SettingsGroupId.BACKUP to listOf(SettingsPageId.ABOUT),
-        SettingsGroupId.PRIVACY to listOf(SettingsPageId.PRIVACY),
+        SettingsGroupId.PRIVACY to listOf(SettingsPageId.PRIVACY, SettingsPageId.PLACES),
         SettingsGroupId.HELP to listOf(SettingsPageId.HELP, SettingsPageId.DEMO, SettingsPageId.LEGAL, SettingsPageId.LICENCES),
         SettingsGroupId.DEVELOPER to listOf(SettingsPageId.DEVELOPER)
     )
@@ -140,6 +141,14 @@ object SettingsIndex {
         e("travel.flights", "Live flight status", "Follow the flights found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "airline", "plane", "pnr", "departure", "gate"),
         e("travel.trains", "Live train status", "Follow the trains found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "railway", "irctc", "pnr", "platform", "delay"),
         e("travel.checks", "Live status check", "Test the flight and train look-ups", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "diagnostics", "test", developerOnly = true),
+        // Spending places
+        e("places.switch", "Remember where I spend", "One location fix per purchase text, kept on this phone", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "location", "gps", "where", "place", "map", "background location", "all the time", hiddenInDemo = true),
+        e("places.map", "Spending map", "Heat and price pins of what you spent, by place", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "map", "heat", "heatmap", "pins", "where you spend", "location", "openstreetmap"),
+        e("places.pictures", "Map pictures", "Show OpenStreetMap squares behind the pins", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "openstreetmap", "tiles", "internet", "map", "offline"),
+        e("places.names", "Place names", "Ask the phone for a street or area name", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "geocoder", "address", "location", "name"),
+        e("places.keep", "Keep places for", "Older places are removed on their own", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "months", "retention", "delete", "location"),
+        e("places.backup", "Include places in my backup", "Off by default; places stay on this phone", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "backup", "location", "restore"),
+        e("places.delete", "Delete all places", "Removes every saved place and name", SettingsGroupId.PRIVACY, SettingsPageId.PLACES, "erase", "wipe", "location", "clear", hiddenInDemo = true),
         // Backup and data
         e("data.auto", "Automatic backup", "Android backup, Google Drive or a folder", SettingsGroupId.BACKUP, SettingsPageId.ABOUT, "auto", "drive", "schedule", "wifi", "charging", "encrypt", "passphrase", "pin", hiddenInDemo = true),
         e("data.backup", "Backup and restore", "A file of your setup, protected by a passphrase", SettingsGroupId.BACKUP, SettingsPageId.ABOUT, "restore", "passphrase", "new phone", "file", "import", hiddenInDemo = true),

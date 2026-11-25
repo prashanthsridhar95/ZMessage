@@ -37,6 +37,8 @@ data class SpendPlaceSettings(
     val explained: Boolean = false,
     /** Ask the phone's geocoder for a place name (it may contact a remote service). */
     val geocodeNames: Boolean = true,
+    /** Show OpenStreetMap squares behind the pins (asks the internet for the squares on screen); off until the person agrees. */
+    val mapPictures: Boolean = false,
     /** Places travel in the encrypted setup backup. */
     val includeInBackup: Boolean = false,
     val keepMonths: Int = DEFAULT_KEEP_MONTHS,

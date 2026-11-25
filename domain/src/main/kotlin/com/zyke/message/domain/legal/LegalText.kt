@@ -19,7 +19,8 @@ object LegalText {
     /** The Android permissions the manifest asks for (the part after `android.permission.`), each explained in [sections]. */
     val permissions: List<String> = listOf(
         "READ_SMS", "RECEIVE_SMS", "SEND_SMS", "INTERNET", "POST_NOTIFICATIONS", "RECEIVE_BOOT_COMPLETED",
-        "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_PROMOTED_NOTIFICATIONS"
+        "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_PROMOTED_NOTIFICATIONS",
+        "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION"
     )
 
     const val HOST_GOOGLE = "www.google.com"
@@ -29,13 +30,14 @@ object LegalText {
     const val HOST_FLIGHTRADAR = "api.flightradar24.com"
     const val HOST_TRAINS = "indianrailapi.com"
     const val HOST_GOOGLE_APIS = "www.googleapis.com"
+    const val HOST_OSM_TILES = "tile.openstreetmap.org"
 
     /**
      * Every fixed internet address the app can ask. A test compares this with the hosts written in the code, so the page cannot
      * drift from it. (A brand's own website is also asked for its icon, from a fixed list of well-known brands in the app.)
      */
     val networkHosts: Set<String> = setOf(
-        HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS
+        HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS, HOST_OSM_TILES
     )
 
     private val onPhone = LegalSection(
@@ -47,6 +49,7 @@ object LegalText {
             LegalItem("Your messages", "Message text is read from the phone's SMS store and kept in memory. A copy is also kept in a database on the phone where every entry is encrypted with a key that never leaves the phone's secure hardware. Message text is never sent to us or to anyone else."),
             LegalItem("What you enter", "Budgets, cards (last four digits only), plans, goals, reminders, notes, names and settings are saved in the app's private storage."),
             LegalItem("Cookies", "The app sets no cookies and has no cookie banner. One exception: if you choose \"From the web\" to find a picture for a sender, a Google Images page opens inside the app and Google's page may use its own cookies, as it would in a browser."),
+            LegalItem("Spending places (off until you switch on \"Remember where I spend\")", "When a purchase text arrives, the phone is asked once where it is. The position (rounded to about 11 metres), how exact it was and the time are saved on this phone, tied to that one text by a one-way code, and used only to show the Where section of a payment and the Spending map. They are never uploaded, never written to the log, left out of backups unless you turn on \"Include places in my backup\", and removed when the text is deleted, after the number of months you choose (24 by default), or when you tap Delete all places. Place names, if shown, come from the phone's own geocoder, which may contact a remote service; you can turn names off."),
             LegalItem("Logs", "A small log of start-up steps and crash details (screen and function names, never message text, amounts or names) stays on the phone. It leaves only if you choose Share logs and pick an app.")
         )
     )
@@ -82,6 +85,10 @@ object LegalText {
                 "One file, encrypted on the phone with a key made from your PIN or passphrase, is uploaded to the private app folder of your own Google Drive ($HOST_GOOGLE_APIS, scope drive.appdata, which cannot see anything else in your Drive). Google receives the encrypted file and your sign-in; we receive nothing. The file holds your setup, never messages. Android's own Auto Backup may also keep that one encrypted file in your Google account."
             ),
             LegalItem(
+                "Map pictures (only when you open the Spending map)",
+                "The map page shows pictures from OpenStreetMap ($HOST_OSM_TILES). Only the numbers of the map squares you are looking at (zoom, column, row) are requested, over a secure (HTTPS) connection, with the name of this app and no cookies. Your spending places, amounts and messages are never sent. Because a square's number tells roughly which part of the world you are looking at, OpenStreetMap's servers can see that, and your phone's address, as with any map. Squares are kept on the phone for a while so the map works offline; nothing is requested while the map is closed. Map data is by OpenStreetMap contributors (ODbL). In Demo mode no map picture is requested at all."
+            ),
+            LegalItem(
                 "Texts the app sends, only when you confirm",
                 "Sharing codes: if you switch on \"Share codes\" and add people, a login code from an allowed service (for example a streaming service) is texted from your SIM to those people, with the service name and nothing else. Bank, payment, government and other sensitive codes are never sent. Check balance by SMS: the first time for a bank, a screen shows the exact number and words and one text goes from your SIM to your bank's enquiry number when you tap Send. That screen has a box, ticked unless you untick it, \"Always send without asking for this bank\"; after that, one tap on Check balance sends the same text at once and the button shows a progress until the reply arrives. You can turn the question back on under the account's menu, Balance check settings. These are ordinary texts, not internet requests; your mobile plan may charge for them."
             ),
@@ -109,6 +116,8 @@ object LegalText {
             LegalItem("RECEIVE_BOOT_COMPLETED", "Puts your reminder and morning-summary alarms back after the phone restarts."),
             LegalItem("FOREGROUND_SERVICE and FOREGROUND_SERVICE_DATA_SYNC", "Keep two jobs going with a visible notification: reading a very large inbox month by month, and (only with live flight or train status on) following a flight or train that is about to leave or under way."),
             LegalItem("POST_PROMOTED_NOTIFICATIONS", "Lets the flight notification appear as a Live Update on Android 16 and later. It gives no access to anything."),
+            LegalItem("ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION", "Used for one quick location fix when a purchase text arrives, only if you switched on \"Remember where I spend\". The app never follows you around: no polling, no geofencing, no background service, no Google Play services. Asked for when you switch that on."),
+            LegalItem("ACCESS_BACKGROUND_LOCATION", "Texts arrive while the app is closed, so the one fix has to be allowed in the background (Android calls this \"Allow all the time\"). It is used for that one fix per purchase text and for nothing else. You can take it back in the phone's settings at any time; places already saved stay until you delete them."),
             LegalItem("Notification access (a system setting, not a normal permission)", "If you allow it, the app reads incoming chat (RCS) notifications from your messaging app so those messages can be organised too: the sender and the text the notification shows, never a banner image or a button. Chat messages are not in the phone's message store, so this is the only way the app can see them. It is off until you allow it in the phone's settings and keeps up to 2000 messages on the phone.")
         )
     )
