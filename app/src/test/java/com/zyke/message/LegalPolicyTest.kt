@@ -36,7 +36,7 @@ class LegalPolicyTest {
         val hostPattern = Regex("""https://([a-z0-9.]+)/""")
         val files = listOf(
             "data/logo/LogoFetcher.kt", "data/markets/QuoteFetcher.kt", "data/markets/FlightFetcher.kt", "data/markets/TrainFetcher.kt",
-            "data/backup/DriveBackupClient.kt", "presentation/common/ImageSearchSheet.kt"
+            "data/backup/DriveBackupClient.kt", "presentation/common/ImageSearchSheet.kt", "data/maps/TileFetcher.kt"
         )
         val inCode = files.flatMap { f -> hostPattern.findAll(main(f)).map { it.groupValues[1] }.toList() }.toSet()
         assertEquals("the hosts named by LegalText.networkHosts differ from the hosts in the network code", inCode, LegalText.networkHosts)

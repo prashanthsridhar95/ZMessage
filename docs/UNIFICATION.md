@@ -55,6 +55,7 @@ deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `
 
 | Candidates | Decision |
 |---|---|
+| "Where you spend" (Spending map) vs "Insights by category" | Keep both, they answer different questions. By category adds up what was spent on what; the map adds up what was spent where. They share one source of truth: the map only draws payments `Counting.spend` calls spending, with the same category chips (`CategoryOptions.forSpending`), the same period words and the same hidden-amount rule, so a payment left out of totals leaves the map too and no figure can disagree. The Insights tab has one entry card to the map; Settings and a payment's "Where" section open the same page (`SpendMapRequests`). |
 | Goals vs plan "savings goal" vs "Afford it -> Add as a goal" | Keep. The plan's savings goal is one monthly amount to set aside; a Goal is a named target with a balance. Afford it is an entry that creates a Goal (already one data store, `GoalRepository`) |
 | Reminders vs Calendar events | Keep for now, flagged below. Reminders alert and may repeat or carry an amount; events are calendar-only. The calendar page already merges both, bills, goals and salary into one view |
 | Upcoming / Next due / Bills / Calendar | Keep. All read the same `Upcoming`, `UpcomingOutflow` and `BillPayments` domain code; the Next 7 days card is already removed. Each screen is a different view (one next bill, the bills tab, a month) |

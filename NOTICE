@@ -118,3 +118,8 @@ Google Drive API
   Optional backup to your own Drive
   Licence: Google API terms of service
   https://developers.google.com/terms
+
+OpenStreetMap
+  Map pictures behind the Spending map (opt-in). Map data © OpenStreetMap contributors, made available under the Open Database Licence; the tile servers are run by the OpenStreetMap Foundation under its tile usage policy
+  Licence: Open Database Licence (data); the Foundation's tile usage policy
+  https://www.openstreetmap.org/copyright

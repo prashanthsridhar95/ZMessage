@@ -39,11 +39,17 @@ class ManifestPolicyTest {
                 "android.permission.SEND_SMS", // passing a login code on to chosen people, off until switched on; asked for only then
                 "android.permission.FOREGROUND_SERVICE", // reading a very large inbox month by month, and the in-flight notification, each with a visible notification
                 "android.permission.FOREGROUND_SERVICE_DATA_SYNC", // the same two services (type dataSync); no exact-alarm permission is asked for
-                "android.permission.POST_PROMOTED_NOTIFICATIONS" // Android 16 Live Updates for the in-flight notification; a normal permission, ignored before 16
+                "android.permission.POST_PROMOTED_NOTIFICATIONS", // Android 16 Live Updates for the in-flight notification; a normal permission, ignored before 16
+                "android.permission.ACCESS_FINE_LOCATION", // "Remember where I spend": one fix when a purchase text arrives, off until switched on
+                "android.permission.ACCESS_COARSE_LOCATION", // the same, asked together with the fine one so the person may allow approximate
+                "android.permission.ACCESS_BACKGROUND_LOCATION" // the same, because the text arrives while the app is closed; never used for tracking
             ),
             permissions
         )
         assertFalse("ACCESS_NETWORK_STATE" in File("src/main/AndroidManifest.xml").readText())
+        // Location is the three above and nothing else: no Wi-Fi scan, no activity recognition, no foreground-service location type.
+        val text = File("src/main/AndroidManifest.xml").readText()
+        for (banned in listOf("ACCESS_WIFI_STATE", "CHANGE_WIFI_STATE", "ACTIVITY_RECOGNITION", "FOREGROUND_SERVICE_LOCATION", "ACCESS_MEDIA_LOCATION", "BLUETOOTH", "NEARBY_WIFI_DEVICES")) assertFalse(banned, banned in text)
     }
 
     /**
@@ -59,7 +65,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TileFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()
@@ -112,6 +118,19 @@ class ManifestPolicyTest {
         val everything = File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.joinToString("\n") { it.readText() }
         assertFalse("TrainProbe" in everything)
         for (gone in listOf("confirmtkt", "railyatri.in", "ixigo.com", "enquiry.indianrail.gov.in", "trainman.in", "runningstatus.in")) assertFalse("$gone must not be in the code", gone in everything)
+
+        // The Spending map's pictures (opt-in, only while the map page or a payment's mini map is open) ask one host over HTTPS for one square at a time:
+        // the zoom, column and row, nothing else, from the one place that builds the fetcher.
+        val tileFetcher = File("src/main/java/com/zyke/message/data/maps/TileFetcher.kt").readText()
+        val tileHosts = Regex("https://([a-z0-9.]+)/").findAll(tileFetcher).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("tile.openstreetmap.org"), tileHosts)
+        assertEquals(tileHosts.single(), com.zyke.message.domain.legal.LegalText.HOST_OSM_TILES)
+        assertTrue("https://tile.openstreetmap.org/\${tile.z}/\${tile.x}/\${tile.y}.png" in tileFetcher)
+        assertTrue("instanceFollowRedirects = false" in tileFetcher)
+        assertTrue("User-Agent" in tileFetcher && "connectTimeout = TIMEOUT_MS" in tileFetcher && "TIMEOUT_MS = 5_000" in tileFetcher && "MAX_BYTES" in tileFetcher)
+        assertFalse(Regex("CookieHandler|Cookie|Authorization|ANDROID_ID|Settings\\.Secure|advertising|Referer", RegexOption.IGNORE_CASE).containsMatchIn(tileFetcher.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") }.joinToString("\n")))
+        assertEquals(1, File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.count { "TileFetcher()" in it.readText() })
+        assertTrue("TileFetcher()" in File("src/main/java/com/zyke/message/data/maps/TileSource.kt").readText())
 
         // The Drive backup talks to Google's Drive API only, and only to the hidden app folder (scope drive.appdata).
         val drive = File("src/main/java/com/zyke/message/data/backup/DriveBackupClient.kt").readText()

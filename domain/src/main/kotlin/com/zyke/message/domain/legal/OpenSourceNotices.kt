@@ -65,7 +65,8 @@ object OpenSourceNotices {
         Notice("Yahoo Finance", "Market prices and stock-name suggestions (opt-in)", "Yahoo's own terms of service", "https://legal.yahoo.com/", NoticeKind.SERVICE),
         Notice("Flightradar24", "Live flight status (opt-in)", "Flightradar24's own terms of service", "https://www.flightradar24.com/terms-and-conditions", NoticeKind.SERVICE),
         Notice("Live Train Status, Indian Rail API", "Live train running status (opt-in, needs your own key; no agreement between this project and them)", "Its own terms of service and pricing", "https://indianrailapi.com/", NoticeKind.SERVICE),
-        Notice("Google Drive API", "Optional backup to your own Drive", "Google API terms of service", "https://developers.google.com/terms", NoticeKind.SERVICE)
+        Notice("Google Drive API", "Optional backup to your own Drive", "Google API terms of service", "https://developers.google.com/terms", NoticeKind.SERVICE),
+        Notice("OpenStreetMap", "Map pictures behind the Spending map (opt-in). Map data \u00A9 OpenStreetMap contributors, made available under the Open Database Licence; the tile servers are run by the OpenStreetMap Foundation under its tile usage policy", "Open Database Licence (data); the Foundation's tile usage policy", "https://www.openstreetmap.org/copyright", NoticeKind.SERVICE)
     )
 
     val coveredCoordinates: Set<String> get() = all.flatMap { it.coordinates }.toSet()
