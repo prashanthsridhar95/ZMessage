@@ -410,6 +410,17 @@ deck on, the rest off. Stored as `home_layout` (`HomeLayoutRepository`, `HomeLay
 The Market strip needs Market watch on in Settings as well; its full list opens from Settings, Market watch, "Open market watch".
 Existing users get the calm layout on update and can turn the old blocks back on.
 
+## Market watch
+
+One Kite-style watchlist, on Home (the Market strip, off by default) and on its own page. Home shows a quiet card: the index header
+(NIFTY 50 / SENSEX: name, level, today's move, one line each, levels aligned; a chevron opens the Overview with each index's level, move
+and a 52-week line coloured by the year's move), then the first five watched names as dense rows, a hairline between each, and a footer
+with "Updated h:mm a" and "See all". A row opens that name's sheet. Rows are one 56 dp height: name (and exchange beneath, muted) on the
+left; price on the right in green or red with "+2.70 (+1.04%)" beneath in muted grey, tabular figures. Green and red are only ever text on
+prices and changes, never a fill. The page is the same list without the card, the full set, with Refresh and the Overview. Loading is
+static placeholder rows; offline with no prices is a message with "Try again"; with prices it is "Offline · updated ...". Quotes are public
+market data, so Hide amounts does not apply to them. No ticker marquee any more. Guarded by `MarketWatchPolicyTest`.
+
 ## Home deck (stacks of cards)
 
 Home's "Your deck" turns what is new into a few small stacks you can clear with a swipe. The rules are in the domain and tested
