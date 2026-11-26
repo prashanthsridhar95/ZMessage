@@ -45,7 +45,7 @@ class MarketWatchPolicyTest {
             assertTrue("market comes before $later", market < summary.indexOf(later))
         }
         assertTrue("still behind Customize Home and Market watch being on", "layout.shows(HomeSection.MARKET) && marketWatchOn" in summary)
-        for (anchor in listOf("HOME_BALANCE", "HOME_TODAY", "HOME_BUDGET", "HOME_DECK", "HOME_CUSTOMIZE", "HOME_ADD")) {
+        for (anchor in listOf("HOME_BALANCE", "HOME_TODAY", "HOME_BUDGET", "HOME_DECK", "HOME_CUSTOMIZE")) {
             assertEquals("$anchor appears once", 1, Regex("""TourAnchor\.$anchor\b""").findAll(home).count())
         }
         assertFalse("the strip itself carries no tour anchor", "tourAnchor" in ui)

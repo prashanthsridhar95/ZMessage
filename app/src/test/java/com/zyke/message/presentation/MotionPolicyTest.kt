@@ -26,7 +26,7 @@ class MotionPolicyTest {
     private val shared = listOf(
         "common/ChartScrub.kt", "common/FintechCard.kt", "common/PageHost.kt", "common/SheetHost.kt", "common/AdaptiveSheet.kt", "common/AppSnackbar.kt",
         "common/Choices.kt", "common/Responsive.kt", "common/PillSwitch.kt", "common/EmptyState.kt", "common/CardHeader.kt",
-        "common/Forms.kt", "common/ErrorState.kt", "AppRoot.kt", "home/HomeScreen.kt", "home/BudgetViews.kt",
+        "common/Forms.kt", "common/ErrorState.kt", "AppRoot.kt", "home/HomeScreen.kt", "home/HomeActions.kt", "home/BudgetViews.kt",
         "messages/components/Skeleton.kt", "messages/components/AttentionStrip.kt", "theme/Tokens.kt",
         // Messages (wave B1): the list, the row anatomy, the swipe, the bars and the detail sheet.
         "messages/MessagesScreen.kt", "messages/components/MessageList.kt", "messages/components/MessageItem.kt",

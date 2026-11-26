@@ -8,6 +8,7 @@ import com.zyke.message.domain.home.FocusTrip
 import com.zyke.message.domain.home.HomeFocus
 import com.zyke.message.domain.home.HomeLayout
 import com.zyke.message.domain.home.HomeSection
+import com.zyke.message.domain.home.QuickActions
 import com.zyke.message.presentation.common.CardHeader
 import com.zyke.message.presentation.motion.CrossfadeContent
 import com.zyke.message.presentation.motion.EnterGate
@@ -84,6 +85,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -218,6 +223,14 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     HomeSheets(state, actions, onIntent, onNavigate)
 
     var marketsOpen by rememberSaveable { mutableStateOf(false) }
+    // The market-close notification asks for the Market watch page.
+    val marketRequested = com.zyke.message.presentation.markets.MarketRequests.pending.value
+    androidx.compose.runtime.LaunchedEffect(marketRequested) {
+        if (marketRequested) {
+            marketsOpen = true
+            com.zyke.message.presentation.markets.MarketRequests.pending.value = false
+        }
+    }
     var entryOpen by rememberSaveable { mutableStateOf(false) }
     var entryRequest by androidx.compose.runtime.remember { mutableStateOf<EntryRequest?>(null) }
     // Asked for from the widget, the quick-settings tile or "Share": open the sheet, pre-filled when there is something to fill.
@@ -240,24 +253,43 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     // The prices are asked for only while Home is in front, and only if the person switched the strip on.
     if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
 
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+    // Home's quick actions: Add entry, and (with on-device AI on) Ask AI above it. They hide while the list scrolls down and come back on the way up.
+    val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
+    val askShown = com.zyke.message.presentation.ai.rememberAskHomeVisible()
+    var actionsShown by rememberSaveable { mutableStateOf(true) }
+    var askOpen by rememberSaveable { mutableStateOf(false) }
+    val atTop by remember { derivedStateOf { summaryList.firstVisibleItemIndex == 0 && summaryList.firstVisibleItemScrollOffset == 0 } }
+    val scrollWatch = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                actionsShown = QuickActions.shown(actionsShown, available.y, atTop)
+                return Offset.Zero
+            }
+        }
+    }
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().nestedScroll(scrollWatch)) {
         when (page) {
-            HomePage.HOME -> SummaryPage(state, today, layout, onIntent, onNavigate, gate, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true },
+            HomePage.HOME -> SummaryPage(state, today, layout, onIntent, onNavigate, gate, summaryList, QuickActions.reservedBottomDp(askShown).dp, onOpenMarkets = { marketsOpen = true }, onOpenReview = { reviewOpen = true },
                 onOpenTriage = { quiet, stack -> triageRoute = (if (quiet) "quiet:" else "fresh:") + (stack ?: "") },
                 onOpenAutoCleared = { autoClearedOpen = true }, onDeckSettings = { deckSettingsOpen = true },
                 onAfford = { affordOpen = true }, onCustomize = { customizeOpen = true })
             HomePage.BILLS -> BillsPage(state, today, onIntent, gate, onAfford = { affordOpen = true })
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
-        // The one prominent add action: money that came in no message.
+        // The quick actions: money that came in no message (Add entry), and a question about your money (Ask AI).
         if (page == HomePage.HOME) {
-            androidx.compose.material3.ExtendedFloatingActionButton(
-                onClick = { entryOpen = true },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).tourAnchor(TourAnchor.HOME_ADD),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) { Text("+ Entry", fontWeight = FontWeight.SemiBold) }
+            HomeQuickActions(
+                visible = actionsShown || atTop, extended = QuickActions.extended(atTop), askShown = askShown,
+                onAdd = { entryOpen = true }, onAsk = { askOpen = true }, modifier = Modifier.align(Alignment.BottomEnd)
+            )
         }
+    }
+    if (askOpen && askShown) {
+        com.zyke.message.presentation.ai.AskMoneySheet(
+            state.messages, state.cycle,
+            onOpen = { hit -> hit.messageId?.let { onIntent(Intent.OpenMessage(it)) } },
+            onDismiss = { askOpen = false }
+        )
     }
 
     if (entryOpen) {
@@ -343,7 +375,8 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
  */
 @Composable
 private fun SummaryPage(
-    state: State, today: LocalDate, layout: HomeLayout, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate, onOpenMarkets: () -> Unit,
+    state: State, today: LocalDate, layout: HomeLayout, onIntent: (Intent) -> Unit, onNavigate: (AppTab) -> Unit, gate: EnterGate,
+    summaryList: androidx.compose.foundation.lazy.LazyListState, bottomReserve: androidx.compose.ui.unit.Dp, onOpenMarkets: () -> Unit,
     onOpenReview: () -> Unit, onOpenTriage: (quiet: Boolean, stack: String?) -> Unit, onOpenAutoCleared: () -> Unit, onDeckSettings: () -> Unit,
     onAfford: () -> Unit, onCustomize: () -> Unit
 ) {
@@ -451,12 +484,11 @@ private fun SummaryPage(
     val showDeckSection = layout.shows(HomeSection.DECK) || state.review.count > 0
     val messagesById = remember(state.messages) { state.messages.associateBy { it.id } }
 
-    val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     TourScroll(TourTab.HOME, summaryList)
     LazyColumn(
         Modifier.fillMaxSize(),
         state = summaryList,
-        contentPadding = PaddingValues(start = Spacing.xl, top = Spacing.sm, end = Spacing.xl, bottom = 96.dp),
+        contentPadding = PaddingValues(start = Spacing.xl, top = Spacing.sm, end = Spacing.xl, bottom = bottomReserve),
         // One rhythm: 16 dp between blocks (24 before the deck and recent activity), 20 dp gutters. The first eight blocks enter in a stagger, once (see enterOnce);
         // a block that comes or goes later fades and the rest close the gap (itemMotion).
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)

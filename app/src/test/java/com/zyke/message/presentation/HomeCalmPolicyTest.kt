@@ -80,4 +80,14 @@ class HomeCalmPolicyTest {
         assertTrue("one switch per section", "HomeSection.entries.forEach" in page)
         assertTrue("a reset button", "Reset to calm layout" in page)
     }
+
+    @Test fun theQuickActionsAreCompactTonalAndNeverCoverTheList() {
+        val actions = text("presentation/home/HomeActions.kt")
+        assertFalse("the old brown pill is gone", "ExtendedFloatingActionButton" in home || "+ Entry" in home)
+        assertTrue("one add button anchored once for the tour", Regex("""TourAnchor\.HOME_ADD\b""").findAll(actions).count() == 1 && "TourAnchor.HOME_ADD" !in home)
+        assertTrue("tonal from the theme, no elevation", "primaryContainer" in actions && "secondaryContainer" in actions && "elevation(0.dp, 0.dp, 0.dp, 0.dp)" in actions && "shadow(" !in actions)
+        assertTrue("labels", "\"Add entry\"" in actions && "\"Ask AI\"" in actions)
+        assertTrue("the list keeps room under its last item and the stack hides on scroll", "bottom = bottomReserve" in home && "QuickActions.reservedBottomDp(askShown)" in home && "nestedScroll(scrollWatch)" in home)
+        assertTrue("both open from Home, Ask only behind the AI gate", "askOpen && askShown" in home && "rememberAskHomeVisible()" in home)
+    }
 }

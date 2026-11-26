@@ -36,6 +36,7 @@ class AccessibilityPolicyTest {
         "home/TriageScreen.kt" to 2,                       // the archive and check glyphs of the swipe hint, which is cleared from semantics (the card offers Sweep it and Got it as actions)
         "home/HomeDeck.kt" to 2,                           // the chevrons of the review row and of the review body, which each say "N things to review" as one button
         "home/BillsPage.kt" to 1,                          // the chevron of a Plan ahead row, whose title and caption are read
+        "home/HomeActions.kt" to 1,                        // the plus inside the Add entry button, which carries the spoken label "Add entry" itself
         "home/HomeToday.kt" to 1,                          // the check beside "You're all clear", whose words are read
         "home/HomePolish.kt" to 1,                         // the chevron of the balance hero, which is one button ("Open accounts") that speaks the figure
         "home/GoalsAndReminders.kt" to 1,                  // icon of a ShortcutTile, whose text is the label

@@ -198,4 +198,14 @@ class AiPolicyTest {
         val page = text("presentation/ai/AiSettingsPage.kt")
         assertTrue("ai.warmUp()" in page && "ai.cancelWarmUp()" in page && "Warming up the model" in page)
     }
+
+    @Test
+    fun homeAskAiReusesTheAskAnswerAndStaysBehindTheGate() {
+        val sheet = text("presentation/ai/AskHomeSheet.kt")
+        assertTrue("visible only through the same gate as Search's Ask (master and feature on, not Demo)", "rememberAiVisible(AiFeature.ASK)" in sheet)
+        assertTrue("the answer is Search's own pane: one parser, one executor", "AskResultPane(" in sheet && "AskResultPane(" in text("presentation/ai/AskUi.kt") && "AskExecutor.run" !in sheet && "ai.ask(" !in sheet)
+        assertTrue("a plain way out", "Use normal search" in sheet && "Set up on-device AI" in sheet && "Ask about your money" in sheet)
+        assertFalse("no library in the sheet", "com.google.mlkit" in sheet)
+        assertTrue("Home does not draw it unless visible", "askOpen && askShown" in text("presentation/home/HomeScreen.kt"))
+    }
 }

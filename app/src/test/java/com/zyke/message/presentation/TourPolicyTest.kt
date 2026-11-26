@@ -94,4 +94,11 @@ class TourPolicyTest {
         assertTrue("TourHost must be drawn after the pages and sheets", tour > shell.indexOf("SheetHostLayer(sheetHost)"))
         assertTrue("TourHost must be drawn before the snackbar", tour < shell.indexOf("PrivateSnackbarHost("))
     }
+
+    @Test fun theAddEntryAnchorLivesOnTheOneAddButton() {
+        val files = presentation().toMap()
+        val actions = files.getValue("presentation/home/HomeActions.kt")
+        assertTrue("HOME_ADD is on the Add entry button, once", Regex("""FloatingActionButton\([\s\S]{0,120}tourAnchor\(TourAnchor\.HOME_ADD\)""").containsMatchIn(actions))
+        assertTrue("the Ask AI button carries no anchor", "TourAnchor.HOME_ADD" !in actions.substringBefore("onClick = onAdd"))
+    }
 }
