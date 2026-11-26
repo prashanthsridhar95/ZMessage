@@ -405,6 +405,12 @@ under their text. No borders or shadows added. Headings use the type roles. The 
 rows dip while held. Hidden amounts stay hidden (the figures are `AnimatedAmount` or `RowAmount`). Demo mode shows the same layout with made-up
 content. The toolbar's logo is 26 dp (shared by every tab).
 
+**Quick actions** (`home/HomeActions.kt`, rules in `:domain` `home/QuickActions.kt`, `QuickActionsTest`). The old brown "+ Entry" pill sat on top of Recent activity and covered amounts; it is replaced by a stack at the bottom right, 16 dp from the edge and above the bottom bar (Home sits inside the shell's Scaffold, so the bar's inset is already kept):
+- **Add entry**: a 56 dp rounded square (`AppShapes.control`), `primaryContainer` / `onPrimaryContainer` from the theme, flat (zero elevation, no shadow: LowEndPolicyTest), a plus (`ic_tile_add`) and, only while the list is at the top, the words "Add entry" (the label opens and closes through `rememberMotion()`, instant under reduced motion or Lite). Spoken label "Add entry". It opens the same entry sheet as before; the sheet is unchanged. It is the one `TourAnchor.HOME_ADD`.
+- **Ask AI**: above it, 12 dp apart, a 48 dp round button in `secondaryContainer` with a sparkle (`ic_ask_ai_24`, the Material "auto awesome" glyph), centred over the plus. Shown only when the on-device AI master switch and "Ask your money" are on, the phone can do it, and not in Demo (`rememberAiVisible(AiFeature.ASK)`, the gate Search uses); otherwise Home shows the plus alone and stays calm. It opens "Ask AI" (`ai/AskHomeSheet.kt`): a field "Ask about your money", three suggestions (This month's spending, Biggest payment this month, Food last week), an Ask button and the very same answer as Search's "Ask your money" (`AskResultPane`: one parser, one executor, payments that open the payment, "The AI only read your question"). When the model is not ready the sheet says so, with "Set up on-device AI" (Settings) and "Use normal search"; an answer that is not understood ends in "Use normal search" too.
+- **Moving.** Both hide together when the list moves up the screen (a finger travel of 8 px or more, `QuickActions.shown`), come back on the way down and are always there at the top. The list reserves 88 dp under its last item (148 dp with Ask AI) so the stack never rests on an amount at the end. At 320 dp both fit the 16 dp gutter; the words of Add entry are one line, never wrapped.
+Not verified on a device: the exact feel of the hide and return, and the stack over a 3-button navigation bar.
+
 **Customize Home** (Settings, Appearance and feel, Home; also the footer): a switch for Today's budget row, Recent activity, Your deck,
 Market strip, Goals and reminders, Shortcut tiles and the Quick adds prompt, and "Reset to calm layout". Defaults: budget, activity and
 deck on, the rest off. Stored as `home_layout` (`HomeLayoutRepository`, `HomeLayoutRepositoryImpl`; in backups, in memory in the demo).
@@ -604,6 +610,7 @@ Rendered as light/dark previews at 360 dp and 320 dp before the code (Settings p
 
 Not verified on a device: what AI Core reports in each state, whether cancelling the download flow lets the phone's own download carry on, and the warm-up's effect on the first answer time.
 - **Ask your money** is a row under the Search chips when the words look like a question; it opens a sheet with the big figure (`PrivateAmount`, so dots while hidden), the sentence, "Read as: Spent · Food · last week", the payments behind it (each opens the payment), and the line "The AI only read your question".
+- **Ask AI on Home** is a small round button above Add entry (see Home, Quick actions), shown only with the master switch and "Ask your money" on, never in Demo; it opens the same answer through `AskResultPane`.
 - **Month in a sentence** is an Insights card with "Show the plain version" toggle.
 - Wide text, 320 dp and large fonts: nothing uses fixed heights; buttons stack through `ResponsiveRow`; colours are the theme's (light, dark, true black); every control is 48 dp with a label.
 - Hidden when there is nothing to do: not enabled, Demo mode, or an unsupported phone.
