@@ -287,4 +287,17 @@ class MotionPolicyTest {
         assertTrue("TalkBack gets Previous / Next", "Previous $" in scrub && "Next $" in scrub)
         assertTrue("the tooltip is flat: no shadow", "shadow(" !in scrub)
     }
+
+    /** Ask Zyke: the thinking dots appear once through the funnel and never loop, the list follows the newest bubble instantly when motion is reduced. */
+    @Test
+    fun theAskChatMovesOnlyThroughTheFunnelAndNeverLoops() {
+        val ai = File(presentationRoot(), "ai")
+        val bubbles = code(File(ai, "AskBubbles.kt")).joinToString("\n")
+        val page = code(File(ai, "AskZykePage.kt")).joinToString("\n")
+        assertTrue("the dots ask rememberMotion() and fade in once", "rememberMotion()" in bubbles && "motion.tween<Float>(" in bubbles && "animateFloatAsState(" in bubbles)
+        assertTrue("Thinking is said in words", "\"Thinking…\"" in bubbles)
+        listOf(bubbles, page).forEach { assertTrue("no loop in the chat", !loop.containsMatchIn(it) && !rawSpec.containsMatchIn(it)) }
+        assertTrue("the list jumps instead of gliding when motion is reduced", "if (motion.reduced) listState.scrollToItem(target) else listState.animateScrollToItem(target)" in page)
+        assertTrue("the page title row takes quiet actions", "entry.actions" in File(presentationRoot(), "common/PageHost.kt").readText())
+    }
 }

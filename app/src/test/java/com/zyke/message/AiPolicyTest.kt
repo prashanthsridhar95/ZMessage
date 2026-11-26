@@ -201,12 +201,49 @@ class AiPolicyTest {
     }
 
     @Test
-    fun homeAskAiReusesTheAskAnswerAndStaysBehindTheGate() {
-        val sheet = text("presentation/ai/AskHomeSheet.kt")
-        assertTrue("visible only through the same gate as Search's Ask (master and feature on, not Demo)", "rememberAiVisible(AiFeature.ASK)" in sheet)
-        assertTrue("the answer is Search's own pane: one parser, one executor", "AskResultPane(" in sheet && "AskResultPane(" in text("presentation/ai/AskUi.kt") && "AskExecutor.run" !in sheet && "ai.ask(" !in sheet)
-        assertTrue("a plain way out", "Use normal search" in sheet && "Set up on-device AI" in sheet && "Ask about your money" in sheet)
-        assertFalse("no library in the sheet", "com.google.mlkit" in sheet)
-        assertTrue("Home does not draw it unless visible", "askOpen && askShown" in text("presentation/home/HomeScreen.kt"))
+    fun askZykeIsOnePageWithOneParserAndOneExecutorAndStaysBehindTheGate() {
+        val ui = text("presentation/ai/AskUi.kt")
+        val page = text("presentation/ai/AskZykePage.kt")
+        val bubbles = text("presentation/ai/AskBubbles.kt")
+        val chat = text("presentation/ai/AskChat.kt")
+        assertFalse("the old sheet is gone", File(main, "presentation/ai/AskHomeSheet.kt").exists() || "AskResultPane" in ui + page + chat || "AskMoneySheet" in ui + page + chat)
+        assertTrue("visible only through the same gate as Search's Ask (master and feature on, not Demo); Demo shows labelled examples", "rememberAiVisible(AiFeature.ASK)" in ui && "visible || ai.demo" in ui)
+        assertTrue("one parser and one executor, both in the chat holder", "ai.ask(" in chat && "AskExecutor.run(" in chat && "ai.ask(" !in page + bubbles + ui && "AskExecutor" !in page + bubbles + ui)
+        assertTrue("the answer text and figures come from the app", "AskAnswer.of(" in chat)
+        assertTrue("a plain way out", "Use normal search" in bubbles && "Set up on-device AI" in bubbles && "Search messages for" in bubbles)
+        assertTrue("the request before is passed so a follow-up can change part of it", "ai.ask(question, payees, today, previous)" in chat)
+        assertTrue("Home and Search both open the page, Home only behind the gate", "askOpen && askShown" in text("presentation/home/HomeScreen.kt") && "AskZykePage(" in text("presentation/home/HomeScreen.kt") && "AskZykePage(" in ui)
+        assertTrue("the field says Ask Zyke and the page is not saved", "\"Ask Zyke\"" in page && "Chats are not saved" in page)
+        assertFalse("no library in the chat", "com.google.mlkit" in ui + page + bubbles + chat)
+    }
+
+    @Test
+    fun theChatIsKeptInMemoryOnlyAndTheDemoNeverAsksTheModel() {
+        val chat = code(File(main, "presentation/ai/AskChat.kt"))
+        val screens = code(File(main, "presentation/ai/AskZykePage.kt")) + code(File(main, "presentation/ai/AskBubbles.kt")) + code(File(main, "presentation/ai/AskUi.kt"))
+        val storage = Regex("""SharedPreferences|getSharedPreferences|openFileOutput|FileWriter|File\(|Room|DataStore|PrefsAiCache|AiCache|cache\.put|Serializable|savedState|rememberSaveable\([^)]*entries""")
+        assertFalse("conversation text is never written to disk", storage.containsMatchIn(chat))
+        assertFalse("the screens save no conversation either", Regex("""SharedPreferences|openFileOutput|DataStore|AiCache""").containsMatchIn(screens))
+        assertTrue("the holder is in memory and Clear chat empties it", "mutableStateListOf<ChatEntry>()" in chat && "entries.clear()" in chat && "fun clear()" in chat)
+        assertTrue("in Demo the chat holds only made-up examples and sends nothing", "if (question.isEmpty() || thinking || showingExamples) return" in chat && "AskExamples.build(" in chat)
+        assertTrue("the examples say they are made up", "example = true" in chat && "Example only: made up, not from your messages." in text("presentation/ai/AskBubbles.kt"))
+        assertTrue("nothing is logged", !Regex("""Log\.|println\(|Toast|Timber""").containsMatchIn(chat + screens))
+        assertTrue("a request is the holder's and stops on Stop or Clear", "job?.cancel()" in chat && "fun stop()" in chat)
+    }
+
+    @Test
+    fun askZykeFollowsTheHouseRules() {
+        val files = listOf("AskUi.kt", "AskChat.kt", "AskBubbles.kt", "AskZykePage.kt").associateWith { code(File(main, "presentation/ai/$it")) }
+        files.forEach { (name, c) ->
+            assertFalse("$name: no labelled return in a composable lambda (D8)", Regex("""return@""").containsMatchIn(c))
+            assertFalse("$name: Material's Text would not hide amounts", "androidx.compose.material3.Text" in c)
+            assertFalse("$name: no tour anchor, the tour anchors stay once each", "tourAnchor" in c)
+            assertFalse("$name: no spinner or looping bar", Regex("""CircularProgressIndicator|LinearProgressIndicator|rememberInfiniteTransition|infiniteRepeatable""").containsMatchIn(c))
+        }
+        val page = files.getValue("AskZykePage.kt")
+        assertTrue("it is an AppPage, so Back and Escape close it and it rises with the keyboard", "AppPage(" in page && "scrollable = false" in page)
+        assertTrue("haptics go through the funnel on send", "rememberHaptics()" in page && "haptics.tick()" in page && "performHapticFeedback" !in page)
+        assertTrue("send is off while empty and becomes stop while thinking", "val canSend = draft.isNotBlank() && !thinking && !demo" in page && "if (thinking) \"Stop\" else \"Send\"" in page)
+        assertTrue("single line growing to four", "MAX_INPUT_LINES = 4" in page && "ImeAction.Send" in page)
     }
 }

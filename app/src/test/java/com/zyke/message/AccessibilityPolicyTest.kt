@@ -185,4 +185,16 @@ class AccessibilityPolicyTest {
         assertTrue("instrument.spoken" in File(presentation, "format/AccessibilityText.kt").readText() || "instrument" in File(presentation, "format/AccessibilityText.kt").readText())
         if (enumText != null) assertTrue("UNKNOWN" in enumText)
     }
+
+    @Test
+    fun theAskChatSpeaksWhoIsTalkingAndAnnouncesTheNewAnswer() {
+        val bubbles = File(presentation, "ai/AskBubbles.kt").readText()
+        val page = File(presentation, "ai/AskZykePage.kt").readText()
+        assertTrue("You said / Zyke said", "contentDescription = \"You said\"" in bubbles && "contentDescription = \"Zyke said\"" in bubbles)
+        assertTrue("the newest answer is a polite live region", "liveRegion = LiveRegionMode.Polite" in bubbles && "newest" in bubbles)
+        assertTrue("send and stop are named and 48 dp", "contentDescription = if (thinking) \"Stop\" else \"Send\"" in page && "Modifier.size(48.dp).clip(CircleShape)" in page)
+        assertTrue("the menu and the field are named", "contentDescription = \"Chat menu\"" in page && "contentDescription = \"Ask Zyke\"" in page)
+        assertTrue("suggestions and payments are 48 dp buttons", "heightIn(min = 48.dp)" in bubbles && "Role.Button" in bubbles)
+        assertEquals("no unlabelled icon in the chat", 0, Regex("contentDescription = null").findAll(bubbles + page).count())
+    }
 }
