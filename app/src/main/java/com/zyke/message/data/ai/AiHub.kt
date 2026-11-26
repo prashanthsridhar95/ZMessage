@@ -31,6 +31,7 @@ import com.zyke.message.domain.ai.BatchProgress
 import com.zyke.message.domain.ai.InMemoryAiCache
 import com.zyke.message.domain.ai.InMemoryAiSettings
 import com.zyke.message.domain.ai.ModelReport
+import com.zyke.message.domain.ai.ModelWatch
 import com.zyke.message.domain.ai.MonthFacts
 import com.zyke.message.domain.ai.NoOnDeviceAi
 import com.zyke.message.domain.ai.OnDeviceAi
@@ -59,7 +60,7 @@ class AiHub(
     private val scope: CoroutineScope,
     private val customCategories: () -> List<CustomCategory> = { emptyList() }
 ) {
-    private val engine: OnDeviceAi = if (demo) NoOnDeviceAi else GeminiNanoEngine()
+    private val engine: OnDeviceAi = if (demo) NoOnDeviceAi else GeminiNanoEngine(ModelEvidenceStore(context))
     val settingsStore: AiSettingsRepository = if (demo) InMemoryAiSettings() else AiSettingsRepositoryImpl(context)
     private val cache: AiCache = if (demo) InMemoryAiCache() else PrefsAiCache(context)
     private val gateway = AiGateway(engine)
@@ -90,7 +91,8 @@ class AiHub(
     fun customNames(): Map<String, String> = customCategories().associate { it.id to it.name }
 
     /** The moment as the gates see it. [charging] is read from the phone only when asked for (the battery check is a system call). */
-    fun aiContext(charging: Boolean = false): AiContext = AiContext(demo = demo, lite = LiteRuntime.isLite, charging = charging)
+    fun aiContext(charging: Boolean = false): AiContext =
+        AiContext(demo = demo, lite = LiteRuntime.isLite, charging = charging, modelWorked = ModelWatch.worked(report.value, System.currentTimeMillis()))
 
     fun allowed(feature: AiFeature): Boolean = AiGate.allowed(feature, settings.value, availability.value, aiContext())
 
@@ -108,6 +110,29 @@ class AiHub(
 
     fun download() {
         if (!demo) scope.launch { engine.download() }
+    }
+
+    // ---- warming up ----
+
+    private var warmJob: Job? = null
+    private var warmTriedAtMs: Long? = null
+
+    /**
+     * One tiny request (a word in, one token out) so the first real answer of this app start is not the one that wakes the model.
+     * Optional and quiet: only with the switch on, never in Demo or lite mode, once per app start, at most every few minutes, and it
+     * stays out of the page's numbers. [cancelWarmUp] stops it. The SMS receiver never reaches this class.
+     */
+    fun warmUp() {
+        val s = settings.value
+        val now = System.currentTimeMillis()
+        if (!ModelWatch.shouldWarmUp(s.master && s.explained, aiContext(), availability.value, report.value, warmTriedAtMs, now)) return
+        if (warmJob?.isActive == true) return
+        warmTriedAtMs = now
+        warmJob = scope.launch { gateway.run(AiPrompts.free(WARM_PROMPT), maxTokens = WARM_TOKENS, timeoutMs = WARM_TIMEOUT_MS, retries = 0, quiet = true) }
+    }
+
+    fun cancelWarmUp() {
+        warmJob?.cancel()
     }
 
     // ---- feature 1 and 5 ----
@@ -208,6 +233,7 @@ class AiHub(
 
     fun close() {
         stopBatch()
+        cancelWarmUp()
         engine.close()
     }
 
@@ -215,5 +241,8 @@ class AiHub(
         const val SUMMARY_QUEUE = 24
         const val SUMMARY_GAP_MS = 400L
         const val TRY_TOKENS = 120
+        const val WARM_PROMPT = "Hi"
+        const val WARM_TOKENS = 2
+        const val WARM_TIMEOUT_MS = 20_000L
     }
 }

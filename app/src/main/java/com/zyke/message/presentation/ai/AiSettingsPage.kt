@@ -76,6 +76,7 @@ internal fun AiSettingsContent() {
             while (true) {
                 delay(ModelWatch.POLL_MS)
                 if (ModelWatch.shouldPoll(ai.availability.value)) ai.refresh()
+                ai.warmUp()
             }
         }
     }
@@ -87,6 +88,7 @@ internal fun AiSettingsContent() {
             checked = on,
             onCheckedChange = { wanted ->
                 if (!wanted) {
+                    ai.cancelWarmUp()
                     ai.update { it.copy(master = false) }
                 } else if (!settings.explained) {
                     explaining = true
@@ -154,27 +156,36 @@ internal fun AiSettingsContent() {
 
 @Composable
 private fun StatusCard(availability: AiAvailability, report: ModelReport, onDownload: () -> Unit, onCheck: () -> Unit) {
+    val now = System.currentTimeMillis()
+    val workedAt = report.workedAtMs?.let { clockText(it, HM) }.orEmpty()
+    val proven = ModelWatch.worked(report, now)
     val (label, tone, detail) = when (availability) {
         AiAvailability.Unsupported -> Triple("Not supported on this phone", Tone.NEUTRAL, "Gemini Nano needs a recent Pixel (8 or later) with Google's AI Core service. Everything else in the app works as before.")
-        AiAvailability.NeedsDownload -> Triple("Model not downloaded", Tone.WARN, "Google's service on the phone fetches the model. It is a large download; Wi-Fi is best.")
+        AiAvailability.NeedsDownload -> Triple("Model not downloaded", Tone.WARN, ModelWatch.needsDownloadDetail(report))
         is AiAvailability.Downloading -> Triple(
             if (ModelWatch.waitingOnGoogle(availability, report)) "Waiting for Google's service" else "Downloading",
             Tone.NEUTRAL, ModelWatch.downloadingDetail(report.copy(megabytes = availability.megabytes ?: report.megabytes))
         )
-        AiAvailability.Ready -> Triple("Ready", Tone.GOOD, "The model is on this phone. A suggestion takes a few seconds and always needs your OK.")
+        AiAvailability.Ready -> Triple(
+            "Ready", Tone.GOOD,
+            if (proven) ModelWatch.workingLine(report, workedAt) else "The model is on this phone. A suggestion takes a few seconds and always needs your OK."
+        )
         AiAvailability.Busy -> Triple("Busy", Tone.NEUTRAL, "Working on an answer, or the phone asked the app to wait.")
         is AiAvailability.Failed -> Triple("Problem", Tone.BAD, availability.reason)
     }
+    val disagreement = ModelWatch.disagreement(report, workedAt, now)
     FintechCard {
         RowTitle("The model")
         StatusPill(label, tone)
         Caption(detail, Modifier.padding(top = Spacing.sm), maxLines = 5)
+        if (disagreement != null) Caption(disagreement, Modifier.padding(top = Spacing.xs), maxLines = 3)
+        if (report.warmingUp) Caption("Warming up the model\u2026", Modifier.padding(top = Spacing.xs), maxLines = 1)
         Caption(serviceText(report), Modifier.padding(top = Spacing.xs), maxLines = 2)
         ResponsiveRow(Modifier.padding(top = Spacing.md)) {
-            AppButton(
-                if (availability is AiAvailability.Downloading) "Ask again" else "Download model",
-                onDownload, Modifier.cell(), enabled = ModelWatch.canDownload(availability, report)
-            )
+            // A model that answered needs no download button; Check again stays.
+            if (!availability.canGenerate) {
+                AppButton(ModelWatch.downloadLabel(availability, report), onDownload, Modifier.cell(), enabled = ModelWatch.canDownload(availability, report))
+            }
             AppButton("Check again", onCheck, Modifier.cell(), style = ButtonStyle.OUTLINE)
         }
         LearnMore(WHERE_TO_LOOK, label = "Where to look on the phone")
@@ -182,10 +193,13 @@ private fun StatusCard(availability: AiAvailability, report: ModelReport, onDown
 }
 
 private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm:ss")
+private val HM: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm")
+
+private fun clockText(epochMs: Long, format: DateTimeFormatter): String = format.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
 /** What the phone's service last said, and when it was asked: the plain truth under the status. */
 private fun serviceText(report: ModelReport): String {
-    val at = report.checkedAtMs?.let { " · Last checked " + CLOCK.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) }.orEmpty()
+    val at = report.checkedAtMs?.let { " · Last checked " + clockText(it, CLOCK) }.orEmpty()
     return ModelWatch.serviceLine(report) + at
 }
 
@@ -242,7 +256,10 @@ private fun TryItCard() {
             AppButton("Clear", { text = ""; answer = null }, Modifier.cell(), style = ButtonStyle.OUTLINE, enabled = text.isNotEmpty() || answer != null)
         }
         answer?.let { Text(it, Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) }
-        Caption("Only for trying it out. What you type here is not saved or logged.", Modifier.padding(top = Spacing.sm), maxLines = 2)
+        Caption(
+            "Only for trying it out. What you type here is not saved or logged. The first answer after the app starts can take several seconds while the model wakes up.",
+            Modifier.padding(top = Spacing.sm), maxLines = 4
+        )
     }
 }
 
