@@ -140,6 +140,12 @@ class GenericTransactionParser {
                 BankName.OTHERS, "", it.groupValues[2].trim(), clean(it.groupValues[1]), BankTransactionType.RECEIVED, isInternal = true
             )
         }
+        CARD_TRANSACTION_MADE.find(body)?.let {
+            return BankTransaction(
+                bank(body), it.groupValues[2], gatewayFree(it.groupValues[3]), clean(it.groupValues[1]), BankTransactionType.SENT
+            )
+        }
+        merchantAccountCredit(body)?.let { return it }
         EMI_DUE_LOAN_AC.find(body)?.let {
             val lender = it.groupValues[2].let(::tidy).orEmpty().ifEmpty { "Loan" }
             return BankTransaction(
@@ -447,6 +453,31 @@ class GenericTransactionParser {
             }?.groupValues?.get(1)?.let(::clean)
     }
 
+    /**
+     * "Rs 999/- has been credited to your bigbasket account": money added to a shop's wallet, not to a bank account. Taken as a
+     * wallet credit (the payee carries the word "wallet", so it stays out of income like any other store credit) only when the
+     * name is a plain merchant name: a bank, a savings or salary account, a masked number or a balance makes it a bank credit,
+     * and a refund keeps the refund rules.
+     */
+    private fun merchantAccountCredit(body: String): BankTransaction? {
+        val match = MERCHANT_ACCOUNT_CREDIT.find(body) ?: return null
+        if (BANK_ACCOUNT_SIGNS.containsMatchIn(body) || REFUND_WORD.containsMatchIn(body)) return null
+        val name = match.groupValues[2].trim()
+        val isWallet = match.groupValues[3].equals("wallet", ignoreCase = true)
+        val looksLikeBank = BANK_WORDS.containsMatchIn(name) || (!isWallet && bank(name) != BankName.OTHERS)
+        if (looksLikeBank || tidy(name) == null) return null
+        return BankTransaction(
+            BankName.OTHERS, "", "$name wallet", clean(match.groupValues[1]), BankTransactionType.RECEIVED, isInternal = true
+        )
+    }
+
+    /** "SWIGGY PG" and "ACME Payment Gateway" are the shop behind a payment gateway: keep the shop's name. */
+    private fun gatewayFree(raw: String): String {
+        val name = raw.trim().trim('.', ',', ';', ':', '-', ' ')
+        val bare = GATEWAY_SUFFIX.replace(name, "").trim()
+        return (tidy(bare) ?: tidy(name)).orEmpty()
+    }
+
     private fun clean(raw: String) = raw.replace(",", "").trimEnd('.')
 
     private fun account(body: String): String? =
@@ -630,6 +661,24 @@ class GenericTransactionParser {
         private val WALLET_CREDIT = Regex(
             "(?i)\\bA credit of $CURRENCY\\s*$NUMBER\\*? has been (?:processed|added|credited|posted) to your (.{2,60}?\\b(?:wallet|cash(?! credit)|cashback)\\b(?: wallet)?)"
         )
+        /** "A transaction of INR 1,234.56 was made on your Card ending 1234 at SHOP PG on 10-10-2026." (a card purchase) */
+        private val CARD_TRANSACTION_MADE = Regex(
+            "(?i)\\btransaction of $CURRENCY\\s*$NUMBER (?:was|has been) made on your (?:[A-Za-z]+ ){0,3}?card\\s+" +
+                "(?:(?:ending|no\\.?|number)\\s*(?:with|in)?\\s*)?[:\\-]?\\s*[xX*]*(\\d{3,6})\\s+at\\s+(.{2,60}?)(?=\\s+on\\s+\\d|[.,;]\\s|\\.?$)"
+        )
+        private val GATEWAY_SUFFIX = Regex("(?i)(?:\\s+(?:pg|payment gateway|payments gateway|pay gateway))+$")
+        /** "Rs 999/- has been credited to your bigbasket account." (a shop's wallet) */
+        private val MERCHANT_ACCOUNT_CREDIT = Regex(
+            "(?i)(?<![A-Za-z0-9])$CURRENCY\\s*$NUMBER(?:\\s*/-)?\\s+(?:has|have) been (?:credited|added) to your ([A-Za-z][A-Za-z0-9&.' ]{1,30}?)\\s+(wallet|account)\\b"
+        )
+        /** A masked number, "ending", an A/c, a balance, a bank rail: a bank credit, whatever the name says. */
+        private val BANK_ACCOUNT_SIGNS = Regex(
+            "(?i)[xX*•]{2,}\\s*\\d|\\bending\\b|\\ba/?c\\b|\\bacct?\\b|\\bavl\\b|\\bavail(?:able)?\\b|\\bupi\\b|\\bneft\\b|\\bimps\\b|\\brtgs\\b|\\bsalary\\b"
+        )
+        private val BANK_WORDS = Regex(
+            "(?i)\\b(?:bank|savings?|current|salary|joint|loan|card|deposit|demat|trading|pension|nre|nro|your|my|our|the|this)\\b"
+        )
+        private val REFUND_WORD = Regex("(?i)\\brefund")
         /** "EMI of INR 12345.67 for Axis Bank Loan A/c XX1234 is due on 05-11-26." */
         private val EMI_DUE_LOAN_AC = Regex(
             "(?i)\\bEMI of (?:Rs\\.?|INR) ?(?:INR )?$NUMBER for (?:your )?(.{1,40}?) (?:loan )?(?:A/c|acct?\\.?|account)(?: no\\.?)? ?[xX*]*(\\d{3,})\\s+(?:is|will be) due (?:on|by) $LOOSE_DATE"

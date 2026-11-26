@@ -66,6 +66,8 @@ object PaymentInstruments {
         val bank = c.bankName
         // Topping up a wallet or UPI Lite from the bank: the payee is the wallet, the money left the account.
         val walletIsPayee = !c.isReceived && WALLET_WORDING.containsMatchIn(payee)
+        // Money added to a shop's wallet names the wallet as the payee even when the text itself says "account".
+        if (!isCard && c.isReceived && WALLET_WORDING.containsMatchIn(payee)) return PaymentInstrument.WALLET
         val rest = if (payee.isEmpty()) body else body.replace(payee, " ", ignoreCase = true)
         if (!isCard && !walletIsPayee && WALLET_WORDING.containsMatchIn(rest)) return PaymentInstrument.WALLET
         val kind = accounts.kindOf(last4, isCard, bank)
