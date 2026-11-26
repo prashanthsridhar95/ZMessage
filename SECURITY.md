@@ -21,6 +21,8 @@ phone.
 
 See [docs/PRIVACY.md](docs/PRIVACY.md) for the data inventory. The person-facing text is in the app (Settings, Privacy and terms, and Open-source licences); [docs/LEGAL_NOTES.md](docs/LEGAL_NOTES.md) says what is and is not covered, and that a lawyer should review it before any public release. SMS permissions are restricted by Google Play, so this app is for direct installs (sideloading), not the Play Store.
 
+- **On-device AI is off by default and never leaves the phone.** If switched on, Gemini Nano (Google's AI Core service on the phone) is asked through one file (`GeminiNanoEngine`); there is no cloud fallback, nothing is logged, nothing runs in Demo mode or from the SMS receiver, every answer is checked against the message or the app's own figures, and nothing is saved until the person confirms. The model itself is downloaded by Google's service. See docs/PRIVACY.md.
+
 ## Reporting a vulnerability
 
 Please do not open a public issue. Email the maintainer (see the repository owner's profile) with the details

@@ -713,6 +713,27 @@ What Zyke can and cannot see of a message depends on where the phone keeps it.
 * **Not verified.** No device was available: how Google Messages fills the notification of a rich card (which of the title, text and
   expanded text carries which line) is inferred from the platform's documented fields, and `RichNotificationText` accepts any of them.
 
+## On-device AI (Gemini Nano)
+
+An optional layer, off by default, that asks Google's Gemini Nano (through Android AI Core and the ML Kit GenAI Prompt API) for suggestions. The design rule: **the model reads language, the app does the arithmetic, the person decides.**
+
+```
+screens (presentation/ai)  ->  AiHub (data/ai)  ->  AiGateway  ->  OnDeviceAi (port, :domain)  ->  GeminiNanoEngine (the only ML Kit file)
+                                   |                                      ^ NoOnDeviceAi in Demo mode and on phones without a model
+                                   +-> AiUnderstander / AiAsker / AiMonthWriter / AiSummarizer / AiCategoryIdeas / AiBatch  (:domain)
+```
+
+- **Port** (`domain/ai/OnDeviceAi.kt`): `AiAvailability` (Unsupported, NeedsDownload, Downloading, Ready, Busy, Failed), `generate(prompt, maxTokens)`, `NoOnDeviceAi`. The older `OnDeviceModel` / `ModelTransactionParser` pair stays for reference but is deliberately **not wired**: it would read every message without asking, which the new flow never does.
+- **Gateway** (`AiGateway`): one request in flight (a mutex), a time limit per request, a cap on the answer, a wait-and-retry (1.5 s, then 3 s) when the phone says busy or over quota, numbers-only diagnostics.
+- **Prompts** (`AiPrompts`): every template with two or three examples, in one file; user text goes between tags after `clean()` strips angle brackets and cuts it short. `VERSION` is part of every cache key.
+- **Guards** (`AiGuard.kt`, `AiMonth`, `AiSummaryGuard`, `AskParser`): amounts must be written in the message, names are snapped to the message's own spelling or dropped, categories must be the app's, directions the text contradicts are refused, JSON is read strictly (`MiniJson`), sentences may contain only numbers the app supplied (`NumberGuard`).
+- **Features**: (1) Understand unclear messages: `AiTeach` turns an accepted reading into a `LearnedTemplate` through `TemplateLearner.learn`, the same store and checks as "Teach the app"; the review-pile batch (`AiBatch`) runs at most 12 messages, only on the charger by default, never in lite mode, and can be stopped. (2) Smarter summaries: `AiSummaryOverlay` replaces a Home card's headline from `HomeViewModel`; the rule-based line is shown until the AI one passes its checks. (3) Ask your money: the model returns a query from a fixed vocabulary (`AskQuery`), `AskExecutor` runs it over the messages with `Counting`, `AskAnswer` writes the text. (4) Month in a sentence: `MonthFacts` (computed) -> prompt -> `AiMonth.verify`. (5) Category ideas: the same confirm flow as the category sheet.
+- **Gates** (`AiGate`): one rule for "may this run", used everywhere: master switch and explanation, the feature's switch, model ready, not Demo mode; batch work also not lite mode.
+- **Data**: prefs `ai_settings` and `ai_cache` (both excluded from backup), `PrefsAiCache` keeps at most 400 hashed entries.
+- **Where it must not appear**: the SMS receiver and everything in `notifications/`, exports, reports, logs. `AiPolicyTest` pins these and that `com.google.mlkit` is imported in `GeminiNanoEngine.kt` only.
+- **Build**: `com.google.mlkit:genai-prompt` (version in `gradle/libs.versions.toml`), minSdk 26 (the app's own), `-Xskip-metadata-version-check` in case the library is built with a newer Kotlin than the project's 2.0. No R8 rules were added: the library ships its own consumer rules (unverified).
+- **Unverified**: the ML Kit calls were written from the documentation and not compiled or run; AI Core behaviour, quota, latency and answer quality on a real Pixel are unmeasured.
+
 ## Where every message goes (dispositions)
 
 A message on the phone reaches the All tab through these stages. Each can take it out of the list or tuck it inside another row;

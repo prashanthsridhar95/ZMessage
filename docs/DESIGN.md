@@ -593,6 +593,18 @@ A full page (`presentation/places/SpendMapPage.kt`, `AppPage(scrollable = false)
 
 Not verified on a device: the location fix, the permission flow, the geocoder, the gestures and the feel of the animation. The tile request was never run against the live OpenStreetMap server.
 
+## On-device AI
+
+Rendered as light/dark previews at 360 dp and 320 dp before the code (Settings page, suggestion sheet, Ask answer, Insights sentence). Principles:
+
+- **Honest and quiet.** Every AI surface says where it came from ("By the AI on this phone"), and sits beside the app's own answer, never in place of a figure. The app's sentence is on screen first; the AI's replaces it only when it passes its checks. Wrong or slow means the plain version stays, with no error shouting.
+- **Confirm, never auto-apply.** The suggestion sheet highlights the words the AI used (amount, merchant, last four) in the message, shows "The app would record ...", and has two equal-width buttons, *Use this* and *Not right*, with "Teach it myself instead" below. A bill or non-payment reading offers only Close.
+- **Settings, On-device AI** (under Messages and senders): master switch with a one-time explanation sheet; a status card (Not supported on this phone, Model not downloaded, Downloading, Ready, Busy, Problem) with *Download model* and *Check again* side by side; one `ToggleRow` per feature; the review-pile card; a Try it box; *Clear AI suggestions cache* and a quiet diagnostics line. Demo mode shows labelled made-up examples and nothing else. No indeterminate or looping progress: downloading shows megabytes in words.
+- **Ask your money** is a row under the Search chips when the words look like a question; it opens a sheet with the big figure (`PrivateAmount`, so dots while hidden), the sentence, "Read as: Spent · Food · last week", the payments behind it (each opens the payment), and the line "The AI only read your question".
+- **Month in a sentence** is an Insights card with "Show the plain version" toggle.
+- Wide text, 320 dp and large fonts: nothing uses fixed heights; buttons stack through `ResponsiveRow`; colours are the theme's (light, dark, true black); every control is 48 dp with a label.
+- Hidden when there is nothing to do: not enabled, Demo mode, or an unsupported phone.
+
 ## Status and what comes next
 
 Phase A (this page): tokens, the motion package, tab/page/sheet transitions, shared components on tokens, Home as the

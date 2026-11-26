@@ -51,6 +51,15 @@ Show closed, then the existing holdings. Nothing was removed: Edit, Leave out, B
 three-dot menu beside the name of the card or account in front. Pure logic (limit math, cycle days, category shares, segments,
 deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `CardSpendTest`.
 
+### 4. Two on-device model paths -> one port, one confirm flow
+
+| | Before | After |
+|---|---|---|
+| Interface | `OnDeviceModel` + `ModelTransactionParser` (unwired; would have upgraded every unread message with no question asked) | `OnDeviceAi` (availability, `generate`) behind `AiGateway`; the old pair is left unwired |
+| Classification of an unclear message | "Teach the app" only | "Teach the app", or "Ask the AI on this phone", which ends in the same `LearnedTemplate` (`AiTeach` -> `TemplateLearner.learn`) saved by the same `onTeach` |
+| Category for a payee | the on-phone word model (`CategorySuggester`, "Looks like Food") | unchanged, plus an AI idea chip in the same category sheet when it has no suggestion; both end in `choose(category)` and the same Undo |
+| Search | one search | one search; "Ask your money" is a row of it, whose answer is computed with `Counting` like every other total |
+
 ## Checked and kept (genuinely different, or already one path)
 
 | Candidates | Decision |

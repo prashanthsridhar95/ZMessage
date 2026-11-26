@@ -43,6 +43,12 @@ When the text changes in meaning, bump `LegalInfo.TEXT_VERSION` and `LAST_UPDATE
 | Accounts | None. Google sign-in is used only if the person turns on Drive backup |
 | Accessibility | Pass done by reading the code, not with TalkBack on a device: see the commit and `AccessibilityPolicyTest`. Not a conformance claim for any standard |
 
+## On-device AI (Gemini Nano)
+
+- The app uses `com.google.mlkit:genai-prompt`, which is governed by the ML Kit Terms of Service and the *ML Kit GenAI API Additional Terms of Service*; those terms put responsibility for the safety of the app's use of generated text on the developer. Not read in full by the authors; **unverified** and not reviewed by a lawyer.
+- Gemini Nano is Google's model, fetched by Google's AI Core service, not by this app. The in-app page and `docs/PRIVACY.md` say so.
+- The owner must check, before a public release, whether ML Kit GenAI's terms and Google Play's policies for generative-AI features (labelling, reporting of harmful output) apply to this app, and whether the plain-language text in `LegalText` is enough. Output is limited to numbers and short sentences the app verifies, and no free-form chat is offered other than the "Try it" test box on the settings page.
+
 ## Play Store specifics
 
 `READ_SMS`, `RECEIVE_SMS` and `SEND_SMS` are *restricted permissions* on Google Play. An app may use them only if it is the phone's default SMS handler or meets a narrow listed exception, and must pass a permissions declaration review. A finance app that reads the inbox (SMS and MMS) and sends texts (code sharing, balance check) is unlikely to qualify as it stands. Treat this app as **sideload only** (direct install, GitHub releases). A Play build would need a different feature set (no `SEND_SMS`, and a review of `READ_SMS`), a privacy policy URL hosted on the web, and a Data safety form. None of that is done here.
