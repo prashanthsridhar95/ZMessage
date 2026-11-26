@@ -443,6 +443,8 @@ class MainActivity : ComponentActivity() {
 
                 // After Welcome and the permission steps: the tour invitation (fresh installs), or a tour left half-way.
                 com.zyke.message.presentation.tour.TourLaunch(tourController, permissionsSettled.value)
+                // Prepares the morning digest's opening line while the app is open, when the person switched that on (On-device AI).
+                com.zyke.message.presentation.ai.AiDigestPrep()
                 // The person's accounts, so every payment row can say whether its number is a credit card, a debit card or a bank account.
                 val paymentAccounts by remember { homeViewModel.state.map { it.accounts.accounts }.distinctUntilChanged() }
                     .collectAsStateWithLifecycle(emptyList())

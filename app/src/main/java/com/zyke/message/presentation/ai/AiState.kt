@@ -26,6 +26,14 @@ internal fun rememberAiVisible(feature: AiFeature): Boolean {
     return AiGate.visible(feature, settings, availability, ai.aiContext())
 }
 
+/** Whether a tap on an AI button can be answered now: the model is ready, or it answered recently (see ModelWatch). */
+@Composable
+internal fun rememberAiReady(): Boolean {
+    val ai = rememberAi()
+    val availability by ai.availability.collectAsState()
+    return availability.canGenerate || ai.aiContext().modelWorked
+}
+
 /** One short word for where the model is, for the Settings row. */
 internal fun availabilityLabel(availability: com.zyke.message.domain.ai.AiAvailability): String = when (availability) {
     com.zyke.message.domain.ai.AiAvailability.Unsupported -> "not supported here"

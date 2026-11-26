@@ -91,8 +91,13 @@ object DigestNotifier {
             items.size == 1 -> "1 thing today"
             else -> "${items.size} things today" + if (urgent > 0) " · $urgent due now" else ""
         }
-        val preview = items.firstOrNull()?.let { line(it, hide) } ?: "Nothing due or on today"
+        // The opening line the on-device AI prepared earlier, if the person switched that on and it still matches today's digest. It is only
+        // read from storage here (never asked for), so a missing or failing one changes nothing.
+        val opening = runCatching { com.zyke.message.data.ai.DigestNarrativeStore.lookup(context, digest) }.getOrNull()
+            ?.let { if (hide) com.zyke.message.domain.privacy.AmountMasker.mask(it) else it }
+        val preview = opening ?: items.firstOrNull()?.let { line(it, hide) } ?: "Nothing due or on today"
         val style = NotificationCompat.InboxStyle()
+        if (opening != null) style.addLine(opening)
         if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it, hide)) }
         // "Balances refreshed for 2 of 3 accounts": only when texts were sent for this digest; no amount in it.
         refreshed?.let { style.addLine(it) }

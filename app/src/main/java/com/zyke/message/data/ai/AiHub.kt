@@ -12,12 +12,15 @@ import com.zyke.message.domain.ai.AiCache
 import com.zyke.message.domain.ai.AiCategory
 import com.zyke.message.domain.ai.AiCategoryIdeas
 import com.zyke.message.domain.ai.AiContext
+import com.zyke.message.domain.ai.AiDigestWriter
 import com.zyke.message.domain.ai.AiDiagnostics
 import com.zyke.message.domain.ai.AiFailure
 import com.zyke.message.domain.ai.AiFeature
 import com.zyke.message.domain.ai.AiGate
+import com.zyke.message.domain.ai.AiExplainer
 import com.zyke.message.domain.ai.AiGateway
 import com.zyke.message.domain.ai.AiMonthWriter
+import com.zyke.message.domain.ai.AiPayeeNamer
 import com.zyke.message.domain.ai.AiPrompts
 import com.zyke.message.domain.ai.AiResult
 import com.zyke.message.domain.ai.AiSettings
@@ -25,6 +28,8 @@ import com.zyke.message.domain.ai.AiSettingsRepository
 import com.zyke.message.domain.ai.AiSummarizer
 import com.zyke.message.domain.ai.AiSummarySource
 import com.zyke.message.domain.ai.AiUnderstander
+import com.zyke.message.domain.ai.AiUnusualWriter
+import com.zyke.message.domain.ai.AiWhyWriter
 import com.zyke.message.domain.ai.AskOutcome
 import com.zyke.message.domain.ai.BatchItem
 import com.zyke.message.domain.ai.BatchProgress
@@ -32,11 +37,15 @@ import com.zyke.message.domain.ai.InMemoryAiCache
 import com.zyke.message.domain.ai.InMemoryAiSettings
 import com.zyke.message.domain.ai.ModelReport
 import com.zyke.message.domain.ai.ModelWatch
+import com.zyke.message.domain.ai.Phrased
 import com.zyke.message.domain.ai.MonthFacts
 import com.zyke.message.domain.ai.NoOnDeviceAi
 import com.zyke.message.domain.ai.OnDeviceAi
 import com.zyke.message.domain.ai.SummaryCandidate
 import com.zyke.message.domain.ai.Understanding
+import com.zyke.message.domain.ai.UnusualFacts
+import com.zyke.message.domain.ai.WhyFacts
+import com.zyke.message.domain.ai.DigestFacts
 import com.zyke.message.domain.model.CustomCategory
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -69,6 +78,11 @@ class AiHub(
     private val monthWriter = AiMonthWriter(gateway, cache)
     private val summarizer = AiSummarizer(gateway, cache)
     private val categoryIdeas = AiCategoryIdeas(gateway, cache)
+    private val payeeNamer = AiPayeeNamer(gateway, cache)
+    private val explainer = AiExplainer(gateway, cache)
+    private val whyWriter = AiWhyWriter(gateway, cache)
+    private val digestWriter = AiDigestWriter(gateway, cache)
+    private val unusualWriter = AiUnusualWriter(gateway, cache)
     private val batch = AiBatch(understander)
 
     val settings: StateFlow<AiSettings> get() = settingsStore.settings
@@ -176,6 +190,49 @@ class AiHub(
     suspend fun monthSentence(facts: MonthFacts): String? =
         if (allowed(AiFeature.MONTH)) monthWriter.write(facts).also { _kept.value = cache.size } else null
 
+    // ---- features 6 to 10: each answers one tap (or, for the digest line, one preparation while the app is open) ----
+
+    private val off = Phrased.Failed(AiFailure.UNAVAILABLE)
+
+    /** The tidy name already worked out for [raw], without asking the model. */
+    fun knownName(raw: String): String? = if (allowed(AiFeature.NAMES)) payeeNamer.known(raw) else null
+
+    suspend fun suggestName(raw: String): Phrased =
+        if (allowed(AiFeature.NAMES)) payeeNamer.suggest(raw).also { _kept.value = cache.size } else off
+
+    fun knownExplanation(sender: String, body: String): String? = if (allowed(AiFeature.EXPLAIN)) explainer.known(sender, body) else null
+
+    suspend fun explain(sender: String, body: String): Phrased =
+        if (allowed(AiFeature.EXPLAIN)) explainer.explain(sender, body).also { _kept.value = cache.size } else off
+
+    /** Whether the explanation of this message may be asked for at all (never for a one-time code). */
+    fun canExplain(message: com.zyke.message.domain.model.ClassifiedMessage): Boolean = explainer.eligible(message)
+
+    fun knownWhy(facts: WhyFacts): String? = if (allowed(AiFeature.WHY_UP)) whyWriter.known(facts) else null
+
+    suspend fun why(facts: WhyFacts): Phrased =
+        if (allowed(AiFeature.WHY_UP)) whyWriter.explain(facts).also { _kept.value = cache.size } else off
+
+    fun knownUnusual(facts: UnusualFacts): String? = if (allowed(AiFeature.UNUSUAL)) unusualWriter.known(facts) else null
+
+    suspend fun unusual(facts: UnusualFacts): Phrased =
+        if (allowed(AiFeature.UNUSUAL)) unusualWriter.explain(facts).also { _kept.value = cache.size } else off
+
+    private var digestJob: Job? = null
+
+    /**
+     * Prepares tomorrow's digest line while the app is open: background work (never in lite mode), one at a time, a short time
+     * limit and no retry. The morning notification only reads what is stored here; it never asks. Safe to call often.
+     */
+    fun prepareDigest(facts: DigestFacts) {
+        if (!AiGate.backgroundAllowed(AiFeature.DIGEST, settings.value, availability.value, aiContext())) return
+        if (digestJob?.isActive == true || digestWriter.known(facts) != null || working.value) return
+        digestJob = scope.launch {
+            digestWriter.prepare(facts)
+            _kept.value = cache.size
+        }
+    }
+
     // ---- feature 2 ----
 
     private val summaryMap = MutableStateFlow<Map<Long, String>>(emptyMap())
@@ -232,6 +289,7 @@ class AiHub(
     }
 
     fun close() {
+        digestJob?.cancel()
         stopBatch()
         cancelWarmUp()
         engine.close()

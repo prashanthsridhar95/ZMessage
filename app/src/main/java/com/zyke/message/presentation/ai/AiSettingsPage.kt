@@ -140,6 +140,10 @@ internal fun AiSettingsContent() {
                 onCheckedChange = { haptics.tick(); ai.update { s -> s.withFeature(feature, it) } }
             )
         }
+        Caption(
+            "Each answer is checked against your own figures or the message before it is shown. The morning digest line is prepared while the app is open and used only if Morning digest is on in Alerts.",
+            Modifier.padding(top = Spacing.sm), maxLines = 5
+        )
     }
 
     if (AiFeature.UNDERSTAND in settings.enabled) ReviewPileCard()
@@ -282,6 +286,33 @@ private fun DemoExamples() {
         RowTitle("Example: month in a sentence")
         Caption("Made-up example, not from your messages", maxLines = 1)
         Text("You have spent ₹42,300 so far, 12% more than last month, mostly on Food.", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+    }
+    FintechCard {
+        RowTitle("Example: clean payee name")
+        Caption("Made-up example, not from your messages", maxLines = 1)
+        Text("SWIGGY*ORDER 4455 BLR", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+        Text("Use \u201CSwiggy\u201D", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+    }
+    FintechCard {
+        RowTitle("Example: explain a message")
+        Caption("Made-up example, not from your messages", maxLines = 1)
+        Text("Your card bill of Rs 5,400 is due on 28-Nov. Pay before the due date to avoid a late fee.", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+        Text("Your card bill of Rs 5,400 is due on 28-Nov. Paying before then avoids a late fee.", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+    }
+    FintechCard {
+        RowTitle("Example: why did spending go up?")
+        Caption("Made-up example, not from your messages", maxLines = 1)
+        Text("Spending is \u20B92,000 above last month, mostly Food, where Swiggy alone rose by \u20B91,800.", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+    }
+    FintechCard {
+        RowTitle("Example: morning digest line")
+        Caption("Made-up example, not from your messages", maxLines = 1)
+        Text("Rent is due today and 2 bills worth \u20B95,400 are coming up.", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+    }
+    FintechCard {
+        RowTitle("Example: unusual payment")
+        Caption("Made-up example, not from your messages", maxLines = 1)
+        Text("This is about 42 times your usual payment, and your first to Croma in 90 days.", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
     }
     LearnMore("The real thing needs your own phone, a recent Pixel with AI Core, and the switch on this page. Nothing here is sent anywhere.")
 }

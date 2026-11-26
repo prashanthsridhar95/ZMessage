@@ -397,6 +397,7 @@ internal fun ReviewPage(
                         caption = stampOf(message) + " \u00B7 far more than you usually pay. Is this right?",
                         amount = DisplayFormatters.rupees(tx.amount)
                     ) {
+                        com.zyke.message.presentation.ai.AiUnusualRow(message)
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppButton("Open message", { onOpen(message.id) }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Looks right", { onNotTransfer(ReviewQueues.unusualKey(message)) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)

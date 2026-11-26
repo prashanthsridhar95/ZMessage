@@ -261,6 +261,9 @@ internal fun MessageDetailSheet(
                 if (message.isChat() && !message.isMms) ChatNote()
             }
 
+            // "Explain this message" in plain words, only when the person switched that on (On-device AI); never for a one-time code.
+            com.zyke.message.presentation.ai.AiExplainRow(item)
+
             if (related.isNotEmpty()) {
                 val relatedLedger = com.zyke.message.presentation.common.rememberLedgerActions()
                 RelatedMessages(related, onOpen = actions.onOpenMessage, onNotTheSame = { relatedLedger.answerSamePayment(listOf(it), false, false) })
@@ -729,6 +732,8 @@ private fun NicknameSheet(
             supporting = if (forTransaction) "Only this payment is shown with this name" else "Shown wherever ${CategoryKey.label(item)} appears",
             capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
         )
+        // A tidy name for a messy payee, from the on-device AI when that is switched on; it only fills the box, the person saves.
+        com.zyke.message.presentation.ai.AiNameIdea(item.merchant.originalName ?: CategoryKey.label(item)) { name = it }
         if (suggestions.isNotEmpty()) {
             FormGroup(if (name.isBlank()) "Names you have used" else "Names you have used that fit") {
                 com.zyke.message.presentation.common.SuggestionRow(

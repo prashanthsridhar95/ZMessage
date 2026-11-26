@@ -254,6 +254,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
     }
 
     val aiMonthVisible = com.zyke.message.presentation.ai.rememberAiVisible(com.zyke.message.domain.ai.AiFeature.MONTH)
+    val aiWhyVisible = com.zyke.message.presentation.ai.rememberAiVisible(com.zyke.message.domain.ai.AiFeature.WHY_UP)
     TourScroll(TourTab.INSIGHTS, listState)
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -336,6 +337,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         state.monthlySummary?.takeIf { aiMonthVisible && (it.spent.signum() > 0) }?.let { summary ->
             item(key = "month-sentence") {
                 com.zyke.message.presentation.ai.MonthSentenceCard(summary, state.messages)
+            }
+        }
+
+        state.monthlySummary?.takeIf { aiWhyVisible && it.spentDelta.signum() > 0 && it.previousSpent.signum() > 0 }?.let { summary ->
+            item(key = "why-up") {
+                com.zyke.message.presentation.ai.WhyUpCard(summary, state.messages)
             }
         }
 
