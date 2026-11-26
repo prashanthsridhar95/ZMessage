@@ -250,6 +250,36 @@ class AiServicesTest {
         assertFalse("master off", AiGate.allowed(AiFeature.ASK, on.copy(master = false), ready, ctx))
     }
 
+    @Test fun aRecentAnswerOpensTheGateWhateverTheStatusWordSays() {
+        val on = AiSettings(true, true, AiFeature.entries.toSet())
+        val proven = AiContext(modelWorked = true)
+        assertTrue(AiGate.allowed(AiFeature.ASK, on, AiAvailability.NeedsDownload, proven))
+        assertTrue(AiGate.allowed(AiFeature.MONTH, on, AiAvailability.Unsupported, proven))
+        assertTrue(AiGate.visible(AiFeature.ASK, on, AiAvailability.Unsupported, proven))
+        assertFalse("never in demo", AiGate.allowed(AiFeature.ASK, on, AiAvailability.NeedsDownload, proven.copy(demo = true)))
+        assertFalse("never with the switch off", AiGate.allowed(AiFeature.ASK, AiSettings(), AiAvailability.NeedsDownload, proven))
+    }
+
+    @Test fun theGatewayTriesWhenTheModelAnsweredRecentlyAndStatusSaysNo() = runBlocking {
+        val now = 5_000_000_000L
+        val engine = object : OnDeviceAi {
+            override val availability: StateFlow<AiAvailability> = MutableStateFlow(AiAvailability.NeedsDownload)
+            override val report: StateFlow<com.zyke.message.domain.ai.ModelReport> =
+                MutableStateFlow(com.zyke.message.domain.ai.ModelReport(workedAtMs = now - 1_000))
+            override suspend fun refresh() = Unit
+            override suspend fun download() = Unit
+            override suspend fun generate(prompt: String, maxTokens: Int): AiResult = AiResult.Text("hi", 5)
+            override fun close() = Unit
+        }
+        val g = AiGateway(engine, wallClock = { now })
+        assertTrue(g.run("p") is AiResult.Text)
+        val quiet = g.run("p", quiet = true)
+        assertTrue(quiet is AiResult.Text)
+        assertEquals("a quiet request leaves the numbers alone", 1, g.diagnostics.value.requests)
+        val stale = AiGateway(engine, wallClock = { now + com.zyke.message.domain.ai.ModelWatch.RECENT_MS + 5_000 })
+        assertEquals(AiFailure.UNAVAILABLE, (stale.run("p") as AiResult.Failure).kind)
+    }
+
     @Test fun demoModeAndUnsupportedPhonesNeverRunAndHideTheSurfaces() {
         val on = AiSettings(true, true, AiFeature.entries.toSet())
         assertFalse(AiGate.allowed(AiFeature.ASK, on, AiAvailability.Ready, AiContext(demo = true)))

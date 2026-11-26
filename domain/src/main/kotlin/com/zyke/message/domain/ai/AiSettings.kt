@@ -43,18 +43,20 @@ data class AiContext(
     val demo: Boolean = false,
     val lite: Boolean = false,
     val charging: Boolean = false,
-    val readingPaused: Boolean = false
+    val readingPaused: Boolean = false,
+    /** The model gave a real answer recently (see ModelWatch.worked): features run whatever the status word says. */
+    val modelWorked: Boolean = false
 )
 
 /** One rule for "may this feature run now", used by every surface, so they cannot disagree. */
 object AiGate {
-    /** A feature may run when it is switched on, the model is ready and this is not Demo mode. */
+    /** A feature may run when it is switched on, the model is ready or has answered recently, and this is not Demo mode. */
     fun allowed(feature: AiFeature, settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =
-        !context.demo && settings.isOn(feature) && availability.canGenerate
+        !context.demo && settings.isOn(feature) && (availability.canGenerate || context.modelWorked)
 
     /** Whether to show the feature's surface at all: hidden in Demo mode, off, or on a phone that cannot do it. */
     fun visible(feature: AiFeature, settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =
-        !context.demo && settings.isOn(feature) && availability !is AiAvailability.Unsupported
+        !context.demo && settings.isOn(feature) && (availability !is AiAvailability.Unsupported || context.modelWorked)
 
     /** The review-pile batch: never in lite mode, and on the charger unless the person allowed battery. */
     fun batchAllowed(settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =

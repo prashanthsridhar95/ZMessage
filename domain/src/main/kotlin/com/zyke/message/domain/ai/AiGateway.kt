@@ -35,7 +35,8 @@ data class AiDiagnostics(
 class AiGateway(
     private val engine: OnDeviceAi,
     private val pause: suspend (Long) -> Unit = { delay(it) },
-    private val clock: () -> Long = System::nanoTime
+    private val clock: () -> Long = System::nanoTime,
+    private val wallClock: () -> Long = System::currentTimeMillis
 ) {
     private val lock = Mutex()
     private val _diagnostics = MutableStateFlow(AiDiagnostics())
@@ -50,13 +51,15 @@ class AiGateway(
 
     /**
      * Runs one request. Waits its turn; gives up after [timeoutMs] of its own turn; tries again after a wait while the
-     * failure says it is worth it, at most [retries] times. Cancelling the caller cancels the request.
+     * failure says it is worth it, at most [retries] times. A [quiet] request (the warm-up) leaves the numbers alone. Cancelling the caller cancels the request.
      */
     suspend fun run(
         prompt: String, maxTokens: Int = DEFAULT_TOKENS, timeoutMs: Long = DEFAULT_TIMEOUT_MS, retries: Int = DEFAULT_RETRIES,
-        ignoreStatus: Boolean = false
+        ignoreStatus: Boolean = false, quiet: Boolean = false
     ): AiResult {
-        if (!ignoreStatus && !engine.availability.value.canGenerate) return record(AiResult.Failure(AiFailure.UNAVAILABLE))
+        // A recent real answer beats the status word: try, and let the engine's own failure say if it is not there.
+        val usable = engine.availability.value.canGenerate || ModelWatch.worked(engine.report.value, wallClock())
+        if (!ignoreStatus && !usable) return record(AiResult.Failure(AiFailure.UNAVAILABLE), quiet)
         return lock.withLock {
             _working.value = true
             try {
@@ -67,7 +70,7 @@ class AiGateway(
                     attempt++
                     result = once(prompt, maxTokens, timeoutMs)
                 }
-                record(result)
+                record(result, quiet)
             } finally {
                 _working.value = false
             }
@@ -92,7 +95,8 @@ class AiGateway(
         }
     }
 
-    private fun record(result: AiResult): AiResult {
+    private fun record(result: AiResult, quiet: Boolean = false): AiResult {
+        if (quiet) return result
         val before = _diagnostics.value
         _diagnostics.value = when (result) {
             is AiResult.Text -> before.copy(lastLatencyMs = result.latencyMs, lastFailure = null, requests = before.requests + 1)
