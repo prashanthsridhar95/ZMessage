@@ -50,6 +50,10 @@ object LegalText {
             LegalItem("What you enter", "Budgets, cards (last four digits only), plans, goals, reminders, notes, names and settings are saved in the app's private storage."),
             LegalItem("Cookies", "The app sets no cookies and has no cookie banner. One exception: if you choose \"From the web\" to find a picture for a sender, a Google Images page opens inside the app and Google's page may use its own cookies, as it would in a browser."),
             LegalItem("Spending places (off until you switch on \"Remember where I spend\")", "When a purchase text arrives, the phone is asked once where it is. The position (rounded to about 11 metres), how exact it was and the time are saved on this phone, tied to that one text by a one-way code, and used only to show the Where section of a payment and the Spending map. They are never uploaded, never written to the log, left out of backups unless you turn on \"Include places in my backup\", and removed when the text is deleted, after the number of months you choose (24 by default), or when you tap Delete all places. Place names, if shown, come from the phone's own geocoder, which may contact a remote service; you can turn names off."),
+            LegalItem(
+                "On-device AI (off until you switch it on)",
+                "If you switch on \"On-device AI\" in Settings, parts of a message you ask about, or a question you type in Search, are given to Gemini Nano, a language model that runs on this phone inside Google's AI Core service. It runs on the phone only: the app has no cloud fallback and sends nothing to a server for it. Answers can be wrong, so each one is checked against your message and nothing is saved until you confirm. The AI never works out your totals; the app does. What it suggested is kept in a private file on the phone (left out of backups and exports) until you clear it in Settings."
+            ),
             LegalItem("Logs", "A small log of start-up steps and crash details (screen and function names, never message text, amounts or names) stays on the phone. It leaves only if you choose Share logs and pick an app.")
         )
     )
@@ -101,6 +105,10 @@ object LegalText {
                 "When you add a person for code sharing you can choose one from your contacts. The app uses the phone's own picker and receives only the one name and number you pick; it has no permission to read your contacts."
             ),
             LegalItem(
+                "The AI model (only if you switch on On-device AI)",
+                "This app makes no request for it. The first time, Google's AI Core service on the phone, or Google Play services, may download the Gemini Nano model over the internet and update it later, on its own schedule and under Google's own terms. Your messages are not part of that download. Ask for it in Settings, On-device AI, on Wi-Fi if you can."
+            ),
+            LegalItem(
                 "Files and reports you share",
                 "Exports, backups and the parsing report go nowhere unless you pick an app in the share sheet. Check a file before you send it."
             )
@@ -133,7 +141,7 @@ object LegalText {
         items = listOf(
             LegalItem("Hide amounts", "Shows every amount as dots, in the app, in notifications and in the widget, until you confirm with your screen lock."),
             LegalItem("App lock and screenshots", "Ask for your fingerprint, face or screen lock when you return to the app, and block screenshots and the recent-apps preview."),
-            LegalItem("Switch features off", "Logos, market prices, flight and train status, live alerts, code sharing and backups can each be switched off in Settings. Reading messages can be paused."),
+            LegalItem("Switch features off", "Logos, market prices, flight and train status, live alerts, code sharing, on-device AI (each of its five features on its own) and backups can each be switched off in Settings. Reading messages can be paused."),
             LegalItem("Backups", "Backups are off until you switch them on. Switching Drive backup off does not delete files already in your Drive; remove them in Google Drive settings, Manage apps."),
             LegalItem("Delete all my data", "Settings, Your data and about, Delete all my data removes everything the app has saved on the phone, after you type a word to confirm. It cannot remove a copy that Android or Google already holds, or a file you shared."),
             LegalItem("Demo mode", "Shows the app with sample data. It reads none of your messages and sends no requests for logos, prices or flights.")

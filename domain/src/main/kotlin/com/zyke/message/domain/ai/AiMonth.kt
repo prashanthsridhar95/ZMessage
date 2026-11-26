@@ -4,6 +4,7 @@ import com.zyke.message.domain.dashboard.MonthlySummary
 import com.zyke.message.domain.insights.DigestFormat
 import com.zyke.message.domain.ledger.Counting
 import com.zyke.message.domain.model.ClassifiedMessage
+import com.zyke.message.domain.model.MessageCategory
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -51,7 +52,9 @@ data class MonthFacts(
 object AiMonth {
     private const val MAX_CHARS = 240
     private const val MAX_SENTENCES = 2
-    private val SYMBOLS = 0x2190..0x2BFF
+    private const val SYMBOL_FROM = 0x2190
+    private const val SYMBOL_TO = 0x2BFF
+    private val MARKUP = setOf('*', '#', '<', '>')
     private val LESS = Regex("(?i)\\b(less|lower|below|down|fewer|under)\\b")
     private val MORE = Regex("(?i)\\b(more|higher|above|up|greater|over)\\b")
 
@@ -61,7 +64,7 @@ object AiMonth {
         val inRange = messages.filter { LocalDate.ofInstant(Instant.ofEpochMilli(it.message.date), zone) in summary.range }
         val spends = inRange.mapNotNull { m -> Counting.spend(m)?.let { m to it } }
         val byCategory = spends.groupBy { it.first.category }.mapValues { (_, v) -> v.sumOf { it.second } }
-            .filterKeys { it != com.zyke.message.domain.model.MessageCategory.OTHERS && it != com.zyke.message.domain.model.MessageCategory.UPI_PAYMENT }
+            .filterKeys { it != MessageCategory.OTHERS && it != MessageCategory.UPI_PAYMENT }
         val top = byCategory.maxByOrNull { it.value }
         val biggest = spends.maxByOrNull { it.second }
         return MonthFacts(
@@ -75,7 +78,7 @@ object AiMonth {
     fun verify(reply: String, facts: MonthFacts): String? {
         val text = reply.trim().replace(Regex("\\s+"), " ").trim('"', '“', '”')
         if (text.isEmpty() || text.length > MAX_CHARS) return null
-        if (text.any { it.isSurrogate() || it.code in SYMBOLS } || text.any { it == '*' || it == '#' || it == '<' || it == '>' }) return null
+        if (text.any { it.isSurrogate() || it.code in SYMBOL_FROM..SYMBOL_TO || it in MARKUP }) return null
         if (Regex("[.!?](\\s|$)").findAll(text).count() > MAX_SENTENCES) return null
         if (!NumberGuard.onlyAllowed(text, facts.lines)) return null
         if (facts.percent != null) {

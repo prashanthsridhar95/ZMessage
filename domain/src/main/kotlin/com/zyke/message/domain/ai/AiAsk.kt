@@ -45,7 +45,8 @@ enum class AskPeriod(val word: String, val phrase: String) {
         TODAY -> DateRange(today, today)
         YESTERDAY -> today.minusDays(1).let { DateRange(it, it) }
         THIS_WEEK -> DateRange(today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)), today)
-        LAST_WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(1).let { DateRange(it, it.plusDays(DAYS_IN_WEEK - 1)) }
+        LAST_WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(1)
+            .let { DateRange(it, it.plusDays(DAYS_IN_WEEK - 1)) }
         THIS_MONTH -> cycle.containing(today).let { DateRange(it.start, minOf(it.endInclusive, today)) }
         LAST_MONTH -> cycle.shifted(today, -1)
         LAST_7_DAYS -> DateRange(today.minusDays(DAYS_IN_WEEK - 1), today)
@@ -81,7 +82,9 @@ object AskParser {
      * @param knownPayees the names of the payees the person has, as the app shows them
      * @param customs the person's own category names (lower case) to their ids
      */
-    fun parse(reply: String, question: String, knownPayees: Collection<String>, customs: Map<String, String> = emptyMap()): Guarded<AskQuery> {
+    fun parse(
+        reply: String, question: String, knownPayees: Collection<String>, customs: Map<String, String> = emptyMap()
+    ): Guarded<AskQuery> {
         val obj = MiniJson.firstObject(reply) ?: return Guarded.Rejected("The answer was not in a form the app can use")
         val metric = AskMetric.entries.firstOrNull { it.word.equals(obj.text("metric"), ignoreCase = true) }
             ?: return Guarded.Rejected("It asked for something the app cannot work out")
@@ -153,9 +156,11 @@ object AskExecutor {
             AskMetric.INCOME -> total
             AskMetric.COUNT -> BigDecimal(side.size)
             AskMetric.BIGGEST -> side.maxOfOrNull { it.second } ?: BigDecimal.ZERO
-            AskMetric.AVERAGE -> if (side.isEmpty()) BigDecimal.ZERO else side.sumOf { it.second }.divide(BigDecimal(side.size), 0, RoundingMode.HALF_UP)
+            AskMetric.AVERAGE ->
+                if (side.isEmpty()) BigDecimal.ZERO else side.sumOf { it.second }.divide(BigDecimal(side.size), 0, RoundingMode.HALF_UP)
         }
-        val ordered = if (query.metric == AskMetric.BIGGEST) side.sortedByDescending { it.second } else side.sortedByDescending { it.first.message.date }
+        val ordered = if (query.metric == AskMetric.BIGGEST) side.sortedByDescending { it.second }
+        else side.sortedByDescending { it.first.message.date }
         val rows = if (query.group == AskGroup.NONE) emptyList() else
             side.groupBy { groupLabel(query.group, it.first, zone, customNames) }
                 .map { (label, items) -> AskRow(label, items.sumOf { it.second }, items.size) }
@@ -197,7 +202,9 @@ object AskAnswer {
         val q = result.query
         val what = q.category?.name?.let { " on $it" }.orEmpty() + q.payee?.let { " at $it" }.orEmpty()
         val whenText = q.period.phrase
-        val understood = listOfNotNull(q.metric.title, q.category?.name, q.payee, q.period.phrase.removePrefix("in ").removePrefix("the ")).distinct()
+        val understood = listOfNotNull(
+            q.metric.title, q.category?.name, q.payee, q.period.phrase.removePrefix("in ").removePrefix("the ")
+        ).distinct()
         val title = q.metric.title + what + ", " + whenText
         val money = DigestFormat.rupees(result.figure)
         val n = result.count
@@ -216,7 +223,8 @@ object AskAnswer {
             }
         }
         val figure = if (q.metric == AskMetric.COUNT) n.toString() else money
-        val grouped = if (result.rows.isEmpty()) "" else " " + result.rows.take(GROUPS_IN_SENTENCE).joinToString("; ") { "${it.label} ${DigestFormat.rupees(it.amount)}" } + "."
+        val grouped = if (result.rows.isEmpty()) "" else
+            " " + result.rows.take(GROUPS_IN_SENTENCE).joinToString("; ") { "${it.label} ${DigestFormat.rupees(it.amount)}" } + "."
         return AskText(title, figure, sentence + grouped, understood)
     }
 

@@ -23,7 +23,9 @@ object AiTeach {
         val amount = indexAt(amountAt).takeIf { it >= 0 && tokens[it].isNumber } ?: return null
         val account = reading.last4At?.let { range ->
             tokens.indexOfFirst { it.start <= range.last - offset && range.last - offset < it.end }
-                .takeIf { it >= 0 && tokens[it].text.all(Char::isDigit) && tokens[it].text.takeLast(LAST4) == reading.last4 && it != amount }
+                .takeIf {
+                    it >= 0 && tokens[it].text.all(Char::isDigit) && tokens[it].text.takeLast(LAST4) == reading.last4 && it != amount
+                }
         }
         val payee = reading.merchantAt?.let { range ->
             val inside = tokens.indices.filter { tokens[it].start >= range.first - offset && tokens[it].end <= range.last + 1 - offset }

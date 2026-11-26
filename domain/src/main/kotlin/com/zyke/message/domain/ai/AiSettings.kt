@@ -17,7 +17,9 @@ data class AiSettings(
     val master: Boolean = false,
     /** The one-time explanation was shown and accepted. */
     val explained: Boolean = false,
-    val enabled: Set<AiFeature> = emptySet()
+    val enabled: Set<AiFeature> = emptySet(),
+    /** The review-pile check waits for the charger (the default); the person can allow it on battery. */
+    val batchOnlyWhileCharging: Boolean = true
 ) {
     fun isOn(feature: AiFeature): Boolean = master && explained && feature in enabled
 
@@ -41,7 +43,6 @@ data class AiContext(
     val demo: Boolean = false,
     val lite: Boolean = false,
     val charging: Boolean = false,
-    val interactive: Boolean = true,
     val readingPaused: Boolean = false
 )
 
@@ -55,9 +56,10 @@ object AiGate {
     fun visible(feature: AiFeature, settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =
         !context.demo && settings.isOn(feature) && availability !is AiAvailability.Unsupported
 
-    /** The review-pile batch: never in lite mode, and only while the phone is charging and not in use. */
+    /** The review-pile batch: never in lite mode, and on the charger unless the person allowed battery. */
     fun batchAllowed(settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =
-        allowed(AiFeature.UNDERSTAND, settings, availability, context) && !context.lite && context.charging && !context.interactive
+        allowed(AiFeature.UNDERSTAND, settings, availability, context) && !context.lite &&
+            (context.charging || !settings.batchOnlyWhileCharging)
 
     /** Background work that nobody asked for right now (summaries of Home cards): only a few, never in lite mode. */
     fun backgroundAllowed(feature: AiFeature, settings: AiSettings, availability: AiAvailability, context: AiContext): Boolean =

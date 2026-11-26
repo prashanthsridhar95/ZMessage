@@ -45,6 +45,7 @@ object OpenSourceNotices {
             "org.jetbrains.kotlinx:kotlinx-coroutines-core", "org.jetbrains.kotlinx:kotlinx-coroutines-android"
         )),
         Notice("Google Play services Auth", "Google sign-in for the optional Drive backup", "Google Play services terms (not open source; see the Android SDK licence)", "https://developer.android.com/studio/terms", NoticeKind.LIBRARY, listOf("com.google.android.gms:play-services-auth")),
+        Notice("ML Kit GenAI Prompt API", "Asks the Gemini Nano model that Google's AI Core service keeps on the phone, only if you switch on On-device AI. Not open source; the model is Google's and may be fetched by Google's service", "ML Kit Terms of Service and the ML Kit GenAI API Additional Terms of Service (not open source)", "https://developers.google.com/ml-kit/terms", NoticeKind.LIBRARY, listOf("com.google.mlkit:genai-prompt")),
         Notice("Google Play services Wearable", "Watch link (only when built with -PwithWear=true)", "Google Play services terms (not open source; see the Android SDK licence)", "https://developer.android.com/studio/terms", NoticeKind.OPTIONAL, listOf("com.google.android.gms:play-services-wearable")),
         Notice("AndroidX Wear Compose, Tiles, ProtoLayout, Watch Face, Concurrent Futures", "The watch app (separate module)", APACHE, "https://developer.android.com/jetpack/androidx", NoticeKind.OPTIONAL, listOf(
             "androidx.wear.compose:compose-material", "androidx.wear.compose:compose-foundation", "androidx.wear.tiles:tiles",

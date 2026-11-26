@@ -260,13 +260,13 @@ class AiServicesTest {
         assertTrue("shown, so the person can see why it waits", AiGate.visible(AiFeature.ASK, on, AiAvailability.NeedsDownload, AiContext()))
     }
 
-    @Test fun batchWorkNeedsChargingIdleAndNotLite() {
+    @Test fun batchWorkNeedsChargingUnlessAllowedAndNeverLite() {
         val on = AiSettings(true, true, setOf(AiFeature.UNDERSTAND))
-        val ok = AiContext(charging = true, interactive = false)
+        val ok = AiContext(charging = true)
         assertTrue(AiGate.batchAllowed(on, AiAvailability.Ready, ok))
         assertFalse(AiGate.batchAllowed(on, AiAvailability.Ready, ok.copy(lite = true)))
         assertFalse(AiGate.batchAllowed(on, AiAvailability.Ready, ok.copy(charging = false)))
-        assertFalse(AiGate.batchAllowed(on, AiAvailability.Ready, ok.copy(interactive = true)))
+        assertTrue("battery allowed by the person", AiGate.batchAllowed(on.copy(batchOnlyWhileCharging = false), AiAvailability.Ready, ok.copy(charging = false)))
         assertFalse(AiGate.backgroundAllowed(AiFeature.UNDERSTAND, on, AiAvailability.Ready, ok.copy(lite = true)))
     }
 

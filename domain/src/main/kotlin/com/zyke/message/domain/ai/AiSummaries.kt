@@ -17,13 +17,14 @@ object AiSummaryGuard {
         var line = reply.trim().lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return null
         line = line.removePrefix("Summary:").removePrefix("summary:").trim().trim('"', '\'', '“', '”', '-', '*', '•').trim()
         if (line.length > MAX_CHARS || line.count { it.isLetter() } < MIN_LETTERS) return null
-        if (line.any { it.isSurrogate() || it.code in SYMBOL_BLOCK } || '<' in line || '>' in line) return null
+        if (line.any { it.isSurrogate() || it.code in SYMBOL_FROM..SYMBOL_TO } || '<' in line || '>' in line) return null
         if (line.contains("http", ignoreCase = true) && !body.contains("http", ignoreCase = true)) return null
         if (!NumberGuard.onlyAllowed(line, listOf(body))) return null
         return line
     }
 
-    private val SYMBOL_BLOCK = 0x2190..0x2BFF
+    private const val SYMBOL_FROM = 0x2190
+    private const val SYMBOL_TO = 0x2BFF
 }
 
 /** A message whose rule-based summary is generic, and the text to rewrite. */

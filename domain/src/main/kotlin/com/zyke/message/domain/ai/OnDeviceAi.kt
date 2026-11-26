@@ -14,8 +14,8 @@ sealed interface AiAvailability {
     /** The phone could fetch the model, but has not. Needs the person to ask for it. */
     data object NeedsDownload : AiAvailability
 
-    /** The model is being fetched by Google's service. [progress] is 0..1 when known. */
-    data class Downloading(val progress: Float?) : AiAvailability
+    /** The model is being fetched by Google's service. [progress] is 0..1 and [megabytes] the amount so far, each when known. */
+    data class Downloading(val progress: Float?, val megabytes: Int? = null) : AiAvailability
 
     data object Ready : AiAvailability
 

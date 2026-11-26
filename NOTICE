@@ -36,6 +36,11 @@ Google Play services Auth
   Licence: Google Play services terms (not open source; see the Android SDK licence)
   https://developer.android.com/studio/terms
 
+ML Kit GenAI Prompt API
+  Asks the Gemini Nano model that Google's AI Core service keeps on the phone, only if you switch on On-device AI. Not open source; the model is Google's and may be fetched by Google's service
+  Licence: ML Kit Terms of Service and the ML Kit GenAI API Additional Terms of Service (not open source)
+  https://developers.google.com/ml-kit/terms
+
 == Only in the optional watch build ==
 
 Google Play services Wearable

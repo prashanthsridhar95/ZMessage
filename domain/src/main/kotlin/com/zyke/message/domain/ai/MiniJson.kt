@@ -9,6 +9,7 @@ package com.zyke.message.domain.ai
 object MiniJson {
     const val MAX_CHARS = 4_000
     private const val MAX_DEPTH = 3
+    private const val HEX = 16
 
     /** A parsed object: text and numbers are kept as written. */
     class Obj(val values: Map<String, Any?>) {
@@ -119,7 +120,7 @@ object MiniJson {
                 'f' -> '\u000C'
                 'u' -> {
                     if (i + 4 > s.length) throw Bad
-                    val code = s.substring(i, i + 4).toIntOrNull(16) ?: throw Bad
+                    val code = s.substring(i, i + 4).toIntOrNull(HEX) ?: throw Bad
                     i += 4
                     code.toChar()
                 }
