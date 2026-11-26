@@ -156,8 +156,10 @@ class AccountsPolicyTest {
         listOf("\"Billed\"", "\"Unbilled\"", "\"Total card dues\"").forEach { assertTrue("$it tile", it in tab) }
         assertTrue("each tile opens the per-card sheet", "onClick = onOpen" in tab && "fun CardDuesSheet" in tab)
         assertTrue("every figure is private-aware", !Regex("""\bText\(\s*DisplayFormatters\.rupees""").containsMatchIn(tab))
-        assertTrue("rows enter in turn, once", "enterOnce(gate, 0)" in tab && "enterOnce(gate, 2)" in tab)
-        assertTrue("links wrap rather than squeeze", "FlowRow(" in tab)
+        assertTrue("rows enter in turn, once", "enterOnce(gate, 0)" in tab && "enterOnce(gate, 1)" in tab)
+        // The tab bar already goes to Accounts, Cards and Investments, so Overview carries no second set of buttons for them.
+        assertTrue("no link chips under the content", listOf("OverviewLinks", "LinkChip", "onGoTo", "ov-links", "FlowRow", "\"Investments\"").none { it in tab })
+        assertTrue("and nothing passes their counts or a tab switch", "onGoTo" !in text("home/FintechUi.kt") && "bankCount" !in text("home/FintechUi.kt"))
     }
 
     @Test

@@ -372,8 +372,7 @@ internal fun AccountsPage(state: HomeContract.State, onIntent: (HomeContract.Int
                     !pullTipSeen -> NetWorthHint.PULL
                     else -> NetWorthHint.NONE
                 },
-                bankCount = banks.size, cardCount = cards.size,
-                onShowNetWorth = requestNetWorth, onOpenDues = { duesOpen = true }, onGoTo = { tab = it },
+                onShowNetWorth = requestNetWorth, onOpenDues = { duesOpen = true },
                 itemModifier = bodyIn
             )
         } else if (tab == 3) {

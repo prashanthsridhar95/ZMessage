@@ -1,11 +1,8 @@
 package com.zyke.message.presentation.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -37,7 +34,6 @@ import com.zyke.message.presentation.common.ResponsiveRow
 import com.zyke.message.presentation.common.Text
 import com.zyke.message.presentation.common.headerContentColor
 import com.zyke.message.presentation.common.headerMutedColor
-import com.zyke.message.presentation.common.tappable
 import com.zyke.message.presentation.format.DisplayFormatters
 import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.messages.components.Caption
@@ -45,18 +41,16 @@ import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.motion.AnimatedAmount
 import com.zyke.message.presentation.motion.EnterGate
 import com.zyke.message.presentation.motion.enterOnce
-import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.theme.Tonal
 import com.zyke.message.presentation.theme.TypeRole
-import com.zyke.message.presentation.theme.tonalFill
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Locale
 
 /*
  * The Overview sub-tab of Accounts (docs/DESIGN.md, "Accounts: Overview"): the total balance as the hero, what the credit cards
- * will ask for (billed, unbilled, both together) as three tiles, a few quiet lines of context, and links to the other sub-tabs.
+ * will ask for (billed, unbilled, both together) as three tiles, and a few quiet lines of context. The other sub-tabs are reached by the tab bar only.
  * Net worth is deliberately not here: it opens only when the person pulls down at the top (NetWorthPull) or asks for it.
  */
 
@@ -102,17 +96,14 @@ internal fun OverviewHeaderContent(
     }
 }
 
-/** The Overview body under the header: the net worth hint, the card dues, the quiet lines, the links. */
+/** The Overview body under the header: the net worth hint, the card dues, the quiet lines. */
 internal fun LazyListScope.overviewBodyItems(
     model: AccountsOverviewModel,
     today: LocalDate,
     gate: EnterGate,
     hint: NetWorthHint,
-    bankCount: Int,
-    cardCount: Int,
     onShowNetWorth: () -> Unit,
     onOpenDues: () -> Unit,
-    onGoTo: (Int) -> Unit,
     /** The sub-tab switch's fade/slide, put on each item (nothing when the tab was not just switched). */
     itemModifier: Modifier = Modifier
 ) {
@@ -142,9 +133,6 @@ internal fun LazyListScope.overviewBodyItems(
         if (left != null || next != null) {
             item(key = "ov-glance") { GlanceCard(left, next, today, itemModifier.enterOnce(gate, 1)) }
         }
-    }
-    item(key = "ov-links") {
-        OverviewLinks(bankCount, cardCount, onGoTo, itemModifier.enterOnce(gate, 2))
     }
 }
 
@@ -214,31 +202,6 @@ private fun GlanceRow(label: String, caption: String, value: String, valueColor:
             value, Modifier.cell(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
             color = valueColor, maxLines = 1, fit = true, textAlign = if (stacked) TextAlign.Start else TextAlign.End
         )
-    }
-}
-
-/** Chips to the other sub-tabs; they wrap onto a second line rather than squeeze. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun OverviewLinks(bankCount: Int, cardCount: Int, onGoTo: (Int) -> Unit, modifier: Modifier = Modifier) {
-    FlowRow(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-    ) {
-        LinkChip("Accounts · $bankCount") { onGoTo(1) }
-        LinkChip("Cards · $cardCount") { onGoTo(2) }
-        LinkChip("Investments") { onGoTo(3) }
-    }
-}
-
-@Composable
-private fun LinkChip(text: String, onClick: () -> Unit) {
-    Box(
-        Modifier.heightIn(min = 48.dp).tappable(onClick = onClick, onClickLabel = "Open $text")
-            .background(tonalFill(Tonal.Quiet), AppShapes.chip).padding(horizontal = Spacing.lg),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
     }
 }
 

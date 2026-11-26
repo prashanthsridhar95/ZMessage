@@ -216,7 +216,8 @@ this page true.
   card's statement date) side by side as equal tiles (`ResponsiveRow`: stacked on a narrow phone or at large text), then **Total
   card dues** (billed plus unbilled) full width. A tile opens the per-card sheet (soonest bill first). A card whose statement day is
   not known counts its month's spending as unbilled and the tiles say "Approx.". Then one "At a glance" card ("Left after card
-  dues" = balance minus billed minus unbilled; "Next bill due" = card, date, amount) and link chips to the other sub-tabs. Without
+  dues" = balance minus billed minus unbilled; "Next bill due" = card, date, amount); that is the end of the page: the tab bar is the only way to the other sub-tabs (there are no link chips under the
+  content). Without
   a card the dues are one `EmptyState`. The rules are `CardDues` / `AccountsOverviewModel` in the domain, tested; the figures are
   `AnimatedAmount`, count once (`heroGates[0]`), and the cards rise in turn once (`overviewGate`).
 - **Net worth is not on Overview.** It is revealed only by **pulling down at the top of Overview** (`NetWorthPull`; no Material
