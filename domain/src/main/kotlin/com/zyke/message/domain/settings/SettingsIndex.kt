@@ -37,7 +37,8 @@ enum class SettingsPageId(val title: String) {
     ABOUT("Your data and about"),
     LEGAL("Privacy and terms"),
     LICENCES("Open-source licences"),
-    DEVELOPER("Developer options")
+    DEVELOPER("Developer options"),
+    AI("On-device AI")
 }
 
 /**
@@ -72,7 +73,7 @@ object SettingsLayout {
         SettingsGroupId.ALERTS to listOf(SettingsPageId.ALERTS),
         SettingsGroupId.MONEY to listOf(SettingsPageId.MONEY, SettingsPageId.LIMITS, SettingsPageId.MARKETS),
         SettingsGroupId.ACCOUNTS to listOf(SettingsPageId.CARDS),
-        SettingsGroupId.MESSAGES to listOf(SettingsPageId.MESSAGES, SettingsPageId.RULES),
+        SettingsGroupId.MESSAGES to listOf(SettingsPageId.MESSAGES, SettingsPageId.RULES, SettingsPageId.AI),
         SettingsGroupId.TRAVEL to listOf(SettingsPageId.FLIGHTS),
         SettingsGroupId.BACKUP to listOf(SettingsPageId.ABOUT),
         SettingsGroupId.PRIVACY to listOf(SettingsPageId.PRIVACY, SettingsPageId.PLACES),
@@ -138,6 +139,15 @@ object SettingsIndex {
         e("rules.categories", "Your categories", "Make your own, then pick them when filing a payment", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "custom", "category"),
         e("rules.payees", "Payee rules", "Category, name and picture for a person or shop you pay", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "payee", "person", "shop", "merchant", "upi", "nickname", "picture", "category"),
         e("rules.taught", "What you taught the app", "Sender names, word rules and single payments", SettingsGroupId.MESSAGES, SettingsPageId.RULES, "rules", "sender", "receiver", "rename", "learn", "teach"),
+        // On-device AI
+        e("ai.master", "On-device AI", "Gemini Nano suggestions, run on this phone", SettingsGroupId.MESSAGES, SettingsPageId.AI, "gemini", "nano", "ai", "assistant", "llm", "model", "aicore", "smart", "suggest", hiddenInDemo = true),
+        e("ai.download", "Download the AI model", "Google's service on the phone fetches it", SettingsGroupId.MESSAGES, SettingsPageId.AI, "gemini nano", "aicore", "model", "download", hiddenInDemo = true),
+        e("ai.understand", "Understand unclear messages", "Suggest what an unclear message means", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "unclear", "teach", "review", "batch", hiddenInDemo = true),
+        e("ai.summaries", "Smarter summaries", "Clearer one-line summaries on Home", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "summary", "deck", hiddenInDemo = true),
+        e("ai.ask", "Ask your money", "Answer questions like food last week", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "question", "search", "natural language", hiddenInDemo = true),
+        e("ai.month", "Month in a sentence", "One or two sentences about the month on Insights", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "insights", "summary", hiddenInDemo = true),
+        e("ai.categories", "Category ideas", "Suggest a category for a payee with none", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "payee", "category", hiddenInDemo = true),
+        e("ai.cache", "Clear AI suggestions cache", "Forget what the AI suggested before", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "clear", "cache", "reset", hiddenInDemo = true),
         // Travel
         e("travel.flights", "Live flight status", "Follow the flights found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "airline", "plane", "pnr", "departure", "gate"),
         e("travel.trains", "Live train status", "Follow the trains found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "railway", "irctc", "pnr", "platform", "delay"),
