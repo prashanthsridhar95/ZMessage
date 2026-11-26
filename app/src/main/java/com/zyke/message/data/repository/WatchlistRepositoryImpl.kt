@@ -27,7 +27,7 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
             .putBoolean(CLOSE_SUMMARY, settings.marketCloseSummary)
             .putBoolean(CLOSE_US, settings.marketCloseUs)
             .putInt(CLOSE_OFFSET, settings.closeOffsetMinutes)
-            .apply { if (settings.groupByMarket == null) remove(GROUP_BY_MARKET) else putBoolean(GROUP_BY_MARKET, settings.groupByMarket) }
+            .apply { val group = settings.groupByMarket; if (group == null) remove(GROUP_BY_MARKET) else putBoolean(GROUP_BY_MARKET, group) }
             .putString(SYMBOLS, JSONArray().apply {
                 settings.symbols.forEach {
                     put(JSONObject().put("s", it.symbol).put("l", it.label).apply { if (it.exchange.isNotBlank()) put("x", it.exchange) })
