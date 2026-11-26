@@ -52,6 +52,9 @@ import kotlinx.coroutines.withContext
  * switched on and the phone has the model. The answer opens in a sheet; nothing is saved until the person taps Use this, and
  * then it is saved as a format they taught (the same store as "Teach the app").
  */
+/** How strongly the evidence in the message is tinted. */
+private const val HIGHLIGHT_ALPHA = 0.22f
+
 @Composable
 internal fun AiUnderstandRow(message: ClassifiedMessage, onUse: (LearnedTemplate) -> Unit, onTeachMyself: () -> Unit) {
     if (!rememberAiVisible(AiFeature.UNDERSTAND)) return
