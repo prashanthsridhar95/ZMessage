@@ -60,6 +60,14 @@ deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `
 | Category for a payee | the on-phone word model (`CategorySuggester`, "Looks like Food") | unchanged, plus an AI idea chip in the same category sheet when it has no suggestion; both end in `choose(category)` and the same Undo |
 | Search | one search | one search; "Ask your money" is a row of it, whose answer is computed with `Counting` like every other total |
 
+### 5. Five more on-device features -> one phrasing path
+
+| | Before | After |
+|---|---|---|
+| "Ask the model for one checked sentence" | `AiMonthWriter`, `AiSummarizer` and `AiCategoryIdeas` each repeated cache-then-gateway-then-guard | the five new features (`AiPayeeNamer`, `AiExplainer`, `AiWhyWriter`, `AiDigestWriter`, `AiUnusualWriter`) share `AiPhraser` and `AiSentence`; the first three are left as they are (their behaviour is pinned by `AiServicesTest`) |
+| On-demand answer UI | a sheet per feature | one `AiThinkBlock` (button, "Thinking" in words, Cancel, the checked text and its source line) used by all five |
+| Morning digest | text only | the same digest, with an optional opening line the notifier reads from `ai_cache` through `DigestNarrativeStore` (read-only; the model is never called from `notifications/`) |
+
 ## Checked and kept (genuinely different, or already one path)
 
 | Candidates | Decision |
