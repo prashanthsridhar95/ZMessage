@@ -412,14 +412,23 @@ Existing users get the calm layout on update and can turn the old blocks back on
 
 ## Market watch
 
-One Kite-style watchlist, on Home (the Market strip, off by default) and on its own page. Home shows a quiet card: the index header
-(NIFTY 50 / SENSEX: name, level, today's move, one line each, levels aligned; a chevron opens the Overview with each index's level, move
-and a 52-week line coloured by the year's move), then the first five watched names as dense rows, a hairline between each, and a footer
-with "Updated h:mm a" and "See all". A row opens that name's sheet. Rows are one 56 dp height: name (and exchange beneath, muted) on the
-left; price on the right in green or red with "+2.70 (+1.04%)" beneath in muted grey, tabular figures. Green and red are only ever text on
-prices and changes, never a fill. The page is the same list without the card, the full set, with Refresh and the Overview. Loading is
-static placeholder rows; offline with no prices is a message with "Try again"; with prices it is "Offline · updated ...". Quotes are public
-market data, so Hide amounts does not apply to them. No ticker marquee any more. Guarded by `MarketWatchPolicyTest`.
+Two pieces, both public quotes (Hide amounts does not apply to them).
+
+**The ticker on Home** (the Market strip, off by default, and only with Market watch on in Settings): Home's very first item, above the
+balance hero and the tour banner. One slim 40 dp line, `NAME price ▲ move (pct)` items scrolling past; the arrow carries the direction and
+only the move is green or red (theme tokens), figures tabular. A tap opens the Market watch page. No chevron, no expand or collapse, no
+rows on Home. The scroll is the system marquee, drawn once, behind `rememberReduceMotion()` (`if (still)`): under reduced motion or Lite
+it is static and shows the first items that fit whole (`WholeItemsRow`), so nothing is ever cut mid-name at 320 dp. Loading and offline
+are one quiet line. It carries no tour anchor.
+
+**The page** looks and works like Zerodha Kite's watchlist. At the top a fixed two-index line (NIFTY 50, SENSEX: name muted, level, then
+"+128.40 (+0.53%)" in green or red; stacked at 320 dp and large text); a tap opens that index's sheet, there is no accordion. Under it the
+"Search & add" bar with how many names are on the list out of the real limit (`12/30`, `MarketSymbols.MAX_WATCH`); it opens the editor.
+Then the status line with Refresh, and dense 56 dp rows with a hairline between each: name left with its exchange beneath in muted grey;
+price right in green or red with "+2.70 (+1.04%)" in muted grey beneath, tabular figures. A tap opens the stock sheet; a long press (or
+the custom action "Edit the watch list" for a screen reader) opens the editor. Loading is static placeholder rows; offline with no prices
+is a message with "Try again"; with prices it is "Offline · updated ...", plus the delayed-quote notice (up to 15 minutes). Green and red
+are only ever text on prices and changes, never a fill. Guarded by `MarketWatchPolicyTest`.
 
 ## Home deck (stacks of cards)
 
