@@ -91,7 +91,8 @@ class MainActivity : ComponentActivity() {
             planRepository = container.moneyPlan,
             hiddenAccounts = container.hiddenAccounts,
             accountOverrides = container.accountOverrides,
-            setupExtras = { com.zyke.message.data.export.SetupExport.extras(container) }
+            setupExtras = { com.zyke.message.data.export.SetupExport.extras(container) },
+            logoList = container.logoList
         )
     }
 

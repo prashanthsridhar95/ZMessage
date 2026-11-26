@@ -13,6 +13,7 @@ import com.zyke.message.presentation.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -31,18 +32,21 @@ import com.zyke.message.presentation.messages.components.RowTitle
  * are not available.
  */
 @Composable
-fun rememberPicturePicker(key: String, label: String, alternative: String? = null): (() -> Unit)? {
+fun rememberPicturePicker(key: String, label: String, alternative: String? = null, logoName: String? = null): (() -> Unit)? {
     val store = LocalImageStore.current ?: return null
     // Demo mode: no photos from the gallery and no web search.
     if (com.zyke.message.data.demo.DemoMode.active) return null
     val context = LocalContext.current
+    val logoList = remember(context) { (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container.logoList }
     // 0 nothing open, 1 choosing where from, 2 searching the web.
     var step by rememberSaveable { mutableIntStateOf(0) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             // Saved by the store, not on this screen's scope: it must finish even if the screen has gone by the time the photo comes back.
             store.saveChosenDetached(key, uri) { saved ->
-                if (!saved) Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+                // A photo from the phone has no web address: an address recorded for the earlier picture no longer describes this one.
+                if (saved) logoName?.let(logoList::forget)
+                else Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -62,10 +66,17 @@ fun rememberPicturePicker(key: String, label: String, alternative: String? = nul
     if (step == 2) {
         ImageSearchSheet(
             query = label, alternative = alternative, store = store, onDismiss = { step = 0 },
-            onUse = { bitmap ->
+            onUse = { bitmap, address ->
                 store.saveChosenBitmapDetached(key, bitmap) { saved ->
-                    if (saved) step = 0
-                    else Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+                    if (saved) {
+                        // Remember where the picture came from (the web address, never the picture), for "Export logo list" in Settings.
+                        if (logoName != null) {
+                            if (address == null || !logoList.record(logoName, address)) logoList.forget(logoName)
+                        }
+                        step = 0
+                    } else {
+                        Toast.makeText(context, "Couldn't use that image", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         )

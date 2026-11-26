@@ -52,6 +52,8 @@ class SettingsViewModel(
     private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
     /** The person's own setup beyond what this screen holds (goals, reminders, events, entries), for the export. */
     private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() },
+    /** The person's own logo list, for "Export logo list". */
+    private val logoList: com.zyke.message.domain.repository.LogoListRepository = com.zyke.message.domain.repository.NoLogoList,
     /** Where limits and diagnostics are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -212,6 +214,15 @@ class SettingsViewModel(
                 val stamp = LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT))
                 emitEffect(Effect.ShareData("zyke-transactions-$stamp.csv", csv, "text/csv", "Zyke Message transactions"))
             }
+            Intent.ExportLogoList -> {
+                val entries = logoList.entries.value
+                if (entries.isEmpty()) {
+                    emitEffect(Effect.ShowMessage("No logo list yet: choose a picture from the web for a shop first"))
+                } else {
+                    val stamp = LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.ROOT))
+                    emitEffect(Effect.ShareData("zyke-logo-list-$stamp.json", com.zyke.message.domain.logo.LogoList.toJson(entries), "application/json", "Zyke Message logo list"))
+                }
+            }
             Intent.ExportSetup -> {
                 val state = currentState()
                 val json = setupExtras().apply {
@@ -323,14 +334,15 @@ class SettingsViewModel(
         private val planRepository: MoneyPlanRepository = NoMoneyPlan,
         private val hiddenAccounts: com.zyke.message.domain.repository.HiddenAccountRepository = com.zyke.message.domain.repository.NoHiddenAccounts,
         private val accountOverrides: com.zyke.message.domain.accounts.AccountOverrideRepository = com.zyke.message.domain.accounts.NoAccountOverrides,
-        private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() }
+        private val setupExtras: () -> org.json.JSONObject = { org.json.JSONObject() },
+        private val logoList: com.zyke.message.domain.repository.LogoListRepository = com.zyke.message.domain.repository.NoLogoList
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
             SettingsViewModel(
                 observeMessages, settingsRepository, userStateRepository, budgetRepository,
                 cardRepository = cardRepository, onLogosTurnedOff = onLogosTurnedOff, onDigestChanged = onDigestChanged,
-                onLiveAlertsChanged = onLiveAlertsChanged, onWeeklySummaryChanged = onWeeklySummaryChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, accountOverrides = accountOverrides, setupExtras = setupExtras
+                onLiveAlertsChanged = onLiveAlertsChanged, onWeeklySummaryChanged = onWeeklySummaryChanged, planRepository = planRepository, hiddenAccounts = hiddenAccounts, accountOverrides = accountOverrides, setupExtras = setupExtras, logoList = logoList
             ) as T
     }
 }

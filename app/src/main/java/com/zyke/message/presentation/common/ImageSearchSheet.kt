@@ -93,10 +93,11 @@ private const val TAP_SCRIPT = """
  * above the page starts with it and can be edited, and when the name in the message ([alternative]) is a different one it is
  * offered as a second search. Tap a picture and it is shown in the bar below; "Use this picture" keeps it for the sender. A long
  * press on a picture does the same, for pages that handle taps themselves. Only the text in the field is ever sent to the web.
+ * [onUse] gets the picture and the web address it was tapped at (a page's own data address is passed on as it is; the caller decides what to keep).
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, onDismiss: () -> Unit, alternative: String? = null) {
+fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap, String?) -> Unit, onDismiss: () -> Unit, alternative: String? = null) {
     var tapped by remember { mutableStateOf<String?>(null) }
     var candidate by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
@@ -200,7 +201,7 @@ fun ImageSearchSheet(query: String, store: ImageStore, onUse: (Bitmap) -> Unit, 
                     Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary,
                     maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
-                AppButton("Use this picture", { candidate?.let(onUse) }, enabled = candidate != null)
+                AppButton("Use this picture", { candidate?.let { picture -> onUse(picture, tapped) } }, enabled = candidate != null)
             }
         }
     }

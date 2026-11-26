@@ -10,6 +10,7 @@ import android.util.LruCache
 import com.zyke.message.data.logo.LogoFetcher
 import com.zyke.message.domain.classification.BrandLogo
 import com.zyke.message.domain.classification.KnownEntityDomains
+import com.zyke.message.domain.logo.LogoList
 import com.zyke.message.domain.repository.SenderImageRepository
 import java.io.File
 import java.security.MessageDigest
@@ -26,7 +27,9 @@ import kotlinx.coroutines.withContext
 /**
  * Pictures for senders and receivers, all kept in the app's private storage:
  *  - **chosen** by the person from their own photos, for any sender;
- *  - **brand logos** for well-known names, downloaded once (only if the person turned that on) and cached.
+ *  - **brand logos** for well-known names, downloaded once (only if the person turned that on) and cached. A brand in the
+ *    bundled logo list ([webLogos], see [LogoList]) is loaded from the web address the list gives for it, under the same
+ *    switch and the same rules; otherwise the brand's own website is asked for its icon, as before.
  * A chosen picture always wins over a logo.
  */
 class ImageStore(
@@ -40,6 +43,9 @@ class ImageStore(
     private val chosenDir = File(appContext.filesDir, "sender_images").apply { mkdirs() }
     private val logoDir = File(appContext.filesDir, "logos").apply { mkdirs() }
     private val logoFetcher = LogoFetcher()
+
+    /** The bundled logo list, brand key to web address; empty until the container sets it. Asked only when a logo is looked up. */
+    var webLogos: () -> Map<String, String> = { emptyMap() }
     // Sized by the bytes the pictures take, not by how many there are: a few large ones must not crowd out memory.
     private val cache = object : LruCache<String, Bitmap>(cacheBytes()) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
@@ -53,6 +59,11 @@ class ImageStore(
     /** Brand logos the person has turned off, by name, e.g. when a logo is wrong for what it is shown on. */
     private val _hidden = MutableStateFlow(index.getStringSet(HIDDEN, emptySet()).orEmpty().toSet())
     val hiddenLogos: StateFlow<Set<String>> = _hidden.asStateFlow()
+
+    /** Tells screens showing a logo to ask again (the bundled list has just been read). */
+    fun refresh() {
+        _version.value += 1
+    }
 
     /** Bumped whenever a picture changes, so screens showing one reload it. */
     private val _version = MutableStateFlow(0)
@@ -151,10 +162,14 @@ class ImageStore(
         if (keys != _keys.value) updateKeys(keys)
     }
 
+    /** Called with the key of a chosen picture that has just been removed, so the web address recorded for it can be forgotten too. */
+    var onChosenRemoved: (String) -> Unit = {}
+
     fun removeChosen(key: String) {
         File(chosenDir, fileName(key)).delete()
         cache.remove(CHOSEN + key)
         updateKeys(_keys.value - key)
+        onChosenRemoved(key)
     }
 
     /** The picture if it is already in memory, else null. Cheap enough to ask while a row is being composed. */
@@ -165,6 +180,8 @@ class ImageStore(
      * the person sees (their nickname when they gave one); [original] is the name in the message, tried second.
      */
     fun peekLogo(name: String, original: String? = null): Bitmap? {
+        // A brand in the bundled list shows only its listed picture (never the website icon first, which would flip when the picture arrives).
+        webLogoUrl(name, original)?.let { return cache.get(WEB + it) }
         val domain = logoDomain(name, original) ?: return null
         return cache.get(LOGO + domain)
     }
@@ -172,6 +189,14 @@ class ImageStore(
     /** The website whose logo is shown for [name], else for [original]: the first that is a known brand and not turned off. */
     private fun logoDomain(name: String, original: String?): String? =
         BrandLogo.resolve(BrandLogo.names(name, original), ::domainOf, ::isHidden)?.second
+
+    /** The web address of the bundled list's logo for [name], else for [original]: the first that is listed and not turned off. */
+    private fun webLogoUrl(name: String, original: String?): String? {
+        val table = webLogos()
+        return if (table.isEmpty()) null else LogoList.resolve(BrandLogo.names(name, original), table, ::isHidden)?.second
+    }
+
+    private fun hasWebLogo(name: String): Boolean = LogoList.keyOf(name)?.let { key -> key in webLogos() } == true
 
     /** The logo for a listed website (an airline's, see [com.zyke.message.domain.flight.Airlines.logoDomain]) if it is already in memory. */
     fun peekLogoDomain(domain: String): Bitmap? = if (KnownEntityDomains.isListed(domain)) cache.get(LOGO + domain) else null
@@ -188,6 +213,9 @@ class ImageStore(
 
     /** The cached logo for a well-known [name]; downloads it first when allowed and not tried recently. */
     suspend fun loadLogo(name: String, original: String? = null): Bitmap? = withContext(Dispatchers.IO) {
+        // The bundled list first; when its picture cannot be had (offline, switched off, a bad address) the website icon is the fallback.
+        val listed = webLogoUrl(name, original)?.let(::fetchWebLogo)
+        if (listed != null) return@withContext listed
         val domain = logoDomain(name, original) ?: return@withContext null
         fetchLogo(domain)
     }
@@ -223,16 +251,53 @@ class ImageStore(
         }
     }
 
+    /**
+     * The same cache and rules as [fetchLogo], for an address from the bundled list: the cached file is used first; otherwise it is
+     * downloaded only when logos are switched on, never in the demo, one request at a time per address, and not retried for a week
+     * after a miss. The picture is kept at no more than [TARGET] pixels a side. Nothing but the address itself is sent.
+     */
+    private fun fetchWebLogo(url: String): Bitmap? {
+        cache.get(WEB + url)?.let { return it }
+        val file = File(logoDir, fileName("web:$url"))
+        decodeFile(file)?.let { return it.also { bitmap -> cache.put(WEB + url, bitmap) } }
+
+        if (offline || !logosEnabled() || LogoList.cleanUrl(url) != url || recentlyFailed(url) || !inFlight.add(url)) return null
+        return try {
+            val downloaded = logoFetcher.fetchListed(url)
+            if (downloaded == null) {
+                index.edit().putLong(FAILED + url, System.currentTimeMillis()).apply()
+                null
+            } else {
+                val bitmap = scaledDown(downloaded)
+                runCatching { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                cache.put(WEB + url, bitmap)
+                _version.value += 1
+                bitmap
+            }
+        } finally {
+            inFlight.remove(url)
+        }
+    }
+
+    private fun scaledDown(source: Bitmap): Bitmap {
+        val side = maxOf(source.width, source.height)
+        if (side <= TARGET) return source
+        val scale = TARGET.toFloat() / side
+        return runCatching {
+            Bitmap.createScaledBitmap(source, (source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1), true)
+        }.getOrDefault(source)
+    }
+
     /** True when the name is one a brand logo can be found for. */
-    fun hasLogo(name: String): Boolean = domainOf(name) != null
+    fun hasLogo(name: String): Boolean = domainOf(name) != null || hasWebLogo(name)
 
     /** True when a brand logo is shown for [name], else for [original] (a known brand that has not been turned off). */
-    fun showsLogo(name: String, original: String?): Boolean = logoDomain(name, original) != null
+    fun showsLogo(name: String, original: String?): Boolean = webLogoUrl(name, original) != null || logoDomain(name, original) != null
 
     /** True when a logo exists for [name] or [original] but the person turned it off. */
     fun logoTurnedOff(name: String, original: String?): Boolean {
         val names = BrandLogo.names(name, original)
-        return names.any { domainOf(it) != null } && logoDomain(name, original) == null
+        return names.any { domainOf(it) != null || hasWebLogo(it) } && !showsLogo(name, original)
     }
 
     fun isHidden(name: String): Boolean = norm(name) in _hidden.value
@@ -242,7 +307,7 @@ class ImageStore(
      * so changing the nickname later does not bring a wrong logo back by the other name.
      */
     fun hideLogo(name: String, original: String? = null) {
-        val names = BrandLogo.withLogo(BrandLogo.names(name, original), ::domainOf).ifEmpty { listOf(name) }
+        val names = BrandLogo.withLogo(BrandLogo.names(name, original)) { domainOf(it) ?: it.takeIf(::hasWebLogo) }.ifEmpty { listOf(name) }
         setHidden(_hidden.value + names.map(::norm))
     }
 
@@ -338,6 +403,7 @@ class ImageStore(
         const val FAILED = "failed-"
         const val CHOSEN = "c:"
         const val LOGO = "l:"
+        const val WEB = "w:"
         const val MIN_CACHE_BYTES = 4 * 1024 * 1024
         const val MAX_CACHE_BYTES = 16 * 1024 * 1024
         const val MAX_SIDE = 512

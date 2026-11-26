@@ -90,7 +90,19 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val goalSavings by lazy { com.zyke.message.domain.goals.GoalSavings(goals, goalContributions) }
     val reminders: ReminderRepository by lazy { ReminderRepositoryImpl(context) }
     val planActions: com.zyke.message.domain.repository.PlanActionRepository by lazy { com.zyke.message.data.repository.PlanActionRepositoryImpl(context) }
-    val imageStore by lazy { ImageStore(context, offline = demo) { settings.settings.value.fetchLogos } }
+    val imageStore by lazy {
+        ImageStore(context, offline = demo) { settings.settings.value.fetchLogos }.also { store ->
+            // The logo list that ships with the app: read once off the main thread, then the screens showing a logo ask again.
+            store.webLogos = { bundledLogos.table }
+            // A removed picture takes the web address recorded for it along (only a payee's own key, never a message's or an account's).
+            store.onChosenRemoved = { key -> if (com.zyke.message.domain.logo.LogoList.keyOf(key) == key) logoList.forget(key) }
+            if (!demo) bundledLogos.loadInBackground(store::refresh)
+        }
+    }
+    /** The logo list that ships with the app (`assets/known_logos.json`): brand to the web address its logo comes from. */
+    val bundledLogos by lazy { com.zyke.message.data.logo.BundledLogos(context) }
+    /** The web addresses of the pictures the person chose from the web, kept for "Export logo list" in Settings. Nothing in the demo. */
+    val logoList: com.zyke.message.domain.repository.LogoListRepository by lazy { if (demo) com.zyke.message.domain.repository.NoLogoList else com.zyke.message.data.repository.LogoListRepositoryImpl(context) }
     val messageClassifier by lazy { MessageClassifier() }
     val mutedSenders: MutedSenderRepository by lazy { MutedSenderRepositoryImpl(context) }
     /** Who login codes are passed on to. Nothing in Demo mode: nothing is stored, nothing can be sent. */

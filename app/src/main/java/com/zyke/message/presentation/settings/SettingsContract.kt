@@ -97,6 +97,8 @@ object SettingsContract {
         data object ExportTransactions : Intent
         /** The person's own setup (plan, limits, cards, goals, reminders, events, entries), as a file. */
         data object ExportSetup : Intent
+        /** The logo list (shop names and the web addresses of the pictures chosen from the web), as a file to hand on. */
+        data object ExportLogoList : Intent
     }
 
     sealed interface Effect {

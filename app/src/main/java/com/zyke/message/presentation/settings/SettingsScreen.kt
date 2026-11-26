@@ -373,6 +373,7 @@ private fun GroupContent(
                     )
                 }
             }
+            LogoListCard(onExport = { onIntent(Intent.ExportLogoList) })
         }
         SettingsGroup.ALERTS -> {
         SectionCard("Reminders and alerts") {

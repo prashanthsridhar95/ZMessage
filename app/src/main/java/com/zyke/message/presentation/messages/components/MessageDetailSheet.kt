@@ -133,7 +133,8 @@ internal fun MessageDetailSheet(
     val nicknameMap by (LocalContext.current.applicationContext as com.zyke.message.ZykeMessagesApplication).container.nicknames.nicknames.collectAsState()
     val payeeSearch = remember(item, nicknameMap) { PictureSearchQuery.forPayee(item, CategoryKey.of(item)?.let(nicknameMap::get)) }
     val thisSearch = remember(item) { PictureSearchQuery.of(item) }
-    val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, payeeSearch.primary, payeeSearch.alternative) }
+    // The web address of a picture chosen for a payee is kept (with the payee's key, nothing else) for the logo list; a sender's is not.
+    val pickPicture = CategoryKey.of(item)?.let { rememberPicturePicker(it, payeeSearch.primary, payeeSearch.alternative, logoName = if (payeeCase) it else null) }
     val imageStore = LocalImageStore.current
     val pictureKeys by (imageStore?.keysWithImage ?: kotlinx.coroutines.flow.MutableStateFlow(emptySet<String>())).collectAsState()
     val thisMessageKey = CategoryKey.messageKey(item.id)
