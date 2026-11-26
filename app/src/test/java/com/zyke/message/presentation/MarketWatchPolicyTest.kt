@@ -20,7 +20,7 @@ class MarketWatchPolicyTest {
     @Test
     fun homeShowsOnlyASlimTickerLine_noRowsNoChevronNoOverview() {
         assertTrue("the ticker band is one slim line", "STRIP_HEIGHT = 40.dp" in ui && ".height(STRIP_HEIGHT)" in strip)
-        assertTrue("items are NAME, price, arrow and move", "fun TickerItem(" in ui && "\\u25B2" in ui && "\\u25BC" in ui)
+        assertTrue("items are NAME, price, arrow and move", "fun TickerItem(" in ui && "▲ " in ui && "▼ " in ui)
         assertTrue("a tap opens the Market watch page", "onClick = onOpen" in strip && "Open market watch" in strip)
         assertFalse("no stock rows on Home", "WatchRow(" in strip || "StockSheet(" in strip)
         for (gone in listOf("ChevronTurn", "IndexOverview", "IndexHeader", "AppearVisibility", "overviewOpen", "OverviewCell", "YearLine", "HOME_ROWS", "See all")) {
