@@ -462,6 +462,11 @@ private fun SummaryPage(
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         var slot = 0
+        // The Market strip is the very first item, above everything (including the balance): one slim ticker line, nothing else.
+        if (layout.shows(HomeSection.MARKET) && marketWatchOn) {
+            val at = slot++
+            item(key = "market") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) } }
+        }
         if (tourBanner) {
             val at = slot++
             item(key = "tour-banner") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.tour.TourBanner() } }
@@ -486,11 +491,6 @@ private fun SummaryPage(
                 val intro = gate.rememberIsEntering(at)
                 Box(itemMotion().enterOnce(gate, at).tourAnchor(TourAnchor.HOME_BALANCE)) { HomeBalanceHero(state.accounts, intro = intro) { onNavigate(AppTab.ACCOUNTS) } }
             }
-        }
-
-        if (layout.shows(HomeSection.MARKET) && marketWatchOn) {
-            val at = slot++
-            item(key = "market") { Box(itemMotion().enterOnce(gate, at)) { com.zyke.message.presentation.markets.MarketStrip(onOpenMarkets) } }
         }
 
         if (!state.isBlank) {
