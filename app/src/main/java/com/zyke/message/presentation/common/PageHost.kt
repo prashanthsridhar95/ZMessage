@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -72,6 +73,7 @@ class PageEntry {
     var floating by mutableStateOf<(@Composable BoxScope.() -> Unit)?>(null)
     var footer by mutableStateOf<(@Composable ColumnScope.() -> Unit)?>(null)
     var scrollable by mutableStateOf(true)
+    var actions by mutableStateOf<(@Composable RowScope.() -> Unit)?>(null)
 }
 
 @Stable
@@ -94,6 +96,8 @@ fun AppPage(
     footer: (@Composable ColumnScope.() -> Unit)? = null,
     /** False when the content scrolls by itself (a lazy list): it then gets the room under the title, unpadded. */
     scrollable: Boolean = true,
+    /** Quiet actions at the end of the title row (an overflow menu); each is a 56 dp target. */
+    actions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val host = LocalPageHost.current ?: return
@@ -105,6 +109,7 @@ fun AppPage(
         entry.floating = floating
         entry.footer = footer
         entry.scrollable = scrollable
+        entry.actions = actions
     }
     DisposableEffect(host, entry) {
         host.entries.add(entry)
@@ -168,13 +173,15 @@ private fun PageLayer(entry: PageEntry) {
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
                     )
                 }
+                val actions = entry.actions
                 Text(
                     entry.title,
-                    Modifier.heading(),
+                    Modifier.heading().then(if (actions != null) Modifier.weight(1f) else Modifier),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
+                if (actions != null) actions()
             }
             val footer = entry.footer
             Column(

@@ -186,6 +186,10 @@ fun SearchPage(
     cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    // "Search messages for ..." from the Ask Zyke chat fills the field once.
+    LaunchedEffect(com.zyke.message.presentation.common.SearchRequest.pending) {
+        com.zyke.message.presentation.common.SearchRequest.pending?.let { query = it; com.zyke.message.presentation.common.SearchRequest.pending = null }
+    }
     var scopeName by rememberSaveable { mutableStateOf(SearchScope.ALL.name) }
     val scope = remember(scopeName) { SearchScope.entries.firstOrNull { it.name == scopeName } ?: SearchScope.ALL }
     // Kinds the person asked to see all of.

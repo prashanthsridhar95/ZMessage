@@ -39,7 +39,7 @@ import com.zyke.message.presentation.tour.tourAnchor
 
 /**
  * Home's quick actions, bottom right above the bottom bar: "Add entry" (56 dp, rounded square, tonal; carries its words only at the top of Home)
- * with the small round "Ask AI" (48 dp, secondary tone) stacked above it 12 dp apart. Flat like the rest of the app: no elevation, a tonal fill.
+ * with the small round "Ask Zyke" (48 dp, secondary tone) stacked above it 12 dp apart. Flat like the rest of the app: no elevation, a tonal fill.
  * They hide together when the list moves up the screen and return when it moves back ([QuickActions.shown]); the list keeps
  * [QuickActions.reservedBottomDp] under its last item, so they never rest on an amount.
  */
@@ -59,7 +59,7 @@ fun HomeQuickActions(visible: Boolean, extended: Boolean, askShown: Boolean, onA
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
-                ) { Icon(painterResource(R.drawable.ic_ask_ai_24), contentDescription = "Ask AI", Modifier.size(22.dp)) }
+                ) { Icon(painterResource(R.drawable.ic_ask_ai_24), contentDescription = "Ask Zyke", Modifier.size(22.dp)) }
             }
             FloatingActionButton(
                 onClick = onAdd,

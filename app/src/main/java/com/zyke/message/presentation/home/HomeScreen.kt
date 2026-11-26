@@ -253,7 +253,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
     // The prices are asked for only while Home is in front, and only if the person switched the strip on.
     if (page == HomePage.HOME) com.zyke.message.presentation.markets.MarketPolling()
 
-    // Home's quick actions: Add entry, and (with on-device AI on) Ask AI above it. They hide while the list scrolls down and come back on the way up.
+    // Home's quick actions: Add entry, and (with on-device AI on) Ask Zyke above it. They hide while the list scrolls down and come back on the way up.
     val summaryList = androidx.compose.foundation.lazy.rememberLazyListState()
     val askShown = com.zyke.message.presentation.ai.rememberAskHomeVisible()
     var actionsShown by rememberSaveable { mutableStateOf(true) }
@@ -276,7 +276,7 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
             HomePage.BILLS -> BillsPage(state, today, onIntent, gate, onAfford = { affordOpen = true })
             HomePage.ACCOUNTS -> AccountsPage(state, onIntent)
         }
-        // The quick actions: money that came in no message (Add entry), and a question about your money (Ask AI).
+        // The quick actions: money that came in no message (Add entry), and a question about your money (Ask Zyke).
         if (page == HomePage.HOME) {
             HomeQuickActions(
                 visible = actionsShown || atTop, extended = QuickActions.extended(atTop), askShown = askShown,
@@ -285,10 +285,10 @@ private fun HomeContent(state: State, page: HomePage, onIntent: (Intent) -> Unit
         }
     }
     if (askOpen && askShown) {
-        com.zyke.message.presentation.ai.AskMoneySheet(
+        com.zyke.message.presentation.ai.AskZykePage(
             state.messages, state.cycle,
-            onOpen = { hit -> hit.messageId?.let { onIntent(Intent.OpenMessage(it)) } },
-            onDismiss = { askOpen = false }
+            onOpenMessage = { onIntent(Intent.OpenMessage(it)) },
+            onClose = { askOpen = false }
         )
     }
 

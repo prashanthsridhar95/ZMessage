@@ -31,6 +31,7 @@ import com.zyke.message.domain.ai.AiUnderstander
 import com.zyke.message.domain.ai.AiUnusualWriter
 import com.zyke.message.domain.ai.AiWhyWriter
 import com.zyke.message.domain.ai.AskOutcome
+import com.zyke.message.domain.ai.AskQuery
 import com.zyke.message.domain.ai.BatchItem
 import com.zyke.message.domain.ai.BatchProgress
 import com.zyke.message.domain.ai.InMemoryAiCache
@@ -179,8 +180,9 @@ class AiHub(
 
     // ---- feature 3 ----
 
-    suspend fun ask(question: String, payees: Collection<String>, today: LocalDate): AskOutcome =
-        if (allowed(AiFeature.ASK)) asker.understand(question, payees, customs(), today) else AskOutcome.Failed(AiFailure.UNAVAILABLE)
+    /** [previous] is the request the chat answered last, so a follow-up ("and last month?") can change part of it. */
+    suspend fun ask(question: String, payees: Collection<String>, today: LocalDate, previous: AskQuery? = null): AskOutcome =
+        if (allowed(AiFeature.ASK)) asker.understand(question, payees, customs(), today, previous) else AskOutcome.Failed(AiFailure.UNAVAILABLE)
 
     // ---- feature 4 ----
 
