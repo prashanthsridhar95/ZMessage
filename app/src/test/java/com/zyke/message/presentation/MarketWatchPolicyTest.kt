@@ -67,4 +67,37 @@ class MarketWatchPolicyTest {
         val composable = ui.substringAfter("fun TickerItem")
         assertFalse("D8 rejects a labelled return in a composable lambda", Regex("""return@(?!LaunchedEffect)\w+""").containsMatchIn(composable))
     }
+
+    private fun main(rel: String) = file(rel).readText()
+
+    @Test
+    fun theListCanBeGroupedByMarket_flagNameIndexAndHoursHint() {
+        assertTrue("the chip shows only when the list spans more than one market", "MarketGrouping.offered(state.rows)" in page && "FilterChip(" in page)
+        assertTrue("the choice is kept, default decided by the list", "MarketGrouping.shown(watch.groupByMarket, state.rows)" in page && "ticker.setGroupByMarket(" in page)
+        assertTrue("rows are grouped from the same rows, indices heading their group", "MarketGrouping.group(list, indexSource = state.rows)" in page)
+        val header = ui.substringAfter("private fun MarketHeader(").substringBefore("/** Placeholder rows")
+        assertTrue("flag, country name, hours hint and the index move", "market.flag" in header && "market.title" in header && "MarketCalendar.hint(" in header && "indexText" in header)
+        assertTrue("one heading for a screen reader, flag emoji not read out", "heading()" in header && "clearAndSetSemantics" in header)
+        assertTrue("index moves under the name at 320 dp and large text", "homeStacked()" in header)
+        assertTrue("rows keep tap, long press, hide, loading and offline", "WatchRow(row, onOpen" in page && "onEdit = { editing = true }" in page && "WatchSkeleton(" in page && "WatchEmpty(" in page)
+    }
+
+    @Test
+    fun marketCloseSummary_perMarketSwitches_offset_openMarketWatch_noNewPermissionOrHost() {
+        val settings = main("com/zyke/message/presentation/markets/MarketSettings.kt")
+        assertTrue("a switch per market and the offset", "MarketCloseSummary.MARKETS.forEach" in settings && "MarketCloseSummary.OFFSETS.forEach" in settings && "closeOffsetMinutes" in settings)
+        assertTrue("notification permission asked only when a switch is turned on", "POST_NOTIFICATIONS" in settings && "launcher.launch(" in settings)
+        val scheduler = main("com/zyke/message/notifications/MarketCloseScheduler.kt")
+        assertTrue("inexact alarms only, like the digest", "setAndAllowWhileIdle" in scheduler && "setExact" !in scheduler && "SCHEDULE_EXACT_ALARM" !in scheduler)
+        assertTrue("an alarm per market, India keeps its old request codes", "811" in scheduler && "814" in scheduler && "EXTRA_MARKET" in scheduler)
+        val receiver = main("com/zyke/message/notifications/MarketCloseReceiver.kt")
+        assertTrue("never in the demo, and only while that market's switch is on", "DemoMode.active" in receiver && "settings.closeActive(market)" in receiver)
+        assertTrue("BigTextStyle, zyke_icon, silent, opens Market watch", "BigTextStyle()" in receiver && "R.drawable.zyke_icon" in receiver && "setSilent(true)" in receiver && "MarketRequests.ACTION_OPEN" in receiver)
+        assertTrue("one notification id per market so one never replaces the other", "NOTIFICATION_ID_INDIA" in receiver && "NOTIFICATION_ID_US" in receiver)
+        assertTrue("an alarm from before the update means India", "getOrDefault(Market.INDIA)" in receiver)
+        assertTrue("Home opens the page when asked", "MarketRequests.pending" in main("com/zyke/message/presentation/home/HomeScreen.kt") && "MarketRequests.fromIntent" in main("com/zyke/message/presentation/MainActivity.kt"))
+        val repo = main("com/zyke/message/data/repository/WatchlistRepositoryImpl.kt")
+        assertTrue("the old single switch is India's, same key", "marketCloseSummary = prefs.getBoolean(CLOSE_SUMMARY, false)" in repo && "CLOSE_SUMMARY = \"close_summary\"" in repo)
+        assertFalse("no new host: only the existing quote fetcher is used", Regex("https?://").containsMatchIn(receiver + scheduler + settings))
+    }
 }

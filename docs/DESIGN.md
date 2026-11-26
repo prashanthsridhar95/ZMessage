@@ -449,6 +449,26 @@ are only ever text on prices and changes, never a fill. Guarded by `MarketWatchP
   with nothing at all it is a compact "All caught up".
 - **Footer.** Equal tappable segments split by hairlines (`DeckFooter`): "N to review" (accent, only while the stack is the body), "Quiet N", "Auto-cleared N"
   and "All stacks" (always there). Two to a row at most; one per row at 320 dp or large text (`homeStacked`); 48 dp targets; never wrapping chips.
+**Group by market.** When the list spans more than one market (India, United States and the others in `Market`: UK, Germany, Japan,
+Hong Kong, Canada, Australia, Singapore; the dollar rate, gold and crypto go last under "Currencies and commodities"), a quiet
+"Group by market" chip sits above the rows, on by default and remembered (`WatchSettings.groupByMarket`, null until chosen; hidden
+for a single market). The market comes from the ticker (`.NS`/`.BO` India, `.L` UK, `^GSPC` US, a bare ticker with no exchange US,
+`MarketOf`). Each group has a tonal header, one heading for a screen reader: flag emoji (two regional-indicator letters in plain
+`Text`; the repo has no emoji ban, custom categories already use emoji; a phone without a flag font shows the two letters), the
+country name, a regular-hours hint ("Open · closes 4:00 PM ET", "Closed · opens Mon 9:15 AM IST") and the market's index with
+today's move when that index is on the list (beside the name, beneath it at 320 dp and large text). The hint comes from
+`MarketCalendar`: regular hours Monday to Friday in the market's own zone (summer time followed); holidays, half days, lunch
+breaks and extended hours are not modelled, so on a holiday it can say Open. Rows, tap, long press, loading and offline are unchanged.
+
+**Market close summary** (Settings, Market watch). One switch per market (India after 15:30 IST, United States after 16:00 ET)
+and one offset (5, 15, 30 or 60 minutes after the close; 15 by default, so India stays at 15:45). Each posts one silent,
+low-importance notification (channel "Market summary", `zyke_icon`, its own id per market, `BigTextStyle`): the market's indices
+(Nifty 50 and Sensex; S&P 500, NASDAQ and Dow) and "Your stocks", the day's move of each watched stock listed on that market,
+biggest mover first (up or down), at most 8 then "+N more", then in the stock's own currency. Tapping opens Market watch. Weekdays
+only; a quote counts only if its last trade is today and at or after five minutes before the close, so a holiday (not modelled)
+sends nothing after one retry 20 minutes later. With no stocks listed for a market it is the indices only. The old single "Market
+close" switch is India's. Inexact alarms, no exact-alarm permission. Guarded by `MarketWatchPolicyTest` and `MarketGroupingTest`.
+
 
 The container rises in once as one piece (`enterOnce`, one slot). The review queue (ledger questions) and the deck (unread messages) are different sources.
 `HOME_DECK` is on the container, `HOME_REVIEW` on whichever of the review card, the footer item or the review row is showing.
