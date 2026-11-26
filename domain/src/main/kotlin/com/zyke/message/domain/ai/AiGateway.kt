@@ -53,9 +53,10 @@ class AiGateway(
      * failure says it is worth it, at most [retries] times. Cancelling the caller cancels the request.
      */
     suspend fun run(
-        prompt: String, maxTokens: Int = DEFAULT_TOKENS, timeoutMs: Long = DEFAULT_TIMEOUT_MS, retries: Int = DEFAULT_RETRIES
+        prompt: String, maxTokens: Int = DEFAULT_TOKENS, timeoutMs: Long = DEFAULT_TIMEOUT_MS, retries: Int = DEFAULT_RETRIES,
+        ignoreStatus: Boolean = false
     ): AiResult {
-        if (!engine.availability.value.canGenerate) return record(AiResult.Failure(AiFailure.UNAVAILABLE))
+        if (!ignoreStatus && !engine.availability.value.canGenerate) return record(AiResult.Failure(AiFailure.UNAVAILABLE))
         return lock.withLock {
             _working.value = true
             try {

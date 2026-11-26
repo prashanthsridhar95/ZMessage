@@ -51,10 +51,16 @@ sealed interface AiResult {
 interface OnDeviceAi {
     val availability: StateFlow<AiAvailability>
 
+    /** The raw facts behind [availability]: what the phone last said, when, and our own download stream. */
+    val report: StateFlow<ModelReport> get() = NoModelReport
+
     /** Asks the phone again whether the model is there (cheap). */
     suspend fun refresh()
 
-    /** Asks the phone's AI service to fetch the model, and returns when it is done or failed. Progress shows in [availability]. */
+    /**
+     * Asks the phone's AI service to fetch the model (or to attach to a download it already has), and returns when it is done or
+     * failed. Progress shows in [availability]. Safe to call again while the service says it is downloading.
+     */
     suspend fun download()
 
     /** One request. [maxTokens] caps the answer; the caller times it out (see [AiGateway]). Never throws. */
