@@ -93,9 +93,21 @@ sealed interface AskOutcome {
 
 /** Feature 3, first half: the model turns the question into a query from a fixed vocabulary. The answer is worked out elsewhere, by code. */
 class AiAsker(private val gateway: AiGateway) {
-    suspend fun understand(question: String, knownPayees: Collection<String>, customs: Map<String, String>, today: LocalDate): AskOutcome {
+    /**
+     * Turns [question] into a request. With a [previous] request the model is first asked to read it as a follow-up; when that reading
+     * is not usable the question is read fresh, on its own, so unclear context never blocks a question that stands alone.
+     */
+    suspend fun understand(
+        question: String, knownPayees: Collection<String>, customs: Map<String, String>, today: LocalDate, previous: AskQuery? = null
+    ): AskOutcome {
         val q = question.trim()
         if (q.length < MIN_QUESTION) return AskOutcome.Refused("Type a little more")
+        if (previous != null) {
+            when (val r = gateway.run(AiPrompts.askFollowUp(q, today, previous), maxTokens = TOKENS)) {
+                is AiResult.Failure -> return AskOutcome.Failed(r.kind)
+                is AiResult.Text -> (AskFollowUp.parse(r.text, q, knownPayees, customs, previous) as? Guarded.Accepted)?.let { return AskOutcome.Understood(it.value) }
+            }
+        }
         return when (val r = gateway.run(AiPrompts.ask(q, today), maxTokens = TOKENS)) {
             is AiResult.Failure -> AskOutcome.Failed(r.kind)
             is AiResult.Text -> when (val parsed = AskParser.parse(r.text, q, knownPayees, customs)) {
