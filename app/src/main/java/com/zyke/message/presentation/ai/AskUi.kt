@@ -86,6 +86,17 @@ fun AskEntry(query: String, messages: List<ClassifiedMessage>, cycle: CycleRule,
 
 @Composable
 private fun AskSheet(question: String, messages: List<ClassifiedMessage>, cycle: CycleRule, onOpen: (SearchHit) -> Unit, onDismiss: () -> Unit) {
+    AdaptiveSheet(title = "Ask your money", onDismiss = onDismiss, subtitle = "Answered on this phone from your messages") {
+        AskResultPane(question, messages, cycle, onOpen, onDismiss)
+    }
+}
+
+/**
+ * The answer to [question]: asks the model to read it, the app works the figures out, and the payments behind are tappable. Shared by the Search sheet
+ * and by Home's Ask AI sheet, so there is one parser, one executor and one answer layout.
+ */
+@Composable
+internal fun AskResultPane(question: String, messages: List<ClassifiedMessage>, cycle: CycleRule, onOpen: (SearchHit) -> Unit, onDismiss: () -> Unit) {
     val ai = rememberAi()
     var stage by remember { mutableStateOf<AskStage>(AskStage.Thinking) }
     LaunchedEffect(question) {
@@ -105,18 +116,16 @@ private fun AskSheet(question: String, messages: List<ClassifiedMessage>, cycle:
             is AskOutcome.Failed -> AskStage.Plain(failureText(outcome.kind) + " The normal search results are still below.")
         }
     }
-    AdaptiveSheet(title = "Ask your money", onDismiss = onDismiss, subtitle = "Answered on this phone from your messages") {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            when (val s = stage) {
-                AskStage.Thinking -> Caption("Understanding your question on this phone. This takes a few seconds.", maxLines = 3)
-                is AskStage.Plain -> {
-                    Text(s.message, style = MaterialTheme.typography.bodyLarge)
-                    AppButton("Use normal search", onDismiss, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
-                }
-                is AskStage.Answer -> AnswerBody(s.result, s.text, onOpen, onDismiss)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        when (val s = stage) {
+            AskStage.Thinking -> Caption("Understanding your question on this phone. This takes a few seconds.", maxLines = 3)
+            is AskStage.Plain -> {
+                Text(s.message, style = MaterialTheme.typography.bodyLarge)
+                AppButton("Use normal search", onDismiss, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
             }
-            Caption("The AI only read your question. The figures come from your messages, worked out by the app, not by the AI.", maxLines = 4)
+            is AskStage.Answer -> AnswerBody(s.result, s.text, onOpen, onDismiss)
         }
+        Caption("The AI only read your question. The figures come from your messages, worked out by the app, not by the AI.", maxLines = 4)
     }
 }
 
