@@ -423,11 +423,19 @@ market data, so Hide amounts does not apply to them. No ticker marquee any more.
 
 ## Home deck (stacks of cards)
 
-**Home shows one real stack (rework).** The block on Home is the deck itself, not tiles: "N to go", then the front card with the next two peeking behind
-(the triage page's card in a compact form: seal, sender, one-line headline with its amount, two-line summary, quiet footer). Swipe left archives, right keeps,
-up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action. Under it one line of chips: "N to review" (accent),
-"Quiet N", "Auto-cleared N", "All stacks". The review queue (ledger questions) and the deck (unread messages) are different sources, so with no new cards the
-review is the deck's single card; "All caught up" is one small row, shown only when both are empty.
+**Home shows one real stack, in one card (rework).** The whole module is ONE `HomeCard` with three segments told apart by hairline dividers (edge to edge,
+20 dp gutters inside each segment, opaque cards, no chips outside it):
+
+- **Header.** "YOUR DECK", "N to go" (or "N to review" when the review is the body), the position ("2 / 7") and the 48 dp settings gear.
+- **Body.** The stack itself, clipped inside the card (`clipToBounds`): the front card with the next two peeking behind (the triage page's card in a compact
+  form), swipe left archives, right keeps, up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action.
+  Page dots and the quiet line "Swipe left to archive, right to keep" sit under it. With no new cards the review is the body (one card that opens it);
+  with nothing at all it is a compact "All caught up".
+- **Footer.** Equal tappable segments split by hairlines (`DeckFooter`): "N to review" (accent, only while the stack is the body), "Quiet N", "Auto-cleared N"
+  and "All stacks" (always there). Two to a row at most; one per row at 320 dp or large text (`homeStacked`); 48 dp targets; never wrapping chips.
+
+The container rises in once as one piece (`enterOnce`, one slot). The review queue (ledger questions) and the deck (unread messages) are different sources.
+`HOME_DECK` is on the container, `HOME_REVIEW` on whichever of the review card, the footer item or the review row is showing.
 
 Home's "Your deck" turns what is new into a few small stacks you can clear with a swipe. The rules are in the domain and tested
 (`domain/triage`: `TriageStacks`, `TriageSettings`, `TriageGestures`); the screens are `home/HomeDeck.kt` (the section and the Auto cleared page),
