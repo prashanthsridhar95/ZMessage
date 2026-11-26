@@ -10,11 +10,16 @@ import com.google.mlkit.genai.prompt.generateContentRequest
 import com.zyke.message.domain.ai.AiAvailability
 import com.zyke.message.domain.ai.AiFailure
 import com.zyke.message.domain.ai.AiResult
+import com.zyke.message.domain.ai.DownloadEvent
+import com.zyke.message.domain.ai.ModelReport
+import com.zyke.message.domain.ai.ModelWatch
 import com.zyke.message.domain.ai.OnDeviceAi
+import com.zyke.message.domain.ai.PhoneModelStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * The ONLY file that touches ML Kit GenAI (`com.google.mlkit:genai-prompt`), which talks to Gemini Nano through Android's
@@ -30,6 +35,14 @@ class GeminiNanoEngine : OnDeviceAi {
     private val state = MutableStateFlow<AiAvailability>(AiAvailability.Unsupported)
     override val availability: StateFlow<AiAvailability> = state.asStateFlow()
 
+    private val facts = MutableStateFlow(ModelReport())
+    override val report: StateFlow<ModelReport> = facts.asStateFlow()
+
+    private fun note(change: (ModelReport) -> ModelReport) = facts.update(change)
+
+    /** Megabytes already seen, kept while the status flips between checks so the page does not lose them. */
+    private fun seenMegabytes(): Int? = facts.value.megabytes
+
     private var model: GenerativeModel? = null
 
     @Synchronized
@@ -37,19 +50,21 @@ class GeminiNanoEngine : OnDeviceAi {
 
     override suspend fun refresh() {
         if (state.value is AiAvailability.Downloading && downloading) return
+        var seen = PhoneModelStatus.ERROR
         state.value = try {
             when (client().checkStatus()) {
-                FeatureStatus.AVAILABLE -> AiAvailability.Ready
-                FeatureStatus.DOWNLOADABLE -> AiAvailability.NeedsDownload
-                FeatureStatus.DOWNLOADING -> AiAvailability.Downloading(null)
-                else -> AiAvailability.Unsupported
+                FeatureStatus.AVAILABLE -> AiAvailability.Ready.also { seen = PhoneModelStatus.READY }
+                FeatureStatus.DOWNLOADABLE -> AiAvailability.NeedsDownload.also { seen = PhoneModelStatus.NOT_DOWNLOADED }
+                FeatureStatus.DOWNLOADING -> AiAvailability.Downloading(null, seenMegabytes()).also { seen = PhoneModelStatus.DOWNLOADING }
+                else -> AiAvailability.Unsupported.also { seen = PhoneModelStatus.UNSUPPORTED }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // A phone without AI Core (or without Google Play services) lands here: say it is not supported, with the kind of problem.
-            if (e is GenAiException) AiAvailability.Failed(plainReason(e)) else AiAvailability.Unsupported
+            if (e is GenAiException) AiAvailability.Failed(plainReason(e)) else AiAvailability.Unsupported.also { seen = PhoneModelStatus.UNSUPPORTED }
         }
+        note { it.copy(phoneStatus = seen, checkedAtMs = System.currentTimeMillis()) }
     }
 
     @Volatile private var downloading = false
@@ -57,23 +72,35 @@ class GeminiNanoEngine : OnDeviceAi {
     override suspend fun download() {
         if (downloading) return
         downloading = true
+        note { it.copy(streamActive = true) }
         try {
-            state.value = AiAvailability.Downloading(null)
+            state.value = AiAvailability.Downloading(null, seenMegabytes())
             client().download().collect { status ->
                 when (status) {
-                    is DownloadStatus.DownloadProgress ->
-                        state.value = AiAvailability.Downloading(null, (status.totalBytesDownloaded / BYTES_PER_MB).toInt())
-                    is DownloadStatus.DownloadFailed -> state.value = AiAvailability.Failed("The download did not finish")
-                    DownloadStatus.DownloadCompleted -> state.value = AiAvailability.Ready
-                    else -> Unit
+                    is DownloadStatus.DownloadProgress -> {
+                        val mb = (status.totalBytesDownloaded / BYTES_PER_MB).toInt()
+                        state.value = AiAvailability.Downloading(null, mb)
+                        note { it.copy(lastEvent = DownloadEvent.PROGRESS, megabytes = mb, lastProgressAtMs = System.currentTimeMillis()) }
+                    }
+                    is DownloadStatus.DownloadFailed -> {
+                        state.value = AiAvailability.Failed("The download did not finish")
+                        note { it.copy(lastEvent = DownloadEvent.FAILED) }
+                    }
+                    DownloadStatus.DownloadCompleted -> {
+                        state.value = AiAvailability.Ready
+                        note { it.copy(lastEvent = DownloadEvent.COMPLETED) }
+                    }
+                    else -> note { it.copy(lastEvent = DownloadEvent.OTHER) }
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            note { it.copy(lastEvent = DownloadEvent.ERROR) }
             state.value = AiAvailability.Failed(if (e is GenAiException) plainReason(e) else "The download did not finish")
         } finally {
             downloading = false
+            note { it.copy(streamActive = false) }
         }
         // Trust the phone's own answer over what the stream said.
         refresh()
@@ -83,7 +110,8 @@ class GeminiNanoEngine : OnDeviceAi {
         val started = System.nanoTime()
         fun elapsed() = (System.nanoTime() - started) / NANOS_PER_MS
         return try {
-            state.value = AiAvailability.Busy
+            // Only a model the app believes is ready shows as Busy; otherwise the status stays as it was until an answer proves it.
+            if (state.value.canGenerate) state.value = AiAvailability.Busy
             val request = generateContentRequest(TextPart(prompt)) {
                 temperature = TEMPERATURE
                 topK = TOP_K
@@ -91,7 +119,13 @@ class GeminiNanoEngine : OnDeviceAi {
                 maxOutputTokens = maxTokens
             }
             val answer = client().generateContent(request).candidates.firstOrNull()?.text
-            if (answer.isNullOrBlank()) AiResult.Failure(AiFailure.EMPTY, elapsed()) else AiResult.Text(answer, elapsed())
+            if (answer.isNullOrBlank()) {
+                AiResult.Failure(AiFailure.EMPTY, elapsed())
+            } else {
+                // An answer is the real proof the model is there, whatever the status said.
+                state.value = ModelWatch.afterSuccessfulAnswer(state.value)
+                AiResult.Text(answer, elapsed())
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

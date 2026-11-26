@@ -159,4 +159,17 @@ class AiPolicyTest {
         assertTrue("getStringSet(KEY_FEATURES, null).orEmpty()" in repo)
         assertTrue("substringBefore('|').toLongOrNull()" in text("data/ai/PrefsAiCache.kt"))
     }
+
+    @Test
+    fun theModelCardNeverLeavesBothButtonsOffAndTryItIgnoresTheStatus() {
+        val page = text("presentation/ai/AiSettingsPage.kt")
+        assertTrue("ModelWatch.canDownload(availability, report)" in page)
+        assertFalse("Check again must not depend on the status", Regex("""Check again[^\n]*enabled""").containsMatchIn(page))
+        assertTrue("repeatOnLifecycle(Lifecycle.State.STARTED)" in page && "ModelWatch.POLL_MS" in page)
+        assertTrue("TryItCard()" in page && "canTry" !in page)
+        val hub = text("data/ai/AiHub.kt")
+        assertTrue("ignoreStatus = true" in hub && "availability.value.canGenerate" !in hub.substringAfter("suspend fun tryIt").substringBefore("fun clearCache"))
+        val engine = text("data/ai/GeminiNanoEngine.kt")
+        assertTrue("ModelWatch.afterSuccessfulAnswer" in engine)
+    }
 }

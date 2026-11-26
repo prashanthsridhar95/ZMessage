@@ -13,11 +13,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.zyke.message.domain.ai.AiAvailability
 import com.zyke.message.domain.ai.AiFeature
 import com.zyke.message.domain.ai.AiResult
+import com.zyke.message.domain.ai.ModelReport
+import com.zyke.message.domain.ai.ModelWatch
 import com.zyke.message.domain.ledger.ReviewQueues
 import com.zyke.message.presentation.common.AdaptiveSheet
 import com.zyke.message.presentation.common.AppButton
@@ -34,7 +39,10 @@ import com.zyke.message.presentation.messages.components.RowTitle
 import com.zyke.message.presentation.motion.rememberHaptics
 import com.zyke.message.presentation.settings.ToggleRow
 import com.zyke.message.presentation.theme.Spacing
+import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** What the person reads once, before the AI can be switched on. Plain words; the same facts are in docs/PRIVACY.md and the Privacy and terms page. */
@@ -53,12 +61,24 @@ internal fun AiSettingsContent() {
     val settings by ai.settings.collectAsState()
     val availability by ai.availability.collectAsState()
     val diag by ai.diagnostics.collectAsState()
+    val report by ai.report.collectAsState()
     val kept by ai.kept.collectAsState()
     val haptics = rememberHaptics()
     var explaining by rememberSaveable { mutableStateOf(false) }
     val on = settings.master && settings.explained
 
-    LaunchedEffect(Unit) { ai.refresh() }
+    // Asks the phone when the page comes into view (and on every return to the app), then every few seconds while the model is
+    // downloading, so it flips to Ready by itself. Stops when the page or the app goes out of view.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            ai.refresh()
+            while (true) {
+                delay(ModelWatch.POLL_MS)
+                if (ModelWatch.shouldPoll(ai.availability.value)) ai.refresh()
+            }
+        }
+    }
 
     if (!ai.demo) FintechCard {
         ToggleRow(
@@ -101,7 +121,7 @@ internal fun AiSettingsContent() {
         return
     }
 
-    StatusCard(availability, onDownload = { ai.download() }, onCheck = { ai.refresh() })
+    StatusCard(availability, report, onDownload = { ai.download() }, onCheck = { ai.refresh() })
 
     if (!on) {
         Caption("Switch on On-device AI to choose what it does.", Modifier.padding(horizontal = Spacing.xs), maxLines = 2)
@@ -121,25 +141,25 @@ internal fun AiSettingsContent() {
     }
 
     if (AiFeature.UNDERSTAND in settings.enabled) ReviewPileCard()
-    TryItCard(canTry = availability.canGenerate)
+    TryItCard()
 
     FintechCard {
         AppButton("Clear AI suggestions cache", { ai.clearCache() }, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE)
         Caption(
-            diag.line() + " · $kept " + (if (kept == 1) "suggestion" else "suggestions") + " kept on this phone",
-            Modifier.padding(top = Spacing.sm), maxLines = 3
+            diag.line() + " · " + report.line() + " · $kept " + (if (kept == 1) "suggestion" else "suggestions") + " kept on this phone",
+            Modifier.padding(top = Spacing.sm), maxLines = 5
         )
     }
 }
 
 @Composable
-private fun StatusCard(availability: AiAvailability, onDownload: () -> Unit, onCheck: () -> Unit) {
+private fun StatusCard(availability: AiAvailability, report: ModelReport, onDownload: () -> Unit, onCheck: () -> Unit) {
     val (label, tone, detail) = when (availability) {
         AiAvailability.Unsupported -> Triple("Not supported on this phone", Tone.NEUTRAL, "Gemini Nano needs a recent Pixel (8 or later) with Google's AI Core service. Everything else in the app works as before.")
         AiAvailability.NeedsDownload -> Triple("Model not downloaded", Tone.WARN, "Google's service on the phone fetches the model. It is a large download; Wi-Fi is best.")
         is AiAvailability.Downloading -> Triple(
-            "Downloading", Tone.NEUTRAL,
-            availability.megabytes?.let { "$it MB so far. You can leave this page; Google's service carries on." } ?: "Google's service is fetching the model. You can leave this page."
+            if (ModelWatch.waitingOnGoogle(availability, report)) "Waiting for Google's service" else "Downloading",
+            Tone.NEUTRAL, ModelWatch.downloadingDetail(report.copy(megabytes = availability.megabytes ?: report.megabytes))
         )
         AiAvailability.Ready -> Triple("Ready", Tone.GOOD, "The model is on this phone. A suggestion takes a few seconds and always needs your OK.")
         AiAvailability.Busy -> Triple("Busy", Tone.NEUTRAL, "Working on an answer, or the phone asked the app to wait.")
@@ -148,13 +168,31 @@ private fun StatusCard(availability: AiAvailability, onDownload: () -> Unit, onC
     FintechCard {
         RowTitle("The model")
         StatusPill(label, tone)
-        Caption(detail, Modifier.padding(top = Spacing.sm), maxLines = 4)
+        Caption(detail, Modifier.padding(top = Spacing.sm), maxLines = 5)
+        Caption(serviceText(report), Modifier.padding(top = Spacing.xs), maxLines = 2)
         ResponsiveRow(Modifier.padding(top = Spacing.md)) {
-            AppButton("Download model", onDownload, Modifier.cell(), enabled = availability == AiAvailability.NeedsDownload)
-            AppButton("Check again", onCheck, Modifier.cell(), style = ButtonStyle.OUTLINE, enabled = availability !is AiAvailability.Downloading)
+            AppButton(
+                if (availability is AiAvailability.Downloading) "Ask again" else "Download model",
+                onDownload, Modifier.cell(), enabled = ModelWatch.canDownload(availability, report)
+            )
+            AppButton("Check again", onCheck, Modifier.cell(), style = ButtonStyle.OUTLINE)
         }
+        LearnMore(WHERE_TO_LOOK, label = "Where to look on the phone")
     }
 }
+
+private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm:ss")
+
+/** What the phone's service last said, and when it was asked: the plain truth under the status. */
+private fun serviceText(report: ModelReport): String {
+    val at = report.checkedAtMs?.let { " · Last checked " + CLOCK.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) }.orEmpty()
+    return ModelWatch.serviceLine(report) + at
+}
+
+private const val WHERE_TO_LOOK = "Open the phone's Settings, Apps, See all apps, Android AICore. Check it is installed and up to date " +
+    "(Play Store), that the phone has free space, and that its battery use is not restricted.\n\n" +
+    "Keep Wi-Fi and the charger connected for a while; Google's service often waits for both.\n\n" +
+    "Gemini Nano needs a Pixel 8 or later."
 
 @Composable
 private fun ReviewPileCard() {
@@ -177,7 +215,7 @@ private fun ReviewPileCard() {
 }
 
 @Composable
-private fun TryItCard(canTry: Boolean) {
+private fun TryItCard() {
     val ai = rememberAi()
     val scope = rememberCoroutineScope()
     var text by rememberSaveable { mutableStateOf("") }
@@ -199,7 +237,7 @@ private fun TryItCard(canTry: Boolean) {
                         busy = false
                     }
                 },
-                Modifier.cell(), enabled = canTry && !busy && text.isNotBlank()
+                Modifier.cell(), enabled = !busy && text.isNotBlank()
             )
             AppButton("Clear", { text = ""; answer = null }, Modifier.cell(), style = ButtonStyle.OUTLINE, enabled = text.isNotEmpty() || answer != null)
         }

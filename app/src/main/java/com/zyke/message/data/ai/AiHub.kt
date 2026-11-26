@@ -30,6 +30,7 @@ import com.zyke.message.domain.ai.BatchItem
 import com.zyke.message.domain.ai.BatchProgress
 import com.zyke.message.domain.ai.InMemoryAiCache
 import com.zyke.message.domain.ai.InMemoryAiSettings
+import com.zyke.message.domain.ai.ModelReport
 import com.zyke.message.domain.ai.MonthFacts
 import com.zyke.message.domain.ai.NoOnDeviceAi
 import com.zyke.message.domain.ai.OnDeviceAi
@@ -71,6 +72,7 @@ class AiHub(
 
     val settings: StateFlow<AiSettings> get() = settingsStore.settings
     val availability: StateFlow<AiAvailability> get() = engine.availability
+    val report: StateFlow<ModelReport> get() = engine.report
     val diagnostics: StateFlow<AiDiagnostics> get() = gateway.diagnostics
     val working: StateFlow<Boolean> get() = gateway.working
     val batchProgress: StateFlow<BatchProgress> get() = batch.progress
@@ -185,11 +187,14 @@ class AiHub(
 
     // ---- the settings page ----
 
-    /** The "Try it" box: the person's own words to the model, with only a length limit. Shown on that page and nowhere else. */
+    /**
+     * The "Try it" box: the person's own words to the model, with only a length limit. Shown on that page and nowhere else.
+     * It ignores the status on purpose: whether an answer comes is the real test, and a success flips the status to Ready.
+     */
     suspend fun tryIt(text: String): AiResult {
         val s = settings.value
-        val ok = !demo && s.master && s.explained && availability.value.canGenerate
-        return if (ok) gateway.run(AiPrompts.free(text), maxTokens = TRY_TOKENS) else AiResult.Failure(AiFailure.UNAVAILABLE)
+        val ok = !demo && s.master && s.explained
+        return if (ok) gateway.run(AiPrompts.free(text), maxTokens = TRY_TOKENS, ignoreStatus = true) else AiResult.Failure(AiFailure.UNAVAILABLE)
     }
 
     /** Forgets every suggestion, the rewritten summaries and the numbers on the page. */
