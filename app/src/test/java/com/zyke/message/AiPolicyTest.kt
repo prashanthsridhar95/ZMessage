@@ -45,8 +45,9 @@ class AiPolicyTest {
 
     @Test
     fun nothingRunsFromTheSmsReceiverOrTheBackgroundComponents() {
+        // The one exception is the morning digest reading a line prepared earlier through a read-only object (AiExtrasPolicyTest pins that it never asks).
         val offenders = kotlin(File(main, "notifications")).plus(kotlin(File(main, "data/sms"))).filter {
-            Regex("""\bAiHub\b|domain\.ai\b|data\.ai\b|\.container\.ai\b|presentation\.ai\b""").containsMatchIn(code(it))
+            Regex("""\bAiHub\b|domain\.ai\b|data\.ai\b|\.container\.ai\b|presentation\.ai\b""").containsMatchIn(code(it).replace("com.zyke.message.data.ai.DigestNarrativeStore", ""))
         }.map { it.name }
         assertEquals("no AI in receivers, services, widgets or readers", emptyList<String>(), offenders)
     }
