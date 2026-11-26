@@ -135,6 +135,10 @@ interface BalanceCheckRepository {
     fun record(request: BalanceRequest)
     fun updateStatus(key: String, sentAt: Long, incoming: RequestStatus)
     fun clearRequest(key: String)
+
+    /** The latest refresh before the digest (what each account got); null before the first. */
+    val refreshRun: StateFlow<RefreshRun?>
+    fun saveRefreshRun(run: RefreshRun)
 }
 
 /** Demo mode and tests: everything is kept in memory only, nothing is saved, nothing can be sent from here. */
@@ -159,4 +163,7 @@ class InMemoryBalanceCheck : BalanceCheckRepository {
         _requests.value = _requests.value + (key to current.copy(status = BalanceRequests.advance(current.status, incoming)))
     }
     override fun clearRequest(key: String) { _requests.value = _requests.value - key }
+    private val _refresh = MutableStateFlow<RefreshRun?>(null)
+    override val refreshRun: StateFlow<RefreshRun?> = _refresh
+    override fun saveRefreshRun(run: RefreshRun) { _refresh.value = run }
 }

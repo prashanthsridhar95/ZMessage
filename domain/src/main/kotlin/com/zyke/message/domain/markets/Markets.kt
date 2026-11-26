@@ -14,11 +14,28 @@ data class WatchSettings(
     val symbols: List<WatchSymbol> = emptyList(),
     val showDollar: Boolean = true,
     val showGold: Boolean = true,
-    /** A notification with the index closes after the Indian market shuts. Off until chosen, and only works while [enabled]. */
-    val marketCloseSummary: Boolean = false
+    /** A notification with the Indian indices and watched Indian stocks after NSE closes. Off until chosen; the earlier single "market close" switch, so it migrates as India. Only works while [enabled]. */
+    val marketCloseSummary: Boolean = false,
+    /** The same for the United States after the NYSE close. */
+    val marketCloseUs: Boolean = false,
+    /** Minutes after the close that the summary is sent (see [MarketCloseSummary.OFFSETS]). */
+    val closeOffsetMinutes: Int = MarketCloseSummary.DEFAULT_OFFSET_MINUTES,
+    /** "Group by market" on the page: null until the person chooses, then the list's own shape decides (on with more than one market). */
+    val groupByMarket: Boolean? = null
 ) {
-    /** Whether the close-of-market notification should be scheduled: needs the market watch itself to be on. */
-    val closeSummaryActive: Boolean get() = enabled && marketCloseSummary
+    /** Whether the close-of-market notification should be scheduled for any market: needs the market watch itself to be on. */
+    val closeSummaryActive: Boolean get() = enabled && (marketCloseSummary || marketCloseUs)
+
+    /** Whether the summary for [market] is on (and the market watch with it). */
+    fun closeActive(market: Market): Boolean = enabled && when (market) {
+        Market.INDIA -> marketCloseSummary
+        Market.UNITED_STATES -> marketCloseUs
+        else -> false
+    }
+
+    /** Which markets' summaries are on, with the offset: what the alarms follow, so a change in any of it moves them. */
+    val closeSchedule: Pair<Set<Market>, Int>
+        get() = MarketCloseSummary.MARKETS.filter { closeActive(it) }.toSet() to closeOffsetMinutes.coerceIn(0, 120)
 }
 
 enum class MarketKind { INDEX, STOCK, CURRENCY, COMMODITY }

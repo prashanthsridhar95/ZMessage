@@ -31,7 +31,7 @@ class MarketCloseSummaryTest {
 
     @Test fun titleLeadsWithNiftyAndBodyListsEachIndex() {
         val text = MarketCloseSummary.build(listOf(sensex, nifty))!!
-        assertEquals("Markets closed · Nifty 50 24,386.10 ▲ 1.21%", text.title)
+        assertEquals("India market closed · Nifty 50 24,386.10 ▲ 1.21%", text.title)
         assertEquals("Sensex 79,876.50 ▼ 0.31%", text.text)
         assertEquals("Nifty 50  24,386.10  ▲ 292.35 (1.21%)\nSensex  79,876.50  ▼ 247.50 (0.31%)", text.body)
     }
@@ -46,18 +46,18 @@ class MarketCloseSummaryTest {
 
     @Test fun unchangedHasNoArrow() {
         val text = MarketCloseSummary.build(listOf(quote(MarketSymbols.NIFTY, "24000", "24000")))!!
-        assertEquals("Markets closed · Nifty 50 24,000.00 0.00%", text.title)
+        assertEquals("India market closed · Nifty 50 24,000.00 0.00%", text.title)
     }
 
     @Test fun missingPreviousCloseShowsTheLevelOnly() {
         val text = MarketCloseSummary.build(listOf(quote(MarketSymbols.NIFTY, "24000", null)))!!
-        assertEquals("Markets closed · Nifty 50 24,000.00", text.title)
+        assertEquals("India market closed · Nifty 50 24,000.00", text.title)
         assertEquals("Nifty 50  24,000.00", text.body)
     }
 
     @Test fun missingIndexIsLeftOutNeverZero() {
         val text = MarketCloseSummary.build(listOf(sensex))!!
-        assertTrue(text.title.startsWith("Markets closed · Sensex 79,876.50"))
+        assertTrue(text.title.startsWith("India market closed · Sensex 79,876.50"))
         assertFalse("Nifty" in text.body)
         assertNull(MarketCloseSummary.build(emptyList()))
         assertNull(MarketCloseSummary.build(listOf(quote("RELIANCE.NS", "3000", "2990"))))
@@ -104,6 +104,15 @@ class MarketCloseSummaryTest {
         assertEquals(at(monday, 15, 45), MarketCloseSummary.nextFire(at(friday, 15, 45)))
         assertEquals(at(monday, 15, 45), MarketCloseSummary.nextFire(at(LocalDate.of(2026, 11, 7), 10, 0)))
         assertEquals(at(friday.plusDays(0), 15, 45), MarketCloseSummary.nextFire(at(friday, 15, 44)))
+    }
+
+    @Test fun usSummaryUsesNewYorkTimeAndSummerTime() {
+        val ny = java.time.ZoneId.of("America/New_York")
+        // 6 Nov 2026 is standard time (EST, UTC-5); 14 Jul 2026 is summer time (EDT, UTC-4). 16:00 + 15 minutes either way.
+        val winter = ZonedDateTime.of(friday, LocalTime.of(16, 15), ny).toInstant()
+        assertEquals(winter, MarketCloseSummary.nextFire(ZonedDateTime.of(friday, LocalTime.of(9, 0), ny).toInstant(), com.zyke.message.domain.markets.Market.UNITED_STATES, 15))
+        val july = LocalDate.of(2026, 7, 14)
+        assertEquals(ZonedDateTime.of(july, LocalTime.of(16, 15), ny).toInstant(), MarketCloseSummary.nextFire(ZonedDateTime.of(july, LocalTime.of(9, 0), ny).toInstant(), com.zyke.message.domain.markets.Market.UNITED_STATES, 15))
     }
 
     @Test fun switchIsOffByDefaultAndNeedsTheMarketWatch() {
