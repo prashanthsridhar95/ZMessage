@@ -2,6 +2,7 @@ package com.zyke.message.data.markets
 
 import com.zyke.message.data.diag.DevLog
 import com.zyke.message.domain.markets.ChartRange
+import com.zyke.message.domain.markets.Market
 import com.zyke.message.domain.markets.MarketCloseSummary
 import com.zyke.message.domain.markets.MarketRow
 import com.zyke.message.domain.markets.PriceHistory
@@ -72,6 +73,9 @@ class MarketTicker(
 
     val settings get() = watchlist.watch
 
+    /** Remembers the person's "Group by market" choice (the page's chip). */
+    fun setGroupByMarket(on: Boolean) = watchlist.save(watchlist.watch.value.copy(groupByMarket = on))
+
     /** Asks for every ticker in the watch list at once and updates what is shown. Safe to call often. */
     suspend fun refresh() {
         val wanted = watchlist.watch.value
@@ -107,15 +111,19 @@ class MarketTicker(
     }
 
     /**
-     * The index quotes for the market-close notification (Nifty 50 and Sensex, asked at once), or null if the summary is not
-     * switched on, this is the demo (never the network), or none could be reached. Each call fails soft within a few seconds.
+     * The quotes for one market's close summary: its indices and the watched stocks listed on it, asked a few at a time, or null
+     * if that summary is not switched on, this is the demo (never the network), or none could be reached. Fails soft within
+     * [CLOSE_FETCH_MS]; only tickers already on the person's list and the market's public indices are sent, as for the list itself.
      */
-    suspend fun closingQuotes(): List<Quote>? {
-        if (fixedQuotes != null || !watchlist.watch.value.closeSummaryActive) return null
+    suspend fun closingQuotes(market: Market): List<Quote>? {
+        val wanted = watchlist.watch.value
+        if (fixedQuotes != null || !wanted.closeActive(market)) return null
+        val symbols = MarketCloseSummary.tickersFor(market, wanted.symbols)
         return withContext(Dispatchers.IO) {
             kotlinx.coroutines.withTimeoutOrNull(CLOSE_FETCH_MS) {
                 kotlinx.coroutines.coroutineScope {
-                    MarketCloseSummary.symbols().map { symbol -> async { fetch(symbol) } }.awaitAll().filterNotNull()
+                    val gate = Semaphore(CLOSE_AT_ONCE)
+                    symbols.map { symbol -> async { gate.withPermit { fetch(symbol) } } }.awaitAll().filterNotNull()
                 }
             }
         }?.takeIf { it.isNotEmpty() }
@@ -198,6 +206,7 @@ class MarketTicker(
     private companion object {
         const val MAX_AT_ONCE = 4
         const val MAX_CHARTS = 40
-        const val CLOSE_FETCH_MS = 12_000L
+        const val CLOSE_FETCH_MS = 20_000L
+        const val CLOSE_AT_ONCE = 6
     }
 }

@@ -6,6 +6,9 @@ import com.zyke.message.domain.balance.BalanceRequest
 import com.zyke.message.domain.balance.BalanceRequests
 import com.zyke.message.domain.balance.EnquiryEdit
 import com.zyke.message.domain.balance.EnquirySetup
+import com.zyke.message.domain.balance.RefreshEntry
+import com.zyke.message.domain.balance.RefreshRun
+import com.zyke.message.domain.balance.RefreshSkip
 import com.zyke.message.domain.balance.RequestStatus
 import com.zyke.message.domain.balance.Uan
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +20,7 @@ import org.json.JSONObject
 /**
  * "Check balance by SMS" in two preference files. `balance_check` holds what the person changed in the bank presets (a number and
  * some words per bank, no account digits) and is part of a backup. `balance_check_device` holds the UAN and the last request per
- * account (key, time, status); it describes this phone and is left out of backups. No message text, bank reply or account number
+ * account (key, time, status) and the latest refresh before the digest (per account: key, label, time, skip reason); it describes this phone and is left out of backups. No message text, bank reply or account number
  * is stored in either.
  */
 class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
@@ -34,6 +37,20 @@ class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
 
     private val _skip = MutableStateFlow(readSkip())
     override val skipConfirm: StateFlow<Set<String>> = _skip.asStateFlow()
+
+    private val _refresh = MutableStateFlow(readRefresh())
+    override val refreshRun: StateFlow<RefreshRun?> = _refresh.asStateFlow()
+
+    override fun saveRefreshRun(run: RefreshRun) {
+        synchronized(lock) {
+            val entries = JSONArray()
+            run.entries.forEach { e ->
+                entries.put(JSONObject().put("key", e.key).put("label", e.label).put("at", e.askedAt ?: 0L).put("skip", e.skip?.name.orEmpty()).put("failed", e.failed))
+            }
+            device.edit().putString(KEY_REFRESH, JSONObject().put("digestAt", run.digestAt).put("ranAt", run.ranAt).put("entries", entries).toString()).apply()
+            _refresh.value = run
+        }
+    }
 
     override fun setSkipConfirm(key: String, skip: Boolean) {
         synchronized(lock) {
@@ -107,6 +124,18 @@ class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
         }.toMap()
     }.getOrDefault(emptyMap())
 
+    private fun readRefresh(): RefreshRun? = runCatching {
+        val o = JSONObject(device.getString(KEY_REFRESH, null) ?: return null)
+        val array = o.getJSONArray("entries")
+        RefreshRun(o.getLong("digestAt"), o.getLong("ranAt"), (0 until array.length()).mapNotNull { i ->
+            runCatching {
+                val e = array.getJSONObject(i)
+                val at = e.getLong("at")
+                RefreshEntry(e.getString("key"), e.getString("label"), at.takeIf { it > 0L }, e.optString("skip", "").takeIf { it.isNotEmpty() }?.let { RefreshSkip.valueOf(it) }, e.optBoolean("failed", false))
+            }.getOrNull()
+        })
+    }.getOrNull()
+
     // On this phone only (the device file, not backed up): a restored backup on another phone asks again once.
     private fun readSkip(): Set<String> = runCatching { device.getStringSet(KEY_SKIP, null)?.toSet() }.getOrNull() ?: emptySet()
 
@@ -115,5 +144,6 @@ class BalanceCheckRepositoryImpl(context: Context) : BalanceCheckRepository {
         const val KEY_EDITS = "edits"
         const val KEY_UAN = "uan"
         const val KEY_REQUESTS = "requests"
+        const val KEY_REFRESH = "refresh_run"
     }
 }

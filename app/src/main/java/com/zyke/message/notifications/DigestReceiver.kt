@@ -59,12 +59,15 @@ object DigestNotifier {
     /** A quiet day still gets its line, so a missing notification means something is wrong, not that nothing is due. */
     suspend fun show(context: Context): Boolean {
         if (!canNotify(context)) return false
+        val container = (context.applicationContext as com.zyke.message.ZykeMessagesApplication).container
+        // When balance texts went out for this digest, give the replies the rest of their short window (at most 30 s), then go on.
+        runCatching { BalanceRefresher.awaitReplies(context, container) }
         val digest = DigestProvider.load(context) ?: DigestSummary("Your day", emptyList())
-        post(context, digest)
+        post(context, digest, runCatching { BalanceRefresher.summaryLine(context, container) }.getOrNull())
         return true
     }
 
-    private fun post(context: Context, digest: DigestSummary) {
+    private fun post(context: Context, digest: DigestSummary, refreshed: String?) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // Shown as a banner when it arrives and waits in the shade, readable once the phone is unlocked.
         manager.createNotificationChannel(
@@ -91,6 +94,8 @@ object DigestNotifier {
         val preview = items.firstOrNull()?.let { line(it, hide) } ?: "Nothing due or on today"
         val style = NotificationCompat.InboxStyle()
         if (items.isEmpty()) style.addLine("Nothing due or on today") else items.forEach { style.addLine(boldTitle(it, hide)) }
+        // "Balances refreshed for 2 of 3 accounts": only when texts were sent for this digest; no amount in it.
+        refreshed?.let { style.addLine(it) }
 
         val accent = ContextCompat.getColor(context, R.color.zyke_accent)
         val notification = NotificationCompat.Builder(context, CHANNEL)

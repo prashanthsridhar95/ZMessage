@@ -19,6 +19,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             fetchLogos = prefs.getBoolean(FETCH_LOGOS, true),
             appLock = prefs.getBoolean(APP_LOCK, false),
             morningDigest = prefs.getBoolean(MORNING_DIGEST, false),
+            refreshBalancesBeforeDigest = prefs.getBoolean(REFRESH_BALANCES, false),
             liveAlerts = prefs.getBoolean(LIVE_ALERTS, false),
             readingPaused = prefs.getBoolean(READING_PAUSED, false),
             weeklySummary = prefs.getBoolean(WEEKLY_SUMMARY, false),
@@ -59,6 +60,11 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setMorningDigest(enabled: Boolean) {
         prefs.edit().putBoolean(MORNING_DIGEST, enabled).apply()
         _settings.value = _settings.value.copy(morningDigest = enabled)
+    }
+
+    override fun setRefreshBalancesBeforeDigest(enabled: Boolean) {
+        prefs.edit().putBoolean(REFRESH_BALANCES, enabled).apply()
+        _settings.value = _settings.value.copy(refreshBalancesBeforeDigest = enabled)
     }
 
     override fun setLiveAlerts(enabled: Boolean) {
@@ -149,5 +155,6 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         const val THEME_MODE = "theme_mode"
         const val APP_LOCK = "app_lock"
         const val MORNING_DIGEST = "morning_digest"
+        const val REFRESH_BALANCES = "refresh_balances_before_digest"
     }
 }

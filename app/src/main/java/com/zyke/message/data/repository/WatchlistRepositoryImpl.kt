@@ -1,6 +1,7 @@
 package com.zyke.message.data.repository
 
 import android.content.Context
+import com.zyke.message.domain.markets.MarketCloseSummary
 import com.zyke.message.domain.markets.MarketSymbols
 import com.zyke.message.domain.markets.WatchSettings
 import com.zyke.message.domain.markets.WatchSymbol
@@ -24,6 +25,9 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
             .putBoolean(DOLLAR, settings.showDollar)
             .putBoolean(GOLD, settings.showGold)
             .putBoolean(CLOSE_SUMMARY, settings.marketCloseSummary)
+            .putBoolean(CLOSE_US, settings.marketCloseUs)
+            .putInt(CLOSE_OFFSET, settings.closeOffsetMinutes)
+            .apply { if (settings.groupByMarket == null) remove(GROUP_BY_MARKET) else putBoolean(GROUP_BY_MARKET, settings.groupByMarket) }
             .putString(SYMBOLS, JSONArray().apply {
                 settings.symbols.forEach {
                     put(JSONObject().put("s", it.symbol).put("l", it.label).apply { if (it.exchange.isNotBlank()) put("x", it.exchange) })
@@ -46,7 +50,11 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
             }.distinctBy { it.symbol },
             showDollar = prefs.getBoolean(DOLLAR, true),
             showGold = prefs.getBoolean(GOLD, true),
-            marketCloseSummary = prefs.getBoolean(CLOSE_SUMMARY, false)
+            // The earlier single "market close" switch is India's: same key, same meaning, so nothing is lost on update.
+            marketCloseSummary = prefs.getBoolean(CLOSE_SUMMARY, false),
+            marketCloseUs = prefs.getBoolean(CLOSE_US, false),
+            closeOffsetMinutes = prefs.getInt(CLOSE_OFFSET, MarketCloseSummary.DEFAULT_OFFSET_MINUTES),
+            groupByMarket = if (prefs.contains(GROUP_BY_MARKET)) prefs.getBoolean(GROUP_BY_MARKET, true) else null
         )
     }.getOrDefault(WatchSettings())
 
@@ -56,5 +64,8 @@ class WatchlistRepositoryImpl(context: Context) : WatchlistRepository {
         const val GOLD = "gold"
         const val SYMBOLS = "symbols"
         const val CLOSE_SUMMARY = "close_summary"
+        const val CLOSE_US = "close_us"
+        const val CLOSE_OFFSET = "close_offset"
+        const val GROUP_BY_MARKET = "group_by_market"
     }
 }

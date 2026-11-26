@@ -229,6 +229,7 @@ class MainActivity : ComponentActivity() {
         com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
         com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
         com.zyke.message.presentation.trains.TrainRequests.fromIntent(intent)
+        com.zyke.message.presentation.markets.MarketRequests.fromIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -239,6 +240,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) com.zyke.message.presentation.investments.InvestmentRequests.fromIntent(intent)
         if (savedInstanceState == null) com.zyke.message.presentation.flights.FlightRequests.fromIntent(intent)
         if (savedInstanceState == null) com.zyke.message.presentation.trains.TrainRequests.fromIntent(intent)
+        if (savedInstanceState == null) com.zyke.message.presentation.markets.MarketRequests.fromIntent(intent)
         applyScreenProtection(container.settings.settings.value.screenProtection)
         // After a restore the saved icon colour may differ from the enabled launcher alias: put them in step, off the main thread.
         val savedIcon = container.settings.settings.value.appIcon
@@ -263,11 +265,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        // The market-close alarm follows the market watch and its "Market close summary" switch (cancelled when either is off).
+        // The market-close alarm follows the market watch and its "Market close summary" switch (cancelled when either is off), one alarm per market.
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                container.watchlist.watch.map { it.closeSummaryActive }.distinctUntilChanged().collect { on ->
-                    com.zyke.message.notifications.MarketCloseScheduler(this@MainActivity).apply(on)
+                container.watchlist.watch.map { it.closeSchedule }.distinctUntilChanged().collect {
+                    com.zyke.message.notifications.MarketCloseScheduler(this@MainActivity).apply(container.watchlist.watch.value)
                 }
             }
         }

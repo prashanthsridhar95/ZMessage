@@ -14,7 +14,7 @@ class BootReceiver : BroadcastReceiver() {
         val container = (context.applicationContext as ZykeMessagesApplication).container
         if (container.settings.settings.value.morningDigest) DigestScheduler(context).apply(true)
         if (container.settings.settings.value.weeklySummary) WeeklyScheduler(context).apply(true)
-        if (container.watchlist.watch.value.closeSummaryActive) MarketCloseScheduler(context).apply(true)
+        if (container.watchlist.watch.value.closeSummaryActive) MarketCloseScheduler(context).apply(container.watchlist.watch.value)
         ReminderAlarms.schedule(context)
         // The alarm for the next flight (it only sets an alarm; the service is never started from here).
         runCatching { FlightTrackingControl.rearm(context) }
