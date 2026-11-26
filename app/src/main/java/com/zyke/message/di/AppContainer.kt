@@ -126,6 +126,11 @@ class AppContainer(context: Context, val demo: Boolean = false) {
     val cardBills: com.zyke.message.domain.ledger.CardBillRepository by lazy { com.zyke.message.data.repository.CardBillRepositoryImpl(context) }
     val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository by lazy { com.zyke.message.data.repository.SamePaymentRepositoryImpl(context) }
     val customCategories: com.zyke.message.domain.repository.CustomCategoryRepository by lazy { com.zyke.message.data.repository.CustomCategoryRepositoryImpl(context) }
+    /**
+     * The on-device AI (Gemini Nano through the phone's AI Core service): off until switched on in Settings, never in the demo
+     * (no engine is built then), never from the SMS receiver. Built on first use by a screen.
+     */
+    val ai: com.zyke.message.data.ai.AiHub by lazy { com.zyke.message.data.ai.AiHub(context, demo, appScope) { customCategories.state.value.categories } }
     /** The one way a payment or payee is given a name and / or a category, so every screen does it alike. */
     val namingEdits by lazy { com.zyke.message.domain.nickname.NamingEdits(nicknames, categoryOverrides, customCategories) }
     val paidBills: com.zyke.message.domain.home.PaidBillRepository by lazy { com.zyke.message.data.repository.PaidBillRepositoryImpl(context) }
