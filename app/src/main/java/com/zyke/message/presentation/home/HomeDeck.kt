@@ -2,7 +2,6 @@ package com.zyke.message.presentation.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +28,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -70,7 +67,6 @@ import com.zyke.message.presentation.motion.enterOnce
 import com.zyke.message.presentation.motion.rememberCountUpInt
 import com.zyke.message.presentation.motion.rememberHaptics
 import com.zyke.message.presentation.motion.rememberMotion
-import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.theme.TypeRole
 
@@ -95,7 +91,7 @@ private class FooterItem(val label: String, val spoken: String, val strong: Bool
  *        the card. Swipe it left to archive, right to keep (mark read), up or down to move around the deck: the same gestures, hints and
  *        haptics as the triage page. Every gesture is also a screen-reader action; the triage page has the buttons. The page dots and the
  *        quiet swipe hint sit under the stack.
- *      - Nothing is new but the app has questions about the money (the review queue): one card that opens the review.
+ *      - Nothing is new but the app has questions about the money (the review queue): one flat row (seal, eyebrow, title, chevron) on the container that opens the review: no card inside the card.
  *      - Neither: a compact "All caught up".
  *  - FOOTER: equal tappable segments split by hairlines: "N to review" (accent, only while the stack is the body), "Quiet N",
  *    "Auto-cleared N" and "All stacks". Two to a row at most, one per row at 320 dp or large text. No wrapping chips.
@@ -193,12 +189,12 @@ internal fun DeckSection(
         }
         DeckDivider(divider)
         // BODY: the stack (clipped inside the card), the review card, or the caught-up line.
-        Box(Modifier.fillMaxWidth().clipToBounds().padding(horizontal = Spacing.xl, vertical = Spacing.md)) {
+        Box(Modifier.fillMaxWidth().clipToBounds().padding(horizontal = Spacing.xl, vertical = if (front != null) Spacing.md else Spacing.lg)) {
             when {
                 front != null -> Column(Modifier.fillMaxWidth()) {
                     TriageDeck(
                         front, cards.size, deckState, act,
-                        Modifier.fillMaxWidth().padding(top = DECK_PEEK * 2).height(INLINE_CARD_HEIGHT)
+                        Modifier.fillMaxWidth().padding(top = DECK_PEEK * 2).height(INLINE_CARD_HEIGHT), tray = true
                     ) { card, m, isFront ->
                         CardFace(
                             card, messages[card.messageId], i, cards.size, if (isFront) deckState else null, m, act,
@@ -214,7 +210,7 @@ internal fun DeckSection(
                         )
                     }
                 }
-                reviewCount > 0 -> ReviewCard(reviewCount, onOpenReview, reviewAnchor)
+                reviewCount > 0 -> ReviewBody(reviewCount, onOpenReview, reviewAnchor)
                 else -> CaughtUpBody()
             }
         }
@@ -277,43 +273,34 @@ private fun CaughtUpBody() {
 }
 
 /**
- * Nothing is new but the ledger has questions: the review as one card in the deck's own shape (a seal, a title, a short summary, a quiet
- * footer). The whole card opens the review page. It is not swipeable: there is nothing to archive, only to answer.
+ * Nothing is new but the ledger has questions: the review as a flat row on the deck's own surface (no card inside the card): a small seal,
+ * an eyebrow ("Needs a look · From your payments"), the title in the text colour, one quiet line and a trailing chevron. The header already
+ * carries the count, so the body says what it is. The whole row opens the review page. It is not swipeable: there is nothing to archive.
  */
 @Composable
-private fun ReviewCard(count: Int, onOpen: () -> Unit, anchor: Modifier) {
+private fun ReviewBody(count: Int, onOpen: () -> Unit, anchor: Modifier) {
     val scheme = MaterialTheme.colorScheme
-    val label = DisplayFormatters.count(count, "thing", "things") + " to review"
-    val face = lerp(scheme.surface, scheme.onSurface, 0.03f)
-    val shape = AppShapes.card
-    Column(
-        anchor.fillMaxWidth().clip(shape).background(face).border(1.dp, scheme.onSurface.copy(alpha = 0.10f), shape)
-            .tappable(onClick = onOpen, onClickLabel = "Open review")
-            .semantics(mergeDescendants = true) { contentDescription = "$label. Unclear messages, possible duplicates and overdue bills." }
-            .padding(Spacing.lg)
+    val spoken = DisplayFormatters.count(count, "thing", "things") + " to review. Unclear messages, duplicates and overdue bills. Checked on this phone."
+    Row(
+        anchor.fillMaxWidth().heightIn(min = 56.dp).tappable(onClick = onOpen, onClickLabel = "Open review")
+            .semantics(mergeDescendants = true) { contentDescription = spoken },
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).background(scheme.primary.copy(alpha = 0.14f), CircleShape).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-                Text("?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = scheme.primary)
-            }
-            Column(Modifier.weight(1f).padding(start = Spacing.md).clearAndSetSemantics { }) {
-                Text("Needs a look", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Caption("From your payments")
-            }
+        Box(Modifier.size(36.dp).background(scheme.primary.copy(alpha = 0.14f), CircleShape).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+            Text("?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = scheme.primary)
         }
-        Text(
-            label, Modifier.padding(top = Spacing.lg), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
-            color = scheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            "Unclear messages, possible duplicates and overdue bills.", Modifier.padding(top = Spacing.sm), style = TypeRole.body,
-            color = scheme.onSurface.copy(alpha = 0.86f), maxLines = 3, overflow = TextOverflow.Ellipsis
-        )
-        Box(Modifier.padding(top = Spacing.md).fillMaxWidth().height(1.dp).background(scheme.onSurface.copy(alpha = 0.08f)))
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Caption("Checked on this phone", Modifier.weight(1f), maxLines = 2)
-            Text("Open review", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = scheme.primary, maxLines = 1)
+        Column(Modifier.weight(1f).padding(horizontal = Spacing.md).clearAndSetSemantics { }) {
+            Caption("Needs a look · From your payments", maxLines = 2)
+            Text(
+                "Unclear messages, duplicates and overdue bills", Modifier.padding(top = Spacing.xs), style = TypeRole.body, fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface, maxLines = 3, overflow = TextOverflow.Ellipsis
+            )
+            Caption("Checked on this phone", Modifier.padding(top = Spacing.xs), maxLines = 2)
         }
+        Image(
+            painter = painterResource(R.drawable.baseline_chevron_right_24), contentDescription = null, modifier = Modifier.size(24.dp),
+            colorFilter = ColorFilter.tint(mutedColor())
+        )
     }
 }
 

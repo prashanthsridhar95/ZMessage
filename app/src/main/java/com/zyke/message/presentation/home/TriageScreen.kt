@@ -99,6 +99,7 @@ import com.zyke.message.presentation.motion.rememberHaptics
 import com.zyke.message.presentation.motion.rememberMotion
 import com.zyke.message.presentation.theme.AppColors
 import com.zyke.message.presentation.theme.AppShapes
+import com.zyke.message.presentation.theme.LocalTrueBlack
 import com.zyke.message.presentation.theme.Spacing
 import com.zyke.message.presentation.theme.Tonal
 import com.zyke.message.presentation.theme.TypeRole
@@ -243,6 +244,8 @@ internal fun TriageDeck(
     state: TriageDeckState,
     onMove: (TriageMove) -> Unit,
     modifier: Modifier = Modifier,
+    /** Home's inline deck: the slabs are thin tonal edges of a card lying on the container, with the smaller corner and no outline. */
+    tray: Boolean = false,
     face: @Composable (TriageCard, Modifier, Boolean) -> Unit
 ) {
     val motion = rememberMotion()
@@ -252,12 +255,14 @@ internal fun TriageDeck(
     val currentMove by rememberUpdatedState(onMove)
     val currentCount by rememberUpdatedState(count)
     val currentReduce by rememberUpdatedState(reduce)
-    val frame = MaterialTheme.colorScheme.surface
+    val frame = if (tray) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface
     val ink = MaterialTheme.colorScheme.onSurface
-    val slabNear = lerp(frame, ink, 0.07f)
-    val slabFar = lerp(frame, ink, 0.12f)
-    // A hairline on each slab keeps its edge readable on true black and on white, where a tint step alone nearly vanishes.
-    val slabEdge = ink.copy(alpha = 0.08f)
+    val slabNear = lerp(frame, ink, if (tray) 0.09f else 0.07f)
+    val slabFar = lerp(frame, ink, if (tray) 0.14f else 0.12f)
+    // A hairline on each slab keeps its edge readable on true black and on white, where a tint step alone nearly vanishes (not on the tray: there the slabs are tonal edges only).
+    val slabEdge = ink.copy(alpha = if (tray) 0.14f else 0.08f)
+    val slabShape = if (tray) AppShapes.control else AppShapes.card
+    val slabOutline = !tray || LocalTrueBlack.current
     Box(
         modifier
             .onSizeChanged { state.widthPx = it.width.toFloat().coerceAtLeast(1f); state.heightPx = it.height.toFloat().coerceAtLeast(1f) }
@@ -284,10 +289,10 @@ internal fun TriageDeck(
         // The two slabs behind. Their place follows the drag (they come forward as the front card leaves) and the grow of the card that
         // took the front; the formula is the same one the Accounts deck uses.
         if (count >= 3) {
-            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(2f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabFar, AppShapes.card).border(1.dp, slabEdge, AppShapes.card))
+            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(2f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabFar, slabShape).then(if (slabOutline) Modifier.border(1.dp, slabEdge, slabShape) else Modifier))
         }
         if (count >= 2) {
-            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(1f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabNear, AppShapes.card).border(1.dp, slabEdge, AppShapes.card))
+            Box(Modifier.fillMaxSize().graphicsLayer { stackSlot(1f - dragProgress(state) + (1f - state.grow), peekPx) }.background(slabNear, slabShape).then(if (slabOutline) Modifier.border(1.dp, slabEdge, slabShape) else Modifier))
         }
         androidx.compose.runtime.key(front.messageId) {
             face(
@@ -497,9 +502,10 @@ internal fun CardFace(
     /** Home's inline deck: no category chip, a two-line headline and summary, no tags. */
     compact: Boolean = false
 ) {
-    val shape = AppShapes.card
-    val surface = MaterialTheme.colorScheme.surface
-    val face = lerp(surface, MaterialTheme.colorScheme.onSurface, 0.03f)
+    // On Home the card lies on the deck's container: a tonal step up, the smaller corner, no outline (a hairline only on true black).
+    val shape = if (compact) AppShapes.control else AppShapes.card
+    val face = if (compact) MaterialTheme.colorScheme.surfaceContainerHigh else lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.onSurface, 0.03f)
+    val outlined = !compact || LocalTrueBlack.current
     val ink = MaterialTheme.colorScheme.onSurface
     val primary = MaterialTheme.colorScheme.primary
     // What letting go does: archiving is calm and neutral (never an alarm red), keeping takes the accent. Opaque mixes over the card's own face.
@@ -515,7 +521,7 @@ internal fun CardFace(
         }
     )
     CapFontScale(1.3f) {
-        Box(modifier.clip(shape).background(face).border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), shape).clipToBounds()) {
+        Box(modifier.clip(shape).background(face).then(if (outlined) Modifier.border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), shape) else Modifier).clipToBounds()) {
             Column(Modifier.fillMaxSize().padding(Spacing.lg)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.clearAndSetSemantics { }) {
@@ -558,7 +564,7 @@ internal fun CardFace(
                 ) {
                     Text(
                         card.headline, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary, maxLines = if (compact) 2 else scaledLines(4), overflow = TextOverflow.Ellipsis
+                        color = if (compact) ink else MaterialTheme.colorScheme.primary, maxLines = if (compact) 2 else scaledLines(4), overflow = TextOverflow.Ellipsis
                     )
                     if (card.summary.isNotEmpty()) {
                         Text(
