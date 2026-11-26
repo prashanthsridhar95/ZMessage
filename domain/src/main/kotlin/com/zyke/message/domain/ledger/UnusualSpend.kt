@@ -13,15 +13,17 @@ object UnusualSpend {
     /** Fewer debits than this and there is no "usual" to compare with. */
     const val MIN_DEBITS = 10
 
-    /** The amount from which a debit is unusual, given the amounts of the debits in the history window; null with too few. */
-    fun threshold(amounts: List<BigDecimal>): BigDecimal? {
+    /** The usual payment: the median of the debits in the history window; null with too few or nothing above zero. */
+    fun median(amounts: List<BigDecimal>): BigDecimal? {
         if (amounts.size < MIN_DEBITS) return null
         val sorted = amounts.sorted()
         val mid = sorted.size / 2
         val median = if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]).divide(BigDecimal(2))
-        if (median.signum() <= 0) return null
-        return median.multiply(BigDecimal(FACTOR))
+        return median.takeIf { it.signum() > 0 }
     }
+
+    /** The amount from which a debit is unusual, given the amounts of the debits in the history window; null with too few. */
+    fun threshold(amounts: List<BigDecimal>): BigDecimal? = median(amounts)?.multiply(BigDecimal(FACTOR))
 
     fun isUnusual(amount: BigDecimal, history: List<BigDecimal>): Boolean = threshold(history)?.let { amount >= it } ?: false
 }

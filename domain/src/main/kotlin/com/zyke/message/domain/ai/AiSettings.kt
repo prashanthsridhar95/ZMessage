@@ -9,7 +9,12 @@ enum class AiFeature(val title: String, val summary: String) {
     SUMMARIES("Smarter summaries", "Clearer one-line summaries on Home"),
     ASK("Ask your money", "Answer questions typed in Search"),
     MONTH("Month in a sentence", "One or two sentences on Insights"),
-    CATEGORIES("Category ideas", "Suggest a category for a payee with none")
+    CATEGORIES("Category ideas", "Suggest a category for a payee with none"),
+    NAMES("Clean payee names", "Suggest a tidy name for a messy payee, in the name box"),
+    EXPLAIN("Explain a message", "Plain words for what a message says, in its details"),
+    WHY_UP("Why did spending go up?", "The biggest reasons, on Insights"),
+    DIGEST("Morning digest line", "One line above the morning digest, prepared while the app is open"),
+    UNUSUAL("Explain unusual payments", "One sentence on why a payment stands out, in the review pile")
 }
 
 /** The person's choices. Everything is off until the master switch is turned on after reading [explained]. */

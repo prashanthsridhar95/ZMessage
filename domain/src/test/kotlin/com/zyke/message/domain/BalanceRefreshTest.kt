@@ -52,8 +52,9 @@ class BalanceRefreshTest {
         fun last(at: Long, status: RequestStatus = RequestStatus.SENT) = BalanceRequest("a", at, status)
         // Yesterday evening, 10 hours ago: allowed.
         assertNull(BalanceRefresh.skipFor(c("a"), last(at(21, 55, 9)), now, digest, zone))
-        // Yesterday 23:00, under 6 hours ago: too soon.
-        assertEquals(RefreshSkip.TOO_SOON, BalanceRefresh.skipFor(c("a"), last(at(23, 0, 9)), now, digest, zone))
+        // Yesterday 23:00 is 8 h 55 min ago: allowed; at 4:00 it was 5 hours ago and across midnight: too soon.
+        assertNull(BalanceRefresh.skipFor(c("a"), last(at(23, 0, 9)), now, digest, zone))
+        assertEquals(RefreshSkip.TOO_SOON, BalanceRefresh.skipFor(c("a"), last(at(23, 0, 9)), at(4, 0), at(4, 10), zone))
         // Today 00:30 (7 hours ago) is a second check on one day.
         assertEquals(RefreshSkip.ALREADY_TODAY, BalanceRefresh.skipFor(c("a"), last(at(0, 30)), now, digest, zone))
         // A manual check at 7:00 counts as well.
