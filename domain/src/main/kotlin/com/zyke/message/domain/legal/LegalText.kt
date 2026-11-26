@@ -65,6 +65,10 @@ object LegalText {
                 "To show a bank's or airline's logo, the app asks a public icon service for the logo of a well-known website, so the website name (for example hdfcbank.com) is sent. It asks the brand's own website, then $HOST_GOOGLE, then $HOST_DUCKDUCKGO. Your phone's address is visible to those servers, as with any web request. The logos belong to their owners and are shown only to identify the sender."
             ),
             LegalItem(
+                "Logos from the app's own logo list (same switch as brand logos)",
+                "The app comes with a list of brand names and, for each, the web address of its logo. When such a brand is on screen and you have not chosen a picture of your own for it, the app asks that address for the picture, once, and keeps it on your phone. The request is an ordinary https request for the picture and nothing else: no cookies, no message text, name, amount or number, and it follows a redirect only within the same site. The site that holds the picture can see your phone's address and which logo was asked for, as with any web request, so it can tell that a payment to that brand shows on your phone. The hosts are the ones named in the app's list, which is part of the app. Turn off \"Fetch brand logos\" and none is asked for; the demo never asks. Separately, when you choose a picture with \"From the web\", the app remembers its web address with the shop's name on your phone (and in your backup, like your other names). Nothing is sent from there unless you choose Export logo list in Settings and share the file yourself; it holds only shop names and web addresses."
+            ),
+            LegalItem(
                 "Picture for a sender (only when you tap \"From the web\")",
                 "A Google Images search for the sender's name opens inside the app on $HOST_GOOGLE, as if you had typed the name into Google. The picture you tap is downloaded once."
             ),

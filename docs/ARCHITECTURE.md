@@ -792,3 +792,19 @@ variants; `AppIconSwitcher` enables the new alias before disabling the others (n
 (after a restore). Settings, Appearance, App icon shows the palette and asks before switching, since launchers differ
 (a few seconds' delay, the app closing, or the icon moving). Custom colours are not possible for the icon.
 `ManifestPolicyTest` keeps the manifest and the enum in step.
+
+## Logo list (web addresses of brand logos)
+
+- **Domain (`domain/logo/LogoList.kt`, pure).** `LogoEntry(key, url)`; `keyOf(name)` is the payee key (`PayeeKey`) kept only when `PictureSearchQuery.clean` leaves it unchanged
+  (so never a UPI id or a number-like word); `cleanUrl` accepts https to a public host only (no port, user name, fragment, IP address or local name, 500 characters at most);
+  `toJson` / `parse` are the shared file `{"version":1,"logos":[{"key":"taco bell","url":"https://..."}]}` (strict reader, bad entries counted and left out);
+  `merge(base, overrides)` is the precedence rule (the second list wins, sorted by key); `resolve` finds a brand by the shown name, then the name in the message, skipping a name whose logo is turned off.
+  `LogoListRepository` / `NoLogoList` is the person's own list; `LogoListRepositoryImpl` keeps it in the private preferences `logo_urls` (backed up like the nicknames).
+- **Recording.** `rememberPicturePicker(..., logoName)` (given only for a payee in `MessageDetailSheet`) records the tapped picture's https address after the picture is saved, and forgets it
+  when a photo from the phone replaces it; `ImageStore.removeChosen` forgets it through `onChosenRemoved`. A `data:` address is never recorded.
+- **Export.** Settings > Messages > `LogoListCard`: look through and remove lines, then `Intent.ExportLogoList` shares `LogoList.toJson` through the same `ReportSharing` file share as the parsing report.
+- **Consuming.** `assets/known_logos.json` (shipped empty) is read once off the main thread by `BundledLogos`; `ImageStore.webLogos` hands the table to `peekLogo` / `loadLogo`.
+  Order of precedence: the person's chosen picture, then a brand in the bundled list (unless that name's logo was turned off), then the website icon from `KnownEntityDomains`.
+  The picture comes through `LogoFetcher.fetchListed` (the only network class): https only, redirects within the same host, no cookies, 512 KB, bounded decode, cached in `filesDir/logos`,
+  asked only for a logo that is on screen, only with "Fetch brand logos" on, never in the demo. `LogoListPolicyTest` pins these rules and checks the shipped file.
+- **Adding to the bundled list.** Take the entries from an exported file, open each address and check it is the brand's logo, then merge them into `known_logos.json` (`LogoList.merge`; the later entry wins), keep it sorted, and run the tests.

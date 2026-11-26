@@ -599,3 +599,10 @@ Phase A (this page): tokens, the motion package, tab/page/sheet transitions, sha
 reference. Wave B1: Messages (above). Wave B5 (Settings, Search, onboarding and the empty/error/loading voice) is described above; it is the last wave. Not verified on a device: no animation here has been seen running; the numbers are from the specification.
 Accounts, Cards and Investments (B2) follow the Accounts section above. See the wave plan in the pull-request notes: B1 Messages, B3 Insights, B4 Bills and
 Calendar, B5 Search, Settings, onboarding and empty states (done).
+
+## Logos from the logo list
+
+A payee with no picture of its own shows, in this order: the person's chosen picture, the logo the bundled list names for the brand, the brand's website icon, the generic icon.
+The bundled logo is drawn exactly as any other brand logo (same `MerchantChip` tile, same "This logo is wrong" and "Show the logo again" rows, same Fetch brand logos switch), and while it loads the tile shows
+the generic icon, never the website icon first, so the tile does not change twice. Settings > Messages > Logo list is a card that appears only when the person has chosen a web picture for a payee: a count, one
+sentence on what is shared, Export logo list (outline button) and a text button "Look through the list" that opens a page with one line per shop (name, host) and a Remove button each.
