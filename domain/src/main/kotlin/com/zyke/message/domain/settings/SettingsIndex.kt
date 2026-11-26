@@ -108,7 +108,7 @@ object SettingsIndex {
         // Notifications and alerts
         e("alerts.status", "Code alert status", "Whether a one-time code would be announced", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "otp", "test", "notification", "code"),
         e("alerts.morning", "Morning digest", "A short summary at about 8 AM", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "summary", "daily", "notification"),
-        e("alerts.refresh", "Refresh balances before my digest", "Texts your bank for its balance a few minutes before the digest", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "balance", "sms", "check balance", "bank", "digest"),
+        e("alerts.refresh", "Refresh balances before my digest", "Texts your bank for its balance just before the digest", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "balance", "sms", "check balance", "bank", "digest"),
         e("alerts.buttons", "Copy-code and Pay buttons", "A button the moment a code or card bill arrives", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "otp", "copy", "pay", "live alerts", "notification"),
         e("alerts.weekly", "Weekly summary", "Sunday at about 9 AM", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "week", "report", "notification"),
         e("alerts.headsup", "Heads-up alerts", "A quiet note for an unusual payment or a low balance", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "unusual", "warning", "notification"),
@@ -148,10 +148,10 @@ object SettingsIndex {
         e("ai.ask", "Ask your money", "Answer questions like food last week", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "question", "search", "natural language", hiddenInDemo = true),
         e("ai.month", "Month in a sentence", "One or two sentences about the month on Insights", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "insights", "summary", hiddenInDemo = true),
         e("ai.categories", "Category ideas", "Suggest a category for a payee with none", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "payee", "category", hiddenInDemo = true),
-        e("ai.names", "Clean payee names", "Suggest a tidy name for a messy payee, in the name box", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "nickname", "payee", "merchant", "rename", "logo", hiddenInDemo = true),
+        e("ai.names", "Clean payee names", "A tidy name for a messy payee, in the name box", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "nickname", "payee", "merchant", "rename", "logo", hiddenInDemo = true),
         e("ai.explain", "Explain a message", "Plain words for what a message says, in its details", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "explain", "message", "meaning", "understand", hiddenInDemo = true),
         e("ai.whyup", "Why did spending go up?", "The biggest reasons spending rose, on Insights", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "insights", "increase", "spending", "reason", hiddenInDemo = true),
-        e("ai.digest", "Morning digest line", "One line above the morning digest, prepared while the app is open", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "digest", "notification", "summary", "morning", hiddenInDemo = true),
+        e("ai.digest", "Morning digest line", "One line above the morning digest", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "digest", "notification", "summary", "morning", hiddenInDemo = true),
         e("ai.unusual", "Explain unusual payments", "One sentence on why a payment stands out, in the review pile", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "unusual", "review", "large payment", hiddenInDemo = true),
         e("ai.cache", "Clear AI suggestions cache", "Forget what the AI suggested before", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "clear", "cache", "reset", hiddenInDemo = true),
         // Travel

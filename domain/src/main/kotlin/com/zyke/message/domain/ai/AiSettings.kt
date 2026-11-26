@@ -10,10 +10,10 @@ enum class AiFeature(val title: String, val summary: String) {
     ASK("Ask your money", "Answer questions typed in Search"),
     MONTH("Month in a sentence", "One or two sentences on Insights"),
     CATEGORIES("Category ideas", "Suggest a category for a payee with none"),
-    NAMES("Clean payee names", "Suggest a tidy name for a messy payee, in the name box"),
+    NAMES("Clean payee names", "A tidy name for a messy payee, in the name box"),
     EXPLAIN("Explain a message", "Plain words for what a message says, in its details"),
     WHY_UP("Why did spending go up?", "The biggest reasons, on Insights"),
-    DIGEST("Morning digest line", "One line above the morning digest, prepared while the app is open"),
+    DIGEST("Morning digest line", "One line above the morning digest, prepared earlier"),
     UNUSUAL("Explain unusual payments", "One sentence on why a payment stands out, in the review pile")
 }
 
