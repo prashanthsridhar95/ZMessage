@@ -386,6 +386,10 @@ private fun GroupContent(
                 onTurnOn = { onIntent(Intent.SetLiveAlerts(true)) }, onResume = { onIntent(Intent.SetReadingPaused(false)) }
             )
             MorningDigestToggle(enabled = state.settings.morningDigest, onChange = { onIntent(Intent.SetMorningDigest(it)) })
+            BalanceRefreshSetting(
+                enabled = state.settings.refreshBalancesBeforeDigest, digestOn = state.settings.morningDigest, accounts = state.accounts,
+                onChange = { onIntent(Intent.SetRefreshBalances(it)) }, modifier = Modifier.padding(top = Spacing.md)
+            )
             LiveAlertsToggle(enabled = state.settings.liveAlerts, onChange = { onIntent(Intent.SetLiveAlerts(it)) }, modifier = Modifier.padding(top = Spacing.md))
             Box(Modifier.padding(top = Spacing.md)) {
                 MorningDigestToggle(

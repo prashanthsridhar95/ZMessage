@@ -19,6 +19,8 @@ interface SettingsRepository {
 
     fun setLiveAlerts(enabled: Boolean)
 
+    fun setRefreshBalancesBeforeDigest(enabled: Boolean) = Unit
+
     fun setReadingPaused(paused: Boolean) = Unit
 
     fun setWeeklySummary(enabled: Boolean) = Unit

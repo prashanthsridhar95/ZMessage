@@ -48,6 +48,7 @@ import com.zyke.message.domain.balance.BalanceCheckFlow
 import com.zyke.message.domain.balance.BalanceEnquiry
 import com.zyke.message.domain.balance.CheckState
 import com.zyke.message.domain.balance.TapAction
+import com.zyke.message.domain.balance.BalanceRefresh
 import com.zyke.message.domain.balance.BalanceRequest
 import com.zyke.message.domain.balance.BalanceRequests
 import com.zyke.message.domain.balance.EnquiryEdit
@@ -272,6 +273,11 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
         is EnquiryPlan.NeedsUan -> plan.service
         is EnquiryPlan.Unsupported -> null
     }
+    // What the last "Refresh balances before my digest" did for this account, e.g. "Asked 8:55 AM \u00b7 reply 8:56 AM".
+    val refreshRun by repository.refreshRun.collectAsStateWithLifecycle()
+    val refreshLine = refreshRun?.entries?.firstOrNull { it.key == target.requestKey }?.let { entry ->
+        BalanceRefresh.logLine(entry, BalanceRefresh.outcome(entry, balanceAt, now), balanceAt, java.time.ZoneId.systemDefault())
+    }
     val key = service?.key ?: if (target.isProvidentFund) BalanceEnquiry.EPFO_KEY else BalanceEnquiry.bankKey(target.bank, target.bankLabel)
     val preset = BalanceEnquiry.presetFor(key)
 
@@ -422,7 +428,7 @@ internal fun CheckBalanceSheet(target: BalanceTarget, balanceAt: Long, onDismiss
                 Caption("Then Zyke shows the exact text before it sends anything.", maxLines = 2)
             }
             is EnquiryPlan.Ready -> if (settingsOnly) SettingsState(
-                plan, askFirst = key !in skipped, onAskFirst = { repository.setSkipConfirm(key, !it) }, onChange = { changing = true }
+                plan, askFirst = key !in skipped, refreshLine = refreshLine, onAskFirst = { repository.setSkipConfirm(key, !it) }, onChange = { changing = true }
             ) else ReadyState(
                 plan, target, phase, waitLeft, denied, dualSim, uan, alwaysSend, { alwaysSend = it },
                 onChange = { changing = true }, onSettings = ::openAppSettings, onMessages = { openMessagesApp(plan) }
@@ -514,7 +520,7 @@ private fun ToggleLine(label: String, checked: Boolean, onChange: (Boolean) -> U
 
 /** "Balance check settings": what is sent, and whether Check balance asks first. Nothing here sends a text. */
 @Composable
-private fun SettingsState(plan: EnquiryPlan.Ready, askFirst: Boolean, onAskFirst: (Boolean) -> Unit, onChange: () -> Unit) {
+private fun SettingsState(plan: EnquiryPlan.Ready, askFirst: Boolean, refreshLine: String?, onAskFirst: (Boolean) -> Unit, onChange: () -> Unit) {
     FintechCard {
         Caption("Zyke texts", maxLines = 1)
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -527,6 +533,7 @@ private fun SettingsState(plan: EnquiryPlan.Ready, askFirst: Boolean, onAskFirst
         }
         AppButton("Change number or words", onChange, Modifier.padding(top = Spacing.xs), style = ButtonStyle.TEXT, size = ButtonSize.COMPACT)
     }
+    refreshLine?.let { Caption("Before the digest: $it", maxLines = 3) }
     ToggleLine("Ask before sending", askFirst, onAskFirst, Role.Switch)
     Caption(
         if (askFirst) "Check balance shows this screen first. Turn this off to send at once with one tap."

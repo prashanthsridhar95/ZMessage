@@ -10,6 +10,11 @@ data class AppSettings(
     val appLock: Boolean = false,
     /** A short notification each morning with what is due and what is on. */
     val morningDigest: Boolean = false,
+    /**
+     * Off until chosen: a few minutes before the morning digest, text each confirmed bank's own balance number from the SIM
+     * (see [com.zyke.message.domain.balance.BalanceRefresh]). Real texts that may cost money; needs the digest.
+     */
+    val refreshBalancesBeforeDigest: Boolean = false,
     /** Off until chosen: a "Copy code" or "Pay" notification the moment a code or bill arrives. */
     val liveAlerts: Boolean = false,
     /** Stops reading the phone's messages and listening for new ones; what was read stays and can still be used. */

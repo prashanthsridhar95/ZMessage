@@ -59,6 +59,7 @@ object SettingsContract {
         data class SetFetchLogos(val enabled: Boolean) : Intent
         data class SetAppLock(val enabled: Boolean) : Intent
         data class SetMorningDigest(val enabled: Boolean) : Intent
+        data class SetRefreshBalances(val enabled: Boolean) : Intent
         data class SetLiveAlerts(val enabled: Boolean) : Intent
         data class SetWeeklySummary(val enabled: Boolean) : Intent
         data class SetHeadsUp(val enabled: Boolean) : Intent

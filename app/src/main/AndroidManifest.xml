@@ -308,6 +308,9 @@
             android:name=".notifications.DigestReceiver"
             android:exported="false" />
         <receiver
+            android:name=".notifications.BalanceRefreshReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".notifications.WeeklyReceiver"
             android:exported="false" />
         <receiver

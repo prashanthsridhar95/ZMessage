@@ -117,6 +117,11 @@ class SettingsViewModel(
                 settingsRepository.setMorningDigest(intent.enabled)
                 onDigestChanged(intent.enabled)
             }
+            is Intent.SetRefreshBalances -> {
+                settingsRepository.setRefreshBalancesBeforeDigest(intent.enabled)
+                // The same call that sets the digest's alarm sets or cancels the refresh alarm before it.
+                onDigestChanged(settingsRepository.settings.value.morningDigest)
+            }
             is Intent.SetWeeklySummary -> {
                 settingsRepository.setWeeklySummary(intent.enabled)
                 onWeeklySummaryChanged(intent.enabled)
