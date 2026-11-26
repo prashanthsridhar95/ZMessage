@@ -42,7 +42,7 @@ class NicknamePolicyTest {
     fun theSearchPageLetsThePersonEditTheNameAndOffersTheOriginalOne() {
         assertTrue("alternative: String? = null" in picker && "alternative = alternative" in picker)
         assertTrue("alternative: String? = null" in search)
-        assertTrue("a field prefilled with the name shown", "SearchField(typed" in search && "mutableStateOf(query)" in search)
+        assertTrue("a field prefilled with the name shown", "SearchField(typed" in search && "mutableStateOf(startText)" in search)
         assertTrue("the second search is offered by name", "instead" in search && "search(alternative)" in search)
         assertTrue("only a cleaned name is sent", "PictureSearchQuery.clean(" in search)
         assertFalse("the page address is not built from the raw query", Regex("searchAddress\\(query\\)").containsMatchIn(search))

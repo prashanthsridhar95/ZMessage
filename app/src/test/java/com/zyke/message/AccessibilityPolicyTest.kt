@@ -22,6 +22,7 @@ class AccessibilityPolicyTest {
      * is what a screen reader announces. Counts are per file; going over one needs a new line here with its reason.
      */
     private val decorative = mapOf(
+        "markets/MarketUi.kt" to 1,                        // search glyph inside the "Search & add" bar, which is one button with its own spoken label
         "search/SearchPage.kt" to 4,                       // close glyph in a chip that describes itself; search glyph, page icon, chevron and result icon inside labelled rows
         "common/FormInputs.kt" to 1,                       // calendar glyph beside the field's own label
         "common/UnderlineTabs.kt" to 1,                    // tab icon beside the tab's text
