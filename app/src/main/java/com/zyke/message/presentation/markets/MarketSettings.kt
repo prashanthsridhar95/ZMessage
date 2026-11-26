@@ -8,10 +8,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -19,6 +22,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -28,6 +33,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zyke.message.ZykeMessagesApplication
+import com.zyke.message.domain.markets.Market
+import com.zyke.message.domain.markets.MarketCalendar
+import com.zyke.message.domain.markets.MarketCloseSummary
 import com.zyke.message.domain.markets.MarketSymbols
 import com.zyke.message.domain.markets.WatchSettings
 import com.zyke.message.presentation.common.AppButton
@@ -64,7 +72,7 @@ fun MarketSettingsSection() {
             SwitchLine("US dollar in rupees", "Shows USD / INR", watch.showDollar, { container.watchlist.save(watch.copy(showDollar = it)) })
             SwitchLine("Gold", "Rupees for 10 grams, worked out from the international price", watch.showGold, { container.watchlist.save(watch.copy(showGold = it)) })
 
-            MarketCloseToggle(watch.marketCloseSummary) { container.watchlist.save(container.watchlist.watch.value.copy(marketCloseSummary = it)) }
+            MarketCloseSection(watch) { change -> container.watchlist.save(change(container.watchlist.watch.value)) }
 
             WatchlistEditor()
         }
@@ -153,23 +161,73 @@ private fun SwitchLine(title: String, description: String, checked: Boolean, onC
     }
 }
 
-/** "Market close summary": needs permission to show notifications on newer Android, asked for only when it is switched on. */
+/**
+ * "Market close summary": one switch per market (India, United States) and how long after the close it arrives. Each is a quiet
+ * notification with the market's indices and the day's move of the stocks you watch there, tapping it opens Market watch. Needs
+ * permission to show notifications on newer Android, asked for only when a switch is turned on. Weekdays only; a day with no new
+ * prices (an exchange holiday, which the app does not know in advance) sends nothing.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MarketCloseToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun MarketCloseSection(watch: WatchSettings, update: ((WatchSettings) -> WatchSettings) -> Unit) {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> onChange(granted) }
-    SwitchLine(
-        title = "Market close summary",
-        description = "A quiet notification at about 3:45 PM IST on weekdays with the Nifty 50 and Sensex closing levels. Skipped on market holidays. Off until you turn it on.",
-        checked = checked,
-        onChange = { wanted ->
-            val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            when {
-                !wanted -> onChange(false)
-                allowed -> onChange(true)
-                else -> launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+    var asking by remember { mutableStateOf<Market?>(null) }
+    fun set(market: Market, on: Boolean) = update { now ->
+        when (market) {
+            Market.INDIA -> now.copy(marketCloseSummary = on)
+            Market.UNITED_STATES -> now.copy(marketCloseUs = on)
+            else -> now
         }
-    )
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val market = asking
+        asking = null
+        if (granted && market != null) set(market, true)
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(
+            "Market close summary", style = MaterialTheme.typography.labelLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, color = MaterialTheme.colorScheme.secondary
+        )
+        Caption(
+            "After a market's regular session ends, one quiet notification: how its indices closed and what each stock you watch there did that day, biggest movers first. Weekdays only, and nothing is sent on a day with no new prices, such as an exchange holiday. Off until you turn a market on.",
+            maxLines = 8
+        )
+        MarketCloseSummary.MARKETS.forEach { market ->
+            val checked = if (market == Market.INDIA) watch.marketCloseSummary else watch.marketCloseUs
+            val stocks = MarketCloseSummary.stocksOf(market, watch.symbols).size
+            val closes = market.closes?.let { "${it.hour % 12}:${it.minute.toString().padStart(2, '0')} ${if (it.hour < 12) "AM" else "PM"} ${MarketCalendar.zoneLabel(market)}" }.orEmpty()
+            SwitchLine(
+                title = "${market.flag} ${market.title}",
+                description = "After the $closes close, ${market.indices.joinToString(", ") { it.second }}. " +
+                    if (stocks == 0) "No stocks of yours are listed there yet; you get the indices only." else "Includes $stocks of your watched ${if (stocks == 1) "stock" else "stocks"}.",
+                checked = checked,
+                onChange = { wanted ->
+                    val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                    when {
+                        !wanted -> set(market, false)
+                        allowed -> set(market, true)
+                        else -> {
+                            asking = market
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                }
+            )
+        }
+        if (watch.marketCloseSummary || watch.marketCloseUs) {
+            Text("Sent after the close", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MarketCloseSummary.OFFSETS.forEach { minutes ->
+                    FilterChip(
+                        selected = watch.closeOffsetMinutes == minutes,
+                        onClick = { update { it.copy(closeOffsetMinutes = minutes) } },
+                        label = { Text(if (minutes == 60) "1 hour" else "$minutes min", maxLines = 1) }
+                    )
+                }
+            }
+            Caption("Android may move the time by a few minutes to save battery.", maxLines = 2)
+        }
+    }
 }

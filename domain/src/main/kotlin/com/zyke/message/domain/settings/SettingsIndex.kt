@@ -108,6 +108,7 @@ object SettingsIndex {
         // Notifications and alerts
         e("alerts.status", "Code alert status", "Whether a one-time code would be announced", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "otp", "test", "notification", "code"),
         e("alerts.morning", "Morning digest", "A short summary at about 8 AM", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "summary", "daily", "notification"),
+        e("alerts.refresh", "Refresh balances before my digest", "Texts your bank for its balance a few minutes before the digest", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "balance", "sms", "check balance", "bank", "digest"),
         e("alerts.buttons", "Copy-code and Pay buttons", "A button the moment a code or card bill arrives", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "otp", "copy", "pay", "live alerts", "notification"),
         e("alerts.weekly", "Weekly summary", "Sunday at about 9 AM", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "week", "report", "notification"),
         e("alerts.headsup", "Heads-up alerts", "A quiet note for an unusual payment or a low balance", SettingsGroupId.ALERTS, SettingsPageId.ALERTS, "unusual", "warning", "notification"),
@@ -124,7 +125,7 @@ object SettingsIndex {
         e("budgets.move", "Move money between budgets", "For this month, with Undo", SettingsGroupId.MONEY, SettingsPageId.LIMITS, "transfer", "shift"),
         e("budgets.card", "Credit card limit", "One limit across all your cards", SettingsGroupId.MONEY, SettingsPageId.LIMITS, "credit", "card", "spend limit"),
         e("markets.watch", "Market watch", "Stocks you follow, on Home", SettingsGroupId.MONEY, SettingsPageId.MARKETS, "stocks", "shares", "nse", "bse", "watchlist", "ticker", "strip"),
-        e("markets.close", "Market close summary", "A note when the market closes", SettingsGroupId.MONEY, SettingsPageId.MARKETS, "evening", "notification", "stocks"),
+        e("markets.close", "Market close summary", "A note when a market closes: India or the US", SettingsGroupId.MONEY, SettingsPageId.MARKETS, "evening", "notification", "stocks", "india", "us", "nasdaq", "nifty", "closing bell"),
         // Accounts and cards
         e("cards.list", "Cards and accounts", "Found in your messages, or added by you", SettingsGroupId.ACCOUNTS, SettingsPageId.CARDS, "bank", "last four", "statement day", "credit card", "debit"),
         e("cards.add", "Add a card or account", "By its last four digits", SettingsGroupId.ACCOUNTS, SettingsPageId.CARDS, "new", "manual", "create"),
@@ -147,6 +148,11 @@ object SettingsIndex {
         e("ai.ask", "Ask your money", "Answer questions like food last week", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "question", "search", "natural language", hiddenInDemo = true),
         e("ai.month", "Month in a sentence", "One or two sentences about the month on Insights", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "insights", "summary", hiddenInDemo = true),
         e("ai.categories", "Category ideas", "Suggest a category for a payee with none", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "payee", "category", hiddenInDemo = true),
+        e("ai.names", "Clean payee names", "Suggest a tidy name for a messy payee, in the name box", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "nickname", "payee", "merchant", "rename", "logo", hiddenInDemo = true),
+        e("ai.explain", "Explain a message", "Plain words for what a message says, in its details", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "explain", "message", "meaning", "understand", hiddenInDemo = true),
+        e("ai.whyup", "Why did spending go up?", "The biggest reasons spending rose, on Insights", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "insights", "increase", "spending", "reason", hiddenInDemo = true),
+        e("ai.digest", "Morning digest line", "One line above the morning digest, prepared while the app is open", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "digest", "notification", "summary", "morning", hiddenInDemo = true),
+        e("ai.unusual", "Explain unusual payments", "One sentence on why a payment stands out, in the review pile", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "unusual", "review", "large payment", hiddenInDemo = true),
         e("ai.cache", "Clear AI suggestions cache", "Forget what the AI suggested before", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "clear", "cache", "reset", hiddenInDemo = true),
         // Travel
         e("travel.flights", "Live flight status", "Follow the flights found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "airline", "plane", "pnr", "departure", "gate"),

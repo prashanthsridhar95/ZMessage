@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -41,6 +43,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
@@ -58,6 +61,9 @@ import com.zyke.message.ZykeMessagesApplication
 import com.zyke.message.data.markets.MarketState
 import com.zyke.message.data.markets.MarketTicker
 import com.zyke.message.domain.markets.CurrencySymbols
+import com.zyke.message.domain.markets.MarketCalendar
+import com.zyke.message.domain.markets.MarketGrouping
+import com.zyke.message.domain.markets.MarketGroup
 import com.zyke.message.domain.markets.MarketKind
 import com.zyke.message.domain.markets.MarketRow
 import com.zyke.message.domain.markets.MarketSymbols
@@ -380,6 +386,54 @@ private fun WatchRow(row: MarketRow, onOpen: (() -> Unit)?, onEdit: (() -> Unit)
     }
 }
 
+/**
+ * The line above a market's rows: its flag (two regional-indicator letters, drawn by the phone's emoji font; a phone without
+ * one shows the two letters, which still read as the country), the country name, whether its regular session is open (a hint: holidays
+ * are not modelled) and the market's index with today's move when it is on the list. Read as one heading by a screen reader.
+ */
+@Composable
+private fun MarketHeader(group: MarketGroup, now: Instant) {
+    val market = group.market
+    val hint = MarketCalendar.hint(market, now)
+    val index = group.index?.takeIf { it.changePercent != null }
+    val indexText = index?.let { "${it.label} ${signedPercent(it, brackets = false)}" }
+    val indexColor = if (index != null) moveColor(index) else mutedColor()
+    val spokenIndex = index?.let { ". ${spoken(it)}" }.orEmpty()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.md)
+            .clip(AppShapes.control)
+            .background(tonalFill(Tonal.Quiet))
+            .heightIn(min = 48.dp)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm)
+            .clearAndSetSemantics {
+                heading()
+                contentDescription = market.title + (hint?.let { ". " + it.replace("\u00B7", ",") } ?: "") + spokenIndex
+            },
+        verticalArrangement = Arrangement.Center
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            if (market.flag.isNotEmpty()) Text(market.flag, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false)
+            Text(
+                market.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis
+            )
+            // Beside the name when there is room; beneath it at 320 dp and large text.
+            if (indexText != null && !homeStacked()) {
+                Text(
+                    indexText, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = TABULAR), color = indexColor,
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+        if (hint != null) Text(hint, style = MaterialTheme.typography.labelMedium, color = mutedColor(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (indexText != null && homeStacked()) {
+            Text(indexText, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = TABULAR), color = indexColor, maxLines = 2)
+        }
+    }
+}
+
 /** Placeholder rows while the first prices come: the same 56 dp, no motion. */
 @Composable
 private fun WatchSkeleton(count: Int = 3) {
@@ -490,17 +544,38 @@ fun MarketPage(onBack: () -> Unit) {
             }
             if (state.offline && state.rows.isNotEmpty()) StatusPill("Offline · showing the last prices", Tone.WARN)
 
-            // One dense list in the order the person set: no card per row, a hairline between them.
+            // One dense list in the order the person set: no card per row, a hairline between them. With "Group by market" the
+            // same rows sit under a header per market (the chip shows only when the list spans more than one).
             val list = state.rows.filter { it !in indices }
+            val offered = MarketGrouping.offered(state.rows)
+            val grouped = MarketGrouping.shown(watch.groupByMarket, state.rows)
+            if (offered) {
+                FilterChip(
+                    selected = grouped,
+                    onClick = { ticker.setGroupByMarket(!grouped) },
+                    label = { Text("Group by market", maxLines = 1) }
+                )
+            }
             Column(Modifier.fillMaxWidth()) {
                 if (state.rows.isEmpty()) {
                     if (state.offline || state.updatedAt != null) WatchEmpty(state.offline, state.loading) { scope.launch { ticker.refresh() } }
                     else WatchSkeleton(6)
                 }
-                WatchDivider()
-                list.forEach { row ->
-                    WatchRow(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null, onEdit = { editing = true })
+                if (grouped) {
+                    val now = remember(state.updatedAt) { Instant.now() }
+                    MarketGrouping.group(list, indexSource = state.rows).forEach { group ->
+                        MarketHeader(group, now)
+                        group.rows.forEach { row ->
+                            WatchRow(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null, onEdit = { editing = true })
+                            WatchDivider()
+                        }
+                    }
+                } else {
                     WatchDivider()
+                    list.forEach { row ->
+                        WatchRow(row, onOpen = if (row.symbol.isNotEmpty()) ({ chartSymbol = row.symbol }) else null, onEdit = { editing = true })
+                        WatchDivider()
+                    }
                 }
             }
             Caption("Refreshes every 20 seconds while this is open. Prices can be delayed by up to 15 minutes.", maxLines = 3)
