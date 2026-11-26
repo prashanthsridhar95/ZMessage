@@ -6,8 +6,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.painterResource
@@ -68,32 +72,37 @@ import com.zyke.message.presentation.motion.rememberHaptics
 import com.zyke.message.presentation.motion.rememberMotion
 import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.theme.Spacing
-import com.zyke.message.presentation.theme.Tonal
 import com.zyke.message.presentation.theme.TypeRole
-import com.zyke.message.presentation.theme.tonalFill
 
 /** The height of the front card on Home: the same card the triage page shows, with a two-line headline and summary. It never grows with text (the card caps font scale at 1.3). */
 private val INLINE_CARD_HEIGHT = 272.dp
 
-/** How many first-showing slots [DeckSection] uses: its header, the stack and the line of chips (see enterOnce). */
-internal fun deckSlots(@Suppress("UNUSED_PARAMETER") deck: TriageDeck): Int = 3
+/** The widest a footer segment may be squeezed to before the footer goes one item per row. */
+private val FOOTER_MIN_SEGMENT = 120.dp
+
+/** How many first-showing slots [DeckSection] uses: the whole container rises in once, as one piece (see enterOnce). */
+internal fun deckSlots(@Suppress("UNUSED_PARAMETER") deck: TriageDeck): Int = 1
+
+/** One tappable item of the footer: its words, what a screen reader says, whether it is the accent one, and where it goes. */
+private class FooterItem(val label: String, val spoken: String, val strong: Boolean, val onClick: () -> Unit, val anchor: Modifier = Modifier)
 
 /**
- * "Your deck" on Home: ONE block that is the whole story of what needs a look.
+ * "Your deck" on Home: ONE card with three segments told apart by hairline dividers (the same container as every other Home block).
  *
- *  - Something is new (the KEEP stacks have cards): a real stack. The front card with the next two peeking behind it, "N to go" above.
- *    Swipe it left to archive, right to keep (mark read), up or down to move around the deck, the same gestures, hints and haptics as the
- *    triage page. Every gesture is also a screen-reader action on the card; the triage page has the buttons.
- *  - Nothing is new but the app has questions about the money (the review queue): one card that opens the review. The deck and the review
- *    are two different sources (cards come from unread messages, the review queue from the ledger), so they are one block with one count each.
- *  - Neither: one quiet row, "All caught up".
- * Under it one line of chips: "N to review" (always the strongest), "Quiet N", "Auto-cleared N" and "All stacks"; each opens its page.
+ *  - HEADER: "Your deck", what is left ("N to go", or "N to review" when the review is the body), the position and the settings gear.
+ *  - BODY, one of
+ *      - Something is new (the KEEP stacks have cards): a real stack, the front card with the next two peeking behind it, clipped inside
+ *        the card. Swipe it left to archive, right to keep (mark read), up or down to move around the deck: the same gestures, hints and
+ *        haptics as the triage page. Every gesture is also a screen-reader action; the triage page has the buttons. The page dots and the
+ *        quiet swipe hint sit under the stack.
+ *      - Nothing is new but the app has questions about the money (the review queue): one card that opens the review.
+ *      - Neither: a compact "All caught up".
+ *  - FOOTER: equal tappable segments split by hairlines: "N to review" (accent, only while the stack is the body), "Quiet N",
+ *    "Auto-cleared N" and "All stacks". Two to a row at most, one per row at 320 dp or large text. No wrapping chips.
  * When the deck is switched off in Customize Home ([showDeck] false) only the review row remains, because the review page opens from nowhere else.
  *
- * Entrance: the header, the stack and the chips rise in once, in turn (the Home screen's gate); the number counts up from zero on that first
- * showing only. Nothing loops.
+ * Entrance: the container rises in once (the Home screen's gate); the number counts up from zero on that first showing only. Nothing loops.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DeckSection(
     deck: TriageDeck,
@@ -110,7 +119,7 @@ internal fun DeckSection(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Whichever of the review card, the review chip or the review row is on screen carries the tour's anchor (only one is ever composed).
+    // Whichever of the review card, the footer item or the review row is on screen carries the tour's anchor (only one is ever composed).
     val reviewAnchor = Modifier.tourAnchor(TourAnchor.HOME_REVIEW)
     if (!showDeck) {
         if (reviewCount > 0) ReviewRow(reviewCount, onOpenReview, modifier.then(reviewAnchor))
@@ -146,11 +155,19 @@ internal fun DeckSection(
             }
         } else if (move != TriageMove.NONE) deckState.springBack(scope, motion)
     }
+    val items = buildList {
+        // The review count is the strongest item, and not repeated when the review card is the body.
+        if (reviewCount > 0 && cards.isNotEmpty()) add(FooterItem("$reviewCount to review", "$reviewCount to review, open the review", true, onOpenReview, reviewAnchor))
+        if (deck.quietCount > 0) add(FooterItem("Quiet ${deck.quietCount}", "Quiet: ${deck.quietCount} waiting for later", false, { onOpen(true, null) }))
+        if (deck.autoCleared.isNotEmpty()) add(FooterItem("Auto-cleared ${deck.autoCleared.size}", "Auto cleared: ${deck.autoCleared.size} handled for you", false, onOpenAutoCleared))
+        add(FooterItem("All stacks", "Open all stacks", false, { onOpen(false, null) }))
+    }
+    val divider = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
 
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        // Header: the label, what is left, and the settings gear.
-        Row(Modifier.fillMaxWidth().enterOnce(gate, firstSlot), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+    HomeCard(modifier.fillMaxWidth().enterOnce(gate, firstSlot), horizontal = 0.dp, vertical = 0.dp) {
+        // HEADER: the label, what is left, and the settings gear.
+        Row(Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(vertical = Spacing.sm)) {
                 HomeLabel("Your deck")
                 val big = if (cards.isNotEmpty()) deck.toGo else reviewCount
                 if (big > 0) {
@@ -174,74 +191,88 @@ internal fun DeckSection(
                 )
             }
         }
-        when {
-            front != null -> Column(Modifier.fillMaxWidth().enterOnce(gate, firstSlot + 1)) {
-                TriageDeck(
-                    front, cards.size, deckState, act,
-                    Modifier.fillMaxWidth().padding(top = DECK_PEEK * 2).height(INLINE_CARD_HEIGHT)
-                ) { card, m, isFront ->
-                    CardFace(
-                        card, messages[card.messageId], i, cards.size, if (isFront) deckState else null, m, act,
-                        onCategory = {}, onOpen = { onIntent(Intent.PeekMessage(card.messageId)) }, compact = true
-                    )
+        DeckDivider(divider)
+        // BODY: the stack (clipped inside the card), the review card, or the caught-up line.
+        Box(Modifier.fillMaxWidth().clipToBounds().padding(horizontal = Spacing.xl, vertical = Spacing.md)) {
+            when {
+                front != null -> Column(Modifier.fillMaxWidth()) {
+                    TriageDeck(
+                        front, cards.size, deckState, act,
+                        Modifier.fillMaxWidth().padding(top = DECK_PEEK * 2).height(INLINE_CARD_HEIGHT)
+                    ) { card, m, isFront ->
+                        CardFace(
+                            card, messages[card.messageId], i, cards.size, if (isFront) deckState else null, m, act,
+                            onCategory = {}, onOpen = { onIntent(Intent.PeekMessage(card.messageId)) }, compact = true
+                        )
+                    }
+                    // Where you are, and what a swipe does, said once and quietly.
+                    Column(Modifier.fillMaxWidth().padding(top = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (cards.size > 1) DeckDots(cards.size, i, active = MaterialTheme.colorScheme.primary)
+                        Caption(
+                            "Swipe left to archive, right to keep", Modifier.padding(top = Spacing.xs).clearAndSetSemantics { },
+                            maxLines = 2, textAlign = TextAlign.Center
+                        )
+                    }
                 }
-                // Where you are, and what a swipe does, said once and quietly.
-                Column(Modifier.fillMaxWidth().padding(top = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (cards.size > 1) DeckDots(cards.size, i, active = MaterialTheme.colorScheme.primary)
-                    Caption(
-                        "Swipe left to archive, right to keep", Modifier.padding(top = Spacing.xs).clearAndSetSemantics { },
-                        maxLines = 2, textAlign = TextAlign.Center
-                    )
-                }
+                reviewCount > 0 -> ReviewCard(reviewCount, onOpenReview, reviewAnchor)
+                else -> CaughtUpBody()
             }
-            reviewCount > 0 -> Box(Modifier.enterOnce(gate, firstSlot + 1)) { ReviewCard(reviewCount, onOpenReview, reviewAnchor) }
-            else -> Box(Modifier.enterOnce(gate, firstSlot + 1)) { CaughtUpRow() }
         }
-        val hasChips = reviewCount > 0 || deck.quietCount > 0 || deck.autoCleared.isNotEmpty() || cards.isNotEmpty()
-        if (hasChips) {
-            FlowRow(Modifier.fillMaxWidth().enterOnce(gate, firstSlot + 2), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                // The review count is the strongest chip, and the only one when the cards above are not about it; with the review card showing it is not repeated.
-                if (reviewCount > 0 && cards.isNotEmpty()) {
-                    DeckChip("$reviewCount to review", "$reviewCount to review, open the review", true, onOpenReview, reviewAnchor)
+        DeckDivider(divider)
+        // FOOTER: equal tappable segments split by hairlines.
+        DeckFooter(items, divider)
+    }
+}
+
+@Composable
+private fun DeckDivider(color: Color) {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(color))
+}
+
+/** The footer: segments of equal width in rows of two at most (one per row when [homeStacked] or when two would be narrower than [FOOTER_MIN_SEGMENT]), hairlines between. */
+@Composable
+private fun DeckFooter(items: List<FooterItem>, divider: Color) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val perRow = if (homeStacked() || maxWidth < FOOTER_MIN_SEGMENT * 2) 1 else 2
+        Column(Modifier.fillMaxWidth()) {
+            items.chunked(perRow).forEachIndexed { r, row ->
+                if (r > 0) DeckDivider(divider)
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                    row.forEachIndexed { c, item ->
+                        if (c > 0) Box(Modifier.fillMaxHeight().width(1.dp).background(divider))
+                        FooterSegment(item, Modifier.weight(1f))
+                    }
                 }
-                if (deck.quietCount > 0) DeckChip("Quiet ${deck.quietCount}", "Quiet: ${deck.quietCount} waiting for later", false, { onOpen(true, null) })
-                if (deck.autoCleared.isNotEmpty()) {
-                    DeckChip("Auto-cleared ${deck.autoCleared.size}", "Auto cleared: ${deck.autoCleared.size} handled for you", false, onOpenAutoCleared)
-                }
-                if (cards.isNotEmpty()) DeckChip("All stacks", "Open all stacks", false, { onOpen(false, null) })
             }
         }
     }
 }
 
-/** A small rounded chip on a 48 dp target; the strong one carries the accent. */
+/** One footer segment: centred text on a 48 dp target; the strong one carries the accent. */
 @Composable
-private fun DeckChip(label: String, spoken: String, strong: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FooterSegment(item: FooterItem, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     Box(
-        modifier.heightIn(min = 48.dp).tappable(onClick = onClick, onClickLabel = "Open").semantics(mergeDescendants = true) { contentDescription = spoken },
+        modifier.then(item.anchor).heightIn(min = 48.dp).tappable(onClick = item.onClick, onClickLabel = "Open")
+            .semantics(mergeDescendants = true) { contentDescription = item.spoken }.padding(horizontal = Spacing.md, vertical = Spacing.sm),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            label,
-            Modifier.background(if (strong) scheme.primary.copy(alpha = 0.14f) else tonalFill(Tonal.Quiet), CircleShape).padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
-            color = if (strong) scheme.primary else scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis
+            item.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            color = if (item.strong) scheme.primary else scheme.onSurface, maxLines = scaledLines(1), overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-/** Nothing is new and nothing needs review: one small quiet row, not a block. */
+/** Nothing is new and nothing needs review: a compact body inside the same card. */
 @Composable
-private fun CaughtUpRow() {
-    HomeCard(
-        Modifier.semantics(mergeDescendants = true) { contentDescription = "All caught up. Cleared cards stay in Messages." },
-        vertical = Spacing.md
+private fun CaughtUpBody() {
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics(mergeDescendants = true) { contentDescription = "All caught up. Cleared cards stay in Messages." },
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalArrangement = Arrangement.Center) {
-            Text("All caught up", style = TypeRole.body, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Caption("Cleared cards stay in Messages.", maxLines = 2)
-        }
+        Text("All caught up", style = TypeRole.body, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Caption("Cleared cards stay in Messages.", maxLines = 2)
     }
 }
 
