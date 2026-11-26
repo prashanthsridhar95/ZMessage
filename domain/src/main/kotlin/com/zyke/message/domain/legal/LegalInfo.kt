@@ -24,6 +24,6 @@ object LegalInfo {
     const val MINIMUM_AGE = 18
 
     /** Bump when the meaning of the text changes, and set [LAST_UPDATED] to the same day. */
-    const val TEXT_VERSION = 2
+    const val TEXT_VERSION = 3
     const val LAST_UPDATED = "26 November 2026"
 }

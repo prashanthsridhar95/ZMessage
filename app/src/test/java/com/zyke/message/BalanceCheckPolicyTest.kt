@@ -9,7 +9,8 @@ import org.junit.Test
 /**
  * "Check balance by SMS" sends a text, so its doors are pinned here: a text leaves only through CodeSharer, only from the Send button
  * of the sheet that showed the exact number and words (the first time for a bank) or from a tap on a bank the person already
- * confirmed there, never on a schedule or from a receiver, and no number, words or UAN reach a log, a notification or a backup.
+ * confirmed there, or, for "Refresh balances before my digest", from the one receiver the digest's own alarm starts and only for banks
+ * confirmed there; and no number, words or UAN reach a log, a notification or a backup.
  */
 class BalanceCheckPolicyTest {
     private val main = File("src/main/java/com/zyke/message")
@@ -17,7 +18,7 @@ class BalanceCheckPolicyTest {
     private fun text(path: String) = File(main, path).readText()
     private fun code(file: File) = file.readLines().filter { !it.trim().startsWith("//") && !it.trim().startsWith("*") && !it.trim().startsWith("/*") }
     private val ui = "presentation/home/BalanceCheckUi.kt"
-    private val ours = listOf("notifications/BalanceRequester.kt", ui, "data/repository/BalanceCheckRepositoryImpl.kt")
+    private val ours = listOf("notifications/BalanceRequester.kt", ui, "data/repository/BalanceCheckRepositoryImpl.kt", "notifications/BalanceRefresher.kt")
 
     @Test fun onlyCodeSharerTouchesTheSmsManager() {
         val senders = kotlinFiles().filter { f -> code(f).any { Regex("""SmsManager|sendTextMessage|sendMultipartTextMessage""").containsMatchIn(it) } }.map { it.name }
@@ -27,7 +28,8 @@ class BalanceCheckPolicyTest {
 
     @Test fun aRequestIsSentOnlyFromTheSendButton_orATapOnAnAlreadyConfirmedBank() {
         val callers = kotlinFiles().filter { f -> code(f).any { it.contains("BalanceRequester.send(") } }.map { it.name }
-        assertEquals(listOf("BalanceCheckUi.kt"), callers)
+        // The second caller is the refresh before the digest (see theRefreshBeforeTheDigest...).
+        assertEquals(listOf("BalanceCheckUi.kt", "BalanceRefresher.kt"), callers.sorted())
         val page = text(ui)
         assertEquals(1, Regex("""BalanceRequester\.send\(""").findAll(page).count())
         // One Send button; it reaches the requester only through onSend, which asks for permission first if it has none.
@@ -123,5 +125,42 @@ class BalanceCheckPolicyTest {
         assertTrue(domain.contains("UNVERIFIED"))
         assertTrue(domain.contains("MPIN_REASON"))
         assertFalse(Regex("""(?i)(?:val|var)\s+(?!MPIN_REASON)\w*mpin\w*\s*[:=]""").containsMatchIn(domain + ours.joinToString { text(it) }))
+    }
+
+    @Test fun theRefreshBeforeTheDigestIsOffByDefault_hasOneDoor_andTextsOnlyWhatWasConfirmed() {
+        val refresher = text("notifications/BalanceRefresher.kt")
+        val receiver = text("notifications/BalanceRefreshReceiver.kt")
+        val scheduler = text("notifications/DigestScheduler.kt")
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        // Off until chosen, in the model and in what is read back.
+        assertTrue(File("../domain/src/main/kotlin/com/zyke/message/domain/model/AppSettings.kt").readText().contains("val refreshBalancesBeforeDigest: Boolean = false"))
+        assertTrue(text("data/repository/SettingsRepositoryImpl.kt").contains("prefs.getBoolean(REFRESH_BALANCES, false)"))
+        // One call into the requester, started only by its own receiver, which is not exported, has no filter and does nothing in Demo.
+        assertEquals(1, Regex("""BalanceRequester\.send\(""").findAll(refresher).count())
+        assertEquals(listOf("BalanceRefreshReceiver.kt"), kotlinFiles().filter { f -> code(f).any { it.contains("BalanceRefresher.run(") } }.map { it.name })
+        val block = manifest.substringAfter("notifications.BalanceRefreshReceiver").substringBefore("/>")
+        assertTrue(block.contains("""android:exported="false"""") && !block.contains("intent-filter"))
+        assertTrue(receiver.contains("DemoMode.active) return") && !receiver.contains("BalanceRequester"))
+        // Only when the digest and the switch are both on, never in Demo; only banks confirmed with "Always send without asking",
+        // through the pure rules, to the number and words of a ready plan.
+        assertTrue(refresher.contains("!DemoMode.active && settings.morningDigest && settings.refreshBalancesBeforeDigest"))
+        assertTrue(refresher.contains("BalanceEnquiry.bankKey(a.bankName, a.bankLabel) in confirmed"))
+        assertTrue(refresher.contains("BalanceRefresh.plan(") && refresher.contains("as? EnquiryPlan.Ready"))
+        assertTrue(refresher.contains("BalanceRequester.send(context, container, entry.key, plan.number, plan.text)"))
+        // Never a card or a provident fund, and the spacing and window live in the tested domain object.
+        assertTrue(refresher.contains("!it.isCard && !it.isProvidentFund"))
+        // The alarm is the digest's own kind: inexact, allowed while idle, no exact alarm and no new permission, set only by the scheduler.
+        assertTrue(scheduler.contains("setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, refreshIntent(forDigest))"))
+        assertFalse(Regex("""setExact|setAlarmClock|SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM""").containsMatchIn(scheduler + manifest))
+        assertEquals(1, Regex("""android\.permission\.SEND_SMS""").findAll(manifest).count())
+        assertEquals(listOf("DigestScheduler.kt"), kotlinFiles().filter { f -> code(f).any { it.contains("refreshIntent(") } }.map { it.name })
+        // The switch says what it does, asks for the permission when it is turned on, and is disabled without the digest.
+        val setting = text("presentation/settings/BalanceRefreshSetting.kt")
+        assertTrue(setting.contains("These are real texts and may cost money on some plans."))
+        assertTrue(setting.contains("asker.launch(Manifest.permission.SEND_SMS)") && setting.contains("enabled = digestOn"))
+        // The log shows the outcome per account, in the settings and in each bank's sheet.
+        assertTrue(setting.contains("BalanceRefresh.logLine(") && text(ui).contains("BalanceRefresh.logLine("))
+        // The digest only reads the outcome (a count, no amount) and waits at most the capped time.
+        assertTrue(text("notifications/DigestReceiver.kt").contains("BalanceRefresher.awaitReplies(") && refresher.contains("BalanceRefresh.DIGEST_WAIT_CAP_MS"))
     }
 }

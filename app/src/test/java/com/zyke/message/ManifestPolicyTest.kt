@@ -224,14 +224,15 @@ class ManifestPolicyTest {
         assertFalse("AppContainer" in demo || "ViewModel" in demo || "androidx.compose" in demo || "container" in demo.substringAfter("class DemoActivity"))
         assertTrue(demo.contains(": Activity()"))
 
-        // Receivers exist for the widget, the morning alarm, the restart, the copy button, live alerts and the sent report of a shared code.
+        // Receivers exist for the widget, the morning alarm, the restart, the copy button, live alerts and the sent report of a shared code and the refresh of balances before the digest.
         val receivers = manifest.getElementsByTagName("receiver")
         assertEquals(
             setOf(
                 ".notifications.DaysAheadWidget", ".notifications.DigestReceiver", ".notifications.BootReceiver",
                 ".notifications.CopyCodeReceiver", ".notifications.SmsReceiver", ".notifications.ReminderReceiver",
                 ".notifications.WeeklyReceiver", ".notifications.QuickAddWidget", ".notifications.MarketCloseReceiver",
-                ".notifications.CodeShareStatusReceiver", ".notifications.FlightAlarmReceiver", ".notifications.TrainAlarmReceiver"
+                ".notifications.CodeShareStatusReceiver", ".notifications.FlightAlarmReceiver", ".notifications.TrainAlarmReceiver",
+                ".notifications.BalanceRefreshReceiver"
             ),
             receivers.names("name").toSet()
         )

@@ -66,7 +66,7 @@ class DemoPolicyTest {
             // The service and notifier of both kinds are the shared classes (the thin Flight/Train ones only name them; TripTrackingPolicyTest).
             "notifications/TripTrackingControl.kt", "notifications/TripTrackingService.kt", "notifications/TripNotifier.kt",
             "notifications/CodeSharer.kt", "notifications/CodeShareStatusReceiver.kt", "presentation/settings/CodeSharingUi.kt",
-            "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt",
+            "notifications/BalanceRequester.kt", "presentation/home/BalanceCheckUi.kt", "notifications/BalanceRefresher.kt", "notifications/BalanceRefreshReceiver.kt",
             "notifications/DigestProvider.kt", "notifications/DaysAheadWidget.kt", "notifications/QuickAddWidget.kt", "data/sms/RcsNotificationListener.kt",
             "presentation/settings/AppIconSwitcher.kt"
         )) assertTrue("$f must check DemoMode.active", text(f).contains("DemoMode.active"))

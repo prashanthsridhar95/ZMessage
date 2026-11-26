@@ -38,7 +38,8 @@ class CodeSharingPolicyTest {
         assertEquals(listOf("CodeSharer.kt"), senders)
         val permission = kotlinFiles().filter { f -> code(f).any { it.contains("permission.SEND_SMS") } }.map { it.name }.sorted()
         // "Check balance by SMS" asks on its own Send button (see BalanceCheckPolicyTest); it sends through CodeSharer.sendPlain.
-        assertEquals(listOf("BalanceCheckUi.kt", "CodeSharer.kt", "CodeSharingUi.kt"), permission)
+        // "Refresh balances before my digest" asks when its switch is turned on (BalanceRefreshSetting).
+        assertEquals(listOf("BalanceCheckUi.kt", "BalanceRefreshSetting.kt", "CodeSharer.kt", "CodeSharingUi.kt"), permission)
         assertFalse("READ_CONTACTS must never be requested", File("src/main/AndroidManifest.xml").readText().contains("CONTACTS"))
         assertFalse(kotlinFiles().any { f -> code(f).any { it.contains("READ_CONTACTS") } })
     }
@@ -47,7 +48,7 @@ class CodeSharingPolicyTest {
         val page = text("presentation/settings/CodeSharingUi.kt")
         // The runtime request sits behind the master switch, the "allow" buttons of the health card and the test button.
         assertTrue(page.contains("askToTurnOn.launch(needed)"))
-        for (other in kotlinFiles().filter { it.name != "CodeSharingUi.kt" && it.name != "BalanceCheckUi.kt" }) {
+        for (other in kotlinFiles().filter { it.name != "CodeSharingUi.kt" && it.name != "BalanceCheckUi.kt" && it.name != "BalanceRefreshSetting.kt" }) {
             assertFalse("${other.name} must not request SEND_SMS", code(other).any { it.contains("SEND_SMS") && it.contains("launch") })
         }
         assertEquals(1, Regex("""android\.permission\.SEND_SMS""").findAll(File("src/main/AndroidManifest.xml").readText()).count())

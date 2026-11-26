@@ -592,8 +592,8 @@ a tap on Check balance sends at once (`BalanceCheckFlow.onTap`, key in `BalanceC
 "Checking…" (`BalanceCheckFlow.state`, one-second tick, no looping animation) until the reply updates the balance ("Updated just
 now", then the normal "As of" line) or two minutes pass ("No reply yet · Try again"). A missing permission, a failed send, a
 bank with no preset, an MPIN bank and the provident fund (UAN) always go to the sheet. The account menu's "Balance check settings"
-shows the number and words, Change, and an "Ask before sending" switch. There is still no schedule, no receiver that starts a
-request, and no send from reading the inbox; both doors reach the requester through `dispatchRequest` (pinned by `BalanceCheckPolicyTest`).
+shows the number and words, Change, and an "Ask before sending" switch. There is still no send from reading the inbox, and the only receiver that starts requests is
+`BalanceRefreshReceiver` (the refresh before the digest below), which texts only banks confirmed here; both doors reach the requester through `dispatchRequest` (pinned by `BalanceCheckPolicyTest`).
 
 * **Presets (`:domain/balance/BalanceEnquiry`, pure, tested in `BalanceEnquiryTest`).** HDFC Bank 7308080808 `Balance` (`BAL` is
   listed as another wording), Federal Bank 9895088888 `BAL SB{last4}` (5676762 listed as another number), Indian Bank (blocked: its
@@ -631,6 +631,23 @@ request, and no send from reading the inbox; both doors reach the requester thro
   account key, the time and the status. `BalanceCheckPolicyTest` pins: only `CodeSharer` touches `SmsManager`, one caller and one
   Send button, permission asked once from the Send tap, no scheduling, no `READ_PHONE_STATE`, no logging of these values, the UAN
   file excluded. `CodeSharingPolicyTest` and `DemoPolicyTest` were widened for the new files.
+* **Refresh before the digest (`BalanceRefresh` in `:domain`, `BalanceRefresher` / `BalanceRefreshReceiver` in `:app`).** An off-by-default
+  switch (`AppSettings.refreshBalancesBeforeDigest`, Settings, Reminders and alerts, under the morning digest; needs the digest) whose
+  description is the consent: real texts from the SIM, may cost money. `DigestScheduler.apply` sets a second alarm
+  (`setAndAllowWhileIdle`, `RTC_WAKEUP`, request code 805, no exact-alarm permission, no new permission) `BalanceRefresh.LEAD_MS` = 5 minutes
+  before the digest (or before tomorrow's when that moment has passed) and cancels it with the digest's own, so the boot receiver, app start,
+  the switch and Delete all data already keep it right. The alarm starts `BalanceRefreshReceiver` (not exported, no filter, no-op in Demo),
+  which hands the digest's time to `BalanceRefresher.run`. For each bank account (cards, provident funds and left-out accounts never) the
+  pure `BalanceRefresh.plan` decides: asked only when the bank has a ready plan AND the person confirmed it once ("Always send without
+  asking"), at least 2 minutes remain before the digest, the last non-failed request (manual or not) is not from today and not within 6 hours,
+  and no other account already got the same number and words; at most 6 texts. Nothing is asked with reading paused, no `SEND_SMS`, no
+  telephony or airplane mode. Each ask goes through `BalanceRequester.send` (so the 2-minute gap, Demo check and `CodeSharer.sendPlain`
+  are the same), to the number and words of `EnquiryPlan.Ready` only. The run (`RefreshRun`: key, label, time, skip reason) is kept in
+  `balance_check_device`. Replies are ordinary incoming texts read by the usual pipeline. The digest is not delayed: it waits only if a reply
+  is still due inside the 3-minute window, at most 30 seconds (`digestWaitMs`, `BalanceRefresher.awaitReplies`; a receiver cannot hold longer),
+  then posts, with the line "Balances refreshed for N of M accounts" last in its expanded text when texts went out for it. The log
+  ("Asked 8:55 AM · reply 8:56 AM", "Skipped · already checked today") is under the switch and in each bank's Balance check settings.
+  Tested: `BalanceRefreshTest` (`:domain`), `BalanceCheckPolicyTest`, `ManifestPolicyTest`, `CodeSharingPolicyTest`, `DemoPolicyTest`.
 * **Demo mode.** `AppContainer` uses `InMemoryBalanceCheck`; Send in the sheet shows "Demo: balance updated. Nothing was sent." and
   never reaches the requester.
 

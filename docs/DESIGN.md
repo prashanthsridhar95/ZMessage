@@ -204,6 +204,18 @@ of at least 48 dp; deleting a hand-made entry asks first and the confirming tap 
 
 **Empty:** the shared `EmptyState`: a friendly line, why, and one action when there is one ("Clear search", "Show everything").
 
+## Refresh balances before my digest (Settings, Reminders and alerts)
+
+One switch row under "Morning digest", off by default, same row shape (title, caption, switch at the end, 48 dp) but its caption is the
+consent and may take up to eight lines, so it is not the two-line `ToggleRow`: "About 5 minutes before the digest, Zyke texts your
+bank's balance number from your SIM, once a day at most, only for banks you already confirmed under Check balance. These are real texts
+and may cost money on some plans." The title wraps to two lines at 320 dp. With the digest off the switch is disabled and the caption says
+to turn the digest on first. Turning it on asks for the permission to send texts (the Check balance one) and stays off if refused.
+Under it, "LAST REFRESH · Thu 26 Nov" and one two-line entry per account: the name with its last four digits, then "Asked 8:55 AM ·
+reply 8:56 AM", "Asked 8:55 AM · no reply", "Asked … · waiting for the reply", "Asked … · could not send" or "Skipped · already checked
+today" (also shown as "Before the digest: …" in the bank's Balance check settings). The digest's expanded text ends with "Balances refreshed
+for 1 of 2 accounts" when texts went out for it. Mock checked at 360 and 320 dp, light and dark, before building.
+
 ## Accounts (Overview, Accounts, Cards, Investments)
 
 The Accounts tab has four sub-tabs, each with one hero: the **Overview** (the total balance, alone), the **bank total** with its
@@ -437,18 +449,6 @@ the custom action "Edit the watch list" for a screen reader) opens the editor. L
 is a message with "Try again"; with prices it is "Offline · updated ...", plus the delayed-quote notice (up to 15 minutes). Green and red
 are only ever text on prices and changes, never a fill. Guarded by `MarketWatchPolicyTest`.
 
-## Home deck (stacks of cards)
-
-**Home shows one real stack, in one card (rework).** The whole module is ONE `HomeCard` with three segments told apart by hairline dividers (edge to edge,
-20 dp gutters inside each segment, opaque cards, no chips outside it):
-
-- **Header.** "YOUR DECK", "N to go" (or "N to review" when the review is the body), the position ("2 / 7") and the 48 dp settings gear.
-- **Body.** The stack itself, clipped inside the card (`clipToBounds`): the front card with the next two peeking behind (the triage page's card in a compact
-  form), swipe left archives, right keeps, up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action.
-  The front card reads as a physical card on a tray: a tonal step up the container (`surfaceContainerHigh`), the `control` corner (16 dp, smaller than the container's 24), no outline (a hairline only on true black), and the two slabs behind are thin tonal edges with no outline. Never a bordered box inside a bordered box. Page dots and the quiet line "Swipe left to archive, right to keep" sit under it. With no new cards the review is the body (one flat row that opens it: a small seal, the eyebrow "Needs a look · From your payments", the title in the text colour, "Checked on this phone" and a chevron; the header already carries "N to review", so the body does not repeat the count);
-  with nothing at all it is a compact "All caught up".
-- **Footer.** Equal tappable segments split by hairlines (`DeckFooter`): "N to review" (accent, only while the stack is the body), "Quiet N", "Auto-cleared N"
-  and "All stacks" (always there). Two to a row at most; one per row at 320 dp or large text (`homeStacked`); 48 dp targets; never wrapping chips.
 **Group by market.** When the list spans more than one market (India, United States and the others in `Market`: UK, Germany, Japan,
 Hong Kong, Canada, Australia, Singapore; the dollar rate, gold and crypto go last under "Currencies and commodities"), a quiet
 "Group by market" chip sits above the rows, on by default and remembered (`WatchSettings.groupByMarket`, null until chosen; hidden
@@ -469,6 +469,18 @@ only; a quote counts only if its last trade is today and at or after five minute
 sends nothing after one retry 20 minutes later. With no stocks listed for a market it is the indices only. The old single "Market
 close" switch is India's. Inexact alarms, no exact-alarm permission. Guarded by `MarketWatchPolicyTest` and `MarketGroupingTest`.
 
+## Home deck (stacks of cards)
+
+**Home shows one real stack, in one card (rework).** The whole module is ONE `HomeCard` with three segments told apart by hairline dividers (edge to edge,
+20 dp gutters inside each segment, opaque cards, no chips outside it):
+
+- **Header.** "YOUR DECK", "N to go" (or "N to review" when the review is the body), the position ("2 / 7") and the 48 dp settings gear.
+- **Body.** The stack itself, clipped inside the card (`clipToBounds`): the front card with the next two peeking behind (the triage page's card in a compact
+  form), swipe left archives, right keeps, up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action.
+  The front card reads as a physical card on a tray: a tonal step up the container (`surfaceContainerHigh`), the `control` corner (16 dp, smaller than the container's 24), no outline (a hairline only on true black), and the two slabs behind are thin tonal edges with no outline. Never a bordered box inside a bordered box. Page dots and the quiet line "Swipe left to archive, right to keep" sit under it. With no new cards the review is the body (one flat row that opens it: a small seal, the eyebrow "Needs a look · From your payments", the title in the text colour, "Checked on this phone" and a chevron; the header already carries "N to review", so the body does not repeat the count);
+  with nothing at all it is a compact "All caught up".
+- **Footer.** Equal tappable segments split by hairlines (`DeckFooter`): "N to review" (accent, only while the stack is the body), "Quiet N", "Auto-cleared N"
+  and "All stacks" (always there). Two to a row at most; one per row at 320 dp or large text (`homeStacked`); 48 dp targets; never wrapping chips.
 
 The container rises in once as one piece (`enterOnce`, one slot). The review queue (ledger questions) and the deck (unread messages) are different sources.
 `HOME_DECK` is on the container, `HOME_REVIEW` on whichever of the review card, the footer item or the review row is showing.
@@ -523,7 +535,7 @@ transition does the rest.
 | Group | Pages (rows) |
 |---|---|
 | Appearance and feel | Appearance (theme, colour, app icon, haptics, performance) |
-| Notifications and alerts | Reminders and alerts (morning digest, code buttons, weekly summary, heads-up, low balance floor, share codes) |
+| Notifications and alerts | Reminders and alerts (morning digest, refresh balances before it, code buttons, weekly summary, heads-up, low balance floor, share codes) |
 | Money and budgets | Money plan, Budgets, Market watch |
 | Accounts and cards | Cards and accounts |
 | Messages and senders | Messages and pictures (logos, tags, RCS, parsing health), Your rules |
