@@ -118,7 +118,8 @@ internal enum class SettingsGroup(val title: String, val icon: Int) {
     ABOUT("Your data and about", R.drawable.ic_info_24),
     LEGAL("Privacy and terms", R.drawable.ic_lock_24),
     LICENCES("Open-source licences", R.drawable.baseline_list_24),
-    DEVELOPER("Developer options", R.drawable.ic_info_24)
+    DEVELOPER("Developer options", R.drawable.ic_info_24),
+    AI("On-device AI", R.drawable.baseline_message_24)
 }
 
 /**
@@ -147,6 +148,8 @@ fun SettingsPage(
     val trainsOn by container.trains.liveEnabled.collectAsStateWithLifecycle()
     val developer by com.zyke.message.data.diag.DevLog.developerMode.collectAsStateWithLifecycle()
     val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
+    val aiSettings by container.ai.settings.collectAsStateWithLifecycle()
+    val aiAvailability by container.ai.availability.collectAsStateWithLifecycle()
 
     val demoOn = com.zyke.message.data.demo.DemoMode.active
     val gate = com.zyke.message.presentation.motion.rememberEnterGate()
@@ -173,6 +176,7 @@ fun SettingsPage(
             SettingsGroup.LEGAL -> "What is sent, permissions, terms"
             SettingsGroup.LICENCES -> "Libraries, font and icons we use"
             SettingsGroup.DEVELOPER -> if (logging) "Writing a log file" else "Log is off"
+            SettingsGroup.AI -> when { demoOn -> "Not used in the demo"; aiSettings.master && aiSettings.explained -> "On \u00B7 " + com.zyke.message.presentation.ai.availabilityLabel(aiAvailability); else -> "Off" }
         }
     }
 
@@ -408,6 +412,7 @@ private fun GroupContent(
         }
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
         SettingsGroup.PLACES -> com.zyke.message.presentation.places.PlacesSettingsContent()
+        SettingsGroup.AI -> com.zyke.message.presentation.ai.AiSettingsContent()
         SettingsGroup.FLIGHTS -> {
             com.zyke.message.presentation.flights.FlightSettingsSection()
             com.zyke.message.presentation.trains.TrainSettingsSection()

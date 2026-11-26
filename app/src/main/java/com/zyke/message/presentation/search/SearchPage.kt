@@ -131,7 +131,7 @@ fun SearchRoute(
             demoMode = demo
         )
     }
-    SearchPage(sources, recents, onOpen, onDismiss)
+    SearchPage(sources, recents, onOpen, onDismiss, state.cycle)
 }
 
 /** One thing in the page's list. [type] lets the list reuse the layouts of rows of the same shape. */
@@ -181,7 +181,10 @@ private const val SLOW_MS = 250L
 private val TIPS = listOf("swiggy last month", "food this month", ">5000", "salary under 2k", "5000", "settings")
 
 @Composable
-fun SearchPage(sources: SearchSources, recents: RecentSearchStore, onOpen: (SearchHit) -> Unit, onDismiss: () -> Unit) {
+fun SearchPage(
+    sources: SearchSources, recents: RecentSearchStore, onOpen: (SearchHit) -> Unit, onDismiss: () -> Unit,
+    cycle: com.zyke.message.domain.cycle.CycleRule = com.zyke.message.domain.cycle.CycleRule.CALENDAR
+) {
     var query by rememberSaveable { mutableStateOf("") }
     var scopeName by rememberSaveable { mutableStateOf(SearchScope.ALL.name) }
     val scope = remember(scopeName) { SearchScope.entries.firstOrNull { it.name == scopeName } ?: SearchScope.ALL }
@@ -283,7 +286,8 @@ fun SearchPage(sources: SearchSources, recents: RecentSearchStore, onOpen: (Sear
                         onOpen(hit)
                     }
                 },
-                onJump = { key -> onOpen(SearchHit(SearchKind.PAGE, key, key, "")) }
+                onJump = { key -> onOpen(SearchHit(SearchKind.PAGE, key, key, "")) },
+                ask = { com.zyke.message.presentation.ai.AskEntry(query, sources.messages, cycle, onOpen) }
             )
         }
     }) {}
@@ -347,7 +351,9 @@ private fun SearchScreen(
     onClearRecents: () -> Unit,
     onToggle: (SearchKind) -> Unit,
     onHit: (SearchHit) -> Unit,
-    onJump: (String) -> Unit
+    onJump: (String) -> Unit,
+    /** Room for the "Ask your money" row, which shows only when the on-device AI is on. */
+    ask: @Composable () -> Unit = {}
 ) {
     val highlight = SpanStyle(
         fontWeight = FontWeight.Bold,
@@ -384,6 +390,7 @@ private fun SearchScreen(
                 }
             }
         }
+        ask()
         CrossfadeContent(stage, Modifier.weight(1f).fillMaxWidth(), label = "search-stage") { shown ->
             when (shown) {
                 Stage.LOADING -> LoadingState(Modifier.padding(top = Spacing.md), "Searching")

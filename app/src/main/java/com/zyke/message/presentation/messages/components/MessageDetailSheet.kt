@@ -572,6 +572,13 @@ internal fun CategorySheet(
                 SwitchRow("Also file the $sameNameCount other \"$nick\" ${if (sameNameCount == 1) "payment" else "payments"} here", alsoSameName) { alsoSameName = !alsoSameName }
             }
 
+            if (query.isBlank() && item.category == MessageCategory.OTHERS && !chosenHere && suggestion == null) {
+                com.zyke.message.presentation.ai.AiCategoryIdea(shownName, available) { idea ->
+                    val built = idea.builtIn
+                    val own = customs.firstOrNull { it.id == idea.customId }
+                    if (built != null) choose(built) else if (own != null) { chooseCustom(own); onDismiss() }
+                }
+            }
             FormField(label = "Find a category", value = query, onChange = { query = it }, placeholder = "Type to search")
 
             if (query.isBlank()) {

@@ -60,6 +60,8 @@ object HomeContract {
         /** The order and modes of the deck's stacks, and the cards the person restored from Auto cleared. */
         val triageSettings: com.zyke.message.domain.triage.TriageSettings = com.zyke.message.domain.triage.TriageSettings(),
         val triageRestored: Set<Long> = emptySet(),
+        /** Clearer one-line summaries written by the on-device AI (empty unless it is on), by message id. */
+        val aiSummaries: Map<Long, String> = emptyMap(),
         /** Messages the person just acted on in the deck: taken off it at once, until the saved marks come back through the pipeline. */
         val triageHidden: Set<Long> = emptySet(),
 

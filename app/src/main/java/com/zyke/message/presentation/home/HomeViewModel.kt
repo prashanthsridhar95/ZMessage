@@ -99,6 +99,7 @@ class HomeViewModel(
     private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups,
     private val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository = com.zyke.message.domain.repository.NoReceivedRefunds,
     private val triage: com.zyke.message.domain.triage.TriageRepository = com.zyke.message.domain.triage.NoTriage,
+    private val aiSummaries: com.zyke.message.domain.ai.AiSummarySource = com.zyke.message.domain.ai.NoAiSummaries,
     /** Where the derived parts of the state are worked out; never the main thread outside tests. */
     private val deriveContext: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.Default
 ) : MviViewModel<State, Intent, Effect>(
@@ -192,6 +193,7 @@ class HomeViewModel(
         viewModelScope.launch { setAsideRepository.state.collect { asides -> reduceHome { copy(asides = asides) } } }
         viewModelScope.launch { triage.settings.collect { settings -> reduceHome { copy(triageSettings = settings) } } }
         viewModelScope.launch { triage.restored.collect { ids -> reduceHome { copy(triageRestored = ids) } } }
+        viewModelScope.launch { aiSummaries.summaries.collect { found -> reduceHome { copy(aiSummaries = found) } } }
         viewModelScope.launch { splitRepository.splits.collect { splits -> reduceHome { copy(splits = splits) } } }
     }
 
@@ -620,9 +622,14 @@ class HomeViewModel(
             // Home's deck of cards: a pure function of the inbox, the person's marks and their stack settings.
             val triageSettings = updated.triageSettings
             val triageRestored = updated.triageRestored
-            val deck = memo("deck", msgs, us.readIds, us.archivedIds, us.pinnedIds, triageSettings, triageRestored, now) {
-                com.zyke.message.domain.triage.TriageStacks.build(msgs, us, triageSettings, now, zone, triageRestored)
+            val deckBase = memo("deck", msgs, us.readIds, us.archivedIds, us.pinnedIds, triageSettings, triageRestored, now) {
+                com.zyke.message.domain.triage.TriageStacks.build(msgs, us, triageSettings, now, zone, triageRestored).also { built ->
+                    // Asks (at once, without waiting) for clearer lines for the cards whose summary is only the start of the text.
+                    aiSummaries.request(com.zyke.message.domain.ai.AiSummaryOverlay.candidates(built, msgs.associateBy { it.id }, updated.aiSummaries.keys))
+                }
             }
+            // The AI's lines replace the rule-based ones where they are ready and passed their checks; otherwise nothing changes.
+            val deck = memo("deckAi", deckBase, updated.aiSummaries) { com.zyke.message.domain.ai.AiSummaryOverlay.apply(deckBase, updated.aiSummaries) }
             val budgetStatus = memo("budgetStatus", dashboard) {
                 dashboard.categories.filter { it.budget != null }.sortedByDescending { it.usedFraction ?: 0.0 }
             }
@@ -695,7 +702,8 @@ class HomeViewModel(
         private val recurringMerges: com.zyke.message.domain.repository.RecurringMergeRepository = com.zyke.message.domain.repository.NoRecurringMerges,
         private val recurringGroups: com.zyke.message.domain.repository.RecurringGroupRepository = com.zyke.message.domain.repository.NoRecurringGroups,
         private val receivedRefunds: com.zyke.message.domain.repository.ReceivedRefundRepository = com.zyke.message.domain.repository.NoReceivedRefunds,
-        private val triage: com.zyke.message.domain.triage.TriageRepository = com.zyke.message.domain.triage.NoTriage
+        private val triage: com.zyke.message.domain.triage.TriageRepository = com.zyke.message.domain.triage.NoTriage,
+        private val aiSummaries: com.zyke.message.domain.ai.AiSummarySource = com.zyke.message.domain.ai.NoAiSummaries
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
@@ -707,7 +715,7 @@ class HomeViewModel(
                 setAsideRepository = setAsideRepository, manualEntryRepository = manualEntryRepository, merges = merges,
                 recurring = recurring, loanRepository = loanRepository, planActionRepository = planActionRepository, dailyOverride = dailyOverride,
                 cancelledSubscriptions = cancelledSubscriptions, accountOverrides = accountOverrides, recurringMerges = recurringMerges, recurringGroups = recurringGroups,
-                receivedRefunds = receivedRefunds, triage = triage
+                receivedRefunds = receivedRefunds, triage = triage, aiSummaries = aiSummaries
             ) as T
     }
 

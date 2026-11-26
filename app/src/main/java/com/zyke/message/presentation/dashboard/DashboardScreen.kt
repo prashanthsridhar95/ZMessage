@@ -253,6 +253,7 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
         com.zyke.message.presentation.review.yearToReview(state.messages, today, ZoneId.systemDefault())
     }
 
+    val aiMonthVisible = com.zyke.message.presentation.ai.rememberAiVisible(com.zyke.message.domain.ai.AiFeature.MONTH)
     TourScroll(TourTab.INSIGHTS, listState)
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -329,6 +330,12 @@ private fun DashboardList(state: State, dashboard: Dashboard, onIntent: (Intent)
                 Box(cardMotion(gate, at)) {
                     com.zyke.message.presentation.dashboard.components.MonthlySummaryCard(summary, countFromZero = entering) { onIntent(Intent.OpenCategory(it)) }
                 }
+            }
+        }
+
+        state.monthlySummary?.takeIf { aiMonthVisible && (it.spent.signum() > 0) }?.let { summary ->
+            item(key = "month-sentence") {
+                com.zyke.message.presentation.ai.MonthSentenceCard(summary, state.messages)
             }
         }
 

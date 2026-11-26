@@ -429,9 +429,11 @@ internal fun ReviewPage(
                             AppButton("Teach the app", { teaching = message }, Modifier.weight(1f), size = ButtonSize.COMPACT)
                             AppButton("Open message", { onOpen(message.id) }, Modifier.weight(1f), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
                         }
+                        com.zyke.message.presentation.ai.AiUnderstandRow(message, onUse = onTeach, onTeachMyself = { teaching = message })
                     }
                 }
                 Caption("Tap one to show the app where the amount is. It then reads that kind of message on its own.", maxLines = 2)
+                com.zyke.message.presentation.ai.AiReviewPileRow(review.unclear)
             }
             TaughtFormats(taught, onDeleteTaught)
         }
