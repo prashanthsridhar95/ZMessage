@@ -50,7 +50,7 @@ class LowEndPolicyTest {
         assertTrue("Looping animations must be gated:\n" + offenders.joinToString("\n"), offenders.isEmpty())
     }
 
-    /** The market strip's marquee never stops; in lite mode it is swiped by hand instead. */
+    /** The market ticker's marquee never stops; in lite mode it is static (the first items that fit). */
     @Test
     fun marqueeIsGated() {
         val offenders = presentation().filter { (_, f) -> codeLines(f).any { it.contains("basicMarquee(") && !it.trimStart().startsWith("import ") } }

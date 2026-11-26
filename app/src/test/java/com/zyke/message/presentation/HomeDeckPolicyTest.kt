@@ -87,10 +87,26 @@ class HomeDeckPolicyTest {
         assertTrue("the same swipe deck as the triage page, inline", "TriageDeck(" in deck && "compact = true" in deck)
         assertTrue("swipes archive and keep with undo and a tick", "Intent.TriageSweep" in deck && "Intent.TriageGotIt" in deck && "haptics.tick()" in deck && Regex("""withUndo\(""").findAll(deck).count() >= 2)
         assertTrue("page dots and the quiet hint", "DeckDots(cards.size" in deck && "Swipe left to archive, right to keep" in deck)
-        assertTrue("the review is the deck's count and chip, not a competing row", "to review" in deck && "ReviewCard(" in deck && "DeckChip(" in deck)
+        assertTrue("the review is the deck's count and a footer item, not a competing row", "to review" in deck && "ReviewCard(" in deck && "FooterItem(" in deck)
         assertEquals("one tour anchor for the review", 1, Regex("""TourAnchor\.HOME_REVIEW""").findAll(deck).count())
         assertFalse("no labelled return in a composable lambda", Regex("""return@""").containsMatchIn(deck))
         val home = text("home/HomeScreen.kt")
         assertTrue("the caught-up row shows whenever the deck is on", "val showDeckSection = layout.shows(HomeSection.DECK) || state.review.count > 0" in home)
+    }
+
+    @Test
+    fun theDeckIsOneCardWithAHeaderABodyAndAFooterToldApartByHairlines() {
+        val deck = text("home/HomeDeck.kt")
+        val code = code("home/HomeDeck.kt").joinToString("\n")
+        assertEquals("one container for the whole module", 1, Regex("""HomeCard\(modifier\.fillMaxWidth\(\)\.enterOnce""").findAll(code).count())
+        assertTrue("edge to edge segments with 20 dp gutters inside", "horizontal = 0.dp, vertical = 0.dp" in deck && Regex("""horizontal = Spacing\.xl""").containsMatchIn(deck))
+        assertTrue("hairlines between header, body and footer", Regex("""DeckDivider\(divider\)""").findAll(code).count() == 3)
+        assertTrue("the stack is clipped inside the card", "clipToBounds()" in deck)
+        assertFalse("no wrapping chips outside the card", "FlowRow" in code || "DeckChip" in code)
+        assertTrue("footer: equal segments, vertical hairlines, stacked at large text", "DeckFooter(" in deck && "weight(1f)" in deck && "IntrinsicSize.Min" in deck && "homeStacked()" in deck)
+        assertTrue("footer targets are 48 dp", "heightIn(min = 48.dp).tappable(onClick = item.onClick" in deck)
+        assertTrue("all stacks and the quiet counts live in the footer, also when nothing is new", "FooterItem(\"All stacks\"" in deck && "CaughtUpBody()" in deck)
+        assertEquals("one HOME_DECK anchor on Home, one HOME_REVIEW here", 1, Regex("""TourAnchor\.HOME_REVIEW""").findAll(deck).count())
+        assertEquals("the container rises in once", 1, Regex("""enterOnce\(""").findAll(code).count())
     }
 }
