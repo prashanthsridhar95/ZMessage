@@ -28,7 +28,7 @@ class AiPolicyTest {
         val sources = kotlin(main) + kotlin(File(repoRoot(), "domain/src/main/kotlin")) + kotlin(File(repoRoot(), "wear/src")).filter { it.exists() }
         val users = sources.filter { "com.google.mlkit" in code(it) }.map { it.name }
         assertEquals(listOf("GeminiNanoEngine.kt"), users)
-        assertTrue(File(main, "data/ai/GeminiNanoEngine.kt").readText().contains("class GeminiNanoEngine : OnDeviceAi"))
+        assertTrue(File(main, "data/ai/GeminiNanoEngine.kt").readText().contains("class GeminiNanoEngine(private val evidence: ModelEvidenceStore) : OnDeviceAi"))
         val domain = kotlin(File(repoRoot(), "domain/src/main/kotlin/com/zyke/message/domain/ai")).joinToString("\n") { code(it) }
         assertFalse("the domain port knows no Android and no Google library", Regex("""import (android|com\.google|androidx)\.""").containsMatchIn(domain))
     }
@@ -65,15 +65,15 @@ class AiPolicyTest {
     @Test
     fun theDemoNeverBuildsOrCallsTheModel() {
         val hub = text("data/ai/AiHub.kt")
-        assertTrue("if (demo) NoOnDeviceAi else GeminiNanoEngine()" in hub)
+        assertTrue("if (demo) NoOnDeviceAi else GeminiNanoEngine(ModelEvidenceStore(context))" in hub)
         assertTrue("if (demo) InMemoryAiSettings() else AiSettingsRepositoryImpl(context)" in hub)
         assertTrue("if (demo) InMemoryAiCache() else PrefsAiCache(context)" in hub)
         assertTrue("AiHub(context, demo, appScope)" in text("di/AppContainer.kt"))
         val gate = File(repoRoot(), "domain/src/main/kotlin/com/zyke/message/domain/ai/AiSettings.kt").readText()
-        assertTrue("!context.demo && settings.isOn(feature) && availability.canGenerate" in gate)
-        assertTrue("!context.demo && settings.isOn(feature) && availability !is AiAvailability.Unsupported" in gate)
+        assertTrue("!context.demo && settings.isOn(feature) && (availability.canGenerate || context.modelWorked)" in gate)
+        assertTrue("!context.demo && settings.isOn(feature) && (availability !is AiAvailability.Unsupported || context.modelWorked)" in gate)
         // The only place the engine is built is behind that check.
-        assertEquals(1, kotlin(main).sumOf { Regex("""GeminiNanoEngine\(\)""").findAll(code(it)).count() })
+        assertEquals(1, kotlin(main).sumOf { Regex("""(?<!class )GeminiNanoEngine\(""").findAll(code(it)).count() })
     }
 
     @Test
@@ -137,7 +137,7 @@ class AiPolicyTest {
         assertTrue("paired buttons stack on a narrow phone", page.split("ResponsiveRow").size >= 4 && ".cell()" in page)
         assertTrue("the one-time explanation", "Before you switch it on" in page && "no cloud fallback" in page && "can be wrong" in page && "Google's AI Core" in page)
         assertTrue("Demo mode shows labelled examples", "Made-up example" in page && "never uses the AI" in page)
-        assertTrue("the actions the page promises", listOf("Download model", "Clear AI suggestions cache", "Try it", "Check my review pile").all { it in page })
+        assertTrue("the actions the page promises", listOf("ModelWatch.downloadLabel", "Clear AI suggestions cache", "Try it", "Check my review pile").all { it in page })
         assertFalse("no looping progress", "CircularProgressIndicator" in page || "LinearProgressIndicator" in page)
         assertTrue("the page is a Settings page", "SettingsGroup.AI -> com.zyke.message.presentation.ai.AiSettingsContent()" in text("presentation/settings/SettingsScreen.kt"))
     }
@@ -171,5 +171,31 @@ class AiPolicyTest {
         assertTrue("ignoreStatus = true" in hub && "availability.value.canGenerate" !in hub.substringAfter("suspend fun tryIt").substringBefore("fun clearCache"))
         val engine = text("data/ai/GeminiNanoEngine.kt")
         assertTrue("ModelWatch.afterSuccessfulAnswer" in engine)
+    }
+
+    @Test
+    fun aRecentAnswerBeatsTheStatusWordAndNothingStaysDownloadingForever() {
+        val engine = text("data/ai/GeminiNanoEngine.kt")
+        assertTrue("the engine keeps the proof and applies it", "evidence.save(at, took)" in engine && "ModelWatch.effective(" in engine)
+        assertTrue("the stream-less cap is enforced", "ModelWatch.streamlessExpired(" in engine && "ModelWatch.STREAMLESS_CAP_MS" in engine)
+        assertTrue("only a withdrawn model forgets the proof", "AiFailure.UNAVAILABLE) forgetProof()" in engine)
+        val store = text("data/ai/ModelEvidenceStore.kt")
+        assertTrue("the proof is two numbers in the ai_settings file", "AiSettingsRepositoryImpl.FILE" in store && "putLong(KEY_AT, atMs)" in store)
+        val gateway = File(repoRoot(), "domain/src/main/kotlin/com/zyke/message/domain/ai/AiGateway.kt").readText()
+        assertTrue("features try when it answered recently", "ModelWatch.worked(engine.report.value" in gateway)
+        val hub = text("data/ai/AiHub.kt")
+        assertTrue("the context carries the proof", "modelWorked = ModelWatch.worked(report.value" in hub)
+    }
+
+    @Test
+    fun theWarmUpIsOptionalQuietAndGated() {
+        val hub = text("data/ai/AiHub.kt")
+        val warm = hub.substringAfter("fun warmUp()").substringBefore("fun cancelWarmUp")
+        assertTrue("ModelWatch.shouldWarmUp(" in warm && "quiet = true" in warm && "WARM_TOKENS" in warm)
+        assertTrue("const val WARM_TOKENS = 2" in hub)
+        val rule = File(repoRoot(), "domain/src/main/kotlin/com/zyke/message/domain/ai/ModelReport.kt").readText()
+        assertTrue("on && !context.demo && !context.lite" in rule)
+        val page = text("presentation/ai/AiSettingsPage.kt")
+        assertTrue("ai.warmUp()" in page && "ai.cancelWarmUp()" in page && "Warming up the model" in page)
     }
 }
