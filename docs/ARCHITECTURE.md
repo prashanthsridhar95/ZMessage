@@ -51,6 +51,10 @@ Derived data (the feed, the dashboard, the home overview, conversations) is buil
 `MessageClassifier` runs rules in order (OTP, FASTag, money, data usage, courier, loyalty, generic). Money
 messages go to the hand-written bank parsers first and then to `GenericTransactionParser`, a best-effort reader
 for other banks' wording. It never throws and parses at most 4096 characters.
+Two general shapes from the parsing report live there: "A transaction of INR X was made on your Card ending N at SHOP PG on D" (a card
+purchase; a trailing `PG` / `Payment Gateway` is dropped from the shop's name) and "Rs X/- has been credited to your SHOP account" (a
+shop wallet: payee "SHOP wallet", kept out of income like any store credit; a bank, savings or masked account, a balance or a refund is
+not read this way). `RULES_VERSION` is 29.
 
 ## Sheets and pages
 
