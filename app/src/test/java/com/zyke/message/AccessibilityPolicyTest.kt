@@ -34,7 +34,7 @@ class AccessibilityPolicyTest {
         "common/SearchField.kt" to 1,                      // magnifier inside the search field
         "settings/SettingsHub.kt" to 2,                    // the icon tile and the chevron of a settings row, whose title and summary are read
         "home/TriageScreen.kt" to 2,                       // the archive and check glyphs of the swipe hint, which is cleared from semantics (the card offers Sweep it and Got it as actions)
-        "home/HomeDeck.kt" to 1,                           // the chevron of the review row, which says "N things to review" as one button
+        "home/HomeDeck.kt" to 2,                           // the chevrons of the review row and of the review body, which each say "N things to review" as one button
         "home/BillsPage.kt" to 1,                          // the chevron of a Plan ahead row, whose title and caption are read
         "home/HomeToday.kt" to 1,                          // the check beside "You're all clear", whose words are read
         "home/HomePolish.kt" to 1,                         // the chevron of the balance hero, which is one button ("Open accounts") that speaks the figure

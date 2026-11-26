@@ -438,7 +438,7 @@ are only ever text on prices and changes, never a fill. Guarded by `MarketWatchP
 - **Header.** "YOUR DECK", "N to go" (or "N to review" when the review is the body), the position ("2 / 7") and the 48 dp settings gear.
 - **Body.** The stack itself, clipped inside the card (`clipToBounds`): the front card with the next two peeking behind (the triage page's card in a compact
   form), swipe left archives, right keeps, up or down moves around; same hints, tick and Undo as the triage page; every gesture is a screen-reader action.
-  Page dots and the quiet line "Swipe left to archive, right to keep" sit under it. With no new cards the review is the body (one card that opens it);
+  The front card reads as a physical card on a tray: a tonal step up the container (`surfaceContainerHigh`), the `control` corner (16 dp, smaller than the container's 24), no outline (a hairline only on true black), and the two slabs behind are thin tonal edges with no outline. Never a bordered box inside a bordered box. Page dots and the quiet line "Swipe left to archive, right to keep" sit under it. With no new cards the review is the body (one flat row that opens it: a small seal, the eyebrow "Needs a look · From your payments", the title in the text colour, "Checked on this phone" and a chevron; the header already carries "N to review", so the body does not repeat the count);
   with nothing at all it is a compact "All caught up".
 - **Footer.** Equal tappable segments split by hairlines (`DeckFooter`): "N to review" (accent, only while the stack is the body), "Quiet N", "Auto-cleared N"
   and "All stacks" (always there). Two to a row at most; one per row at 320 dp or large text (`homeStacked`); 48 dp targets; never wrapping chips.

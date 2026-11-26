@@ -87,7 +87,7 @@ class HomeDeckPolicyTest {
         assertTrue("the same swipe deck as the triage page, inline", "TriageDeck(" in deck && "compact = true" in deck)
         assertTrue("swipes archive and keep with undo and a tick", "Intent.TriageSweep" in deck && "Intent.TriageGotIt" in deck && "haptics.tick()" in deck && Regex("""withUndo\(""").findAll(deck).count() >= 2)
         assertTrue("page dots and the quiet hint", "DeckDots(cards.size" in deck && "Swipe left to archive, right to keep" in deck)
-        assertTrue("the review is the deck's count and a footer item, not a competing row", "to review" in deck && "ReviewCard(" in deck && "FooterItem(" in deck)
+        assertTrue("the review is the deck's count and a footer item, not a competing row", "to review" in deck && "ReviewBody(" in deck && "FooterItem(" in deck)
         assertEquals("one tour anchor for the review", 1, Regex("""TourAnchor\.HOME_REVIEW""").findAll(deck).count())
         assertFalse("no labelled return in a composable lambda", Regex("""return@""").containsMatchIn(deck))
         val home = text("home/HomeScreen.kt")
@@ -107,6 +107,17 @@ class HomeDeckPolicyTest {
         assertTrue("footer targets are 48 dp", "heightIn(min = 48.dp).tappable(onClick = item.onClick" in deck)
         assertTrue("all stacks and the quiet counts live in the footer, also when nothing is new", "FooterItem(\"All stacks\"" in deck && "CaughtUpBody()" in deck)
         assertEquals("one HOME_DECK anchor on Home, one HOME_REVIEW here", 1, Regex("""TourAnchor\.HOME_REVIEW""").findAll(deck).count())
+        assertFalse("no card inside the deck's card: the body draws no outline or clip of its own", Regex("""\.border\(|\.clip\(""").containsMatchIn(code))
         assertEquals("the container rises in once", 1, Regex("""enterOnce\(""").findAll(code).count())
+    }
+
+    @Test
+    fun theStackLiesOnTheContainerAsAnElevatedTonalCardNotABorderedBox() {
+        val screen = code("home/TriageScreen.kt").joinToString("\n")
+        val deck = text("home/HomeDeck.kt")
+        assertTrue("Home's stack asks for the tray look", "tray = true" in deck)
+        assertTrue("the inline face steps up the container tones with the smaller corner", "surfaceContainerHigh" in screen && "if (compact) AppShapes.control else AppShapes.card" in screen)
+        assertTrue("the inline face and tray slabs are outlined only on true black", "outlined = !compact || LocalTrueBlack.current" in screen && "slabOutline = !tray || LocalTrueBlack.current" in screen)
+        assertTrue("the review body says what it is; the header carries the count", "Needs a look · From your payments" in deck && "fun ReviewBody(" in deck)
     }
 }
