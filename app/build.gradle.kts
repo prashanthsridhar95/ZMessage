@@ -66,6 +66,9 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        // The ML Kit GenAI library may be built with a newer Kotlin than this project's compiler reads; this lets the compiler open its
+        // metadata anyway (the code it generates is the same). Remove it when the project's Kotlin catches up.
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
     sourceSets.getByName("main").java.srcDir(if (withWear) "src/wearOn/java" else "src/wearOff/java")
     buildFeatures {
@@ -96,6 +99,9 @@ dependencies {
     implementation(libs.androidx.material3)
     // Optional backup to the person's own Google Drive private app folder: only the sign-in/consent step (Authorization API).
     implementation(libs.play.services.auth)
+    // On-device AI (optional, off by default): ML Kit GenAI Prompt API, which asks Gemini Nano in the phone's AI Core service. minSdk 26.
+    // Used from one file only (data/ai/GeminiNanoEngine.kt; AiPolicyTest). Ships its own consumer R8 rules; none are added here.
+    implementation(libs.mlkit.genai.prompt)
     if (withWear) implementation("com.google.android.gms:play-services-wearable:18.2.0")
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
