@@ -74,6 +74,7 @@ class PageEntry {
     var footer by mutableStateOf<(@Composable ColumnScope.() -> Unit)?>(null)
     var scrollable by mutableStateOf(true)
     var actions by mutableStateOf<(@Composable RowScope.() -> Unit)?>(null)
+    var calm by mutableStateOf(false)
 }
 
 @Stable
@@ -98,6 +99,8 @@ fun AppPage(
     scrollable: Boolean = true,
     /** Quiet actions at the end of the title row (an overflow menu); each is a 56 dp target. */
     actions: (@Composable RowScope.() -> Unit)? = null,
+    /** True for a page that is a conversation rather than a form: the title and Back are in the ordinary text colour, not the accent. */
+    calm: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val host = LocalPageHost.current ?: return
@@ -110,6 +113,7 @@ fun AppPage(
         entry.footer = footer
         entry.scrollable = scrollable
         entry.actions = actions
+        entry.calm = calm
     }
     DisposableEffect(host, entry) {
         host.entries.add(entry)
@@ -170,7 +174,7 @@ private fun PageLayer(entry: PageEntry) {
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(com.zyke.message.R.drawable.baseline_arrow_back_24),
                         contentDescription = "Back",
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (entry.calm) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary)
                     )
                 }
                 val actions = entry.actions
@@ -179,7 +183,7 @@ private fun PageLayer(entry: PageEntry) {
                     Modifier.heading().then(if (actions != null) Modifier.weight(1f) else Modifier),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (entry.calm) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
                 )
                 if (actions != null) actions()
             }

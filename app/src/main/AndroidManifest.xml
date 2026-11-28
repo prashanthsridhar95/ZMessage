@@ -53,6 +53,7 @@
             android:name=".presentation.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.ZykeMessage" />
 
         <!-- Launcher icon colours: one alias per variant, only IconDefault enabled at first. Settings switches them with
