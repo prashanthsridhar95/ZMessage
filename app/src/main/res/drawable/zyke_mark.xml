@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="34dp"
+    android:height="34dp"
+    android:viewportWidth="34"
+    android:viewportHeight="34">
+  <!-- The "Z" of the Zyke wordmark (zyke_main), on its own, centred in a square. -->
+  <group android:translateX="0.4" android:translateY="-12">
+    <path
+        android:pathData="M0.34,37.45H32.22V45H0.28L0.34,37.45ZM33.18,13V21.32L33.11,21.26L14.94,36.49L5.78,32.58L20.82,19.91H1.24V13H33.18Z"
+        android:fillColor="#ffffff"/>
+  </group>
+</vector>

@@ -6,6 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +35,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -71,7 +79,10 @@ import com.zyke.message.presentation.theme.Spacing
 private const val BUBBLE_SHARE = 0.85f
 private const val SETTINGS_AI_PAGE = "AI"
 private const val MAX_INPUT_LINES = 4
-private val FieldShape = RoundedCornerShape(24.dp)
+private val FieldShape = RoundedCornerShape(26.dp)
+private val FieldHeight = 52.dp
+private val SendSize = 44.dp
+private val SendTarget = 48.dp
 
 /**
  * Ask Zyke: a page of its own for asking about your money, laid out like a chat. The person's questions are bubbles on the right and
@@ -104,13 +115,14 @@ fun AskZykePage(messages: List<ClassifiedMessage>, cycle: CycleRule, onOpenMessa
         chat.enter(demo)
         chat.queued?.let { question -> chat.queued = null; send(question) }
     }
+    val listState = rememberLazyListState()
     AppPage(
-        title = "Ask Zyke", onBack = onClose, scrollable = false,
+        title = "Ask Zyke", onBack = onClose, scrollable = false, calm = true,
         actions = { ChatMenu(canClear = chat.entries.isNotEmpty() && !demo, onClear = { chat.clear(); draft = "" }) }
     ) {
-        ChatPane(demo, actions)
+        ChatPane(demo, actions, listState)
         InputBar(
-            draft, { draft = it }, chat.thinking, demo,
+            draft, { draft = it }, chat.thinking, demo, lifted = listState.canScrollForward,
             onSend = { text -> send(text); draft = "" }, onStop = chat::stop
         )
     }
@@ -126,7 +138,7 @@ private fun ChatMenu(canClear: Boolean, onClear: () -> Unit) {
         ) {
             Image(
                 painterResource(R.drawable.ic_more_vert_24), contentDescription = "Chat menu",
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -137,12 +149,11 @@ private fun ChatMenu(canClear: Boolean, onClear: () -> Unit) {
 }
 
 @Composable
-private fun ColumnScope.ChatPane(demo: Boolean, actions: ChatActions) {
+private fun ColumnScope.ChatPane(demo: Boolean, actions: ChatActions, listState: LazyListState) {
     val chat = AskChatSession.chat
     val entries = chat.entries
     val thinking = chat.thinking
     val motion = rememberMotion()
-    val listState = rememberLazyListState()
     val count = entries.size
     // The newest question goes to the top with its answer under it; while thinking, the question stays in view.
     LaunchedEffect(count, thinking) {
@@ -160,7 +171,7 @@ private fun ColumnScope.ChatPane(demo: Boolean, actions: ChatActions) {
             LazyColumn(
                 Modifier.fillMaxSize(), listState,
                 contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
                     when (entry) {
@@ -178,46 +189,69 @@ private fun ColumnScope.ChatPane(demo: Boolean, actions: ChatActions) {
     }
 }
 
-/** Before the first question: a greeting, what it can and cannot do, and four things to tap. Scrolls when the screen is small or the text large. */
+/**
+ * Before the first question: a greeting in the upper third, what it can and cannot do, and four things to tap just above the text box.
+ * With the keyboard up the greeting shrinks to a small mark and the name, and the suggestions become one scrolling row, so nothing is cramped.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmptyChat(demo: Boolean, actions: ChatActions) {
     val ready = rememberAiReady()
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg, vertical = Spacing.md),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            ZykeAvatar(size = 56.dp)
-            Text("Ask Zyke", Modifier.heading(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                "Ask anything about your money. It all stays on this phone.", textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Caption(
-                "Zyke only reads your question. The figures are worked out by the app from your messages. Chats are not saved.",
-                textAlign = TextAlign.Center, maxLines = 4
-            )
+    val compact = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xxl),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (compact) {
+                Row(Modifier.padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    ZykeAvatar(size = 32.dp)
+                    Text("Ask Zyke", Modifier.heading(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                }
+            } else {
+                Spacer(Modifier.height(Spacing.xxxl))
+                ZykeAvatar(size = 64.dp)
+                Spacer(Modifier.height(Spacing.xl))
+                Text(
+                    "Hi, what would you like to know?", Modifier.heading(), textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                Caption("Answers are worked out on this phone. Chats aren't saved.", textAlign = TextAlign.Center, maxLines = 3)
+            }
+            if (!ready && !demo) {
+                Spacer(Modifier.height(Spacing.lg))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) { NotReadyContent(newest = false, actions = actions) }
+            }
         }
-        Spacer(Modifier.height(Spacing.xl))
-        if (!ready && !demo) {
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(Spacing.lg),
+        if (compact) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) { AskSuggestions.starters.forEach { starter -> ChatChip(starter, enabled = ready) { actions.ask(starter) } } }
+        } else {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) { NotReadyContent(newest = false, actions = actions) }
-            Spacer(Modifier.height(Spacing.md))
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            AskSuggestions.starters.forEach { starter -> ChatChip(starter, enabled = ready) { actions.ask(starter) } }
+            ) { AskSuggestions.starters.forEach { starter -> ChatChip(starter, enabled = ready) { actions.ask(starter) } } }
         }
     }
 }
 
-/** The text box pinned above the keyboard and the navigation bar: a rounded field that grows to four lines, and a send button that becomes stop while Zyke is thinking. */
+/**
+ * The text box pinned above the keyboard and the navigation bar (the page applies each inset once): a 52 dp rounded field that grows to four lines, and a
+ * send button that becomes stop while Zyke is thinking. A hairline shows above it while the list runs on beneath.
+ */
 @Composable
-private fun InputBar(draft: String, onDraft: (String) -> Unit, thinking: Boolean, demo: Boolean, onSend: (String) -> Unit, onStop: () -> Unit) {
+private fun InputBar(draft: String, onDraft: (String) -> Unit, thinking: Boolean, demo: Boolean, lifted: Boolean, onSend: (String) -> Unit, onStop: () -> Unit) {
     val ink = MaterialTheme.colorScheme.onSurface
     val canSend = draft.isNotBlank() && !thinking && !demo
     val submit = { if (canSend) onSend(draft.trim()) }
+    HorizontalDivider(color = ink.copy(alpha = if (lifted) 0.08f else 0f))
     Row(
         Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Bottom
@@ -233,7 +267,7 @@ private fun InputBar(draft: String, onDraft: (String) -> Unit, thinking: Boolean
             maxLines = MAX_INPUT_LINES,
             decorationBox = { inner ->
                 Box(
-                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(FieldShape).background(ink.copy(alpha = 0.07f))
+                    Modifier.fillMaxWidth().heightIn(min = FieldHeight).clip(FieldShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -251,21 +285,22 @@ private fun InputBar(draft: String, onDraft: (String) -> Unit, thinking: Boolean
     }
 }
 
-/** Send, off while there is nothing to send; while Zyke is thinking the same place is Stop. Always 48 dp, named for a screen reader. */
+/** Send, off while there is nothing to send; while Zyke is thinking the same place is Stop. A 44 dp disc inside a 48 dp target, named for a screen reader. */
 @Composable
 private fun SendButton(thinking: Boolean, enabled: Boolean, onSend: () -> Unit, onStop: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val active = thinking || enabled
-    val fill = if (active) scheme.primary else scheme.onSurface.copy(alpha = 0.08f)
+    val fill = if (active) scheme.primary else scheme.onSurface.copy(alpha = 0.10f)
     val ink: Color = if (active) scheme.onPrimary else scheme.onSurface.copy(alpha = 0.38f)
     Box(
-        Modifier.size(48.dp).clip(CircleShape).background(fill)
-            .clickable(enabled = active, role = Role.Button, onClickLabel = if (thinking) "Stop" else "Send") { if (thinking) onStop() else onSend() },
+        Modifier.size(SendTarget).clickable(enabled = active, role = Role.Button, onClickLabel = if (thinking) "Stop" else "Send") { if (thinking) onStop() else onSend() },
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painterResource(if (thinking) R.drawable.ic_stop_24 else R.drawable.ic_send_24),
-            contentDescription = if (thinking) "Stop" else "Send", Modifier.size(22.dp), colorFilter = ColorFilter.tint(ink)
-        )
+        Box(Modifier.size(SendSize).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            Image(
+                painterResource(if (thinking) R.drawable.ic_stop_24 else R.drawable.ic_send_24),
+                contentDescription = if (thinking) "Stop" else "Send", Modifier.size(22.dp), colorFilter = ColorFilter.tint(ink)
+            )
+        }
     }
 }

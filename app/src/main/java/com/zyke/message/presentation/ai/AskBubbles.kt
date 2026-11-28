@@ -3,6 +3,7 @@ package com.zyke.message.presentation.ai
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +54,6 @@ import com.zyke.message.presentation.format.FormatCache
 import com.zyke.message.presentation.messages.components.Caption
 import com.zyke.message.presentation.motion.Motion
 import com.zyke.message.presentation.motion.rememberMotion
-import com.zyke.message.presentation.theme.AppShapes
 import com.zyke.message.presentation.theme.Spacing
 import java.time.Instant
 import java.time.ZoneId
@@ -64,6 +64,8 @@ private const val SHORT_QUESTION = 28
 private val PersonShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
 private val ZykeShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp)
 private val AvatarSize = 28.dp
+private val ChipHeight = 40.dp
+private val ChipShape = RoundedCornerShape(20.dp)
 private val TimeFormat = FormatCache.pattern("h:mm a", Locale.getDefault())
 
 /** What a tap inside a Zyke bubble can do: ask something, open a payment, go to Search or to the AI settings. */
@@ -112,7 +114,7 @@ internal fun ZykeBubble(reply: Reply, id: Long, at: Long, avatar: Boolean, newes
                     Reply.NotReady -> NotReadyContent(newest, actions)
                 }
             }
-            Caption(TimeFormat.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault())), Modifier.padding(start = Spacing.sm, top = Spacing.xs))
+            Caption(TimeFormat.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault())), Modifier.padding(start = Spacing.md, top = Spacing.xs))
         }
     }
 }
@@ -166,12 +168,12 @@ private fun ZykeRow(avatar: Boolean, content: @Composable () -> Unit) {
 @Composable
 internal fun ZykeAvatar(size: Dp = AvatarSize) {
     Box(
-        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer).clearAndSetSemantics { },
+        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer).clearAndSetSemantics { },
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painterResource(R.drawable.zyke_icon), contentDescription = "Zyke", Modifier.size(size * 0.65f),
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
+            painterResource(R.drawable.zyke_mark), contentDescription = "Zyke", Modifier.size(size * 0.5f),
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer)
         )
     }
 }
@@ -190,8 +192,8 @@ private fun ZykeText(text: String, newest: Boolean) {
 @Composable
 private fun AnswerContent(reply: Reply.Answer, id: Long, newest: Boolean, actions: ChatActions) {
     reply.figure?.let { figure ->
-        if (reply.isCount) Text(figure, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        else PrivateAmount(figure, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, maxLines = 1, fit = true)
+        if (reply.isCount) Text(figure, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        else PrivateAmount(figure, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, fit = true)
     }
     ZykeText(reply.sentence, newest)
     Caption("Read as: " + reply.understood.joinToString(" · "), maxLines = 3)
@@ -239,18 +241,20 @@ internal fun NotReadyContent(newest: Boolean, actions: ChatActions) {
     AppButton("Use normal search", actions.normalSearch, Modifier.fillMaxWidth(), style = ButtonStyle.OUTLINE, size = ButtonSize.COMPACT)
 }
 
-/** A suggestion: one tap asks it. 48 dp tall, tonal, named as a button. */
+/** A suggestion: one tap asks it. 40 dp tall, a tonal fill with a hairline outline, named as a button. */
 @Composable
 internal fun ChatChip(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val ink = MaterialTheme.colorScheme.onSurface
     Box(
-        Modifier.heightIn(min = 48.dp).clip(AppShapes.control).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+        Modifier.heightIn(min = ChipHeight).clip(ChipShape).background(ink.copy(alpha = 0.04f))
+            .border(1.dp, ink.copy(alpha = 0.16f), ChipShape)
             .tappable(onClick = onClick, enabled = enabled, role = Role.Button)
             .padding(horizontal = Spacing.lg),
-        contentAlignment = Alignment.CenterStart
+        contentAlignment = Alignment.Center
     ) {
         Text(
-            label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium,
-            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, maxLines = 1,
+            color = if (enabled) ink else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
