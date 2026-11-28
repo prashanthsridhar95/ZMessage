@@ -119,6 +119,11 @@ Live Train Status, Indian Rail API
   Licence: Its own terms of service and pricing
   https://indianrailapi.com/
 
+Your mail provider (Gmail, Outlook, Yahoo Mail or iCloud Mail)
+  The mailbox the app reads bank alert emails from over IMAP (opt-in; read-only, with an app password you make; no library is used, the app speaks IMAP itself; no agreement between this project and any provider)
+  Licence: Each provider's own terms of service
+  https://www.rfc-editor.org/rfc/rfc3501
+
 Google Drive API
   Optional backup to your own Drive
   Licence: Google API terms of service

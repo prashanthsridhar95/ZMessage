@@ -89,7 +89,9 @@ data class EmailAlertSettings(
     val uidValidity: Long = 0L,
     val highestUid: Long = 0L,
     /** The person answered the "HDFC is stopping UPI SMS alerts" offer (either way), so it is not shown again. */
-    val hdfcNoticeAnswered: Boolean = false
+    val hdfcNoticeAnswered: Boolean = false,
+    /** The onboarding (fresh install) or "New" (after an update) offer was answered, any way, so it is never shown again; see [EmailPrompt]. */
+    val emailPrompted: Boolean = false
 ) {
     val provider: EmailProvider? get() = EmailProvider.fromId(providerId)
 

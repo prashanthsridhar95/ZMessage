@@ -66,6 +66,7 @@ object OpenSourceNotices {
         Notice("Yahoo Finance", "Market prices and stock-name suggestions (opt-in)", "Yahoo's own terms of service", "https://legal.yahoo.com/", NoticeKind.SERVICE),
         Notice("Flightradar24", "Live flight status (opt-in)", "Flightradar24's own terms of service", "https://www.flightradar24.com/terms-and-conditions", NoticeKind.SERVICE),
         Notice("Live Train Status, Indian Rail API", "Live train running status (opt-in, needs your own key; no agreement between this project and them)", "Its own terms of service and pricing", "https://indianrailapi.com/", NoticeKind.SERVICE),
+        Notice("Your mail provider (Gmail, Outlook, Yahoo Mail or iCloud Mail)", "The mailbox the app reads bank alert emails from over IMAP (opt-in; read-only, with an app password you make; no library is used, the app speaks IMAP itself; no agreement between this project and any provider)", "Each provider's own terms of service", "https://www.rfc-editor.org/rfc/rfc3501", NoticeKind.SERVICE),
         Notice("Google Drive API", "Optional backup to your own Drive", "Google API terms of service", "https://developers.google.com/terms", NoticeKind.SERVICE),
         Notice("OpenStreetMap", "Map pictures behind the Spending map (opt-in). Map data \u00A9 OpenStreetMap contributors, made available under the Open Database Licence; the tile servers are run by the OpenStreetMap Foundation under its tile usage policy", "Open Database Licence (data); the Foundation's tile usage policy", "https://www.openstreetmap.org/copyright", NoticeKind.SERVICE)
     )

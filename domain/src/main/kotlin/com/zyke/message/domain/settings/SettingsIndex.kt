@@ -38,7 +38,8 @@ enum class SettingsPageId(val title: String) {
     LEGAL("Privacy and terms"),
     LICENCES("Open-source licences"),
     DEVELOPER("Developer options"),
-    AI("On-device AI")
+    AI("On-device AI"),
+    EMAIL("Email alerts")
 }
 
 /**
@@ -73,7 +74,7 @@ object SettingsLayout {
         SettingsGroupId.ALERTS to listOf(SettingsPageId.ALERTS),
         SettingsGroupId.MONEY to listOf(SettingsPageId.MONEY, SettingsPageId.LIMITS, SettingsPageId.MARKETS),
         SettingsGroupId.ACCOUNTS to listOf(SettingsPageId.CARDS),
-        SettingsGroupId.MESSAGES to listOf(SettingsPageId.MESSAGES, SettingsPageId.RULES, SettingsPageId.AI),
+        SettingsGroupId.MESSAGES to listOf(SettingsPageId.MESSAGES, SettingsPageId.RULES, SettingsPageId.AI, SettingsPageId.EMAIL),
         SettingsGroupId.TRAVEL to listOf(SettingsPageId.FLIGHTS),
         SettingsGroupId.BACKUP to listOf(SettingsPageId.ABOUT),
         SettingsGroupId.PRIVACY to listOf(SettingsPageId.PRIVACY, SettingsPageId.PLACES),
@@ -154,6 +155,12 @@ object SettingsIndex {
         e("ai.digest", "Morning digest line", "One line above the morning digest", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "digest", "notification", "summary", "morning", hiddenInDemo = true),
         e("ai.unusual", "Explain unusual payments", "One sentence on why a payment stands out, in the review pile", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "unusual", "review", "large payment", hiddenInDemo = true),
         e("ai.cache", "Clear AI suggestions cache", "Forget what the AI suggested before", SettingsGroupId.MESSAGES, SettingsPageId.AI, "ai", "clear", "cache", "reset", hiddenInDemo = true),
+        e("email.master", "Read bank alert emails", "Payments from bank alert emails join your messages", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "mail", "gmail", "imap", "hdfc", "upi", "alerts", "sms", "inbox", hiddenInDemo = true),
+        e("email.connect", "Connect your mailbox", "Gmail, Outlook, Yahoo or iCloud, with an app password", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "app password", "gmail", "outlook", "yahoo", "icloud", "provider", "sign in", "login", hiddenInDemo = true),
+        e("email.sync", "Sync email alerts", "Read the mailbox now, or when the app opens", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "sync", "refresh", "interval", "how often", "mailbox", hiddenInDemo = true),
+        e("email.senders", "Watched senders", "The bank addresses whose emails are read", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "senders", "banks", "addresses", "allowlist", "hdfc", "icici", "axis", "kotak", hiddenInDemo = true),
+        e("email.disconnect", "Disconnect email", "Forget the password and the email alerts", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "disconnect", "sign out", "forget", "password", hiddenInDemo = true),
+        e("email.delete", "Delete email alerts from this phone", "Your mailbox is not touched", SettingsGroupId.MESSAGES, SettingsPageId.EMAIL, "email", "delete", "erase", "clear", "alerts", hiddenInDemo = true),
         // Travel
         e("travel.flights", "Live flight status", "Follow the flights found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "airline", "plane", "pnr", "departure", "gate"),
         e("travel.trains", "Live train status", "Follow the trains found in your messages", SettingsGroupId.TRAVEL, SettingsPageId.FLIGHTS, "railway", "irctc", "pnr", "platform", "delay"),

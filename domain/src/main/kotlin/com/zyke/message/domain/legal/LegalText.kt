@@ -40,6 +40,13 @@ object LegalText {
         HOST_GOOGLE, HOST_DUCKDUCKGO, HOST_YAHOO_PRICES, HOST_YAHOO_SEARCH, HOST_FLIGHTRADAR, HOST_TRAINS, HOST_GOOGLE_APIS, HOST_OSM_TILES
     )
 
+    /**
+     * The four mail servers the app can connect to, only after the person switched on "Read bank alert emails" and connected one of
+     * them. They are not web addresses (the connection is a direct secure one on port ${com.zyke.message.domain.email.EmailProvider.PORT}), so
+     * they are listed apart from [networkHosts]; a test pins them to the provider list in the code and to the privacy notes.
+     */
+    val mailHosts: Set<String> get() = com.zyke.message.domain.email.EmailProvider.hosts
+
     private val onPhone = LegalSection(
         id = "on-phone",
         title = "What stays on your phone",
@@ -53,6 +60,10 @@ object LegalText {
             LegalItem(
                 "On-device AI (off until you switch it on)",
                 "If you switch on \"On-device AI\" in Settings, parts of a message you ask about, or a question you type in Search, are given to Gemini Nano, a language model that runs on this phone inside Google's AI Core service. It runs on the phone only: the app has no cloud fallback and sends nothing to a server for it. Answers can be wrong, so each one is checked against your message or the app's own figures and nothing is saved until you confirm. The AI never works out your totals; the app does. If you switch on the morning digest line, a sentence for the next morning's digest is prepared while the app is open and only read, never asked for, when the digest is posted. What it suggested is kept in a private file on the phone (left out of backups and exports) until you clear it in Settings."
+            ),
+            LegalItem(
+                "Bank alert emails (off until you switch on \"Read bank alert emails\" and connect a mailbox)",
+                "The alert emails a bank sends are read on the phone and turned into payments like the texts. Only the parsed facts (amount, who, last four digits, reference number, time) and a short snippet with its digits, names and links masked are kept, in a private file that is left out of backups and exports; the email itself, its subject and the sender's address are not kept. Your app password is kept sealed with a key in the phone's secure hardware, never backed up, never logged. You can disconnect, or delete the alerts, in Settings, Email alerts, and \"Delete all my data\" removes them too."
             ),
             LegalItem("Logs", "A small log of start-up steps and crash details (screen and function names, never message text, amounts or names) stays on the phone. It leaves only if you choose Share logs and pick an app.")
         )
@@ -95,6 +106,10 @@ object LegalText {
             LegalItem(
                 "Map pictures (only when you open the Spending map)",
                 "The map page shows pictures from OpenStreetMap ($HOST_OSM_TILES). Only the numbers of the map squares you are looking at (zoom, column, row) are requested, over a secure (HTTPS) connection, with the name of this app and no cookies. Your spending places, amounts and messages are never sent. Because a square's number tells roughly which part of the world you are looking at, OpenStreetMap's servers can see that, and your phone's address, as with any map. Squares are kept on the phone for a while so the map works offline; nothing is requested while the map is closed. Map data is by OpenStreetMap contributors (ODbL). In Demo mode no map picture is requested at all."
+            ),
+            LegalItem(
+                "Bank alert emails (off until you switch on \"Read bank alert emails\", add an app password and connect)",
+                "The app signs in to your mail provider over a secure (TLS) connection, from the first byte, with the address and the app password you gave it, to one of ${mailHosts.sorted().joinToString(", ")} (the provider you chose; there is no other choice and no unsecured fallback). It asks the server for the emails from a fixed list of bank addresses (shown in Settings) since a date, reads only those, never marks, moves, flags or deletes anything, and signs out. Every other email in your mailbox is never asked for. Your provider sees the sign-in, your phone's address and a search for those sender addresses, as it would from any mail app. Email text is never sent to us or to anyone else. The password stays on the phone. Create an app password only for this; never type your normal password. Gmail and some other providers need two-step verification for app passwords, Microsoft may refuse them, and the app has not been run against a real mailbox, so whether your provider accepts it is not promised. The wording of bank emails is also not checked against real ones: an email the app does not understand is shown, masked, in \"Messages not understood\"."
             ),
             LegalItem(
                 "Texts the app sends, only when you confirm",
@@ -141,7 +156,7 @@ object LegalText {
         items = listOf(
             LegalItem("Hide amounts", "Shows every amount as dots, in the app, in notifications and in the widget, until you confirm with your screen lock."),
             LegalItem("App lock and screenshots", "Ask for your fingerprint, face or screen lock when you return to the app, and block screenshots and the recent-apps preview."),
-            LegalItem("Switch features off", "Logos, market prices, flight and train status, live alerts, code sharing, on-device AI (each of its features on its own) and backups can each be switched off in Settings. Reading messages can be paused."),
+            LegalItem("Switch features off", "Logos, market prices, flight and train status, live alerts, code sharing, reading bank alert emails, on-device AI (each of its features on its own) and backups can each be switched off in Settings. Reading messages can be paused."),
             LegalItem("Backups", "Backups are off until you switch them on. Switching Drive backup off does not delete files already in your Drive; remove them in Google Drive settings, Manage apps."),
             LegalItem("Delete all my data", "Settings, Your data and about, Delete all my data removes everything the app has saved on the phone, after you type a word to confirm. It cannot remove a copy that Android or Google already holds, or a file you shared."),
             LegalItem("Demo mode", "Shows the app with sample data. It reads none of your messages and sends no requests for logos, prices or flights.")
@@ -158,7 +173,7 @@ object LegalText {
             LegalItem("Read from texts, so it can be wrong", "Amounts, balances, dates, categories, bills and flights are worked out from your SMS by rules. A text can be missing, late, forged or worded in a way the app does not understand. Check anything that matters against your bank or provider before you rely on it."),
             LegalItem("Features that send texts", "Sharing codes, checking a balance by SMS and refreshing balances before the digest send real texts from your SIM. You use them at your own risk, and carrier charges apply."),
             LegalItem("Share codes only with people you trust", "A login code lets someone sign in to an account. Only add people you trust and only for accounts you have the right to share with them. You are responsible for what you share, and for following the rules of the services concerned."),
-            LegalItem("Third-party services", "Logos, prices, flight and train status, Google sign-in and Google Drive come from other companies, and their own terms and privacy policies apply when you use those features. Their data can be late, wrong or stop without notice. Brand names and logos belong to their owners."),
+            LegalItem("Third-party services", "Logos, prices, flight and train status, Google sign-in, Google Drive and your mail provider (for bank alert emails) are other companies, and their own terms and privacy policies apply when you use those features. Their data can be late, wrong or stop without notice. Brand names and logos belong to their owners."),
             LegalItem("Your responsibility", "Keep your phone, screen lock, backup PIN and passphrase safe. A forgotten backup PIN or passphrase cannot be recovered by anyone."),
             LegalItem("Limit of liability", "To the extent the law allows, the publisher is not liable for any loss or damage that comes from using or not being able to use the app, including money lost, a missed payment, a wrong figure, an unwanted text or its cost. Nothing here limits any right you have by law that cannot be limited."),
             LegalItem("Changes", "These terms and this page may change. The date and version at the end say which text is current; using the app after a change means you accept it.")
