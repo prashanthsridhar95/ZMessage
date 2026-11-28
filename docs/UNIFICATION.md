@@ -68,6 +68,10 @@ deck dots) is `CardSpend` / `CardLimits` / `DeckModel` in `:domain`, tested in `
 | On-demand answer UI | a sheet per feature | one `AiThinkBlock` (button, "Thinking" in words, Cancel, the checked text and its source line) used by all five |
 | Morning digest | text only | the same digest, with an optional opening line the notifier reads from `ai_cache` through `DigestNarrativeStore` (read-only; the model is never called from `notifications/`) |
 
+### 6. Email alerts -> the SMS pipeline (no second one)
+
+Bank alert emails are not a new kind of message with their own totals, lists and rules: an alert becomes a `ClassifiedMessage` through `MessageClassifier.fromLearned` (the path a taught format already uses), joins the inbox stream the way hand-made entries do, and from there it is counted by `Counting`, categorised, named, linked to the SMS of the same payment by `SamePayment` and shown by the existing rows with one added tag, `SourceTag` ("Email", the same tag as MMS and RCS). An email that is not understood reuses "Messages not understood" and the masked parsing report rather than a new list. The settings page reuses `ToggleRow`, `Chips`, `ResponsiveRow`, `AdaptiveSheet` and `ConfirmDialog`; the password is sealed the way the backup key is (same Keystore pattern, its own alias); the "not now" card is one card, not a new Home stack. Deliberately not unified: the mail socket is a second network class by design (a different transport from HTTPS), so it has its own policy test instead of joining `HttpURLConnection` code.
+
 ## Checked and kept (genuinely different, or already one path)
 
 | Candidates | Decision |

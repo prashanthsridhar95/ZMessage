@@ -764,6 +764,31 @@ screens (presentation/ai)  ->  AiHub (data/ai)  ->  AiGateway  ->  OnDeviceAi (p
 - **Build**: `com.google.mlkit:genai-prompt` (version in `gradle/libs.versions.toml`), minSdk 26 (the app's own), `-Xskip-metadata-version-check` in case the library is built with a newer Kotlin than the project's 2.0. No R8 rules were added: the library ships its own consumer rules (unverified).
 - **Unverified**: the ML Kit calls were written from the documentation and not compiled or run; AI Core behaviour, quota, latency and answer quality on a real Pixel are unmeasured.
 
+## Email alerts (bank alert emails)
+
+Opt-in (Settings > Email alerts), off by default, never in Demo mode. HDFC Bank stops UPI SMS alerts up to Rs.500 from 1 Jan 2027 and keeps sending them by email; the app only reads SMS, so small UPI payments would silently leave the totals. The decision: read the alert emails, on the phone, into the same pipeline as SMS. Everything is in `:domain` (`domain/email`) except the socket, the stores and the screen, so the protocol and the parsers run in plain JVM tests.
+
+| Piece | Where | What it does |
+|---|---|---|
+| Provider presets | `EmailProvider` | Four hosts and the app-password steps; no free-form host, so the pinned-host tests stay meaningful. TLS from the first byte, port 993 |
+| Wire | `ImapCommand`, `ImapSession` | A sealed set of read-only commands (`LOGIN`, `EXAMINE INBOX`, `UID SEARCH`, `UID FETCH ... BODY.PEEK`, `LOGOUT`) over a pair of streams; bounded lines, literals and replies; the session takes a command object, never a string |
+| One pass | `ImapMailbox` | Sign in, open read-only, search FROM the listed addresses since a date, headers, a second check of the From address and of the provider's own sender verdict (`AuthResults`), then at most 100 bodies of 200 KB, sign out |
+| Mail reader | `Mime`, `QuotedPrintable`, `Base64Lenient`, `HtmlText` | RFC 2047 words, transfer encodings, UTF-8, ISO-8859-1, windows-1252, nested multipart, plain else HTML-stripped text; never throws |
+| The list | `EmailAlertSenders` | Exact bank addresses in one editable file, each marked reported or unverified |
+| Parser | `EmailAlertParser` | The bank's own wordings first (HDFC UPI debit and credit, credit card), then the SMS parsers, then "not understood" (a masked snippet) or skipped (OTP, statement, marketing, not a payment) |
+| Store | `EmailAlertRepository` (`NoEmailAlerts`, `InMemoryEmailAlerts`, `EmailAlertRepositoryImpl`) | Parsed fields and the masked snippet only; capped, pruned by the keep-for setting |
+| Orchestration | `EmailSync` | Connect (checks the sign-in before saving anything), `syncNow`, `syncIfDue` (when the app opens, after the chosen gap), `disconnect`, `deleteAlerts`; one pass at a time |
+| Password | `EmailCredentialStore` (`EmailPasswordVault` in the app) | AES-256-GCM under a Keystore key; its own preference file; never in a backup |
+| The socket | `ImapClient` (app, `data/email`) | The only class that opens a connection. Constructed once, in `AppContainer`. Hands two streams to `ImapMailbox` |
+
+**Where it joins the pipeline.** `ObserveMessagesUseCase` has an `emailAlerts` store. Like hand-made entries, the alerts are turned into `ClassifiedMessage`s and added right after the inbox is classified, before the person's rules, nicknames, set-asides and the same-payment check. `EmailAlerts.toMessage` makes an `SmsMessage` (id above 2^52, so it cannot meet an SMS id, a picture message's or a hand-made entry's; `isEmail = true`; sender "HDFC Bank"; always read) whose body has the shape of the bank's own text (amount, account, UPI address, date, "UPI Ref No."), then calls `MessageClassifier.fromLearned` with the parsed `BankTransaction`, so it is categorised, named, counted (`Counting`) and linked exactly like a payment read from an SMS. `SamePayment` finds the same UPI reference (or the same account, amount and reference) in the SMS and the email and keeps the SMS (`sourceRank`: an email alert is the last copy that stays), so a payment told twice counts once. An email that was not understood becomes a plain message that is never read as a payment, with the masked snippet as its text, and falls into the existing "Messages not understood" list and the parsing report. The messages are not stored in the classification cache (it holds the phone's inbox); `KeepEmailMarks` keeps the person's read, pinned and archived marks on them when the inbox's marks are tidied.
+
+**The HDFC notice.** `HdfcSmsNotice` recognises the "will stop UPI SMS alerts ... email alerts continue" text; its message detail shows a one-time card (Not now / Set up) from `EmailNoticeCard`. Both answers end the offer (`hdfcNoticeAnswered`); Set up opens Settings, Email alerts, where nothing is on until the person switches it on.
+
+**Onboarding.** `EmailPrompt` (`:domain`, pure, tested) decides and words it (`NONE`, `ONBOARDING` on a fresh install, `UPDATE` after an update or restore) from the `emailPrompted` flag in `email_alerts_settings` (never backed up); `EmailPromptHost` shows it. `MainActivity`'s opening flow has it as stage 4, after the spending places stage, so only one onboarding page is visible and the tour invitation (`permissionsSettled`) waits for both. The page never enables the feature: only a successful `EmailSync.connect` does.
+
+**Not done, deliberately.** No background polling, service or alarm (the app looks when it is opened, after the gap the person chose); the sync before the morning digest is not built (the digest receiver has about ten seconds and the mail timeouts are 15 s); no OAuth, no free-form host, no folders other than the inbox; no unread marks; no Home card (only the detail card). The classification rules version is unchanged because nothing here changes how an SMS is read.
+
 ## Where every message goes (dispositions)
 
 A message on the phone reaches the All tab through these stages. Each can take it out of the list or tuck it inside another row;
