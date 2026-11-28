@@ -81,8 +81,14 @@ class ObserveMessagesUseCase(
     /** What the person said about which texts are the same payment as a bank debit. */
     private val samePayments: com.zyke.message.domain.ledger.SamePaymentRepository = com.zyke.message.domain.ledger.NoSamePayments,
     /** Moves rules saved under a payee's older key to its current key as messages arrive (see [com.zyke.message.domain.categories.LegacyKeyMigration]); null where nothing is stored. */
-    private val legacyKeys: com.zyke.message.domain.categories.LegacyKeyMigration? = null
+    private val legacyKeys: com.zyke.message.domain.categories.LegacyKeyMigration? = null,
+    /** Bank alert emails the person let the app read: parsed on the phone and kept as fields, read here as messages of source Email. Nothing when off. */
+    private val emailAlerts: com.zyke.message.domain.email.EmailAlertRepository = com.zyke.message.domain.email.NoEmailAlerts
 ) {
+    /** [userState] for the stages that drop the marks of messages no longer in the inbox: the marks on email alerts stay, they were never in the inbox. */
+    private val markState: UserMessageStateRepository? =
+        userState?.let { com.zyke.message.domain.email.KeepEmailMarks(it) { emailAlerts.state.value.alerts } }
+
     /** Ids of notification items folded into a picture message by [RichMerge]; they are not rows any more, and their marks moved. */
     private val foldedIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
@@ -97,7 +103,7 @@ class ObserveMessagesUseCase(
 
     private val progressive: ProgressiveInbox? by lazy {
         if (repository.supportsWindows) {
-            ProgressiveInbox(repository, ::classifyBatch, classificationCache, userState, paused = isReadingPaused, folded = { foldedIds.keys })
+            ProgressiveInbox(repository, ::classifyBatch, classificationCache, markState, paused = isReadingPaused, folded = { foldedIds.keys })
         } else {
             null
         }
@@ -155,6 +161,9 @@ class ObserveMessagesUseCase(
         var lastCustom: Any? = null
         var lastNicknames: Any? = null
         var lastImages: Any? = null
+        // The messages made from the email alerts, made again only when the alerts change (so the stages below see the same instances).
+        var emailFrom: List<com.zyke.message.domain.email.EmailAlert>? = null
+        var emailMade: List<ClassifiedMessage> = emptyList()
         return (progressive?.messages() ?: whole())
             .onEach { migrateLegacyKeys(it) }
             .combine(manualEntries.entries) { classified, entries ->
@@ -163,6 +172,19 @@ class ObserveMessagesUseCase(
                 } else {
                     val zone = ZoneId.systemDefault()
                     (classified + entries.map { com.zyke.message.domain.ledger.ManualEntries.toMessage(it, zone) }).sortedByDescending { it.message.date }
+                }
+            }
+            .combine(emailAlerts.state) { classified, email ->
+                val alerts = email.alerts
+                if (alerts.isEmpty()) {
+                    classified
+                } else {
+                    if (alerts != emailFrom) {
+                        val zone = ZoneId.systemDefault()
+                        emailMade = alerts.map { com.zyke.message.domain.email.EmailAlerts.toMessage(it, classifier, zone) }
+                        emailFrom = alerts
+                    }
+                    (classified + emailMade).sortedByDescending { it.message.date }
                 }
             }
             .combine(learnedTemplates.templates) { classified, templates -> applyLearned(classified, templates) }
@@ -293,7 +315,7 @@ class ObserveMessagesUseCase(
                 // A message deleted in the messaging app is gone from here too, along with every trace of it.
                 val present = inbox.mapTo(HashSet()) { it.id }.apply { removeAll(foldedIds.keys) }
                 classificationCache.retainOnly(present)
-                userState?.retainOnly(present)
+                markState?.retainOnly(present)
             }
             classified
         }

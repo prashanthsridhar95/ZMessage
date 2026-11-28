@@ -355,8 +355,9 @@ object SamePayment {
         }
     }
 
-    /** 0 an SMS from the provider, 1 a picture message, 2 a chat notification: which copy of a text is the one that stays. */
+    /** 0 an SMS from the provider, 1 a picture message, 2 a chat notification, 3 an email alert: which copy of a text is the one that stays. */
     private fun sourceRank(id: Long): Int = when {
+        com.zyke.message.domain.email.EmailAlerts.isEmailId(id) -> 3
         MmsMessages.isMmsId(id) -> 1
         id < 0 -> 2
         else -> 0
