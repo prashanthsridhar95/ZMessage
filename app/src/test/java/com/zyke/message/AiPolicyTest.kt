@@ -245,5 +245,10 @@ class AiPolicyTest {
         assertTrue("haptics go through the funnel on send", "rememberHaptics()" in page && "haptics.tick()" in page && "performHapticFeedback" !in page)
         assertTrue("send is off while empty and becomes stop while thinking", "val canSend = draft.isNotBlank() && !thinking && !demo" in page && "if (thinking) \"Stop\" else \"Send\"" in page)
         assertTrue("single line growing to four", "MAX_INPUT_LINES = 4" in page && "ImeAction.Send" in page)
+        assertTrue("the avatar is the Z of the wordmark, not the notification bubble", "R.drawable.zyke_mark" in files.getValue("AskBubbles.kt") && "zyke_icon" !in files.getValue("AskBubbles.kt"))
+        assertTrue("the suggestions wrap or scroll above the box, and the empty state shrinks while the keyboard is up", "FlowRow(" in page && "horizontalScroll(" in page && "WindowInsets.ime.getBottom(" in page)
+        assertTrue("the page applies the keyboard inset once: no second ime or navigation padding in the chat", "imePadding" !in page + files.getValue("AskBubbles.kt") && "navigationBarsPadding" !in page)
+        assertTrue("the calm title is the ordinary text colour", "calm = true" in page)
+        assertTrue("the activity resizes for the keyboard explicitly, so the system never pans on top of imePadding", "android:windowSoftInputMode=\"adjustResize\"" in File(main, "../AndroidManifest.xml").readText())
     }
 }

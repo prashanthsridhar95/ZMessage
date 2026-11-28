@@ -192,9 +192,9 @@ class AccessibilityPolicyTest {
         val page = File(presentation, "ai/AskZykePage.kt").readText()
         assertTrue("You said / Zyke said", "contentDescription = \"You said\"" in bubbles && "contentDescription = \"Zyke said\"" in bubbles)
         assertTrue("the newest answer is a polite live region", "liveRegion = LiveRegionMode.Polite" in bubbles && "newest" in bubbles)
-        assertTrue("send and stop are named and 48 dp", "contentDescription = if (thinking) \"Stop\" else \"Send\"" in page && "Modifier.size(48.dp).clip(CircleShape)" in page)
+        assertTrue("send and stop are named, a 44 dp disc in a 48 dp target", "contentDescription = if (thinking) \"Stop\" else \"Send\"" in page && "SendTarget = 48.dp" in page && "SendSize = 44.dp" in page && "Modifier.size(SendTarget).clickable(" in page)
         assertTrue("the menu and the field are named", "contentDescription = \"Chat menu\"" in page && "contentDescription = \"Ask Zyke\"" in page)
-        assertTrue("suggestions and payments are 48 dp buttons", "heightIn(min = 48.dp)" in bubbles && "Role.Button" in bubbles)
+        assertTrue("payments are 48 dp buttons and suggestions 40 dp buttons", "heightIn(min = 48.dp)" in bubbles && "ChipHeight = 40.dp" in bubbles && "Role.Button" in bubbles)
         assertEquals("no unlabelled icon in the chat", 0, Regex("contentDescription = null").findAll(bubbles + page).count())
     }
 }
