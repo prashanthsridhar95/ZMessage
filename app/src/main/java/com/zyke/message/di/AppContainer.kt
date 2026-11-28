@@ -131,6 +131,16 @@ class AppContainer(context: Context, val demo: Boolean = false) {
      * (no engine is built then), never from the SMS receiver. Built on first use by a screen.
      */
     val ai: com.zyke.message.data.ai.AiHub by lazy { com.zyke.message.data.ai.AiHub(context, demo, appScope) { customCategories.state.value.categories } }
+    /**
+     * Bank alert emails (opt-in, off until switched on in Settings, Email alerts): the choices and the parsed alerts (private preferences, never in a
+     * backup), the app password (sealed with a Keystore key, never in a backup) and the one thing that talks to a mailbox, [ImapClient], built here and
+     * nowhere else. In Demo mode there is nothing to store and nothing to connect to.
+     */
+    val emailAlerts: com.zyke.message.domain.email.EmailAlertRepository by lazy { if (demo) com.zyke.message.domain.email.NoEmailAlerts else com.zyke.message.data.repository.EmailAlertRepositoryImpl(context) }
+    val emailCredentials: com.zyke.message.domain.email.EmailCredentialStore by lazy { if (demo) com.zyke.message.domain.email.NoEmailCredentials else com.zyke.message.data.email.EmailPasswordVault(context) }
+    val emailSync by lazy {
+        com.zyke.message.domain.email.EmailSync(emailAlerts, emailCredentials, if (demo) com.zyke.message.domain.email.NoMailSource else com.zyke.message.data.email.ImapClient())
+    }
     /** The one way a payment or payee is given a name and / or a category, so every screen does it alike. */
     val namingEdits by lazy { com.zyke.message.domain.nickname.NamingEdits(nicknames, categoryOverrides, customCategories) }
     val paidBills: com.zyke.message.domain.home.PaidBillRepository by lazy { com.zyke.message.data.repository.PaidBillRepositoryImpl(context) }
@@ -183,7 +193,7 @@ class AppContainer(context: Context, val demo: Boolean = false) {
         categoryOverrides = categoryOverrides, tokenRules = tokenRules, cardRepository = cards, senderImages = imageStore, mutedSenders = mutedSenders, nicknameRepository = nicknames, mergeRepository = merges,
         classificationCache = classificationCache, userState = userMessageState, scope = appScope,
         isReadingPaused = { settings.settings.value.readingPaused },
-        manualEntries = manualEntries, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills, samePayments = samePayments,
+        manualEntries = manualEntries, emailAlerts = emailAlerts, setAsides = setAsides, learnedTemplates = learnedTemplates, paymentNotes = paymentNotes, customCategories = customCategories, cardBills = cardBills, samePayments = samePayments,
         legacyKeys = if (demo) null else com.zyke.message.domain.categories.LegacyKeyMigration(categoryOverrides, nicknames, customCategories, imageStore)
     ) }
 
@@ -196,7 +206,7 @@ class AppContainer(context: Context, val demo: Boolean = false) {
         val parts = listOf<() -> Any?>(
             { settings }, { userMessageState }, { cards }, { budgets }, { categoryOverrides }, { mutedSenders }, { nicknames },
             { merges }, { moneyPlan }, { goals }, { reminders }, { planActions }, { wishlist }, { splits }, { calendarEvents }, { hiddenAccounts }, { accountOverrides },
-            { providentFundAccounts }, { setAsides }, { cardBills }, { samePayments }, { manualEntries }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
+            { providentFundAccounts }, { setAsides }, { cardBills }, { samePayments }, { manualEntries }, { emailAlerts }, { recurringPayments }, { cancelledSubscriptions }, { loans }, { imageStore },
             { classificationCache }, { observeMessages }
         )
         for (part in parts) appScope.launch { runCatching { part() } }

@@ -147,6 +147,16 @@ class MainActivity : ComponentActivity() {
     /** The spending places offer, while it is on screen; NONE otherwise. */
     private val placesPrompt = mutableStateOf(com.zyke.message.domain.places.PlacesPromptKind.NONE)
 
+    /** The email alerts offer, while it is on screen; NONE otherwise. Queued behind the places offer: only one is ever visible. */
+    private val emailPrompt = mutableStateOf(com.zyke.message.domain.email.EmailPromptKind.NONE)
+
+    private fun emailPromptKind(): com.zyke.message.domain.email.EmailPromptKind = com.zyke.message.domain.email.EmailPrompt.kind(
+        settings = container.emailAlerts.state.value.settings,
+        demo = com.zyke.message.data.demo.DemoMode.active,
+        fresh = container.tourSeen.state.value.installKind == com.zyke.message.domain.tour.TourInstallKind.FRESH,
+        blocked = false
+    )
+
     private fun placesPromptKind(): com.zyke.message.domain.places.PlacesPromptKind = com.zyke.message.domain.places.PlacesPrompt.kind(
         settings = container.spendPlaces.state.value.settings,
         demo = com.zyke.message.data.demo.DemoMode.active,
@@ -212,7 +222,12 @@ class MainActivity : ComponentActivity() {
             // Last: the one-time offer of spending places (onboarding on a fresh install, "New" after an update). Never in demo mode.
             3 -> {
                 val kind = placesPromptKind()
-                if (kind != com.zyke.message.domain.places.PlacesPromptKind.NONE) placesPrompt.value = kind else permissionsSettled.value = true
+                if (kind != com.zyke.message.domain.places.PlacesPromptKind.NONE) placesPrompt.value = kind else askNextPermission()
+            }
+            // After places has been answered: the one-time offer of email alerts (onboarding on a fresh install, "New" after an update). Never in demo mode.
+            4 -> {
+                val kind = emailPromptKind()
+                if (kind != com.zyke.message.domain.email.EmailPromptKind.NONE) emailPrompt.value = kind else permissionsSettled.value = true
             }
         }
     }
@@ -410,6 +425,16 @@ class MainActivity : ComponentActivity() {
                         kind = placesKind,
                         onDone = {
                             placesPrompt.value = com.zyke.message.domain.places.PlacesPromptKind.NONE
+                            askNextPermission()
+                        }
+                    )
+                }
+                val emailKind = emailPrompt.value
+                if (emailKind != com.zyke.message.domain.email.EmailPromptKind.NONE && placesKind == com.zyke.message.domain.places.PlacesPromptKind.NONE && !locked && !welcomePending) {
+                    com.zyke.message.presentation.email.EmailPromptHost(
+                        kind = emailKind,
+                        onDone = {
+                            emailPrompt.value = com.zyke.message.domain.email.EmailPromptKind.NONE
                             permissionsSettled.value = true
                         }
                     )
@@ -652,6 +677,9 @@ class MainActivity : ComponentActivity() {
                 container.backup.scheduler.ensureScheduled()
                 container.backup.runner.runOfflineIfDue()
             }
+            // Bank alert emails, only if the person switched them on and connected a mailbox, and only when their chosen gap has passed
+            // (never in Demo mode, where there is no mail source). One pass, off the main thread; no timer and no service.
+            if (!com.zyke.message.data.demo.DemoMode.active) runCatching { container.emailSync.syncIfDue() }
         }
     }
 
@@ -709,7 +737,7 @@ private fun MessagesContract.State.toToolbarState() = InboxToolbarState(
     filterCount = filter.extraCount
 )
 
-private const val LAST_STAGE = 3
+private const val LAST_STAGE = 4
 
 /** What the app reads, why, and what it does with it, before Android asks for permission to read messages. */
 @androidx.compose.runtime.Composable

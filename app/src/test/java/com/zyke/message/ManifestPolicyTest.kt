@@ -53,7 +53,8 @@ class ManifestPolicyTest {
     }
 
     /**
-     * INTERNET exists for five features: the brand-logo fetch (on by default, can be turned off), the market strip's
+     * INTERNET exists for six features (the sixth, reading bank alert emails over IMAP, is a direct TLS connection to one of four fixed mail hosts and is pinned by
+     * EmailPolicyTest): the brand-logo fetch (on by default, can be turned off), the market strip's
      * prices (off until switched on), live flight status (off until switched on; the airline code and flight number only), live train status (off until the person has saved their own key and switched it on; the train number, the run's start day and the key only) and the optional backup to the person's own Google Drive (off until switched on).
      * The promise "your messages never leave the phone" is kept by making sure the network is reachable from exactly
      * five files: one sending only a brand's website name, one only an airline code and flight number (live flight status), one only a train number, start day and the person's own key (live train status), one only a ticker from their watch list (or the few letters typed into the add-stock box, to suggest names),
@@ -65,7 +66,7 @@ class ManifestPolicyTest {
         val offenders = File("src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" && network.containsMatchIn(it.readText()) }
             .map { it.name }.toList()
-        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TileFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
+        assertEquals(listOf("DriveBackupClient.kt", "FlightFetcher.kt", "ImapClient.kt", "LogoFetcher.kt", "QuoteFetcher.kt", "TileFetcher.kt", "TrainFetcher.kt"), offenders.sorted())
 
         val fetcher = File("src/main/java/com/zyke/message/data/logo/LogoFetcher.kt").readText()
         val hosts = Regex("https://([a-z.]+)/").findAll(fetcher).map { it.groupValues[1] }.toSet()

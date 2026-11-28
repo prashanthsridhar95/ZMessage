@@ -65,7 +65,7 @@ object BlackBox {
     private fun write(level: String, tag: String, text: String) {
         runCatching {
             val folder = dir ?: return
-            val line = "${stamp.get()!!.format(Date())} $level/$tag ${text.replace('\n', ' ').take(MAX_LINE)}\n"
+            val line = "${stamp.get()!!.format(Date())} $level/$tag ${com.zyke.message.domain.diag.LogScrub.scrub(text.replace('\n', ' ').take(MAX_LINE))}\n"
             appendRaw(folder, line)
         }
     }

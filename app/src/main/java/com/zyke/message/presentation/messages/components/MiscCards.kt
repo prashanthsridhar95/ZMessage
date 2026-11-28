@@ -60,7 +60,7 @@ internal fun GenericCard(
                 SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }, body = item.message.body), Modifier.weight(1f))
                 Spacer(Modifier.width(Spacing.sm))
                 SourceTag(item.message)
-                if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(Spacing.xs + 2.dp))
+                if (item.message.isMms || item.message.isChat() || item.message.isEmail) Spacer(Modifier.width(Spacing.xs + 2.dp))
                 Caption(time)
             }
             item.samePayment?.takeIf { it.kind == com.zyke.message.domain.ledger.SamePaymentKind.CERTAIN }?.let {

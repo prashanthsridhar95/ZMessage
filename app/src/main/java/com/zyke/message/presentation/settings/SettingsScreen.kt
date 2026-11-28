@@ -119,7 +119,8 @@ internal enum class SettingsGroup(val title: String, val icon: Int) {
     LEGAL("Privacy and terms", R.drawable.ic_lock_24),
     LICENCES("Open-source licences", R.drawable.baseline_list_24),
     DEVELOPER("Developer options", R.drawable.ic_info_24),
-    AI("On-device AI", R.drawable.baseline_message_24)
+    AI("On-device AI", R.drawable.baseline_message_24),
+    EMAIL("Email alerts", R.drawable.baseline_message_24)
 }
 
 /**
@@ -150,6 +151,7 @@ fun SettingsPage(
     val logging by com.zyke.message.data.diag.DevLog.logging.collectAsStateWithLifecycle()
     val aiSettings by container.ai.settings.collectAsStateWithLifecycle()
     val aiAvailability by container.ai.availability.collectAsStateWithLifecycle()
+    val emailState by container.emailAlerts.state.collectAsStateWithLifecycle()
 
     val demoOn = com.zyke.message.data.demo.DemoMode.active
     val gate = com.zyke.message.presentation.motion.rememberEnterGate()
@@ -177,6 +179,7 @@ fun SettingsPage(
             SettingsGroup.LICENCES -> "Libraries, font and icons we use"
             SettingsGroup.DEVELOPER -> if (logging) "Writing a log file" else "Log is off"
             SettingsGroup.AI -> when { demoOn -> "Not used in the demo"; aiSettings.master && aiSettings.explained -> "On \u00B7 " + com.zyke.message.presentation.ai.availabilityLabel(aiAvailability); else -> "Off" }
+            SettingsGroup.EMAIL -> when { demoOn -> "Not used in the demo"; emailState.settings.enabled && emailState.settings.connected -> "On \u00B7 " + com.zyke.message.presentation.format.DisplayFormatters.count(emailState.understood, "alert", "alerts"); emailState.settings.enabled -> "On, not connected"; else -> "Off" }
         }
     }
 
@@ -417,6 +420,7 @@ private fun GroupContent(
         SettingsGroup.MARKETS -> com.zyke.message.presentation.markets.MarketSettingsSection()
         SettingsGroup.PLACES -> com.zyke.message.presentation.places.PlacesSettingsContent()
         SettingsGroup.AI -> com.zyke.message.presentation.ai.AiSettingsContent()
+        SettingsGroup.EMAIL -> com.zyke.message.presentation.email.EmailSettingsContent()
         SettingsGroup.FLIGHTS -> {
             com.zyke.message.presentation.flights.FlightSettingsSection()
             com.zyke.message.presentation.trains.TrainSettingsSection()

@@ -30,5 +30,7 @@ object DataWipe {
         app.filesDir.listFiles()?.forEach { it.deleteRecursively() }
         app.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
         runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(CACHE_KEY_ALIAS) }
+        // The mailbox password's key goes too (its sealed copy was in the preference files deleted above).
+        runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(com.zyke.message.data.email.EmailPasswordVault.ALIAS) }
     }
 }

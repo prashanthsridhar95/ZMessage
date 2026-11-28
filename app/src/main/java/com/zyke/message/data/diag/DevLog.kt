@@ -162,7 +162,8 @@ object DevLog {
     }
 
     private fun write(level: String, tag: String, message: String) {
-        val line = "${stamp.get()!!.format(Date())} $level/$tag [${Thread.currentThread().name}] $message\n"
+        // Whatever a caller passes, an email address or a mail login never reaches the file (see LogScrub).
+        val line = "${stamp.get()!!.format(Date())} $level/$tag [${Thread.currentThread().name}] ${com.zyke.message.domain.diag.LogScrub.scrub(message)}\n"
         writer.execute {
             runCatching {
                 val file = current() ?: return@execute

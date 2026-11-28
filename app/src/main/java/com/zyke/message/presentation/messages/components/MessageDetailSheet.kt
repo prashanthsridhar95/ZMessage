@@ -288,6 +288,9 @@ internal fun MessageDetailSheet(
                 if (message.isChat() && !message.isMms) ChatNote()
             }
 
+            // HDFC's "we are stopping UPI SMS alerts" notice: a one-time offer to read the email alerts that continue.
+            com.zyke.message.presentation.email.EmailNoticeCard(message)
+
             // "Explain this message" in plain words, only when the person switched that on (On-device AI); never for a one-time code.
             com.zyke.message.presentation.ai.AiExplainRow(item)
 

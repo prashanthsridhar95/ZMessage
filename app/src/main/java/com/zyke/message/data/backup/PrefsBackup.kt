@@ -32,7 +32,9 @@ object PrefsBackup {
     // spend_places (the places themselves) travels ONLY when the person turned on "Include places in my backup" (off by default): see OPT_IN and placesOptedIn.
     // ai_settings (the on-device AI switches describe this phone's model, so a restored phone never starts using it on its own) and ai_cache
     // (what the AI suggested, derived from message text) never travel.
-    private val EXCLUDED = setOf("ai_settings", "ai_cache", "spend_places_settings", "flight_plan", "train_plan", "code_sharing_log", "code_sharing_seen", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
+    // email_alerts_settings, email_alerts and email_secret: the mailbox connected on this phone, the alerts read from it (parsed fields and a masked snippet; they
+    // come back from the mailbox on the next sync) and the sealed app password. They describe this phone and its mailbox and never travel.
+    private val EXCLUDED = setOf("email_alerts_settings", "email_alerts", "email_secret", "ai_settings", "ai_cache", "spend_places_settings", "flight_plan", "train_plan", "code_sharing_log", "code_sharing_seen", "balance_check_device", "train_key_device", "train_usage_device", "sender_images", "developer", "perf", "reminder_alarms", "recent_searches", "backup_secret", "backup_state", "backup_folder", "tour_state", "demo_mode")
     /** Files that are left out of a backup unless the person opted in (read from [SETTINGS_FILE] when the snapshot is made). */
     private val OPT_IN = setOf("spend_places")
     private const val SETTINGS_FILE = "spend_places_settings"

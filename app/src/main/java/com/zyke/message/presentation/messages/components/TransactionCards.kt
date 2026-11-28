@@ -2,12 +2,15 @@ package com.zyke.message.presentation.messages.components
 
 import com.zyke.message.presentation.theme.Spacing
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.zyke.message.domain.model.BankTransactionType
@@ -42,7 +45,16 @@ internal fun TransactionCard(
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            RowTitle(item.merchant.displayName)
+            if (item.message.isEmail) {
+                // An alert read from an email says so, next to the name.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f, fill = false)) { RowTitle(item.merchant.displayName) }
+                    Spacer(Modifier.width(Spacing.xs + 2.dp))
+                    SourceTag(item.message)
+                }
+            } else {
+                RowTitle(item.merchant.displayName)
+            }
             PaymentInstrumentCaption(
                 instrument = instrument,
                 last4 = if (repeatOf == null) last4 else null,

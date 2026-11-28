@@ -41,6 +41,7 @@ internal fun SmsMessage.isChat(): Boolean = isRcs && !com.zyke.message.domain.cl
 
 /** What the heading of the original text says about where the message came from. */
 internal fun SmsMessage.sourceHeading(): String = when {
+    isEmail -> "EMAIL ALERT (read from your mailbox on this phone)"
     isMms -> "PICTURE MESSAGE (MMS)"
     isChat() -> "RICH MESSAGE (RCS)"
     else -> "MESSAGE"
@@ -49,11 +50,12 @@ internal fun SmsMessage.sourceHeading(): String = when {
 /** The sentence under a chat (RCS) message: only its text was captured. */
 internal const val RICH_NOT_AVAILABLE = "Image and buttons from the original message are not available here. Open it in Messages."
 
-/** A small "MMS" or "RCS" tag for a message that did not arrive as a plain text; nothing for an SMS. */
+/** A small "MMS", "RCS" or "Email" tag for a message that did not arrive as a plain text; nothing for an SMS. */
 @Composable
 internal fun SourceTag(message: SmsMessage, modifier: Modifier = Modifier) {
     // A rich card kept in the MMS provider carries both flags and is an RCS message; a plain picture message stays "MMS".
     val label = when {
+        message.isEmail -> "Email"
         message.isChat() -> "RCS"
         message.isMms -> "MMS"
         else -> return
