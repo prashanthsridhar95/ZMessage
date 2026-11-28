@@ -52,7 +52,11 @@ fun ClassifiedMessage.spokenSummary(
             is FastTagEvent.RechargeNeeded -> "FASTag balance low for vehicle ${e.vehicleNumber}. Recharge now"
             is FastTagEvent.Activated -> "FASTag active for vehicle ${e.vehicleNumber}"
         }
-        is MessageContent.DataUsage -> "${c.carrier.displayName} data usage alert: ${c.percentUsed} percent used"
+        is MessageContent.DataUsage -> "${c.carrier.displayName} data usage alert: " + when {
+            c.hasPercent -> "${c.percentUsed} percent used"
+            c.isExhausted -> "data finished"
+            else -> "${c.left ?: "little data"} left"
+        }
         is MessageContent.Courier -> "Courier from ${senderSpoken()}: " + when (c.status) {
             CourierStatus.ARRIVING_TODAY -> "arriving today"
             CourierStatus.DELIVERED -> "delivered"

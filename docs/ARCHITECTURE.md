@@ -54,7 +54,19 @@ for other banks' wording. It never throws and parses at most 4096 characters.
 Two general shapes from the parsing report live there: "A transaction of INR X was made on your Card ending N at SHOP PG on D" (a card
 purchase; a trailing `PG` / `Payment Gateway` is dropped from the shop's name) and "Rs X/- has been credited to your SHOP account" (a
 shop wallet: payee "SHOP wallet", kept out of income like any store credit; a bank, savings or masked account, a balance or a refund is
-not read this way). `RULES_VERSION` is 29.
+not read this way). `RULES_VERSION` is 30.
+
+Version 30: telecom data alerts (`TelecomNotices.dataUsed`) are read for Airtel, Jio, Vi and BSNL from "consumed N% of your data", "N% of
+daily data used", "only 1 GB left", "quota exhausted" and "pack expires on <date>"; `MessageContent.DataUsage` carries percent (-1 when the
+text gives none), data left, the expiry and whether the quota is finished. It holds no money and is never counted; a text that moves money
+(a recharge debit) or only advertises a pack stays with the money rules or generic. The detail page shows "Data used" with a thin bar,
+"Pack expires" and the operator's own address as an "Open ..." button (`TelecomNotices.topUpLink`; nothing opens by itself). "You have still
+not subscribed for next month's delivery" is a `LifeKind.RENEWAL` reminder ("Subscription pending", never spend), filed under groceries,
+food or entertainment by what is delivered. `BrandSpelling` names a sender whose id is a skeleton of a brand the body spells out (FRMILK in
+"FreshMilk"); a name the rules know is never replaced. A header written in mixed case with a category ("Airtel-S") or with the category
+letter run on ("AIRTELS") is a header only when what is left is a known bank or brand. The "verified" seal still means the header has the
+shape of a registered sender (see `SenderDisplay`), not membership of a list. The detail page's title is the header row's resolved name.
+Mutes stay keyed by `SenderKey` (the raw header), so no stored mute is orphaned.
 
 ## Sheets and pages
 

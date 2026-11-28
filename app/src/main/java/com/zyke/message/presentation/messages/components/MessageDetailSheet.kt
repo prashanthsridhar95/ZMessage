@@ -79,7 +79,11 @@ import com.zyke.message.domain.categories.CategoryOptions
 import com.zyke.message.domain.categories.CustomCategories
 import com.zyke.message.domain.model.CustomCategory
 import com.zyke.message.domain.nickname.label
+import com.zyke.message.domain.conversation.SenderDisplay
 import com.zyke.message.domain.conversation.SenderKey
+import com.zyke.message.domain.classification.TelecomNotices
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import com.zyke.message.domain.model.MessageCategory
 import com.zyke.message.domain.model.ClassifiedMessage
 import com.zyke.message.domain.model.MerchantLogo
@@ -116,8 +120,16 @@ internal fun MessageDetailSheet(
     val content = item.content
     val facts = item.detailFacts()
     val instrument = rememberInstrument(item)
-    val senderLabel = com.zyke.message.presentation.common.rememberSenderLabel(message.sender, item.merchant.name.takeIf { item.merchant.renamed })
-    val title = if (item.merchant.renamed || item.merchant.logo != MerchantLogo.PERSON) item.merchant.displayName else if (senderLabel.verified) senderLabel.name else SenderKey.displayAddress(message.sender)
+    val senderLabel = com.zyke.message.presentation.common.rememberSenderLabel(message.sender, item.merchant.name.takeIf { item.merchant.renamed }, body = message.body)
+    // The page is named as its header row is: nickname, then the verified or body-spelled name, then the title-cased id. A payment's
+    // merchant is the payee, so only a message that is not a payment lets the sender's resolved name stand for a brand merchant.
+    val sameAsSender = content !is MessageContent.Transaction && senderLabel.verified && SenderDisplay.sameBrand(item.merchant.name, senderLabel.name)
+    val title = when {
+        item.merchant.renamed -> item.merchant.displayName
+        item.merchant.logo != MerchantLogo.PERSON -> if (sameAsSender) senderLabel.name else item.merchant.displayName
+        senderLabel.verified -> senderLabel.name
+        else -> SenderKey.displayAddress(message.sender)
+    }
     val sender = SenderKey.displayAddress(message.sender)
     val canTag = content !is MessageContent.Otp && CategoryKey.of(item) != null
     // A payment names who it was with. Its category, name and picture belong to that payee (a person or shop), not to the bank that sent the text.
@@ -202,6 +214,16 @@ internal fun MessageDetailSheet(
                                 maxLines = 2
                             )
                         }
+                        // An amount of something used (data): a thin bar under its row, drawn from theme colours so it follows dark mode.
+                        val progress = fact.progress
+                        if (progress != null) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(bottom = Spacing.md).height(4.dp).clip(RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                            ) {
+                                Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                            }
+                        }
                     }
                 }
             }
@@ -230,7 +252,12 @@ internal fun MessageDetailSheet(
                     )
                 }
             }
-            val links = remember(message.body) { linksIn(message.body).filter { it != billLink }.take(3) }
+            // A telecom text writes its top-up address without "https://" (i.airtel.in/Prepaidservice); the operator's own address gets the same button.
+            val links = remember(message.body, content) {
+                val written = linksIn(message.body).filter { it != billLink }
+                val bare = if (content is MessageContent.DataUsage) TelecomNotices.topUpLink(message.body)?.takeIf { it !in written } else null
+                (written + listOfNotNull(bare)).take(3)
+            }
             links.forEach { link ->
                 AppButton(
                     "Open ${Uri.parse(link).host?.removePrefix("www.") ?: "link"}",

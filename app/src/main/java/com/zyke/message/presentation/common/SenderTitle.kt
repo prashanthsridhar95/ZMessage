@@ -64,5 +64,5 @@ fun SenderTitle(
 
 /** The label for a message's sender: the person's name for it (if any) wins, the badge follows the header. */
 @Composable
-fun rememberSenderLabel(sender: String, nickname: String? = null, fallbackName: String? = null): SenderLabel =
-    remember(sender, nickname, fallbackName) { SenderDisplay.of(sender, nickname, fallbackName) }
+fun rememberSenderLabel(sender: String, nickname: String? = null, fallbackName: String? = null, body: String? = null): SenderLabel =
+    remember(sender, nickname, fallbackName, body) { SenderDisplay.of(sender, nickname, fallbackName, body) }

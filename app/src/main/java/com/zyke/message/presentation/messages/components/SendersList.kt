@@ -51,7 +51,7 @@ internal fun Conversation.title(): String =
 
 /** The name this conversation is shown under, and whether its header is a registered one: a name the person gave wins, a registered header shows its name alone. */
 internal fun Conversation.senderLabel(): SenderLabel {
-    val base = SenderDisplay.of(newest.message.sender, merchant.name.takeIf { merchant.renamed })
+    val base = SenderDisplay.of(newest.message.sender, merchant.name.takeIf { merchant.renamed }, body = newest.message.body)
     return if (merchant.renamed || base.verified) base else SenderLabel(title(), false)
 }
 

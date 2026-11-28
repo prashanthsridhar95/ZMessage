@@ -8,8 +8,8 @@ import com.zyke.message.domain.model.ScheduledKind
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** [isInstrument]: this row names the card or account the payment was made with; the sheet puts the instrument icon before it. */
-data class DetailFact(val label: String, val value: String, val isInstrument: Boolean = false)
+/** [progress] (0 to 1) draws a thin bar under the row, for an amount of something used. [isInstrument]: this row names the card or account the payment was made with; the sheet puts the instrument icon before it. */
+data class DetailFact(val label: String, val value: String, val isInstrument: Boolean = false, val progress: Float? = null)
 
 /** The numbers and names we understood in a message, as label / value rows for its detail sheet. */
 fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<DetailFact> {
@@ -20,7 +20,7 @@ fun ClassifiedMessage.detailFacts(locale: Locale = Locale.getDefault()): List<De
         is MessageContent.ScheduledPayment -> scheduledFacts(c, dates)
         is MessageContent.Otp -> otpFacts(c)
         is MessageContent.FastTag -> fastTagFacts(c.event)
-        is MessageContent.DataUsage -> listOf(DetailFact("Carrier", c.carrier.displayName), DetailFact("Used", "${c.percentUsed}%"))
+        is MessageContent.DataUsage -> dataFacts(c, dates)
         is MessageContent.Courier -> listOf(DetailFact("Status", courierStatus(c.status)))
         is MessageContent.Loyalty -> listOf(
             DetailFact("Programme", merchant.displayName),
@@ -49,6 +49,14 @@ private fun ClassifiedMessage.transactionFacts(c: MessageContent.Transaction) = 
     c.payee.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isReceived) "From" else "To", merchant.displayName) },
     c.accountNumber.takeIf { it.isNotEmpty() }?.let { DetailFact(if (c.isCard) "Card" else "Account", "•• $it", isInstrument = true) },
     c.bankName.displayString.takeIf { it.isNotEmpty() }?.let { DetailFact("Bank", it) }
+)
+
+private fun dataFacts(c: MessageContent.DataUsage, dates: DateTimeFormatter) = listOfNotNull(
+    DetailFact("Carrier", c.carrier.displayName),
+    if (c.hasPercent) DetailFact(if (c.isDaily) "Daily data used" else "Data used", "${c.percentUsed}%", progress = c.percentUsed / 100f) else null,
+    c.left?.let { DetailFact("Data left", it) },
+    if (c.isExhausted) DetailFact("Status", "Data finished") else null,
+    c.expires?.let { DetailFact("Pack expires", dates.format(it)) }
 )
 
 private fun billFacts(c: MessageContent.CardBill, dates: DateTimeFormatter) = listOfNotNull(

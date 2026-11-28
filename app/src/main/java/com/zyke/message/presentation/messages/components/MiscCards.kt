@@ -57,7 +57,7 @@ internal fun GenericCard(
 
         Column(Modifier.weight(1f)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }), Modifier.weight(1f))
+                SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }, body = item.message.body), Modifier.weight(1f))
                 Spacer(Modifier.width(Spacing.sm))
                 SourceTag(item.message)
                 if (item.message.isMms || item.message.isChat()) Spacer(Modifier.width(Spacing.xs + 2.dp))
@@ -90,7 +90,7 @@ internal fun CourierCard(
         Spacer(Modifier.width(Spacing.lg))
 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }))
+            SenderTitle(rememberSenderLabel(item.message.sender, item.merchant.name.takeIf { item.merchant.renamed }, body = item.message.body))
             Caption(time)
         }
 
@@ -195,13 +195,13 @@ internal fun DataUsageCard(
                 Modifier
                     .background(MaterialTheme.colorScheme.secondaryContainer)
                     .fillMaxHeight()
-                    .fillMaxWidth(content.percentUsed.coerceIn(0, 100) / 100f)
+                    .fillMaxWidth(if (content.hasPercent) content.percentUsed / 100f else 1f)
                     .padding(horizontal = Spacing.lg),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = "${content.percentUsed}%",
+                    text = if (content.hasPercent) "${content.percentUsed}%" else content.left.orEmpty().ifEmpty { "Low" },
                     fontSize = 32.sp,
                     color = MaterialTheme.colorScheme.secondary
                 )
