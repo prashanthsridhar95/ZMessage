@@ -33,6 +33,9 @@ data class SenderLabel(val name: String, val verified: Boolean) {
 object SenderDisplay {
     private const val CATEGORIES = "STPGstpg"
     private const val MAX_NAME = 20
+    private const val MAX_GLUED = 13
+    private const val MIN_BRAND = 3
+    private const val MAX_BRAND = 12
 
     private val WITH_ROUTE_AND_CATEGORY = Regex("^([A-Za-z]{2})-([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)-([$CATEGORIES])$")
     private val WITH_CATEGORY = Regex("^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)-([$CATEGORIES])$")
@@ -57,7 +60,7 @@ object SenderDisplay {
     fun parseHeader(raw: String): SenderHeader? {
         val s = raw.trim()
         if (s.length < 4 || s.length > 40 || s.any { it.isWhitespace() || it == '@' || it == '+' } || s.none { it.isLetter() }) return null
-        if (s != s.uppercase() && s != s.lowercase()) return null
+        if (s != s.uppercase() && s != s.lowercase()) return mixedCaseBrand(s)
         WITH_ROUTE_AND_CATEGORY.matchEntire(s)?.let { m ->
             val name = m.groupValues[2]
             if (validName(name)) return SenderHeader(m.groupValues[1].uppercase(), name.uppercase(), m.groupValues[3].uppercase()[0])
@@ -76,10 +79,47 @@ object SenderDisplay {
                 if (name.count { it.isLetter() } >= 2 && validName(name)) return SenderHeader(m.groupValues[1], name, null)
             }
         }
-        return null
+        return gluedCategory(s)
+    }
+
+    /**
+     * "Airtel-S" or "Vm-Airtel-S": a phone that stored the header in mixed case. A person types such a name too ("Mo-Ann"), so it is
+     * only a header when what is left once the route and category are taken off is a bank or brand the rules know.
+     */
+    private fun mixedCaseBrand(s: String): SenderHeader? {
+        val header = parseHeader(s.uppercase()) ?: return null
+        // Without a category ("Ax-Hdfcbk") it is how a person types, as before.
+        return header.takeIf { it.category != null && isKnown(it.name.replace("-", "")) }
+    }
+
+    /** "AIRTELS": the category letter run into the name. Only when what is left is a known header, so "GROFERS" keeps its S. */
+    private fun gluedCategory(s: String): SenderHeader? {
+        if (s != s.uppercase() || s.length !in 5..MAX_GLUED || !s.all { it.isLetter() } || s.last() !in "STPG") return null
+        val rest = s.dropLast(1)
+        return if (isKnown(rest)) SenderHeader(null, rest, s.last()) else null
+    }
+
+    /** The bank or brand the rules know by this header name (no route, no category), not another company of a bank's group. */
+    private fun isKnown(compact: String): Boolean {
+        if (NOT_THE_BANK.any { compact.endsWith(it) }) return false
+        return SenderBank.of("XX-$compact") != null || brandName(compact, compact) != null
+    }
+
+    /** The name a merchant rule gives a header that it names whole: "JIO" is Jio, "JIOSAAVN" is not. */
+    private fun brandName(compact: String, spaced: String): String? {
+        if (compact.length > MAX_BRAND) return null
+        val merchant = resolver.resolve(spaced)
+        return merchant.name.takeIf { it != spaced && compact.length <= it.count { c -> c.isLetter() } + 2 }
     }
 
     private fun validName(name: String) = name.length in 2..MAX_NAME && name.any { it.isLetter() }
+
+    /** True when two names are the same brand written differently ("HDFC" and "HDFC Bank", "Swiggy Dineout" and "Swiggy"): one starts the other. */
+    fun sameBrand(a: String, b: String): Boolean {
+        val x = a.filter { it.isLetterOrDigit() }.lowercase()
+        val y = b.filter { it.isLetterOrDigit() }.lowercase()
+        return minOf(x.length, y.length) >= MIN_BRAND && (x.startsWith(y) || y.startsWith(x))
+    }
 
     /** The name alone for [raw] ("HDFC Bank"); what a notification says. A plain number or name is returned as it is. */
     fun name(raw: String): String = of(raw).name
@@ -87,14 +127,25 @@ object SenderDisplay {
     /**
      * The label for [sender]. [nickname] is the name the person gave the sender (it wins for the name); [fallbackName] is a name read
      * from the message itself, used when the header does not name the sender (a phone number that says "HDFC Bank" in its text).
+     * [body] is the message text: when the header is only an abbreviation of a brand the text spells out ("FRMILK" and "FreshMilk"),
+     * that spelling is the name (see [BrandSpelling]); a name the rules know ("HDFC Bank") is never replaced.
      */
-    fun of(sender: String, nickname: String? = null, fallbackName: String? = null): SenderLabel {
+    fun of(sender: String, nickname: String? = null, fallbackName: String? = null, body: String? = null): SenderLabel {
         val nick = nickname?.trim().orEmpty()
         val base = baseLabel(sender)
         if (nick.isNotEmpty()) return SenderLabel(nick, base.verified)
+        if (!body.isNullOrEmpty()) bodyBrand(sender, base, body)?.let { return SenderLabel(it, base.verified) }
         val fallback = fallbackName?.trim().orEmpty()
         if (!base.verified && fallback.isNotEmpty()) return SenderLabel(fallback, false)
         return base
+    }
+
+    private fun bodyBrand(sender: String, base: SenderLabel, body: String): String? {
+        val trimmed = sender.trim()
+        val id = parseHeader(trimmed)?.name ?: trimmed.takeIf { t -> t.length in 4..MAX_NAME && t.all { it.isUpperCase() } }
+        // Only a name that is the id's own letters, title-cased, is a guess to improve; a bank or brand the rules know stays.
+        if (id == null || base.name != titleCase(id)) return null
+        return BrandSpelling.fromBody(id, body)
     }
 
     private fun baseLabel(sender: String): SenderLabel {
@@ -118,12 +169,7 @@ object SenderDisplay {
         val bank = if (ownBank) SenderBank.of(raw) else null
         if (bank != null) bankName(bank)?.let { return it }
         // A sender the merchant rules know by name (Swiggy, Amazon, Airtel): their name, as the rest of the app calls them.
-        if (ownBank && compact.length <= 12) {
-            val spaced = header.name.replace('-', ' ')
-            val merchant = resolver.resolve(spaced)
-            // Only a rule that names the whole header: "JIO" is Jio, "JIOSAAVN" is not.
-            if (merchant.name != spaced && compact.length <= merchant.name.count { it.isLetter() } + 2) return merchant.name
-        }
+        if (ownBank) brandName(compact, header.name.replace('-', ' '))?.let { return it }
         return titleCase(header.name)
     }
 

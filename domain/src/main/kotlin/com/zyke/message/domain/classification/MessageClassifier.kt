@@ -1,6 +1,7 @@
 package com.zyke.message.domain.classification
 
 import com.zyke.message.domain.model.BankName
+import com.zyke.message.domain.conversation.SenderDisplay
 import com.zyke.message.domain.conversation.SenderKey
 import com.zyke.message.domain.life.LifeKind
 import com.zyke.message.domain.life.LifeParser
@@ -68,11 +69,10 @@ class MessageClassifier(
             body.contains("Bank Tag", true) || body.contains("Fastag", true) -> fastTag(message)
             NoticeParser.isProvidentFund(body) -> notice(message) ?: generic(message)
             LifeParser.isOrderConfirmation(body) -> life(message) ?: bank(message)
-            TelecomNotices.detect(body, receivedDay(message)) != null -> telecom(message) ?: generic(message)
+            TelecomNotices.detect(body, receivedDay(message), message.sender) != null -> telecom(message) ?: generic(message)
             // A bank's answer to "check balance by SMS" states a balance and moves nothing: never read it as a payment.
             NoticeParser.isBalanceReply(body) -> notice(message) ?: generic(message)
             GenericTransactionParser.mentionsMoney(body) -> bank(message)
-            DATA_USAGE.matches(body) -> dataUsage(message)
             body.contains("Blue Dart") -> courier(message)
             body.contains("Petpooja") -> loyalty(message)
             else -> life(message) ?: generic(message)
@@ -83,14 +83,14 @@ class MessageClassifier(
 
     /** A plan that ends, a data alert, a "thanks for calling" offer, the regulator's SIM advisory. */
     private fun telecom(message: SmsMessage): ClassifiedMessage? {
-        return when (val found = TelecomNotices.detect(message.body, receivedDay(message))) {
+        return when (val found = TelecomNotices.detect(message.body, receivedDay(message), message.sender)) {
             null -> null
             is TelecomNotices.Notice.Plan -> lifeFrom(message, found.facts)
             is TelecomNotices.Notice.DataUsed -> ClassifiedMessage(
                 message = message,
                 category = MessageCategory.NETWORK_CARRIERS,
-                merchant = merchants.resolve(found.carrier.displayName, MessageCategory.NETWORK_CARRIERS),
-                content = MessageContent.DataUsage(found.carrier, found.percent)
+                merchant = merchants.resolve(if (found.carrier == NetworkCarrier.VI) "Vi Mobile" else found.carrier.displayName, MessageCategory.NETWORK_CARRIERS),
+                content = MessageContent.DataUsage(found.carrier, found.percent ?: -1, found.left, found.expires, found.exhausted, found.daily)
             )
             TelecomNotices.Notice.Offer -> generic(message).copy(isPromotional = true)
             TelecomNotices.Notice.Advisory -> ClassifiedMessage(
@@ -261,11 +261,13 @@ class MessageClassifier(
         val title = when {
             facts.merchant != null -> facts.merchant
             merchant.name != "${message.sender} ${message.body}" && merchant.logo != MerchantLogo.PERSON -> merchant.name
+            facts.status == LifeParser.SUBSCRIPTION_PENDING -> SenderDisplay.of(message.sender, body = message.body).name
             else -> SenderKey.displayAddress(message.sender)
         }
         val category = when {
             facts.kind == LifeKind.TRAVEL -> MessageCategory.TRAVEL
             facts.isParcel -> MessageCategory.COURIER
+            facts.status == LifeParser.SUBSCRIPTION_PENDING -> subscriptionCategory(message.body, merchant.category)
             // An order that names its own restaurant or shop is filed by that name, not by the bank the message came through.
             facts.merchant != null -> merchant.category.takeIf { it != MessageCategory.OTHERS }
                 ?: if (FOOD_ORDER.containsMatchIn(message.body)) MessageCategory.FOOD else MessageCategory.OTHERS
@@ -277,6 +279,14 @@ class MessageClassifier(
             merchant = merchant.copy(name = title, category = category),
             content = MessageContent.Life(facts.kind, title, facts.status, facts.date, facts.time, facts.reference, facts.isDone, facts.amount)
         )
+    }
+
+    /** A reminder to take a subscription up again is filed by what is delivered: milk and vegetables are groceries, meals are food. */
+    private fun subscriptionCategory(body: String, fallback: MessageCategory) = when {
+        GROCERY_WORDS.containsMatchIn(body) -> MessageCategory.GROCERIES
+        MEAL_WORDS.containsMatchIn(body) -> MessageCategory.FOOD
+        STREAMING_WORDS.containsMatchIn(body) -> MessageCategory.ENTERTAINMENT
+        else -> fallback
     }
 
     private fun notice(message: SmsMessage): ClassifiedMessage? {
@@ -293,16 +303,6 @@ class MessageClassifier(
             },
             merchant = merchant,
             content = MessageContent.Notice(kind, amount, NoticeParser.detail(kind, message.body))
-        )
-    }
-
-    private fun dataUsage(message: SmsMessage): ClassifiedMessage {
-        val percent = DATA_USAGE.find(message.body)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        return ClassifiedMessage(
-            message = message,
-            category = MessageCategory.NETWORK_CARRIERS,
-            merchant = merchants.resolve("Airtel", MessageCategory.NETWORK_CARRIERS),
-            content = MessageContent.DataUsage(NetworkCarrier.AIRTEL, percent)
         )
     }
 
@@ -363,7 +363,7 @@ class MessageClassifier(
          * Part of the cache's version tag. Raise it whenever the rules change what a message is read as, so what an
          * earlier build remembered is read again even when the app was swapped in without a fresh install.
          */
-        const val RULES_VERSION = 29
+        const val RULES_VERSION = 30
 
         /** "Payment of Rs.5,000 received on your Credit Card XX1234", "credited to your card towards the due", ... */
         private val CARD_PAYMENT = Regex(
@@ -372,13 +372,16 @@ class MessageClassifier(
         )
         const val MAX_PARSED_LENGTH = 4096
 
+        // "milk" is found inside a brand written as one word (FreshMilk); the short words keep their boundaries.
+        private val GROCERY_WORDS = Regex("(?i)milk|dairy|vegetable|fruit|grocer|\\b(?:curd|paneer|eggs?|bread)\\b")
+        private val MEAL_WORDS = Regex("(?i)\\b(?:meals?|tiffin|lunch|dinner|breakfast|food)\\b")
+        private val STREAMING_WORDS = Regex("(?i)\\b(?:ott|streaming|netflix|hotstar|music|magazine)\\b")
+
         private val FOOD_ORDER = Regex("(?i)\\b(?:food|meal|pizza|burger|restaurant|doorstep|domino|kfc|mcdonald|popeyes|subway|swiggy|zomato|starbucks|hot & fresh)")
 
         /** Hashes and long references: 16+ letters and digits with no spaces, at least some digits. */
         val OPAQUE_ID = Regex("(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{16,}")
 
-        val DATA_USAGE =
-            """(\d+)% Alert: You have consumed \1% of your daily high Speed Data limit\. Track usage on Airtel Thanks App i\.airtel\.in/Get-Data""".toRegex()
         val LOYALTY =
             "Loyalty wallet for (.*?) is loaded with (\\d+\\.\\d{2}) points.*Current wallet balance: (\\d+\\.\\d{2})".toRegex()
     }

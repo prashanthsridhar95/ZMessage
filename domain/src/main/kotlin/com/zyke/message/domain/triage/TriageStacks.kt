@@ -325,9 +325,9 @@ object TriageStacks {
                 tags += TriageTag("Expired")
             }
             is MessageContent.DataUsage -> {
-                headline = "${c.percentUsed}% of your data is used"
+                headline = if (c.hasPercent) "${c.percentUsed}% of your data is used" else if (c.isExhausted) "Your data is finished" else "${c.left ?: "Little"} of your data is left"
                 summary = lines(c.carrier.name.lowercase().replaceFirstChar { it.uppercase() }.replace('_', ' '))
-                if (c.percentUsed >= 90) { tags += TriageTag("Almost used up", TriageTone.WARNING); tone = TriageTone.WARNING }
+                if (c.percentUsed >= 90 || c.isExhausted || !c.hasPercent) { tags += TriageTag("Almost used up", TriageTone.WARNING); tone = TriageTone.WARNING }
             }
             is MessageContent.Loyalty -> {
                 headline = c.programme.ifBlank { label.name } + (if (c.isLoaded) ": points added" else ": points used")

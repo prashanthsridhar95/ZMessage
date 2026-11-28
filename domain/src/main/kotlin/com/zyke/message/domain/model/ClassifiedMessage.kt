@@ -89,7 +89,20 @@ sealed interface MessageContent : java.io.Serializable {
         val isCard: Boolean
     ) : MessageContent
 
-    data class DataUsage(val carrier: NetworkCarrier, val percentUsed: Int) : MessageContent
+    /**
+     * A telecom data alert; never money. [percentUsed] is -1 when the text states no percentage (only "1 GB left"); [left] is the
+     * data still available ("1 GB"); [expires] when the pack or validity ends; [isExhausted] when the quota is finished.
+     */
+    data class DataUsage(
+        val carrier: NetworkCarrier,
+        val percentUsed: Int,
+        val left: String? = null,
+        val expires: java.time.LocalDate? = null,
+        val isExhausted: Boolean = false,
+        val isDaily: Boolean = false
+    ) : MessageContent {
+        val hasPercent: Boolean get() = percentUsed in 0..100
+    }
 
     data class Courier(val status: CourierStatus) : MessageContent
 

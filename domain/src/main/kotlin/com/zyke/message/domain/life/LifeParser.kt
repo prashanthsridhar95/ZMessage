@@ -48,7 +48,7 @@ object LifeParser {
 
     fun parse(body: String, receivedOn: LocalDate): LifeFacts? {
         val text = body.replace(SPACES, " ").trim()
-        return renewal(text, receivedOn) ?: appointment(text, receivedOn) ?: travel(text, receivedOn) ?: parcel(text) ?: delivery(text)
+        return subscriptionReminder(text) ?: renewal(text, receivedOn) ?: appointment(text, receivedOn) ?: travel(text, receivedOn) ?: parcel(text) ?: delivery(text)
     }
 
     // ---- deliveries
@@ -168,6 +168,18 @@ object LifeParser {
     }
 
     // ---- renewals and expiries
+
+    /** The status of a nudge to take up a subscription or delivery again; not a payment, so it never counts as spend. */
+    const val SUBSCRIPTION_PENDING = "Subscription pending"
+
+    private val NOT_SUBSCRIBED = Regex("(?i)\\b(?:not (?:yet )?(?:subscribed|renewed|resubscribed)|yet to (?:subscribe|renew|resubscribe))\\b")
+    private val SUBSCRIPTION_SUBJECT = Regex("(?i)\\b(?:delivery|subscription|subscribe|milk|newspaper|magazine|tiffin|membership)\\b")
+
+    /** "You have still not subscribed for next month's delivery. Kindly subscribe ASAP." */
+    private fun subscriptionReminder(text: String): LifeFacts? {
+        if (!NOT_SUBSCRIBED.containsMatchIn(text) || !SUBSCRIPTION_SUBJECT.containsMatchIn(text)) return null
+        return LifeFacts(LifeKind.RENEWAL, SUBSCRIPTION_PENDING, null, null, null, isDone = false)
+    }
 
     private val EXPIRY = Regex(
         "(?i)\\b(?:expires?|expiring|expiry|expired|valid (?:till|until|upto|up to)|validity (?:till|ends?|expires?)|renew(?:al)?(?: is)? due|" +
